@@ -1,5 +1,5 @@
 # NAVO SMART custom build overlay for QGroundControl
-# V0.4 - interactive waypoints and silent automatic baiting
+# V0.5 - interactive waypoints and silent automatic baiting UI
 
 message(STATUS "QGC: Adding NAVO SMART custom overlay")
 
@@ -18,6 +18,7 @@ qt_add_qml_module(NavoSmartModule
         ${CMAKE_CURRENT_SOURCE_DIR}/qml/NavoWaypointDetails.qml
         ${CMAKE_CURRENT_SOURCE_DIR}/qml/NavoWaypointMapOverlay.qml
         ${CMAKE_CURRENT_SOURCE_DIR}/qml/NavoBaitingController.qml
+        ${CMAKE_CURRENT_SOURCE_DIR}/qml/NavoBaitingPanel.qml
     NO_PLUGIN
 )
 
