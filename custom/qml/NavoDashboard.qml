@@ -29,6 +29,8 @@ Item {
     property real batteryCurrentA: NaN
     property string boatId: "NAV0001"
     property int activePage: 0
+    property bool hopperStatusExpanded: false
+    property string selectedHopper: "none"
 
     readonly property bool vehicleConnected: vehicle !== null
     readonly property real batteryPercent: battery && !isNaN(battery.percentRemaining.rawValue) ? battery.percentRemaining.rawValue : NaN
@@ -116,6 +118,8 @@ Item {
         }
 
         onHopperReleaseRequested: function(hopper) {
+            root.hopperStatusExpanded = true
+            root.selectedHopper = hopper
             if (!hopperBridge.release(hopper))
                 root.lastNavigationStatus = "Eliberare blocată: calibrează ieșirile H743 și PWM-urile cuvelor"
         }
@@ -130,6 +134,7 @@ Item {
 
         onCycleFinished: function(success, message) {
             root.lastNavigationStatus = message
+            hopperPopupClose.restart()
         }
     }
 
@@ -255,6 +260,48 @@ Item {
             streamUrl: root.cameraStreamUrl
             onFullscreenRequested: root.lastNavigationStatus = "Camera GR01: fullscreen va fi activat când conectăm fluxul real G20"
         }
+
+
+        NavoBoatStatus {
+            id: boatStatusMini
+            compact: true
+            width: 150; height: 105
+            anchors.right: parent.right; anchors.bottom: parent.bottom
+            anchors.rightMargin: 12; anchors.bottomMargin: 54
+            z: 1200
+            leftHopperCommandOpen: hopperBridge.leftOpen
+            rightHopperCommandOpen: hopperBridge.rightOpen
+            waterDetected: root.waterAlarm
+            batteryTempC: NaN
+            visible: !root.hopperStatusExpanded
+            MouseArea { anchors.fill: parent; onClicked: root.hopperStatusExpanded = true }
+        }
+
+        Popup {
+            id: hopperStatusPopup
+            visible: root.hopperStatusExpanded
+            modal: false
+            focus: false
+            closePolicy: Popup.NoAutoClose
+            x: (mapPanel.width-width)/2; y: (mapPanel.height-height)/2
+            width: 430; height: 320
+            background: Rectangle { radius: 16; color: "#071827f2"; border.color: root.cyan; border.width: 2 }
+            contentItem: ColumnLayout {
+                anchors.fill: parent; anchors.margins: 14
+                Label { text: "DESCĂRCARE / STATUS BARCĂ"; color: root.cyan; font.bold: true; font.pixelSize: 18; Layout.alignment: Qt.AlignHCenter }
+                NavoBoatStatus {
+                    Layout.alignment: Qt.AlignHCenter; Layout.preferredWidth: 360; Layout.preferredHeight: 235
+                    compact: false
+                    leftHopperCommandOpen: hopperBridge.leftOpen
+                    rightHopperCommandOpen: hopperBridge.rightOpen
+                    waterDetected: root.waterAlarm
+                    batteryTempC: NaN
+                }
+                Button { text: "Închide"; Layout.alignment: Qt.AlignHCenter; onClicked: root.hopperStatusExpanded=false }
+            }
+        }
+
+        Timer { id: hopperPopupClose; interval: 5000; repeat:false; onTriggered: root.hopperStatusExpanded=false }
 
         Rectangle { anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 12; width: mapTitle.implicitWidth + 22; height: 32; radius: 6; color: "#071827dd"; Label { id: mapTitle; anchors.centerIn: parent; text: "HARTĂ LIVE • MAVLink"; color: root.textMain; font.bold: true } }
         RowLayout {
