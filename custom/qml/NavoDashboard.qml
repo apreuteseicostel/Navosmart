@@ -1,15 +1,19 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtPositioning
+
 import QGroundControl
 import QGroundControl.Controls
+import QGroundControl.FlyView
+import QGroundControl.FlightMap
+import QGroundControl.PlanView
 
 Item {
     id: root
     implicitWidth: 1280
     implicitHeight: 720
 
-    // Live QGroundControl vehicle. No demo telemetry values are used here.
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
     property var battery: vehicle && vehicle.batteries.count > 0 ? vehicle.batteries.get(0) : null
 
@@ -24,10 +28,7 @@ Item {
     readonly property int gpsFix: vehicle && vehicle.gps ? vehicle.gps.lock.rawValue : 0
     readonly property bool gpsRtk: gpsFix >= 5
     readonly property real hdop: vehicle && vehicle.gps && !isNaN(vehicle.gps.hdop.rawValue) ? vehicle.gps.hdop.rawValue : NaN
-    readonly property real latitude: vehicle && vehicle.coordinate.isValid ? vehicle.coordinate.latitude : NaN
-    readonly property real longitude: vehicle && vehicle.coordinate.isValid ? vehicle.coordinate.longitude : NaN
 
-    // Sonar stays disconnected until the Kogger protocol adapter is implemented.
     property real depthM: NaN
     property real waterTempC: NaN
     property bool sonarConnected: false
@@ -47,7 +48,8 @@ Item {
     Rectangle { anchors.fill: parent; color: root.bg }
 
     Rectangle {
-        id: header; anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+        id: header
+        anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
         height: 72; color: "#071827"; border.color: root.line
         RowLayout {
             anchors.fill: parent; anchors.leftMargin: 20; anchors.rightMargin: 20; spacing: 14
@@ -65,7 +67,8 @@ Item {
     }
 
     Rectangle {
-        id: sidebar; anchors.left: parent.left; anchors.top: header.bottom; anchors.bottom: footer.top
+        id: sidebar
+        anchors.left: parent.left; anchors.top: header.bottom; anchors.bottom: footer.top
         width: 190; color: "#071522"; border.color: root.line
         ColumnLayout { anchors.fill: parent; anchors.margins: 12; spacing: 8
             NavButton { text: "Hartă"; active: true }
@@ -80,34 +83,103 @@ Item {
     }
 
     Rectangle {
-        id: mapPanel; anchors.left: sidebar.right; anchors.right: rightPanel.left; anchors.top: header.bottom; anchors.bottom: footer.top
-        anchors.margins: 10; color: "#0c2232"; radius: 10; border.color: root.line
-        Rectangle { anchors.fill: parent; anchors.margins: 2; radius: 9; color: "#12384a"
-            Label { anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 16; text: "HARTĂ / NAVIGAȚIE"; color: root.textMain; font.bold: true }
-            Column { anchors.centerIn: parent; spacing: 8
-                Label { anchors.horizontalCenter: parent.horizontalCenter; text: root.vehicleConnected ? "▲" : "○"; color: "white"; font.pixelSize: 42; rotation: isNaN(root.headingDeg) ? 0 : root.headingDeg }
-                Label { anchors.horizontalCenter: parent.horizontalCenter; text: root.vehicleConnected ? (root.num(root.latitude,6,"°") + "   " + root.num(root.longitude,6,"°")) : "Aștept conexiunea MAVLink"; color: root.textMain }
-                Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Harta QGC reală este următorul modul de integrat"; color: root.textDim; font.pixelSize: 11 }
+        id: mapPanel
+        anchors.left: sidebar.right; anchors.right: rightPanel.left
+        anchors.top: header.bottom; anchors.bottom: footer.top
+        anchors.margins: 10; radius: 10; color: root.panel; border.color: root.line; clip: true
+
+        // Real QGC FlyView map. This uses QGC's tile provider, persistent map
+        // position/zoom, active vehicle marker, vehicle trajectory, actual HOME,
+        // and mission items through the same controller used by Fly View.
+        FlyViewMap {
+            id: liveMap
+            anchors.fill: parent
+            planMasterController: planController
+            rightPanelWidth: 0
+            toolInsets: QtObject {
+                readonly property real leftEdgeTopInset: 0
+                readonly property real leftEdgeCenterInset: 0
+                readonly property real leftEdgeBottomInset: 0
+                readonly property real rightEdgeTopInset: 0
+                readonly property real rightEdgeCenterInset: 0
+                readonly property real rightEdgeBottomInset: 0
+                readonly property real topEdgeLeftInset: 0
+                readonly property real topEdgeCenterInset: 0
+                readonly property real topEdgeRightInset: 0
+                readonly property real bottomEdgeLeftInset: 0
+                readonly property real bottomEdgeCenterInset: 48
+                readonly property real bottomEdgeRightInset: 0
             }
-            Rectangle { anchors.right: parent.right; anchors.bottom: parent.bottom; anchors.margins: 14; width: 150; height: 32; radius: 6; color: "#091827cc"
-                Label { anchors.centerIn: parent; text: "Acasă: " + root.num(root.distanceHomeM,0," m"); color: root.textMain }
+        }
+
+        PlanMasterController {
+            id: planController
+            Component.onCompleted: {
+                start()
+                if (root.vehicleConnected) {
+                    loadFromVehicle()
+                }
+            }
+        }
+
+        Connections {
+            target: QGroundControl.multiVehicleManager
+            function onActiveVehicleChanged(activeVehicle) {
+                if (activeVehicle) {
+                    planController.loadFromVehicle()
+                    liveMap.center = activeVehicle.coordinate
+                }
+            }
+        }
+
+        Rectangle {
+            anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 12
+            width: mapTitle.implicitWidth + 22; height: 32; radius: 6; color: "#071827dd"
+            Label { id: mapTitle; anchors.centerIn: parent; text: "HARTĂ LIVE • MAVLink"; color: root.textMain; font.bold: true }
+        }
+
+        RowLayout {
+            anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+            anchors.margins: 12; spacing: 8
+            Button {
+                text: "Centrează barca"; enabled: root.vehicleConnected
+                onClicked: if (root.vehicle) liveMap.center = root.vehicle.coordinate
+            }
+            Button {
+                text: "HOME"; enabled: root.vehicleConnected && root.vehicle.homePosition.isValid
+                onClicked: if (root.vehicle && root.vehicle.homePosition.isValid) liveMap.center = root.vehicle.homePosition
+            }
+            Button {
+                text: "Potrivește traseul"; enabled: root.vehicleConnected
+                onClicked: liveMap.mapFitFunctions.fitMapViewportToMissionItems()
+            }
+            Item { Layout.fillWidth: true }
+            Rectangle {
+                width: 154; height: 34; radius: 6; color: "#071827dd"
+                Label { anchors.centerIn: parent; text: "Acasă: " + root.num(root.distanceHomeM,0," m"); color: root.textMain; font.bold: true }
             }
         }
     }
 
     Rectangle {
-        id: rightPanel; anchors.right: parent.right; anchors.top: header.bottom; anchors.bottom: footer.top
-        anchors.topMargin: 10; anchors.bottomMargin: 10; anchors.rightMargin: 10; width: 310; color: root.panel; radius: 10; border.color: root.line
+        id: rightPanel
+        anchors.right: parent.right; anchors.top: header.bottom; anchors.bottom: footer.top
+        anchors.topMargin: 10; anchors.bottomMargin: 10; anchors.rightMargin: 10
+        width: 310; color: root.panel; radius: 10; border.color: root.line
         ColumnLayout { anchors.fill: parent; anchors.margins: 14; spacing: 10
             Label { text: "TELEMETRIE MAVLINK"; color: root.textMain; font.bold: true; font.pixelSize: 15 }
             DataLine { name: "Distanță acasă"; value: root.num(root.distanceHomeM,0," m") }
             DataLine { name: "GPS HDOP"; value: root.num(root.hdop,1,"") }
-            DataLine { name: "GPS fix"; value: root.gpsRtk ? "RTK" : (root.gpsFix >= 3 ? "3D" : "Fără fix") }
+            DataLine { name: "GPS fix"; value: root.gpsFix >= 6 ? "RTK FIXED" : (root.gpsFix === 5 ? "RTK FLOAT" : (root.gpsFix >= 3 ? "3D" : "Fără fix")) }
             DataLine { name: "Sateliți"; value: root.satellites >= 0 ? root.satellites.toString() : "--" }
             RowLayout { Layout.fillWidth: true; spacing: 7
                 ModeButton { text: "MANUAL"; selected: root.flightMode.toUpperCase() === "MANUAL"; enabled: root.vehicleConnected; onClicked: if (root.vehicle) root.vehicle.flightMode = "Manual" }
                 ModeButton { text: "AUTO"; selected: root.flightMode.toUpperCase() === "AUTO"; enabled: root.vehicleConnected; onClicked: if (root.vehicle) root.vehicle.flightMode = "Auto" }
                 ModeButton { text: "RTL"; selected: root.flightMode.toUpperCase().indexOf("RTL") >= 0; enabled: root.vehicleConnected; onClicked: if (root.vehicle) root.vehicle.guidedModeRTL(false) }
+            }
+            Button {
+                Layout.fillWidth: true; text: "Reîncarcă misiunea"; enabled: root.vehicleConnected
+                onClicked: planController.loadFromVehicle()
             }
             Rectangle { Layout.fillWidth: true; height: 1; color: root.line }
             RowLayout { Layout.fillWidth: true
@@ -126,11 +198,13 @@ Item {
     }
 
     Rectangle {
-        id: footer; anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 38; color: "#071522"; border.color: root.line
+        id: footer
+        anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+        height: 38; color: "#071522"; border.color: root.line
         RowLayout { anchors.fill: parent; anchors.leftMargin: 18; anchors.rightMargin: 18
             Label { text: root.vehicleConnected ? "●  MAVLink conectat • " + root.flightMode : "●  Aștept conexiunea ArduPilot"; color: root.vehicleConnected ? root.green : root.danger }
             Item { Layout.fillWidth: true }
-            Label { text: "NAVO SMART  •  Pescarul lu peste  •  V0.1 LIVE"; color: root.textDim; font.pixelSize: 11 }
+            Label { text: "NAVO SMART  •  Pescarul lu peste  •  V0.2 MAP LIVE"; color: root.textDim; font.pixelSize: 11 }
         }
     }
 
