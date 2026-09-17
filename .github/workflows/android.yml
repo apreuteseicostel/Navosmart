@@ -1,0 +1,46 @@
+name: Build NAVO SMART Android
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  android:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Clone pinned QGroundControl
+        run: |
+          git clone --depth 1 --branch v5.0.7 --recurse-submodules --shallow-submodules https://github.com/mavlink/qgroundcontrol.git qgc
+          rm -rf qgc/custom
+          cp -a custom qgc/custom
+      - name: Install Python and Qt Android
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: linux
+          target: android
+          arch: android_arm64_v8a
+          modules: 'qtlocation qtmultimedia qtpositioning qtsensors qtserialport qtspeech qtconnectivity qt5compat qtshadertools qtquick3d qtgraphs qthttpserver qtstatemachine'
+          cache: true
+      - name: Install host Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: linux
+          target: desktop
+          arch: linux_gcc_64
+          modules: 'qtlocation qtmultimedia qtpositioning qtsensors qtserialport qtspeech qtconnectivity qt5compat qtshadertools qtquick3d qtgraphs qthttpserver qtstatemachine'
+          dir: '${{ runner.temp }}/hostqt'
+          cache: true
+      - name: Configure
+        run: |
+          mkdir build
+          qt-cmake -S qgc -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DQT_ANDROID_ABIS=arm64-v8a -DQT_ANDROID_BUILD_ALL_ABIS=OFF -DQT_HOST_PATH="${{ runner.temp }}/hostqt/Qt/6.8.3/gcc_64"
+      - name: Build APK
+        run: cmake --build build --target all --config Release
+      - name: Collect APK
+        run: cp build/android-build/*.apk NAVO-SMART.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NAVO-SMART-APK
+          path: NAVO-SMART.apk
