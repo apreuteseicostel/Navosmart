@@ -50,6 +50,15 @@ Item {
 
     function num(v, decimals, suffix) { return isNaN(v) ? "--" : Number(v).toFixed(decimals) + suffix }
 
+    NavoHopperBridge {
+        id: hopperBridge
+        vehicle: root.vehicle
+        // Intentionally false until the real H743 output numbers and PWM end-points
+        // are measured on the assembled boat.
+        calibrated: false
+        onCommandSent: function(text) { root.lastNavigationStatus = text }
+    }
+
     NavoBaitingController {
         id: baitingController
         vehicle: root.vehicle
@@ -67,11 +76,14 @@ Item {
         // QGC exposes this Vehicle API and routes it through the firmware plugin.
         // Actual low-speed behaviour still requires Rover/H743 bench + water validation.
         onSpeedRequested: function(metersPerSecond) {
+            if (!root.vehicle || metersPerSecond <= 0.05) return
+            root.vehicle.guidedModeChangeGroundSpeedMetersSecond(metersPerSecond)
+        }
+
+        onStopRequested: function(reason) {
             if (!root.vehicle) return
-            // QGC/ArduPilot guided speed accepts positive set-points. Zero is kept
-            // inside the state machine as the target for a smooth deceleration.
-            if (metersPerSecond > 0.05)
-                root.vehicle.guidedModeChangeGroundSpeedMetersSecond(metersPerSecond)
+            root.vehicle.pauseVehicle()
+            root.lastNavigationStatus = "STOP/HOLD: " + reason
         }
 
         onSilentModeChangedDetailed: function(active) {
@@ -79,12 +91,9 @@ Item {
             root.lastNavigationStatus = active ? "🔇 Mod SILENȚIOS activ" : "Mod silențios dezactivat"
         }
 
-        // Servo output mapping is intentionally not guessed. This signal becomes live
-        // only after H743/Arduino left/right hopper channels are verified on the bench.
         onHopperReleaseRequested: function(hopper) {
-            root.lastNavigationStatus = hopper === 1 ? "Cerere cuvă STÂNGA" :
-                                        hopper === 2 ? "Cerere cuvă DREAPTA" :
-                                        hopper === 3 ? "Cerere AMBELE cuve" : "Fără eliberare"
+            if (!hopperBridge.release(hopper))
+                root.lastNavigationStatus = "Eliberare blocată: calibrează ieșirile H743 și PWM-urile cuvelor"
         }
 
         onRtlRequested: function() {
@@ -178,7 +187,7 @@ Item {
             savedWaterTempC: root.sonarConnected ? root.waterTempC : NaN
             z: 1000
             onNavigationCommandSent: function(wp, accepted) {
-                root.lastNavigationStatus = accepted ? "Navigare trimisă către " + friendlyName(wp) : "Comanda de navigare a fost refuzată"
+                root.lastNavigationStatus = accepted ? "Navigare trimisă către " + waypointLayer.friendlyName(wp) : "Comanda de navigare a fost refuzată"
             }
         }
 
@@ -277,7 +286,7 @@ Item {
         RowLayout { anchors.fill: parent; anchors.leftMargin: 18; anchors.rightMargin: 18
             Label { text: root.lastNavigationStatus.length ? root.lastNavigationStatus : (root.vehicleConnected ? "● MAVLink conectat • " + root.flightMode : "● Aștept conexiunea ArduPilot"); color: root.vehicleConnected ? root.green : root.danger }
             Item { Layout.fillWidth: true }
-            Label { text: "NAVO SMART • Pescarul lu peste • V0.7 SONAR CAMERA SAFETY"; color: root.textDim; font.pixelSize: 11 }
+            Label { text: "NAVO SMART • Pescarul lu peste • V0.8 H743 BAITING SAFETY"; color: root.textDim; font.pixelSize: 11 }
         }
     }
 
