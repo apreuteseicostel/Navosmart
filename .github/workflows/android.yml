@@ -6,6 +6,9 @@ on:
 jobs:
   android:
     runs-on: ubuntu-22.04
+    env:
+      QT_VERSION: 6.8.3
+      QT_ANDROID_ABIS: arm64-v8a
     steps:
       - uses: actions/checkout@v4
       - name: Clone pinned QGroundControl
@@ -13,15 +16,27 @@ jobs:
           git clone --depth 1 --branch v5.0.7 --recurse-submodules --shallow-submodules https://github.com/mavlink/qgroundcontrol.git qgc
           rm -rf qgc/custom
           cp -a custom qgc/custom
-      - name: Install Python and Qt Android
-        uses: jurplel/install-qt-action@v4
+      - name: Setup Java
+        uses: actions/setup-java@v4
         with:
-          version: '6.8.3'
-          host: linux
-          target: android
-          arch: android_arm64_v8a
-          modules: 'qtlocation qtmultimedia qtpositioning qtsensors qtserialport qtspeech qtconnectivity qt5compat qtshadertools qtquick3d qtgraphs qthttpserver qtstatemachine'
-          cache: true
+          distribution: temurin
+          java-version: '17'
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 12266719
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+      - name: Install Android NDK r26b
+        uses: nttld/setup-ndk@v1
+        id: ndk
+        with:
+          ndk-version: r26b
+          add-to-path: false
+      - name: Export NDK
+        run: |
+          echo "ANDROID_NDK_ROOT=${{ steps.ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=${{ steps.ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK=${{ steps.ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
       - name: Install host Qt
         uses: jurplel/install-qt-action@v4
         with:
@@ -29,18 +44,39 @@ jobs:
           host: linux
           target: desktop
           arch: linux_gcc_64
-          modules: 'qtlocation qtmultimedia qtpositioning qtsensors qtserialport qtspeech qtconnectivity qt5compat qtshadertools qtquick3d qtgraphs qthttpserver qtstatemachine'
-          dir: '${{ runner.temp }}/hostqt'
+          dir: '${{ runner.temp }}'
+          modules: 'qtcharts qtlocation qtpositioning qtspeech qt5compat qtmultimedia qtserialport qtimageformats qtshadertools qtconnectivity qtquick3d qtsensors'
+          setup-python: false
+          cache: true
+      - name: Install Qt Android arm64
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          host: linux
+          target: android
+          arch: android_arm64_v8a
+          dir: '${{ runner.temp }}'
+          modules: 'qtcharts qtlocation qtpositioning qtspeech qt5compat qtmultimedia qtserialport qtimageformats qtshadertools qtconnectivity qtquick3d qtsensors'
+          setup-python: false
           cache: true
       - name: Configure
         run: |
-          mkdir build
-          qt-cmake -S qgc -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DQT_ANDROID_ABIS=arm64-v8a -DQT_ANDROID_BUILD_ALL_ABIS=OFF -DQT_HOST_PATH="${{ runner.temp }}/hostqt/Qt/6.8.3/gcc_64"
+          mkdir -p build
+          "${{ runner.temp }}/Qt/6.8.3/android_arm64_v8a/bin/qt-cmake" -S qgc -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DQT_ANDROID_ABIS=arm64-v8a \
+            -DQT_ANDROID_BUILD_ALL_ABIS=OFF \
+            -DQT_HOST_PATH="${{ runner.temp }}/Qt/6.8.3/gcc_64" \
+            -DQT_ANDROID_SIGN_APK=OFF \
+            -DQGC_STABLE_BUILD=ON
       - name: Build APK
-        run: cmake --build build --target all --config Release
-      - name: Collect APK
-        run: cp build/android-build/*.apk NAVO-SMART.apk
-      - uses: actions/upload-artifact@v4
+        run: cmake --build build --target all --config Release --parallel
+      - name: List APK
+        if: always()
+        run: find build -type f -name '*.apk' -print || true
+      - name: Upload APK
+        if: success()
+        uses: actions/upload-artifact@v4
         with:
           name: NAVO-SMART-APK
-          path: NAVO-SMART.apk
+          path: build/android-build/*.apk
