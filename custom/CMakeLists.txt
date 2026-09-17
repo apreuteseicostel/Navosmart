@@ -32,6 +32,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoEnergyGuard.qml
         qml/NavoActionSequence.qml
         qml/NavoSafetyManager.qml
+        qml/NavoBoatStatus.qml
     NO_PLUGIN
 )
 
