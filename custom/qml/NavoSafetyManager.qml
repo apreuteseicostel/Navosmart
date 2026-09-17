@@ -6,7 +6,6 @@ QtObject {
     property bool enabled: true
     property bool waterDetected: false
     property real batteryTempC: NaN
-    property real boardTempC: NaN
     property real warningTempC: 45
     property real criticalTempC: 55
     property int waterConfirmMs: 4000
@@ -32,10 +31,8 @@ QtObject {
     }
     function evaluate() {
         if (!enabled) return
-        var hot = (!isNaN(batteryTempC) && batteryTempC >= criticalTempC) ||
-                  (!isNaN(boardTempC) && boardTempC >= criticalTempC)
-        var warm = (!isNaN(batteryTempC) && batteryTempC >= warningTempC) ||
-                   (!isNaN(boardTempC) && boardTempC >= warningTempC)
+        var hot = (!isNaN(batteryTempC) && batteryTempC >= criticalTempC)
+        var warm = (!isNaN(batteryTempC) && batteryTempC >= warningTempC)
 
         if (waterConfirmed || hot) {
             var r = waterConfirmed ? "Apă confirmată în compartimentul electronic" : "Temperatură critică"
@@ -59,7 +56,6 @@ QtObject {
         else { waterTimer.stop(); waterConfirmed=false; evaluate() }
     }
     onBatteryTempCChanged: evaluate()
-    onBoardTempCChanged: evaluate()
 
     property Timer waterTimer: Timer {
         interval: root.waterConfirmMs; repeat:false
