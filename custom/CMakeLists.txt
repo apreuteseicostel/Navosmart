@@ -26,6 +26,11 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoSafetyCard.qml
         qml/NavoFailsafeController.qml
         qml/NavoFailsafePanel.qml
+        qml/NavoDigitalAnchor.qml
+        qml/NavoAreaScan.qml
+        qml/NavoSonarRecorder.qml
+        qml/NavoEnergyGuard.qml
+        qml/NavoActionSequence.qml
     NO_PLUGIN
 )
 
