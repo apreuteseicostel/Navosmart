@@ -25,6 +25,10 @@ Item {
     property bool cameraConnected: false
     property string cameraStreamUrl: ""
     property bool waterAlarm: false
+    property real escTempC: NaN
+    property real batteryCurrentA: NaN
+    property string boatId: "NAV0001"
+    property int activePage: 0
 
     readonly property bool vehicleConnected: vehicle !== null
     readonly property real batteryPercent: battery && !isNaN(battery.percentRemaining.rawValue) ? battery.percentRemaining.rawValue : NaN
@@ -269,7 +273,7 @@ Item {
         anchors.topMargin: 10; anchors.bottomMargin: 10; anchors.rightMargin: 10
         width: 310; color: root.panel; radius: 10; border.color: root.line
         ColumnLayout { anchors.fill: parent; anchors.margins: 14; spacing: 10
-            Label { text: "TELEMETRIE MAVLINK"; color: root.textMain; font.bold: true; font.pixelSize: 15 }
+            Label { text: "KOGGER 2D SONAR"; color: root.cyan; font.bold: true; font.pixelSize: 15 }
             DataLine { name: "Distanță acasă"; value: root.num(root.distanceHomeM,0," m") }
             DataLine { name: "GPS HDOP"; value: root.num(root.hdop,1,"") }
             DataLine { name: "GPS fix"; value: root.gpsFix >= 6 ? "RTK FIXED" : (root.gpsFix === 5 ? "RTK FLOAT" : (root.gpsFix >= 3 ? "3D" : "Fără fix")) }
@@ -283,6 +287,19 @@ Item {
                 ModeButton { text: "RTL"; selected: root.flightMode.toUpperCase().indexOf("RTL") >= 0; enabled: root.vehicleConnected; onClicked: if (root.vehicle) root.vehicle.guidedModeRTL(false) }
             }
             Button { Layout.fillWidth: true; text: "Reîncarcă misiunea"; enabled: root.vehicleConnected; onClicked: planController.loadFromVehicle() }
+            Label { text: "CAMERĂ BARCĂ"; color: root.cyan; font.bold: true }
+            NavoCameraPip {
+                Layout.fillWidth: true; Layout.preferredHeight: 125
+                connected: root.cameraConnected; streamUrl: root.cameraStreamUrl
+                onFullscreenRequested: root.lastNavigationStatus = "Cameră: fullscreen solicitat"
+            }
+            Label { text: "NĂDIRE SILENȚIOASĂ"; color: root.cyan; font.bold: true }
+            RowLayout {
+                Layout.fillWidth: true
+                Button { Layout.fillWidth: true; text: "STÂNGA"; enabled: root.vehicleConnected; onClicked: root.lastNavigationStatus = "Cuva stângă selectată" }
+                Button { Layout.fillWidth: true; text: "AMBELE"; enabled: root.vehicleConnected; onClicked: root.lastNavigationStatus = "Ambele cuve selectate" }
+                Button { Layout.fillWidth: true; text: "DREAPTA"; enabled: root.vehicleConnected; onClicked: root.lastNavigationStatus = "Cuva dreaptă selectată" }
+            }
             Rectangle { Layout.fillWidth: true; height: 1; color: root.line }
             NavoSonarCard {
                 Layout.fillWidth: true
