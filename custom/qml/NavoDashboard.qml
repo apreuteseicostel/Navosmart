@@ -31,6 +31,11 @@ Item {
     property int activePage: 0
     property bool hopperStatusExpanded: false
     property string selectedHopper: "none"
+    property int manualHopperHoldMs: 1500
+    readonly property bool manualMode: root.flightMode.toUpperCase() === "MANUAL"
+    readonly property bool autoMode: root.flightMode.toUpperCase() === "AUTO"
+    readonly property bool autoHopperWindow: root.autoMode && baitingController.enabled && baitingController.distanceToTarget() <= baitingController.finalRadiusM
+    readonly property bool hopperReleaseSafe: root.manualMode || (root.autoHopperWindow && !isNaN(root.speedMps) && root.speedMps <= baitingController.releaseMaxSpeedMps)
 
     readonly property bool vehicleConnected: vehicle !== null
     readonly property real batteryPercent: battery && !isNaN(battery.percentRemaining.rawValue) ? battery.percentRemaining.rawValue : NaN
@@ -130,6 +135,7 @@ Item {
 
         onStateChangedDetailed: function(state, text) {
             root.lastNavigationStatus = "Nădire: " + text
+            if (state === baitingController.FinalApproach) root.hopperStatusExpanded = true
         }
 
         onCycleFinished: function(success, message) {
@@ -297,6 +303,18 @@ Item {
                     waterDetected: root.waterAlarm
                     batteryTempC: NaN
                 }
+                RowLayout {
+                    Layout.fillWidth: true
+                    HoldHopperButton { Layout.fillWidth: true; text: "ȚINE C1"; hopperId: 1 }
+                    HoldHopperButton { Layout.fillWidth: true; text: "ȚINE AMBELE"; hopperId: 3 }
+                    HoldHopperButton { Layout.fillWidth: true; text: "ȚINE C2"; hopperId: 2 }
+                }
+                Label {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: root.autoMode && !root.autoHopperWindow ? "Cuve blocate până la apropierea finală" :
+                          (root.autoMode && !root.hopperReleaseSafe ? "Aștept STOP pentru descărcare" : "Ține apăsat 1,5 s pentru deschidere")
+                    color: root.textDim; font.pixelSize: 11
+                }
                 Button { text: "Închide"; Layout.alignment: Qt.AlignHCenter; onClicked: root.hopperStatusExpanded=false }
             }
         }
@@ -381,5 +399,37 @@ Item {
     component StatusPill: Rectangle { property string label: ""; property string value: ""; property bool ok: false; Layout.preferredWidth: 120; Layout.preferredHeight: 48; radius: 7; color: root.panel2; border.color: ok ? root.green : root.line; Column { anchors.centerIn: parent; spacing: 1; Label { anchors.horizontalCenter: parent.horizontalCenter; text: label; color: root.textDim; font.pixelSize: 9 }; Label { anchors.horizontalCenter: parent.horizontalCenter; text: value; color: ok ? root.green : root.textMain; font.pixelSize: 13; font.bold: true } } }
     component NavButton: Button { property bool active: false; Layout.fillWidth: true; Layout.preferredHeight: 44; background: Rectangle { radius: 7; color: parent.active ? "#123d58" : "transparent"; border.color: parent.active ? root.cyan : "transparent" }; contentItem: Label { text: parent.text; color: parent.active ? root.cyan : root.textMain; verticalAlignment: Text.AlignVCenter; leftPadding: 10; font.bold: parent.active } }
     component ModeButton: Button { property bool selected: false; Layout.fillWidth: true; background: Rectangle { radius: 6; color: parent.selected ? "#0e7048" : root.panel2; border.color: parent.selected ? root.green : root.line }; contentItem: Label { text: parent.text; color: parent.selected ? "white" : root.textDim; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; font.bold: true; font.pixelSize: 11 } }
+    component HoldHopperButton: Button {
+        property int hopperId: 0
+        property real holdProgress: 0
+        enabled: root.vehicleConnected && (root.manualMode || root.autoHopperWindow)
+        onPressed: { holdProgress=0; hopperHoldTimer.restart() }
+        onReleased: { if (hopperHoldTimer.running) hopperHoldTimer.stop(); holdProgress=0 }
+        onCanceled: { hopperHoldTimer.stop(); holdProgress=0 }
+        Timer {
+            id: hopperHoldTimer; interval: 50; repeat: true
+            onTriggered: {
+                parent.holdProgress += interval/root.manualHopperHoldMs
+                if (parent.holdProgress >= 1) {
+                    stop(); parent.holdProgress=0
+                    if (!root.hopperReleaseSafe) {
+                        root.lastNavigationStatus = root.autoMode ? "Cuva blocată: aștept oprirea bărcii" : "Cuva blocată"
+                        return
+                    }
+                    root.hopperStatusExpanded=true
+                    root.selectedHopper=parent.hopperId
+                    if (!hopperBridge.release(parent.hopperId))
+                        root.lastNavigationStatus="Deschidere blocată: cuvele trebuie calibrate pe H743"
+                }
+            }
+        }
+        background: Rectangle {
+            radius:6
+            color: !parent.enabled ? "#26313a" : (parent.pressed ? "#0e7048" : root.panel2)
+            border.color: parent.enabled ? root.cyan : "#46515a"
+            Rectangle { anchors.left:parent.left; anchors.bottom:parent.bottom; height:4; width:parent.width*parent.parent.holdProgress; color:root.green; radius:2 }
+        }
+        contentItem: Label { text:parent.text; color:parent.enabled ? root.textMain : "#78838c"; horizontalAlignment:Text.AlignHCenter; verticalAlignment:Text.AlignVCenter; font.bold:true }
+    }
     component DataLine: RowLayout { property string name: ""; property string value: "--"; Layout.fillWidth: true; Label { text: parent.name; color: root.textDim }; Item { Layout.fillWidth: true }; Label { text: parent.value; color: root.textMain; font.bold: true } }
 }
