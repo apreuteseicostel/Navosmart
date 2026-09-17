@@ -31,6 +31,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoSonarRecorder.qml
         qml/NavoEnergyGuard.qml
         qml/NavoActionSequence.qml
+        qml/NavoSafetyManager.qml
     NO_PLUGIN
 )
 
