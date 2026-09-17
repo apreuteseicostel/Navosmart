@@ -1,35 +1,38 @@
-# NAVO SMART custom build overlay for QGroundControl
-# V0.5 - interactive waypoints and silent automatic baiting UI
+message(STATUS "NAVO SMART: loading custom QGroundControl overlay")
 
-message(STATUS "QGC: Adding NAVO SMART custom overlay")
+set_property(DIRECTORY ${CMAKE_SOURCE_DIR} APPEND PROPERTY COMPILE_DEFINITIONS
+    QGC_CUSTOM_BUILD
+    CUSTOMHEADER="CustomPlugin.h"
+    CUSTOMCLASS=CustomPlugin
+)
 
 qt_add_library(NavoSmartModule STATIC)
-qgc_configure_target(NavoSmartModule)
-
 qt_add_qml_module(NavoSmartModule
     URI NavoSmart
     VERSION 1.0
     RESOURCE_PREFIX /qml
     QML_FILES
-        ${CMAKE_CURRENT_SOURCE_DIR}/qml/NavoDashboard.qml
-        ${CMAKE_CURRENT_SOURCE_DIR}/qml/NavoTelemetryCard.qml
-        ${CMAKE_CURRENT_SOURCE_DIR}/qml/NavoModeButton.qml
-        ${CMAKE_CURRENT_SOURCE_DIR}/qml/NavoWaypointEditor.qml
-        ${CMAKE_CURRENT_SOURCE_DIR}/qml/NavoWaypointDetails.qml
-        ${CMAKE_CURRENT_SOURCE_DIR}/qml/NavoWaypointMapOverlay.qml
-        ${CMAKE_CURRENT_SOURCE_DIR}/qml/NavoBaitingController.qml
-        ${CMAKE_CURRENT_SOURCE_DIR}/qml/NavoBaitingPanel.qml
+        qml/NavoDashboard.qml
+        qml/NavoTelemetryCard.qml
+        qml/NavoModeButton.qml
+        qml/NavoWaypointEditor.qml
+        qml/NavoWaypointDetails.qml
+        qml/NavoWaypointMapOverlay.qml
+        qml/NavoBaitingController.qml
+        qml/NavoBaitingPanel.qml
+        qml/NavoHopperBridge.qml
+        qml/NavoSonarCard.qml
+        qml/NavoCameraPip.qml
+        qml/NavoSafetyCard.qml
+        qml/NavoFailsafeController.qml
+        qml/NavoFailsafePanel.qml
     NO_PLUGIN
 )
 
-set(CUSTOM_LIBRARIES
-    NavoSmartModule
-    PARENT_SCOPE
+set(CUSTOM_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.h
+    CACHE INTERNAL "" FORCE
 )
-
-set(CUSTOM_QT_COMPONENTS
-    Core
-    Location
-    Positioning
-    PARENT_SCOPE
-)
+set(CUSTOM_LIBRARIES NavoSmartModule CACHE INTERNAL "" FORCE)
+set(CUSTOM_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/src CACHE INTERNAL "" FORCE)
