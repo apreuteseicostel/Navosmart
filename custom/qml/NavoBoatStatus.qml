@@ -10,11 +10,14 @@ Item {
     property bool headlightOn: false
     property bool positionLightsOn: false
     property real rudderNormalized: 0
+    property bool compact: false
+    property bool confirmedLeftOpen: false
+    property bool confirmedRightOpen: false
     property string leftStateText: leftHopperCommandOpen ? "COMANDATĂ DESCHISĂ" : "COMANDATĂ ÎNCHISĂ"
     property string rightStateText: rightHopperCommandOpen ? "COMANDATĂ DESCHISĂ" : "COMANDATĂ ÎNCHISĂ"
 
-    implicitWidth: 320
-    implicitHeight: 220
+    implicitWidth: compact ? 150 : 320
+    implicitHeight: compact ? 105 : 220
 
     Rectangle { anchors.fill: parent; radius: 12; color: "#101820"; border.color: root.waterDetected ? "#ff4d4d" : "#314252" }
     Text { text: "BOAT STATUS"; color: "white"; font.bold: true; anchors.horizontalCenter: parent.horizontalCenter; y: 8 }
@@ -55,8 +58,8 @@ Item {
 
     Column {
         anchors.left:parent.left; anchors.leftMargin:10; anchors.bottom:parent.bottom; anchors.bottomMargin:8; spacing:2
-        Text { text:"L: "+root.leftStateText; color:"#dce7ee"; font.pixelSize:10 }
-        Text { text:"R: "+root.rightStateText; color:"#dce7ee"; font.pixelSize:10 }
+        Text { text:"L: "+root.leftStateText; color:"#dce7ee"; font.pixelSize:root.compact ? 7 : 10 }
+        Text { text:"R: "+root.rightStateText; color:"#dce7ee"; font.pixelSize:root.compact ? 7 : 10 }
     }
     Column {
         anchors.right:parent.right; anchors.rightMargin:10; anchors.bottom:parent.bottom; anchors.bottomMargin:8; spacing:2
