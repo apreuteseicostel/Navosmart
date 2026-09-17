@@ -396,40 +396,83 @@ Item {
         }
     }
 
-    component StatusPill: Rectangle { property string label: ""; property string value: ""; property bool ok: false; Layout.preferredWidth: 120; Layout.preferredHeight: 48; radius: 7; color: root.panel2; border.color: ok ? root.green : root.line; Column { anchors.centerIn: parent; spacing: 1; Label { anchors.horizontalCenter: parent.horizontalCenter; text: label; color: root.textDim; font.pixelSize: 9 }; Label { anchors.horizontalCenter: parent.horizontalCenter; text: value; color: ok ? root.green : root.textMain; font.pixelSize: 13; font.bold: true } } }
-    component NavButton: Button { property bool active: false; Layout.fillWidth: true; Layout.preferredHeight: 44; background: Rectangle { radius: 7; color: parent.active ? "#123d58" : "transparent"; border.color: parent.active ? root.cyan : "transparent" }; contentItem: Label { text: parent.text; color: parent.active ? root.cyan : root.textMain; verticalAlignment: Text.AlignVCenter; leftPadding: 10; font.bold: parent.active } }
-    component ModeButton: Button { property bool selected: false; Layout.fillWidth: true; background: Rectangle { radius: 6; color: parent.selected ? "#0e7048" : root.panel2; border.color: parent.selected ? root.green : root.line }; contentItem: Label { text: parent.text; color: parent.selected ? "white" : root.textDim; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; font.bold: true; font.pixelSize: 11 } }
+    component StatusPill: Rectangle {
+        property string label: ""
+        property string value: ""
+        property bool ok: false
+        Layout.preferredWidth: 120
+        Layout.preferredHeight: 48
+        radius: 7
+        color: root.panel2
+        border.color: ok ? root.green : root.line
+        Column {
+            anchors.centerIn: parent
+            spacing: 1
+            Label { anchors.horizontalCenter: parent.horizontalCenter; text: label; color: root.textDim; font.pixelSize: 9 }
+            Label { anchors.horizontalCenter: parent.horizontalCenter; text: value; color: ok ? root.green : root.textMain; font.pixelSize: 13; font.bold: true }
+        }
+    }
+    component NavButton: Button {
+        property bool active: false
+        Layout.fillWidth: true
+        Layout.preferredHeight: 44
+        background: Rectangle { radius: 7; color: parent.active ? "#123d58" : "transparent"; border.color: parent.active ? root.cyan : "transparent" }
+        contentItem: Label { text: parent.text; color: parent.active ? root.cyan : root.textMain; verticalAlignment: Text.AlignVCenter; leftPadding: 10; font.bold: parent.active }
+    }
+    component ModeButton: Button {
+        property bool selected: false
+        Layout.fillWidth: true
+        background: Rectangle { radius: 6; color: parent.selected ? "#0e7048" : root.panel2; border.color: parent.selected ? root.green : root.line }
+        contentItem: Label { text: parent.text; color: parent.selected ? "white" : root.textDim; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; font.bold: true; font.pixelSize: 11 }
+    }
     component HoldHopperButton: Button {
         property int hopperId: 0
         property real holdProgress: 0
         enabled: root.vehicleConnected && (root.manualMode || root.autoHopperWindow)
-        onPressed: { holdProgress=0; hopperHoldTimer.restart() }
-        onReleased: { if (hopperHoldTimer.running) hopperHoldTimer.stop(); holdProgress=0 }
-        onCanceled: { hopperHoldTimer.stop(); holdProgress=0 }
+        onPressed: { holdProgress = 0; hopperHoldTimer.restart() }
+        onReleased: { if (hopperHoldTimer.running) hopperHoldTimer.stop(); holdProgress = 0 }
+        onCanceled: { hopperHoldTimer.stop(); holdProgress = 0 }
         Timer {
-            id: hopperHoldTimer; interval: 50; repeat: true
+            id: hopperHoldTimer
+            interval: 50
+            repeat: true
             onTriggered: {
-                parent.holdProgress += interval/root.manualHopperHoldMs
+                parent.holdProgress += interval / root.manualHopperHoldMs
                 if (parent.holdProgress >= 1) {
-                    stop(); parent.holdProgress=0
+                    stop()
+                    parent.holdProgress = 0
                     if (!root.hopperReleaseSafe) {
                         root.lastNavigationStatus = root.autoMode ? "Cuva blocată: aștept oprirea bărcii" : "Cuva blocată"
                         return
                     }
-                    root.hopperStatusExpanded=true
-                    root.selectedHopper=parent.hopperId
+                    root.hopperStatusExpanded = true
+                    root.selectedHopper = parent.hopperId
                     if (!hopperBridge.release(parent.hopperId))
-                        root.lastNavigationStatus="Deschidere blocată: cuvele trebuie calibrate pe H743"
+                        root.lastNavigationStatus = "Deschidere blocată: cuvele trebuie calibrate pe H743"
                 }
             }
         }
         background: Rectangle {
-            radius:6
+            radius: 6
             color: !parent.enabled ? "#26313a" : (parent.pressed ? "#0e7048" : root.panel2)
             border.color: parent.enabled ? root.cyan : "#46515a"
-            Rectangle { anchors.left:parent.left; anchors.bottom:parent.bottom; height:4; width:parent.width*parent.parent.holdProgress; color:root.green; radius:2 }
+            Rectangle {
+                anchors.left: parent.left
+                anchors.bottom: parent.bottom
+                height: 4
+                width: parent.width * parent.parent.holdProgress
+                color: root.green
+                radius: 2
+            }
         }
-        contentItem: Label { text:parent.text; color:parent.enabled ? root.textMain : "#78838c"; horizontalAlignment:Text.AlignHCenter; verticalAlignment:Text.AlignVCenter; font.bold:true }
+        contentItem: Label { text: parent.text; color: parent.enabled ? root.textMain : "#78838c"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; font.bold: true }
     }
-    component DataLine: RowLayout { property string name: ""; property string value: "--"; Layout.fillWidth: true; Label { text: parent.name; color: root.textDim }; Item { Layout.fillWidth: true }; Label { text: parent.value; color: root.textMain; font.bold: true } }
+    component DataLine: RowLayout {
+        property string name: ""
+        property string value: "--"
+        Layout.fillWidth: true
+        Label { text: parent.name; color: root.textDim }
+        Item { Layout.fillWidth: true }
+        Label { text: parent.value; color: root.textMain; font.bold: true }
+    }
 }
