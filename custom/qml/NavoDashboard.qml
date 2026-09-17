@@ -46,6 +46,48 @@ Item {
 
     function num(v, decimals, suffix) { return isNaN(v) ? "--" : Number(v).toFixed(decimals) + suffix }
 
+    NavoBaitingController {
+        id: baitingController
+        vehicle: root.vehicle
+
+        onGotoRequested: function(coordinate, reason) {
+            if (!root.vehicle || !coordinate || !coordinate.isValid) {
+                abortCycle("Coordonată de navigare invalidă")
+                return
+            }
+            var accepted = root.vehicle.guidedModeGotoLocation(coordinate)
+            if (!accepted) abortCycle("ArduPilot a refuzat comanda Guided GoTo")
+        }
+
+        // QGC exposes this Vehicle API and routes it through the firmware plugin.
+        // Actual low-speed behaviour still requires Rover/H743 bench + water validation.
+        onSpeedRequested: function(metersPerSecond) {
+            if (!root.vehicle) return
+            if (metersPerSecond > 0.05)
+                root.vehicle.guidedModeChangeGroundSpeedMetersSecond(metersPerSecond)
+        }
+
+        // Servo output mapping is intentionally not guessed. This signal becomes live
+        // only after H743/Arduino left/right hopper channels are verified on the bench.
+        onHopperReleaseRequested: function(hopper) {
+            root.lastNavigationStatus = hopper === 1 ? "Cerere cuvă STÂNGA" :
+                                        hopper === 2 ? "Cerere cuvă DREAPTA" :
+                                        hopper === 3 ? "Cerere AMBELE cuve" : "Fără eliberare"
+        }
+
+        onRtlRequested: function() {
+            if (root.vehicle) root.vehicle.guidedModeRTL(false)
+        }
+
+        onStateChangedDetailed: function(state, text) {
+            root.lastNavigationStatus = "Nădire: " + text
+        }
+
+        onCycleFinished: function(success, message) {
+            root.lastNavigationStatus = message
+        }
+    }
+
     Rectangle { anchors.fill: parent; color: root.bg }
 
     Rectangle {
@@ -102,12 +144,8 @@ Item {
             }
         }
 
-        PlanMasterController {
-            id: planController
-            Component.onCompleted: { start(); if (root.vehicleConnected) loadFromVehicle() }
-        }
+        PlanMasterController { id: planController; Component.onCompleted: { start(); if (root.vehicleConnected) loadFromVehicle() } }
 
-        // NAVO SMART interactive layer: tap a waypoint -> live details -> explicit confirmation -> Guided GoTo.
         NavoWaypointMapOverlay {
             id: waypointLayer
             anchors.fill: liveMap
@@ -119,26 +157,40 @@ Item {
             savedWaterTempC: root.sonarConnected ? root.waterTempC : NaN
             z: 1000
             onNavigationCommandSent: function(wp, accepted) {
-                root.lastNavigationStatus = accepted
-                    ? "Navigare trimisă către " + friendlyName(wp)
-                    : "Comanda de navigare a fost refuzată"
+                root.lastNavigationStatus = accepted ? "Navigare trimisă către " + friendlyName(wp) : "Comanda de navigare a fost refuzată"
             }
+        }
+
+        NavoBaitingPanel {
+            id: baitingPanel
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: 12
+            z: 1100
+            visible: waypointLayer.selectedWaypoint !== null || baitingController.enabled
+            controller: baitingController
+            waypoint: waypointLayer.selectedWaypoint ? waypointLayer.selectedWaypoint : baitingController.targetWaypoint
+            waypointName: waypointLayer.selectedWaypoint ? waypointLayer.friendlyName(waypointLayer.selectedWaypoint) : baitingController.targetName
+            onStartConfirmed: function(wp, name, hopper) {
+                if (!root.vehicleConnected || root.gpsFix < 3) {
+                    root.lastNavigationStatus = "Nădire blocată: este necesar GPS 3D/RTK și conexiune MAVLink"
+                    return
+                }
+                if (baitingController.startCycle(wp, name, hopper)) waypointLayer.selectedWaypoint = null
+            }
+            onAbortRequested: baitingController.abortCycle("Oprit manual din NAVO SMART")
         }
 
         Connections {
             target: QGroundControl.multiVehicleManager
             function onActiveVehicleChanged(activeVehicle) {
+                if (baitingController.enabled) baitingController.abortCycle("Vehiculul activ s-a schimbat")
                 waypointLayer.selectedWaypoint = null
                 if (activeVehicle) { planController.loadFromVehicle(); liveMap.center = activeVehicle.coordinate }
             }
         }
 
-        Rectangle {
-            anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 12
-            width: mapTitle.implicitWidth + 22; height: 32; radius: 6; color: "#071827dd"
-            Label { id: mapTitle; anchors.centerIn: parent; text: "HARTĂ LIVE • MAVLink"; color: root.textMain; font.bold: true }
-        }
-
+        Rectangle { anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 12; width: mapTitle.implicitWidth + 22; height: 32; radius: 6; color: "#071827dd"; Label { id: mapTitle; anchors.centerIn: parent; text: "HARTĂ LIVE • MAVLink"; color: root.textMain; font.bold: true } }
         RowLayout {
             anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; anchors.margins: 12; spacing: 8
             Button { text: "Centrează barca"; enabled: root.vehicleConnected; onClicked: if (root.vehicle) liveMap.center = root.vehicle.coordinate }
@@ -160,6 +212,7 @@ Item {
             DataLine { name: "GPS HDOP"; value: root.num(root.hdop,1,"") }
             DataLine { name: "GPS fix"; value: root.gpsFix >= 6 ? "RTK FIXED" : (root.gpsFix === 5 ? "RTK FLOAT" : (root.gpsFix >= 3 ? "3D" : "Fără fix")) }
             DataLine { name: "Sateliți"; value: root.satellites >= 0 ? root.satellites.toString() : "--" }
+            DataLine { name: "Nădire"; value: baitingController.stateText(baitingController.state) }
             RowLayout { Layout.fillWidth: true; spacing: 7
                 ModeButton { text: "MANUAL"; selected: root.flightMode.toUpperCase() === "MANUAL"; enabled: root.vehicleConnected; onClicked: if (root.vehicle) root.vehicle.flightMode = "Manual" }
                 ModeButton { text: "AUTO"; selected: root.flightMode.toUpperCase() === "AUTO"; enabled: root.vehicleConnected; onClicked: if (root.vehicle) root.vehicle.flightMode = "Auto" }
@@ -168,12 +221,7 @@ Item {
             Button { Layout.fillWidth: true; text: "Reîncarcă misiunea"; enabled: root.vehicleConnected; onClicked: planController.loadFromVehicle() }
             Rectangle { Layout.fillWidth: true; height: 1; color: root.line }
             RowLayout { Layout.fillWidth: true; Label { text: "SONAR 2D"; color: root.textMain; font.bold: true }; Item { Layout.fillWidth: true }; Label { text: root.sonarConnected ? "● Conectat" : "● Neconectat"; color: root.sonarConnected ? root.green : root.textDim } }
-            Rectangle { Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 150; radius: 7; color: "#06131e"; border.color: root.line
-                Column { anchors.centerIn: parent; spacing: 5
-                    Label { anchors.horizontalCenter: parent.horizontalCenter; text: root.sonarConnected ? root.num(root.depthM,1," m") : "-- m"; color: root.textMain; font.pixelSize: 28; font.bold: true }
-                    Label { anchors.horizontalCenter: parent.horizontalCenter; text: root.sonarConnected ? root.num(root.waterTempC,1," °C") : "Kogger neconectat"; color: root.textDim }
-                }
-            }
+            Rectangle { Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 120; radius: 7; color: "#06131e"; border.color: root.line; Column { anchors.centerIn: parent; spacing: 5; Label { anchors.horizontalCenter: parent.horizontalCenter; text: root.sonarConnected ? root.num(root.depthM,1," m") : "-- m"; color: root.textMain; font.pixelSize: 28; font.bold: true }; Label { anchors.horizontalCenter: parent.horizontalCenter; text: root.sonarConnected ? root.num(root.waterTempC,1," °C") : "Kogger neconectat"; color: root.textDim } } }
             Label { text: "Kogger Sonar 2D Basic"; color: root.textDim; font.pixelSize: 11 }
         }
     }
@@ -183,29 +231,14 @@ Item {
         anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
         height: 38; color: "#071522"; border.color: root.line
         RowLayout { anchors.fill: parent; anchors.leftMargin: 18; anchors.rightMargin: 18
-            Label { text: root.lastNavigationStatus.length ? root.lastNavigationStatus : (root.vehicleConnected ? "●  MAVLink conectat • " + root.flightMode : "●  Aștept conexiunea ArduPilot"); color: root.vehicleConnected ? root.green : root.danger }
+            Label { text: root.lastNavigationStatus.length ? root.lastNavigationStatus : (root.vehicleConnected ? "● MAVLink conectat • " + root.flightMode : "● Aștept conexiunea ArduPilot"); color: root.vehicleConnected ? root.green : root.danger }
             Item { Layout.fillWidth: true }
-            Label { text: "NAVO SMART • Pescarul lu peste • V0.3 WAYPOINT LIVE"; color: root.textDim; font.pixelSize: 11 }
+            Label { text: "NAVO SMART • Pescarul lu peste • V0.5 SILENT BAITING"; color: root.textDim; font.pixelSize: 11 }
         }
     }
 
-    component StatusPill: Rectangle {
-        property string label: ""; property string value: ""; property bool ok: false
-        Layout.preferredWidth: 120; Layout.preferredHeight: 48; radius: 7; color: root.panel2; border.color: ok ? root.green : root.line
-        Column { anchors.centerIn: parent; spacing: 1; Label { anchors.horizontalCenter: parent.horizontalCenter; text: label; color: root.textDim; font.pixelSize: 9 }; Label { anchors.horizontalCenter: parent.horizontalCenter; text: value; color: ok ? root.green : root.textMain; font.pixelSize: 13; font.bold: true } }
-    }
-    component NavButton: Button {
-        property bool active: false; Layout.fillWidth: true; Layout.preferredHeight: 44
-        background: Rectangle { radius: 7; color: parent.active ? "#123d58" : "transparent"; border.color: parent.active ? root.cyan : "transparent" }
-        contentItem: Label { text: parent.text; color: parent.active ? root.cyan : root.textMain; verticalAlignment: Text.AlignVCenter; leftPadding: 10; font.bold: parent.active }
-    }
-    component ModeButton: Button {
-        property bool selected: false; Layout.fillWidth: true
-        background: Rectangle { radius: 6; color: parent.selected ? "#0e7048" : root.panel2; border.color: parent.selected ? root.green : root.line }
-        contentItem: Label { text: parent.text; color: parent.selected ? "white" : root.textDim; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; font.bold: true; font.pixelSize: 11 }
-    }
-    component DataLine: RowLayout {
-        property string name: ""; property string value: "--"; Layout.fillWidth: true
-        Label { text: parent.name; color: root.textDim }; Item { Layout.fillWidth: true }; Label { text: parent.value; color: root.textMain; font.bold: true }
-    }
+    component StatusPill: Rectangle { property string label: ""; property string value: ""; property bool ok: false; Layout.preferredWidth: 120; Layout.preferredHeight: 48; radius: 7; color: root.panel2; border.color: ok ? root.green : root.line; Column { anchors.centerIn: parent; spacing: 1; Label { anchors.horizontalCenter: parent.horizontalCenter; text: label; color: root.textDim; font.pixelSize: 9 }; Label { anchors.horizontalCenter: parent.horizontalCenter; text: value; color: ok ? root.green : root.textMain; font.pixelSize: 13; font.bold: true } } }
+    component NavButton: Button { property bool active: false; Layout.fillWidth: true; Layout.preferredHeight: 44; background: Rectangle { radius: 7; color: parent.active ? "#123d58" : "transparent"; border.color: parent.active ? root.cyan : "transparent" }; contentItem: Label { text: parent.text; color: parent.active ? root.cyan : root.textMain; verticalAlignment: Text.AlignVCenter; leftPadding: 10; font.bold: parent.active } }
+    component ModeButton: Button { property bool selected: false; Layout.fillWidth: true; background: Rectangle { radius: 6; color: parent.selected ? "#0e7048" : root.panel2; border.color: parent.selected ? root.green : root.line }; contentItem: Label { text: parent.text; color: parent.selected ? "white" : root.textDim; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; font.bold: true; font.pixelSize: 11 } }
+    component DataLine: RowLayout { property string name: ""; property string value: "--"; Layout.fillWidth: true; Label { text: parent.name; color: root.textDim }; Item { Layout.fillWidth: true }; Label { text: parent.value; color: root.textMain; font.bold: true } }
 }
