@@ -22,6 +22,9 @@ Item {
     property bool sonarConnected: false
     property string lastNavigationStatus: ""
     property bool silentModeActive: false
+    property bool cameraConnected: false
+    property string cameraStreamUrl: ""
+    property bool waterAlarm: false
 
     readonly property bool vehicleConnected: vehicle !== null
     readonly property real batteryPercent: battery && !isNaN(battery.percentRemaining.rawValue) ? battery.percentRemaining.rawValue : NaN
@@ -208,6 +211,18 @@ Item {
             }
         }
 
+        NavoCameraPip {
+            id: cameraPip
+            anchors.left: parent.left
+            anchors.top: parent.top
+            anchors.leftMargin: 12
+            anchors.topMargin: 52
+            z: 1050
+            connected: root.cameraConnected
+            streamUrl: root.cameraStreamUrl
+            onFullscreenRequested: root.lastNavigationStatus = "Camera GR01: fullscreen va fi activat când conectăm fluxul real G20"
+        }
+
         Rectangle { anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 12; width: mapTitle.implicitWidth + 22; height: 32; radius: 6; color: "#071827dd"; Label { id: mapTitle; anchors.centerIn: parent; text: "HARTĂ LIVE • MAVLink"; color: root.textMain; font.bold: true } }
         RowLayout {
             anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; anchors.margins: 12; spacing: 8
@@ -240,9 +255,18 @@ Item {
             }
             Button { Layout.fillWidth: true; text: "Reîncarcă misiunea"; enabled: root.vehicleConnected; onClicked: planController.loadFromVehicle() }
             Rectangle { Layout.fillWidth: true; height: 1; color: root.line }
-            RowLayout { Layout.fillWidth: true; Label { text: "SONAR 2D"; color: root.textMain; font.bold: true }; Item { Layout.fillWidth: true }; Label { text: root.sonarConnected ? "● Conectat" : "● Neconectat"; color: root.sonarConnected ? root.green : root.textDim } }
-            Rectangle { Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 120; radius: 7; color: "#06131e"; border.color: root.line; Column { anchors.centerIn: parent; spacing: 5; Label { anchors.horizontalCenter: parent.horizontalCenter; text: root.sonarConnected ? root.num(root.depthM,1," m") : "-- m"; color: root.textMain; font.pixelSize: 28; font.bold: true }; Label { anchors.horizontalCenter: parent.horizontalCenter; text: root.sonarConnected ? root.num(root.waterTempC,1," °C") : "Kogger neconectat"; color: root.textDim } } }
-            Label { text: "Kogger Sonar 2D Basic"; color: root.textDim; font.pixelSize: 11 }
+            NavoSonarCard {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 190
+                connected: root.sonarConnected
+                depthM: root.depthM
+                waterTempC: root.waterTempC
+                onOpenFullSonar: root.lastNavigationStatus = "Deschidere ecran sonar Kogger Basic 2D+"
+            }
+            NavoSafetyCard {
+                Layout.fillWidth: true
+                waterAlarm: root.waterAlarm
+            }
         }
     }
 
@@ -253,7 +277,7 @@ Item {
         RowLayout { anchors.fill: parent; anchors.leftMargin: 18; anchors.rightMargin: 18
             Label { text: root.lastNavigationStatus.length ? root.lastNavigationStatus : (root.vehicleConnected ? "● MAVLink conectat • " + root.flightMode : "● Aștept conexiunea ArduPilot"); color: root.vehicleConnected ? root.green : root.danger }
             Item { Layout.fillWidth: true }
-            Label { text: "NAVO SMART • Pescarul lu peste • V0.6 SILENT RAMP"; color: root.textDim; font.pixelSize: 11 }
+            Label { text: "NAVO SMART • Pescarul lu peste • V0.7 SONAR CAMERA SAFETY"; color: root.textDim; font.pixelSize: 11 }
         }
     }
 
