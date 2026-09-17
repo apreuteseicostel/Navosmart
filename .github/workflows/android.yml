@@ -50,16 +50,9 @@ jobs:
           setup-python: false
           cache: true
       - name: Install Qt Android arm64
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: '6.8.3'
-          host: linux
-          target: android
-          arch: android_arm64_v8a
-          dir: '${{ runner.temp }}'
-          modules: 'qtcharts qtlocation qtpositioning qtspeech qt5compat qtmultimedia qtserialport qtimageformats qtshadertools qtconnectivity qtquick3d qtsensors'
-          setup-python: false
-          cache: true
+        run: |
+          python3 -m pip install --user 'aqtinstall==3.1.*'
+          python3 -m aqt install-qt linux android 6.8.3 android_arm64_v8a --outputdir "${{ runner.temp }}/Qt" --modules qtcharts qtlocation qtpositioning qtspeech qt5compat qtmultimedia qtserialport qtimageformats qtshadertools qtconnectivity qtquick3d qtsensors
       - name: Configure
         run: |
           mkdir -p build
