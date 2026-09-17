@@ -1,5 +1,5 @@
 # NAVO SMART custom build overlay for QGroundControl
-# V0.1 - real QML module bootstrap
+# V0.2 - live map, telemetry and named fishing waypoints
 
 message(STATUS "QGC: Adding NAVO SMART custom overlay")
 
@@ -14,6 +14,7 @@ qt_add_qml_module(NavoSmartModule
         ${CMAKE_CURRENT_SOURCE_DIR}/qml/NavoDashboard.qml
         ${CMAKE_CURRENT_SOURCE_DIR}/qml/NavoTelemetryCard.qml
         ${CMAKE_CURRENT_SOURCE_DIR}/qml/NavoModeButton.qml
+        ${CMAKE_CURRENT_SOURCE_DIR}/qml/NavoWaypointEditor.qml
     NO_PLUGIN
 )
 
