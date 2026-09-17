@@ -1,7 +1,7 @@
 # NAVO SMART custom QGroundControl build overrides
 # V0.1 - Romanian bait boat ground station
 
-set(QGC_APP_NAME "NAVO SMART" CACHE STRING "App Name" FORCE)
+set(QGC_APP_NAME "NAVO_SMART" CACHE STRING "App Name" FORCE)
 set(QGC_APP_DESCRIPTION "Navigatie inteligenta pentru navomodel de pescuit" CACHE STRING "App description" FORCE)
 set(QGC_ORG_NAME "Pescarul lu peste" CACHE STRING "Organization" FORCE)
 set(QGC_ORG_DOMAIN "navosmart.local" CACHE STRING "Organization domain" FORCE)
