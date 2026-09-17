@@ -50,6 +50,26 @@ Item {
 
     function num(v, decimals, suffix) { return isNaN(v) ? "--" : Number(v).toFixed(decimals) + suffix }
 
+    NavoFailsafeController {
+        id: failsafeController
+        vehicle: root.vehicle
+        linkGraceSeconds: 30
+        gpsRecoverySeconds: 60
+        gpsReturnHomeSeconds: 120
+        onHoldRequested: function(reason) {
+            if (baitingController.enabled) baitingController.abortCycle(reason)
+            else if (root.vehicle) root.vehicle.pauseVehicle()
+            root.lastNavigationStatus = "FAILSAFE HOLD: " + reason
+        }
+        onRtlRequested: function(reason) {
+            if (root.vehicle) root.vehicle.guidedModeRTL(false)
+            root.lastNavigationStatus = "FAILSAFE RTL: " + reason
+        }
+        onRecovered: function(subsystem, action) {
+            root.lastNavigationStatus = subsystem + " RESTABILIT: " + action
+        }
+    }
+
     NavoHopperBridge {
         id: hopperBridge
         vehicle: root.vehicle
@@ -276,6 +296,10 @@ Item {
                 Layout.fillWidth: true
                 waterAlarm: root.waterAlarm
             }
+            NavoFailsafePanel {
+                Layout.fillWidth: true
+                controller: failsafeController
+            }
         }
     }
 
@@ -286,7 +310,7 @@ Item {
         RowLayout { anchors.fill: parent; anchors.leftMargin: 18; anchors.rightMargin: 18
             Label { text: root.lastNavigationStatus.length ? root.lastNavigationStatus : (root.vehicleConnected ? "● MAVLink conectat • " + root.flightMode : "● Aștept conexiunea ArduPilot"); color: root.vehicleConnected ? root.green : root.danger }
             Item { Layout.fillWidth: true }
-            Label { text: "NAVO SMART • Pescarul lu peste • V0.8 H743 BAITING SAFETY"; color: root.textDim; font.pixelSize: 11 }
+            Label { text: "NAVO SMART • Pescarul lu peste • V0.9 FAILSAFE RECOVERY"; color: root.textDim; font.pixelSize: 11 }
         }
     }
 
