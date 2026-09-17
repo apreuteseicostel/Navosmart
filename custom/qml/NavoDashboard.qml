@@ -21,6 +21,7 @@ Item {
     property real waterTempC: NaN
     property bool sonarConnected: false
     property string lastNavigationStatus: ""
+    property bool silentModeActive: false
 
     readonly property bool vehicleConnected: vehicle !== null
     readonly property real batteryPercent: battery && !isNaN(battery.percentRemaining.rawValue) ? battery.percentRemaining.rawValue : NaN
@@ -49,6 +50,7 @@ Item {
     NavoBaitingController {
         id: baitingController
         vehicle: root.vehicle
+        silentMode: root.silentModeActive
 
         onGotoRequested: function(coordinate, reason) {
             if (!root.vehicle || !coordinate || !coordinate.isValid) {
@@ -63,8 +65,15 @@ Item {
         // Actual low-speed behaviour still requires Rover/H743 bench + water validation.
         onSpeedRequested: function(metersPerSecond) {
             if (!root.vehicle) return
+            // QGC/ArduPilot guided speed accepts positive set-points. Zero is kept
+            // inside the state machine as the target for a smooth deceleration.
             if (metersPerSecond > 0.05)
                 root.vehicle.guidedModeChangeGroundSpeedMetersSecond(metersPerSecond)
+        }
+
+        onSilentModeChangedDetailed: function(active) {
+            root.silentModeActive = active
+            root.lastNavigationStatus = active ? "🔇 Mod SILENȚIOS activ" : "Mod silențios dezactivat"
         }
 
         // Servo output mapping is intentionally not guessed. This signal becomes live
@@ -101,6 +110,15 @@ Item {
                 Label { text: "Pescarul lu peste"; color: root.textDim; font.pixelSize: 12 }
             }
             Item { Layout.fillWidth: true }
+            Button {
+                text: root.silentModeActive ? "🔇 SILENȚIOS" : "🔊 NORMAL"
+                checkable: true
+                checked: root.silentModeActive
+                enabled: root.vehicleConnected
+                onClicked: baitingController.toggleSilentMode()
+                background: Rectangle { radius: 7; color: parent.checked ? "#0e7048" : root.panel2; border.color: parent.checked ? root.green : root.line }
+                contentItem: Label { text: parent.text; color: parent.checked ? "white" : root.textMain; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; font.bold: true }
+            }
             StatusPill { label: root.gpsRtk ? "GPS RTK" : "GPS"; value: root.satellites >= 0 ? root.satellites + " sat" : "--"; ok: root.gpsFix >= 3 }
             StatusPill { label: "BATERIE"; value: root.num(root.batteryPercent,0,"%") + "  " + root.num(root.batteryVoltage,1,"V"); ok: !isNaN(root.batteryPercent) && root.batteryPercent > 25 }
             StatusPill { label: "VITEZĂ"; value: root.num(root.speedMps,1," m/s"); ok: root.vehicleConnected }
@@ -213,6 +231,8 @@ Item {
             DataLine { name: "GPS fix"; value: root.gpsFix >= 6 ? "RTK FIXED" : (root.gpsFix === 5 ? "RTK FLOAT" : (root.gpsFix >= 3 ? "3D" : "Fără fix")) }
             DataLine { name: "Sateliți"; value: root.satellites >= 0 ? root.satellites.toString() : "--" }
             DataLine { name: "Nădire"; value: baitingController.stateText(baitingController.state) }
+            DataLine { name: "Silențios"; value: root.silentModeActive ? "ACTIV" : "Normal" }
+            DataLine { name: "Țintă viteză"; value: root.num(baitingController.targetSpeedMps,1," m/s") }
             RowLayout { Layout.fillWidth: true; spacing: 7
                 ModeButton { text: "MANUAL"; selected: root.flightMode.toUpperCase() === "MANUAL"; enabled: root.vehicleConnected; onClicked: if (root.vehicle) root.vehicle.flightMode = "Manual" }
                 ModeButton { text: "AUTO"; selected: root.flightMode.toUpperCase() === "AUTO"; enabled: root.vehicleConnected; onClicked: if (root.vehicle) root.vehicle.flightMode = "Auto" }
@@ -233,7 +253,7 @@ Item {
         RowLayout { anchors.fill: parent; anchors.leftMargin: 18; anchors.rightMargin: 18
             Label { text: root.lastNavigationStatus.length ? root.lastNavigationStatus : (root.vehicleConnected ? "● MAVLink conectat • " + root.flightMode : "● Aștept conexiunea ArduPilot"); color: root.vehicleConnected ? root.green : root.danger }
             Item { Layout.fillWidth: true }
-            Label { text: "NAVO SMART • Pescarul lu peste • V0.5 SILENT BAITING"; color: root.textDim; font.pixelSize: 11 }
+            Label { text: "NAVO SMART • Pescarul lu peste • V0.6 SILENT RAMP"; color: root.textDim; font.pixelSize: 11 }
         }
     }
 
