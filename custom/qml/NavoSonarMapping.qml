@@ -13,6 +13,9 @@ Rectangle {
     property bool bathymetryComplete: false
     property var rawSamples: []
     property var trackCoordinates: []
+    property var depthPoints: []
+    property real minDepthM: NaN
+    property real maxDepthM: NaN
     signal status(string text)
     signal bathymetryRequested(var samples)
 
@@ -23,17 +26,25 @@ Rectangle {
     function validPosition() { return vehicle && vehicle.coordinate && vehicle.coordinate.isValid }
     function startScan() {
         if (!validPosition() || !sonarConnected) { status("Scanare blocată: GPS și Kogger trebuie conectate"); return }
-        rawSamples=[]; trackCoordinates=[]; bathymetryComplete=false; scanning=true; paused=false
+        rawSamples=[]; trackCoordinates=[]; depthPoints=[]; minDepthM=NaN; maxDepthM=NaN; depthPoints=[]; minDepthM=NaN; maxDepthM=NaN; bathymetryComplete=false; scanning=true; paused=false
         addCurrentSample(); status("Mapare sonar pornită")
     }
     function pauseScan() { if(scanning){paused=true; status("Mapare sonar în pauză • datele sunt păstrate")} }
     function resumeScan() { if(scanning){paused=false; status("Mapare sonar continuată")} }
+    function addGeoSample(sample) {
+        if(!scanning || paused || !sample || isNaN(sample.lat) || isNaN(sample.lon) || isNaN(sample.depth)) return
+        var s=rawSamples.slice(0); s.push(sample); rawSamples=s
+        var d=depthPoints.slice(0); d.push({latitude:sample.lat,longitude:sample.lon,depth:sample.depth,heading:sample.heading,time:sample.time}); depthPoints=d
+        minDepthM=isNaN(minDepthM)?sample.depth:Math.min(minDepthM,sample.depth); maxDepthM=isNaN(maxDepthM)?sample.depth:Math.max(maxDepthM,sample.depth)
+    }
     function addCurrentSample() {
         if(!scanning || paused || !validPosition() || !sonarConnected || isNaN(depthM)) return
         var c=vehicle.coordinate
         var s=rawSamples.slice(0)
-        s.push({lat:c.latitude, lon:c.longitude, depth:depthM, temp:waterTempC, time:Date.now()})
+        s.push({lat:c.latitude, lon:c.longitude, depth:depthM, temp:waterTempC, heading:vehicle.heading?vehicle.heading.rawValue:NaN, time:Date.now()})
         rawSamples=s
+        var d=depthPoints.slice(0); d.push({latitude:c.latitude,longitude:c.longitude,depth:depthM,heading:vehicle.heading?vehicle.heading.rawValue:NaN,time:Date.now()}); depthPoints=d
+        minDepthM=isNaN(minDepthM)?depthM:Math.min(minDepthM,depthM); maxDepthM=isNaN(maxDepthM)?depthM:Math.max(maxDepthM,depthM)
         var t=trackCoordinates.slice(0)
         if(t.length===0 || t[t.length-1].distanceTo(c)>=1.0){t.push(c); trackCoordinates=t}
     }
@@ -65,7 +76,7 @@ Rectangle {
         anchors.fill: parent; anchors.margins: 12; spacing: 8
         Label { text:"MAPARE SONAR / BATIMETRIE"; color:"#21b7ff"; font.bold:true }
         Label { text: root.scanning ? (root.paused ? "PAUZĂ" : "SCANARE ACTIVĂ") : (root.bathymetryComplete ? "HARTĂ SALVATĂ" : "PREGĂTIT"); color:"#f2f7fb"; font.bold:true }
-        Label { text: "Puncte valide: "+root.rawSamples.length+" • Urmă GPS: "+root.trackCoordinates.length; color:"#9db2c5" }
+        Label { text: "Puncte: "+root.rawSamples.length+" • Adâncime: "+(isNaN(root.minDepthM)?"--":root.minDepthM.toFixed(1))+"–"+(isNaN(root.maxDepthM)?"--":root.maxDepthM.toFixed(1))+" m"; color:"#9db2c5" }
         RowLayout {
             Layout.fillWidth:true
             Button { text:"START SCAN"; enabled:!root.scanning; onClicked:root.startScan() }
