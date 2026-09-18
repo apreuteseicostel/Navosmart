@@ -22,7 +22,9 @@ void NavoKoggerDecoder::process(){
   else if(id==0x03&&(version==0||version==1)&&payload>=6){
    quint16 seq=le16(p),res=le16(p+2),off=le16(p+4);QByteArray part(p+6,payload-6);
    if(seq==0||res!=_chartResolution||off!=_chartAbsoluteOffset){if(!_chart.isEmpty()){QVariantList out;int step=version==1?2:1;for(int i=0;i<_chart.size();i+=step)out.append(double(quint8(_chart[i]))/255.0);_echoSamples=out;emit echoSamplesChanged();}_chart.clear();_chartResolution=res;_chartAbsoluteOffset=off;}
-   if(seq==_chart.size()) { _chart.append(part); }\n   else if(seq>_chart.size()) { _chart.append(QByteArray(seq-_chart.size(), char(0))); _chart.append(part); }\n   else if(seq<_chart.size()) { _chart.clear(); _chart.append(QByteArray(seq, char(0))); _chart.append(part); }
+   if(seq==_chart.size()) { _chart.append(part); }
+   else if(seq>_chart.size()) { _chart.append(QByteArray(seq-_chart.size(), char(0))); _chart.append(part); }
+   else if(seq<_chart.size()) { _chart.clear(); _chart.append(QByteArray(seq, char(0))); _chart.append(part); }
   }
  }
 }
