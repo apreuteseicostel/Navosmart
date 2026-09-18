@@ -34,6 +34,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoSonarMapping.qml
         qml/NavoLakePersistence.qml
         qml/NavoBathymetryModel.qml
+        qml/NavoScanCoordinator.qml
         qml/NavoEnergyGuard.qml
         qml/NavoActionSequence.qml
         qml/NavoSafetyManager.qml
