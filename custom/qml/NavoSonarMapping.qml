@@ -26,8 +26,8 @@ Rectangle {
     function validPosition() { return vehicle && vehicle.coordinate && vehicle.coordinate.isValid }
     function startScan() {
         if (!validPosition() || !sonarConnected) { status("Scanare blocată: GPS și Kogger trebuie conectate"); return }
-        rawSamples=[]; trackCoordinates=[]; depthPoints=[]; minDepthM=NaN; maxDepthM=NaN; depthPoints=[]; minDepthM=NaN; maxDepthM=NaN; bathymetryComplete=false; scanning=true; paused=false
-        addCurrentSample(); status("Mapare sonar pornită")
+        rawSamples=[]; trackCoordinates=[]; depthPoints=[]; minDepthM=NaN; maxDepthM=NaN; bathymetryComplete=false; scanning=true; paused=false
+        status("Mapare sonar pornită")
     }
     function pauseScan() { if(scanning){paused=true; status("Mapare sonar în pauză • datele sunt păstrate")} }
     function resumeScan() { if(scanning){paused=false; status("Mapare sonar continuată")} }
@@ -50,7 +50,7 @@ Rectangle {
     }
     function finishAndBuild() {
         if(!scanning) return
-        addCurrentSample(); scanning=false; paused=false
+        scanning=false; paused=false
         if(rawSamples.length<3){status("Mapare incompletă: prea puține măsurători valide"); return}
         bathymetryRequested(rawSamples)
         status("Date scanare pregătite pentru generarea hărții batimetrice")
@@ -63,13 +63,17 @@ Rectangle {
     }
     function deleteRawData() {
         if(scanning) return
-        rawSamples=[]; trackCoordinates=[]
+        rawSamples=[]; trackCoordinates=[]; depthPoints=[]; minDepthM=NaN; maxDepthM=NaN
         status("Datele brute GPS + sonar au fost șterse")
     }
 
     Connections {
         target: root.vehicle
-        function onCoordinateChanged(){ root.addCurrentSample() }
+        function onCoordinateChanged(){
+            if(!root.scanning || root.paused || !root.validPosition()) return
+            var c=root.vehicle.coordinate, t=root.trackCoordinates.slice(0)
+            if(t.length===0 || t[t.length-1].distanceTo(c)>=1.0){t.push(c); root.trackCoordinates=t}
+        }
     }
 
     ColumnLayout {
