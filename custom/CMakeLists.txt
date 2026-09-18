@@ -47,6 +47,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoPersistence.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoPersistence.h
     CACHE INTERNAL "" FORCE
 )
 set(CUSTOM_LIBRARIES NavoSmartModule CACHE INTERNAL "" FORCE)
