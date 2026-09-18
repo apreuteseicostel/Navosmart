@@ -13,6 +13,8 @@ Item {
     property var planController
     property bool missionPrepared: false
     property bool missionUploaded: false
+    property bool uploadPending: false
+    property bool uploadFailed: false
     property bool missionRunning: false
     property int missionPointCount: 0
     readonly property int currentMissionIndex: vehicle && vehicle.missionItemIndex ? Number(vehicle.missionItemIndex.rawValue) : -1
@@ -50,9 +52,9 @@ Item {
     function uploadMission() {
         if(!vehicle || !missionController || !planController) { status("Area Scan: H743/MAVLink indisponibil"); return }
         if(!missionPrepared && !prepareMission()) return
+        missionUploaded=false; uploadFailed=false; uploadPending=true
         planController.sendToVehicle()
-        missionUploaded=true
-        status("Area Scan: upload misiune solicitat către H743")
+        status("Area Scan: se încarcă misiunea în H743…")
     }
     function startMission() {
         if(!vehicle || !missionUploaded) { status("Area Scan: încarcă misiunea înainte de START"); return }
@@ -74,7 +76,22 @@ Item {
     function clearPlan() {
         cornerA=QtPositioning.coordinate(); cornerB=QtPositioning.coordinate()
         if(planner) planner.clear()
-        editing=false; missionPrepared=false; missionUploaded=false; missionRunning=false; missionPointCount=0; status("Area Scan șters")
+        editing=false; missionPrepared=false; missionUploaded=false; uploadPending=false; uploadFailed=false; missionRunning=false; missionPointCount=0; status("Area Scan șters")
+    }
+
+    Connections {
+        target: root.planController
+        function onSyncInProgressChanged() {
+            if(!root.uploadPending || !root.planController || root.planController.syncInProgress) return
+            root.uploadPending=false
+            if(root.planController.dirtyForUpload) {
+                root.missionUploaded=false; root.uploadFailed=true
+                root.status("Area Scan: upload H743 nereușit • START blocat")
+            } else {
+                root.missionUploaded=true; root.uploadFailed=false
+                root.status("Area Scan: misiune confirmată pe H743 • gata de START")
+            }
+        }
     }
 
     MouseArea {
@@ -141,11 +158,11 @@ Item {
             RowLayout {
                 visible:root.planReady; Layout.fillWidth:true
                 Button { text:"PREGĂTEȘTE"; enabled:root.planReady; onClicked:root.prepareMission() }
-                Button { text:"UPLOAD H743"; enabled:root.missionPrepared && root.vehicle; onClicked:root.uploadMission() }
-                Button { text:"START"; enabled:root.missionUploaded && root.vehicle; onClicked:root.startMission() }
+                Button { text:root.uploadPending?"SE ÎNCARCĂ…":"UPLOAD H743"; enabled:root.missionPrepared && root.vehicle && !root.uploadPending && !root.missionRunning; onClicked:root.uploadMission() }
+                Button { text:"START"; enabled:root.missionUploaded && root.vehicle && !root.uploadPending && !root.missionRunning; onClicked:root.startMission() }
             }
             ProgressBar { visible:root.planReady; Layout.fillWidth:true; from:0; to:100; value:root.progressPercent }
-            Label { visible:root.planReady; text:root.missionRunning ? "SCANARE "+root.progressPercent+"% • WP "+root.currentMissionIndex+"/"+root.missionPointCount : (root.missionUploaded?"Misiune încărcată • gata de START":(root.missionPrepared?"Misiune pregătită local":"Preview")); color:root.missionRunning?"#31d67b":"#9db2c5"; font.bold:root.missionRunning }
+            Label { visible:root.planReady; text:root.missionRunning ? "SCANARE "+root.progressPercent+"% • WP "+root.currentMissionIndex+"/"+root.missionPointCount : (root.missionUploaded?"Misiune încărcată • gata de START":(root.uploadPending?"Se așteaptă confirmarea H743…":(root.uploadFailed?"UPLOAD EȘUAT • START BLOCAT":(root.missionPrepared?"Misiune pregătită local":"Preview")))); color:root.missionRunning?"#31d67b":"#9db2c5"; font.bold:root.missionRunning }
             RowLayout {
                 visible:root.planReady; Layout.fillWidth:true
                 Button { text:"HOLD / STOP"; enabled:root.vehicle; onClicked:root.holdMission() }
