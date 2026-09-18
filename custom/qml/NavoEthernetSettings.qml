@@ -7,6 +7,8 @@ Rectangle {
  id: root
  property var sonar
  property var camera
+ property string cameraStreamUrl:""
+ property string cameraProtocol:"auto"
  signal status(string text)
  color:"#0b1c2e"; border.color:"#1c4262"; radius:10
 
@@ -19,6 +21,8 @@ Rectangle {
   property string cameraHost:""
   property int cameraPort:0
   property bool cameraUdp:false
+  property string cameraStreamUrl:""
+  property string cameraProtocol:"auto"
  }
  function loadEndpoints(){
   if(sonar){sonar.host=cfg.sonarHost;sonar.port=cfg.sonarPort;sonar.udp=cfg.sonarUdp}
@@ -27,9 +31,10 @@ Rectangle {
  function saveEndpoints(){
   cfg.sonarHost=sonarHost.text.trim();cfg.sonarPort=parseInt(sonarPort.text)||0;cfg.sonarUdp=sonarUdp.checked
   cfg.cameraHost=cameraHost.text.trim();cfg.cameraPort=parseInt(cameraPort.text)||0;cfg.cameraUdp=cameraUdp.checked
-  loadEndpoints();status("Setări Ethernet salvate")
+  cfg.cameraStreamUrl=streamUrl.text.trim();cfg.cameraProtocol=protocol.currentValue;root.cameraStreamUrl=cfg.cameraStreamUrl;root.cameraProtocol=cfg.cameraProtocol
+  loadEndpoints();status("Setări Ethernet/video salvate")
  }
- Component.onCompleted:loadEndpoints()
+ Component.onCompleted:{loadEndpoints();root.cameraStreamUrl=cfg.cameraStreamUrl;root.cameraProtocol=cfg.cameraProtocol}
  ColumnLayout {
   anchors.fill:parent;anchors.margins:14;spacing:10
   Label{text:"REȚEA BARCĂ • ETHERNET";color:"#21b7ff";font.bold:true;font.pixelSize:16}
@@ -54,14 +59,20 @@ Rectangle {
     TextField{id:cameraPort;Layout.fillWidth:true;text:cfg.cameraPort>0?cfg.cameraPort.toString():"";inputMethodHints:Qt.ImhDigitsOnly}
     Label{text:"Transport"}
     CheckBox{id:cameraUdp;text:checked?"UDP":"TCP";checked:cfg.cameraUdp}
+    Label{text:"URL video"}
+    TextField{id:streamUrl;Layout.fillWidth:true;text:cfg.cameraStreamUrl;placeholderText:"rtsp://... sau http://..."}
+    Label{text:"Protocol video"}
+    ComboBox{id:protocol;Layout.fillWidth:true;textRole:"text";valueRole:"value";model:[{text:"AUTO",value:"auto"},{text:"RTSP",value:"rtsp"},{text:"MJPEG/HTTP",value:"mjpeg"}];Component.onCompleted:{var i=indexOfValue(cfg.cameraProtocol);if(i>=0)currentIndex=i}}
    }
   }
   RowLayout {
    Layout.fillWidth:true
    Button{text:"SALVEAZĂ";onClicked:root.saveEndpoints()}
    Button{text:"CONECTEAZĂ SONAR";enabled:sonar&&sonar.host.length>0&&sonar.port>0;onClicked:sonar.connectSonar()}
-   Button{text:"CONECTEAZĂ CAMERA";enabled:camera&&camera.host.length>0&&camera.port>0;onClicked:camera.connectCamera()}
+   Button{text:"TEST VIDEO";enabled:streamUrl.text.trim().length>0;onClicked:{root.saveEndpoints();videoTest.start()}}
+   Button{text:"STOP VIDEO";onClicked:videoTest.stop()}
   }
-  Label{color:"#9db2c5";text:"Sonar: "+(sonar?sonar.status:"--")+" • Cameră: "+(camera?camera.status:"--")}
+  NavoVideoPlayer{id:videoTest;Layout.fillWidth:true;Layout.preferredHeight:140;streamUrl:streamUrl.text;protocol:protocol.currentValue;onVideoError:function(message){root.status("Video: "+message)}}
+  Label{color:"#9db2c5";text:"Sonar: "+(sonar?sonar.status:"--")+" • LAN cameră: "+(camera?camera.status:"--")+" • Video: "+videoTest.status}
  }
 }
