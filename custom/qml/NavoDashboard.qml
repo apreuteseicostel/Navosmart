@@ -210,6 +210,22 @@ Item {
         }
     }
 
+    NavoEthernetIndicator {
+        id: ethernetIndicator
+        anchors.top: header.bottom
+        anchors.right: rightPanel.left
+        anchors.topMargin: 14
+        anchors.rightMargin: 16
+        z: 4000
+        sonarConnected: sonarEthernet.connected
+        sonarAlive: sonarEthernet.dataAlive
+        sonarStatus: sonarEthernet.status
+        cameraConnected: cameraEthernet.connected
+        cameraAlive: cameraEthernet.dataAlive
+        cameraStatus: cameraEthernet.status
+        visible: !root.mapFullscreen
+    }
+
     Rectangle {
         id: mapPanel
         anchors.left: root.mapFullscreen ? parent.left : sidebar.right
