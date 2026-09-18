@@ -26,7 +26,8 @@ Item {
     property bool cameraConnected: false
     property string cameraStreamUrl: ""
     property string cameraProtocol: "auto"
-    property bool waterAlarm: false
+    readonly property bool waterAlarm: nanoTelemetry.connected && nanoTelemetry.waterDetected
+    readonly property real batteryTempC: nanoTelemetry.connected ? nanoTelemetry.batteryTempC : NaN
     property real escTempC: NaN
     property real batteryCurrentA: NaN
     property string boatId: "NAV0001"
@@ -68,6 +69,7 @@ Item {
     function rtlBoat() { if (!root.vehicle) return; if (baitingController.enabled) baitingController.abortCycle("RTL manual"); root.vehicle.guidedModeRTL(false); root.lastNavigationStatus = "RTL solicitat" }
 
     NavoPersistence { id: persistence }
+    NavoNanoTelemetry { id: nanoTelemetry; vehicle: root.vehicle }
     NavoAreaScan { id: areaScan }
     NavoFishDetections { id: fishDetections }
     NavoSonarEthernet {
@@ -125,6 +127,15 @@ Item {
     }
     NavoDigitalAnchor { id: digitalAnchor; vehicle: root.vehicle; onStatus: function(text) { root.lastNavigationStatus = text } }
     NavoActionSequence { id: actionSequence; vehicle: root.vehicle; hopperBridge: hopperBridge; onStatus: function(text) { root.lastNavigationStatus = text } }
+    NavoSafetyManager {
+        id: nanoSafety
+        vehicle: root.vehicle
+        waterDetected: root.waterAlarm
+        batteryTempC: root.batteryTempC
+        onWarning: function(reason){ root.lastNavigationStatus="ATENȚIE: "+reason }
+        onHoldRequested: function(reason){ if(root.vehicle) root.vehicle.pauseVehicle(); root.lastNavigationStatus="SIGURANȚĂ HOLD: "+reason }
+        onRtlRequested: function(reason){ if(root.vehicle) root.vehicle.guidedModeRTL(false); root.lastNavigationStatus="SIGURANȚĂ RTL: "+reason }
+    }
 
     NavoFailsafeController {
         id: failsafeController
@@ -436,7 +447,10 @@ Item {
             leftHopperCommandOpen: hopperBridge.leftOpen
             rightHopperCommandOpen: hopperBridge.rightOpen
             waterDetected: root.waterAlarm
-            batteryTempC: NaN
+            batteryTempC: root.batteryTempC
+            headlightOn: nanoTelemetry.connected && nanoTelemetry.headlightOn
+            positionLightsOn: nanoTelemetry.connected && nanoTelemetry.positionLightsOn
+            rudderNormalized: nanoTelemetry.connected && nanoTelemetry.rudderUs > 0 ? (nanoTelemetry.rudderUs-1500)/500.0 : 0
             visible: !root.hopperStatusExpanded
             MouseArea { anchors.fill: parent; onClicked: root.hopperStatusExpanded = true }
         }
@@ -459,7 +473,10 @@ Item {
                     leftHopperCommandOpen: hopperBridge.leftOpen
                     rightHopperCommandOpen: hopperBridge.rightOpen
                     waterDetected: root.waterAlarm
-                    batteryTempC: NaN
+            batteryTempC: root.batteryTempC
+            headlightOn: nanoTelemetry.connected && nanoTelemetry.headlightOn
+            positionLightsOn: nanoTelemetry.connected && nanoTelemetry.positionLightsOn
+            rudderNormalized: nanoTelemetry.connected && nanoTelemetry.rudderUs > 0 ? (nanoTelemetry.rudderUs-1500)/500.0 : 0
                 }
                 RowLayout {
                     Layout.fillWidth: true
