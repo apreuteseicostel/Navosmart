@@ -251,6 +251,27 @@ Item {
             onTrackCompleted: function(pointCount) { root.lastNavigationStatus = "Task finalizat • traseu GPS păstrat (" + pointCount + " puncte)" }
         }
 
+        NavoAreaScanOverlay {
+            id: areaScanOverlay
+            anchors.fill: liveMap
+            map: liveMap
+            areaScan: areaScan
+            z: 940
+        }
+
+        Rectangle {
+            visible: areaScan.laneCount() > 0
+            anchors.left: parent.left; anchors.top: parent.top
+            anchors.leftMargin: 12; anchors.topMargin: 52
+            width: 220; height: 54; radius: 8; z: 1200
+            color: "#071827e8"; border.color: root.cyan
+            Column {
+                anchors.centerIn: parent; spacing: 2
+                Label { anchors.horizontalCenter: parent.horizontalCenter; text: "AREA SCAN • "+areaScan.progressPercent()+"%"; color: root.textMain; font.bold:true }
+                Label { anchors.horizontalCenter: parent.horizontalCenter; text: areaScan.completedLanes.length+" / "+areaScan.laneCount()+" culoare terminate"; color: root.textDim; font.pixelSize:11 }
+            }
+        }
+
         NavoBathymetryOverlay {
             id: bathymetryOverlay
             anchors.fill: liveMap
