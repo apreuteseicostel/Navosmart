@@ -1,11 +1,11 @@
 #include "CustomPlugin.h"
-#include "NavoKoggerDecoder.h"
+#include "NavoKoggerDecoder.h"\n#include "NavoKoggerTcpClient.h"
 #include <QtQml/qqml.h>
 #include <QtQml/QQmlApplicationEngine>
 #include <QtCore/QFile>
 CustomFlyViewOptions::CustomFlyViewOptions(CustomOptions* options,QObject* parent):QGCFlyViewOptions(options,parent){}
 CustomPlugin::CustomPlugin(QObject* parent):QGCCorePlugin(parent),_options(new CustomOptions(this)){
- qmlRegisterType<NavoKoggerDecoder>("NavoSmart.Backend",1,0,"NavoKoggerDecoder");
+ qmlRegisterType<NavoKoggerDecoder>("NavoSmart.Backend",1,0,"NavoKoggerDecoder");\n qmlRegisterType<NavoKoggerTcpClient>("NavoSmart.Backend",1,0,"NavoKoggerTcpClient");
 }
 CustomPlugin::~CustomPlugin(){}
 QQmlApplicationEngine* CustomPlugin::createQmlApplicationEngine(QObject* parent){
