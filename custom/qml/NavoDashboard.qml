@@ -16,11 +16,17 @@ Item {
     implicitHeight: 720
 
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
+    NavoKoggerDecoder { id: koggerDecoder }
+    NavoKoggerTransport {
+        id: koggerTransport
+        Component.onCompleted: startUdp(14560)
+        onBytesReady: function(bytes) { koggerDecoder.feedBytes(bytes) }
+    }
     property var battery: vehicle && vehicle.batteries.count > 0 ? vehicle.batteries.get(0) : null
     property var waypointNames: ({})
-    property real depthM: NaN
-    property real waterTempC: NaN
-    property bool sonarConnected: false
+    readonly property real depthM: koggerDecoder.depthM
+    readonly property real waterTempC: koggerDecoder.waterTempC
+    readonly property bool sonarConnected: koggerDecoder.connected
     property string lastNavigationStatus: ""
     property bool silentModeActive: false
     property bool cameraConnected: false
