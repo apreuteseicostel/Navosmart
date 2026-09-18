@@ -33,17 +33,17 @@ QtObject {
     property int rampIntervalMs: 100
     property int invalidGpsSinceMs: 0
 
-    readonly property int Idle:0
-    readonly property int Navigate:1
-    readonly property int Approach:2
-    readonly property int FinalApproach:3
-    readonly property int Settle:4
-    readonly property int Release:5
-    readonly property int Exit:6
-    readonly property int ReturnHome:7
-    readonly property int Complete:8
-    readonly property int Aborted:9
-    property int state: Idle
+    readonly property int idleState:0
+    readonly property int navigateState:1
+    readonly property int approachState:2
+    readonly property int finalApproachState:3
+    readonly property int settleState:4
+    readonly property int releaseState:5
+    readonly property int exitState:6
+    readonly property int returnHomeState:7
+    readonly property int completeState:8
+    readonly property int abortedState:9
+    property int state: idleState
     property var arrivalOrigin: QtPositioning.coordinate()
     property var exitCoordinate: QtPositioning.coordinate()
 
@@ -58,9 +58,9 @@ QtObject {
 
     function stateText(s) {
         switch(s) {
-        case Idle:return "Pregătit"; case Navigate:return "Navigare"; case Approach:return "Apropiere silențioasă"
-        case FinalApproach:return "Apropiere finală"; case Settle:return "Stabilizare"; case Release:return "Eliberare nadă"
-        case Exit:return "Ieșire din punct"; case ReturnHome:return "Întoarcere HOME"; case Complete:return "Finalizat"; case Aborted:return "Oprit"
+        case idleState:return "Pregătit"; case navigateState:return "Navigare"; case approachState:return "Apropiere silențioasă"
+        case finalApproachState:return "Apropiere finală"; case settleState:return "Stabilizare"; case releaseState:return "Eliberare nadă"
+        case exitState:return "Ieșire din punct"; case returnHomeState:return "Întoarcere HOME"; case completeState:return "Finalizat"; case abortedState:return "Oprit"
         } return "--"
     }
     function setState(s){ if(state===s)return; state=s; stateChangedDetailed(state,stateText(state)) }
@@ -75,11 +75,11 @@ QtObject {
     function startCycle(wp,name,selectedHopper){
         if(!vehicle || !wp || !wp.coordinate || !wp.coordinate.isValid || !vehicleCoordinateValid()){ cycleFinished(false,"Barca, GPS-ul sau waypoint-ul nu sunt disponibile"); return false }
         targetWaypoint=wp; targetName=name; hopper=selectedHopper; arrivalOrigin=vehicle.coordinate; enabled=true; invalidGpsSinceMs=0
-        setState(Navigate); setTargetSpeed(silentMode?silentSpeedMps:normalSpeedMps); gotoRequested(targetWaypoint.coordinate,"bait-target"); monitorTimer.start(); return true
+        setState(navigateState); setTargetSpeed(silentMode?silentSpeedMps:normalSpeedMps); gotoRequested(targetWaypoint.coordinate,"bait-target"); monitorTimer.start(); return true
     }
     function abortCycle(reason){
         enabled=false; monitorTimer.stop(); settleTimer.stop(); postDropTimer.stop(); setTargetSpeed(0); stopRequested(reason||"Oprire de siguranță")
-        setState(Aborted); cycleFinished(false,reason||"Ciclul de nădire a fost oprit")
+        setState(abortedState); cycleFinished(false,reason||"Ciclul de nădire a fost oprit")
     }
     function makeExitCoordinate(){
         if(!validTarget() || !arrivalOrigin || !arrivalOrigin.isValid)return QtPositioning.coordinate()
@@ -94,18 +94,18 @@ QtObject {
             return
         }
         invalidGpsSinceMs=0
-        if(state===Exit){
+        if(state===exitState){
             var ex=distanceToExit()
             if(!isNaN(ex) && ex<=exitArrivalRadiusM)finishExit()
             return
         }
         if(!validTarget())return
         var d=distanceToTarget(); if(isNaN(d))return
-        if((state===Navigate||state===Approach||state===FinalApproach)&&d<=arrivalRadiusM){
-            setTargetSpeed(0); stopRequested("Punct de nădire atins"); setState(Settle); settleTimer.restart(); return
+        if((state===navigateState||state===approachState||state===finalApproachState)&&d<=arrivalRadiusM){
+            setTargetSpeed(0); stopRequested("Punct de nădire atins"); setState(settleState); settleTimer.restart(); return
         }
-        if(state===Navigate&&d<=silentRadiusM){setState(Approach);setTargetSpeed(silentSpeedMps)}
-        if((state===Navigate||state===Approach)&&d<=finalRadiusM){setState(FinalApproach);setTargetSpeed(finalSpeedMps)}
+        if(state===navigateState&&d<=silentRadiusM){setState(approachState);setTargetSpeed(silentSpeedMps)}
+        if((state===navigateState||state===approachState)&&d<=finalRadiusM){setState(finalApproachState);setTargetSpeed(finalSpeedMps)}
     }
 
     property Timer rampTimer: Timer {
@@ -124,19 +124,19 @@ QtObject {
         onTriggered:{
             var s=root.groundSpeed()
             if(!isNaN(s)&&s>root.releaseMaxSpeedMps){root.stopRequested("Aștept oprirea completă");restart();return}
-            root.setState(root.Release); if(root.hopper!==0)root.hopperReleaseRequested(root.hopper); root.postDropTimer.restart()
+            root.setState(root.releaseState); if(root.hopper!==0)root.hopperReleaseRequested(root.hopper); root.postDropTimer.restart()
         }
     }
     property Timer postDropTimer: Timer {
         interval:root.postDropMs; repeat:false
         onTriggered:{
             root.exitCoordinate=root.makeExitCoordinate()
-            if(root.exitCoordinate&&root.exitCoordinate.isValid){root.setState(root.Exit);root.setTargetSpeed(root.silentSpeedMps);root.gotoRequested(root.exitCoordinate,"clear-bait-zone")}
+            if(root.exitCoordinate&&root.exitCoordinate.isValid){root.setState(root.exitState);root.setTargetSpeed(root.silentSpeedMps);root.gotoRequested(root.exitCoordinate,"clear-bait-zone")}
             else root.finishExit()
         }
     }
     function finishExit(){
-        if(rtlAfterDrop){setState(ReturnHome);setTargetSpeed(silentMode?manualSilentSpeedMps:normalSpeedMps);rtlRequested()} else setState(Complete)
+        if(rtlAfterDrop){setState(returnHomeState);setTargetSpeed(silentMode?manualSilentSpeedMps:normalSpeedMps);rtlRequested()} else setState(completeState)
         enabled=false;monitorTimer.stop();cycleFinished(true,rtlAfterDrop?"Nada eliberată; RTL pornit":"Nada eliberată")
     }
 }
