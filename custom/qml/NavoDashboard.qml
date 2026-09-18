@@ -30,6 +30,7 @@ Item {
     property string boatId: "NAV0001"
     property int activePage: 0
     property bool hopperStatusExpanded: false
+    property bool mapFullscreen: false
     property string selectedHopper: "none"
     property int manualHopperHoldMs: 1500
     readonly property bool manualMode: root.flightMode.toUpperCase() === "MANUAL"
@@ -198,9 +199,12 @@ Item {
 
     Rectangle {
         id: mapPanel
-        anchors.left: sidebar.right; anchors.right: rightPanel.left
-        anchors.top: header.bottom; anchors.bottom: footer.top
-        anchors.margins: 10; radius: 10; color: root.panel; border.color: root.line; clip: true
+        anchors.left: root.mapFullscreen ? parent.left : sidebar.right
+        anchors.right: root.mapFullscreen ? parent.right : rightPanel.left
+        anchors.top: root.mapFullscreen ? parent.top : header.bottom
+        anchors.bottom: root.mapFullscreen ? parent.bottom : footer.top
+        anchors.margins: root.mapFullscreen ? 0 : 10;
+        z: root.mapFullscreen ? 5000 : 0; radius: 10; color: root.panel; border.color: root.line; clip: true
 
         FlyViewMap {
             id: liveMap
@@ -328,6 +332,21 @@ Item {
         Timer { id: hopperPopupClose; interval: 5000; repeat:false; onTriggered: root.hopperStatusExpanded=false }
 
         Rectangle { anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 12; width: mapTitle.implicitWidth + 22; height: 32; radius: 6; color: "#071827dd"; Label { id: mapTitle; anchors.centerIn: parent; text: "HARTĂ LIVE • MAVLink"; color: root.textMain; font.bold: true } }
+        Button {
+            id: mapFullscreenButton
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: 12
+            z: 2000
+            width: 48; height: 42
+            text: root.mapFullscreen ? "↙" : "⛶"
+            ToolTip.visible: hovered
+            ToolTip.text: root.mapFullscreen ? "Revino la dashboard" : "Mărește harta"
+            onClicked: {
+                root.mapFullscreen = !root.mapFullscreen
+                root.lastNavigationStatus = root.mapFullscreen ? "Hartă mărită • apasă ↙ pentru revenire" : "Hartă revenită la dashboard"
+            }
+        }
         RowLayout {
             anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; anchors.margins: 12; spacing: 8
             Button { text: "Centrează barca"; enabled: root.vehicleConnected; onClicked: if (root.vehicle) liveMap.center = root.vehicle.coordinate }
