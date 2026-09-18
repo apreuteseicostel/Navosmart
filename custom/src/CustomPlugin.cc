@@ -1,5 +1,6 @@
 #include "CustomPlugin.h"
 #include "NavoKoggerDecoder.h"
+#include "NavoKoggerTransport.h"
 #include "NavoNanoTelemetry.h"
 #include <QtQml/qqml.h>
 #include <QtQml/QQmlApplicationEngine>
@@ -7,6 +8,7 @@
 CustomFlyViewOptions::CustomFlyViewOptions(CustomOptions* options,QObject* parent):QGCFlyViewOptions(options,parent){}
 CustomPlugin::CustomPlugin(QObject* parent):QGCCorePlugin(parent),_options(new CustomOptions(this)){
  qmlRegisterType<NavoKoggerDecoder>("NavoSmart.Backend",1,0,"NavoKoggerDecoder");
+ qmlRegisterType<NavoKoggerTransport>("NavoSmart.Backend",1,0,"NavoKoggerTransport");
  qmlRegisterType<NavoNanoTelemetry>("NavoSmart.Backend",1,0,"NavoNanoTelemetry");
 }
 CustomPlugin::~CustomPlugin(){}
