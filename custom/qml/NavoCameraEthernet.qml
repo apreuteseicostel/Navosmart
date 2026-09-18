@@ -7,6 +7,7 @@ QtObject {
  property alias udp: transport.udp
  readonly property bool connected: transport.connected
  readonly property string status: transport.status
+ readonly property bool dataAlive: transport.dataAlive
  // Raw network transport is ready. Actual H264/MJPEG/RTSP decoding is intentionally
  // not guessed; bind a decoder when the physical camera/GR01 stream is confirmed.
  signal packetReceived(var bytes)
