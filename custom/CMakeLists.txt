@@ -18,6 +18,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoWaypointEditor.qml
         qml/NavoWaypointDetails.qml
         qml/NavoWaypointMapOverlay.qml
+        qml/NavoActualTrack.qml
         qml/NavoBaitingController.qml
         qml/NavoBaitingPanel.qml
         qml/NavoHopperBridge.qml
