@@ -437,6 +437,7 @@ Item {
                 connected: root.sonarConnected
                 depthM: root.depthM
                 waterTempC: root.waterTempC
+                echoSamples: sonarEthernet.echoSamples
                 onOpenFullSonar: sonarFull.open()
             }
             NavoSafetyCard {
@@ -522,6 +523,7 @@ Item {
         connected: root.sonarConnected
         depthM: root.depthM
         waterTempC: root.waterTempC
+        echoSamples: sonarEthernet.echoSamples
         speedMps: root.speedMps
         latitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.latitude : NaN
         longitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.longitude : NaN
