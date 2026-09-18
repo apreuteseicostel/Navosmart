@@ -60,6 +60,12 @@ Item {
     readonly property color danger: "#ff3e55"
 
     function num(v, decimals, suffix) { return isNaN(v) ? "--" : Number(v).toFixed(decimals) + suffix }
+    function setMode(mode) { if (!root.vehicle) return; if (baitingController.enabled && mode.toUpperCase() === "MANUAL") baitingController.abortCycle("AUTO întrerupt: control manual"); root.vehicle.flightMode = mode; root.lastNavigationStatus = "Mod solicitat: " + mode }
+    function holdBoat() { if (!root.vehicle) return; if (baitingController.enabled) baitingController.abortCycle("HOLD manual"); else root.vehicle.pauseVehicle(); root.lastNavigationStatus = "HOLD/STOP solicitat" }
+    function rtlBoat() { if (!root.vehicle) return; if (baitingController.enabled) baitingController.abortCycle("RTL manual"); root.vehicle.guidedModeRTL(false); root.lastNavigationStatus = "RTL solicitat" }
+
+    NavoDigitalAnchor { id: digitalAnchor; vehicle: root.vehicle; onStatus: function(text) { root.lastNavigationStatus = text } }
+    NavoActionSequence { id: actionSequence; vehicle: root.vehicle; hopperBridge: hopperBridge; onStatus: function(text) { root.lastNavigationStatus = text } }
 
     NavoFailsafeController {
         id: failsafeController
@@ -347,11 +353,13 @@ Item {
             DataLine { name: "Silențios"; value: root.silentModeActive ? "ACTIV" : "Normal" }
             DataLine { name: "Țintă viteză"; value: root.num(baitingController.targetSpeedMps,1," m/s") }
             RowLayout { Layout.fillWidth: true; spacing: 7
-                ModeButton { text: "MANUAL"; selected: root.flightMode.toUpperCase() === "MANUAL"; enabled: root.vehicleConnected; onClicked: if (root.vehicle) root.vehicle.flightMode = "Manual" }
-                ModeButton { text: "AUTO"; selected: root.flightMode.toUpperCase() === "AUTO"; enabled: root.vehicleConnected; onClicked: if (root.vehicle) root.vehicle.flightMode = "Auto" }
-                ModeButton { text: "RTL"; selected: root.flightMode.toUpperCase().indexOf("RTL") >= 0; enabled: root.vehicleConnected; onClicked: if (root.vehicle) root.vehicle.guidedModeRTL(false) }
+                ModeButton { text: "MANUAL"; selected: root.manualMode; enabled: root.vehicleConnected; onClicked: root.setMode("Manual") }
+                ModeButton { text: "AUTO"; selected: root.autoMode; enabled: root.vehicleConnected; onClicked: root.setMode("Auto") }
+                ModeButton { text: "HOLD"; selected: root.flightMode.toUpperCase().indexOf("HOLD") >= 0; enabled: root.vehicleConnected; onClicked: root.holdBoat() }
+                ModeButton { text: "RTL"; selected: root.flightMode.toUpperCase().indexOf("RTL") >= 0; enabled: root.vehicleConnected; onClicked: root.rtlBoat() }
             }
-            Button { Layout.fillWidth: true; text: "Reîncarcă misiunea"; enabled: root.vehicleConnected; onClicked: planController.loadFromVehicle() }
+            Button { Layout.fillWidth: true; text: "Reîncarcă misiunea"; enabled: root.vehicleConnected; onClicked: { planController.loadFromVehicle(); root.lastNavigationStatus="Misiune reîncărcată din H743" } }
+            Button { Layout.fillWidth: true; text: digitalAnchor.active ? "Eliberează ancora GPS" : "Ancoră GPS"; enabled: root.vehicleConnected && root.gpsFix >= 3; onClicked: { if (digitalAnchor.active) digitalAnchor.release(); else digitalAnchor.engage() } }
             Label { text: "CAMERĂ BARCĂ"; color: root.cyan; font.bold: true }
             NavoCameraPip {
                 Layout.fillWidth: true; Layout.preferredHeight: 125
