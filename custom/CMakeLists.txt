@@ -42,6 +42,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoMissionUploader.qml
         qml/NavoFishDetections.qml
         qml/NavoFishOverlay.qml
+        qml/NavoFishDetector.qml
         qml/NavoEnergyGuard.qml
         qml/NavoActionSequence.qml
         qml/NavoSafetyManager.qml
