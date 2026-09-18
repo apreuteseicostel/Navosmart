@@ -95,7 +95,7 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
-          arch: x86_64
+          arch: arm64-v8a
           profile: pixel_6
           disable-animations: true
           script: |
@@ -103,12 +103,13 @@ jobs:
             adb wait-for-device
             adb install -r build/NAVO_SMART.apk
             PACKAGE="ro.pescarullupeste.navosmart"
+            adb logcat -c
             adb shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1
             sleep 15
-            adb shell pidof "$PACKAGE" > build/navo-pid.txt
-            adb shell dumpsys window windows > build/window.txt
-            adb logcat -d > build/navo-logcat.txt
-            adb exec-out screencap -p > build/navo-screenshot.png
+            adb shell dumpsys window windows > build/window.txt || true
+            adb logcat -d > build/navo-logcat.txt || true
+            adb exec-out screencap -p > build/navo-screenshot.png || true
+            adb shell pidof "$PACKAGE" | tee build/navo-pid.txt
             test -s build/navo-pid.txt
 
       - name: Upload Android smoke-test evidence
