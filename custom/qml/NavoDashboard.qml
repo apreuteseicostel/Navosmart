@@ -221,6 +221,18 @@ Item {
 
         PlanMasterController { id: planController; Component.onCompleted: { start(); if (root.vehicleConnected) loadFromVehicle() } }
 
+        NavoActualTrack {
+            id: actualTrack
+            anchors.fill: liveMap
+            map: liveMap
+            vehicle: root.vehicle
+            taskActive: baitingController.enabled
+            keepCompletedTrack: true
+            z: 900
+            onTrackStarted: root.lastNavigationStatus = "Înregistrare traseu GPS real pornită"
+            onTrackCompleted: function(pointCount) { root.lastNavigationStatus = "Task finalizat • traseu GPS păstrat (" + pointCount + " puncte)" }
+        }
+
         NavoWaypointMapOverlay {
             id: waypointLayer
             anchors.fill: liveMap
