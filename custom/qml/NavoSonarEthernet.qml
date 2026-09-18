@@ -7,6 +7,7 @@ QtObject {
  property alias udp: transport.udp
  readonly property bool connected: transport.connected
  readonly property string status: transport.status
+ readonly property bool dataAlive: transport.dataAlive
  property alias depthM: decoder.depthM
  property alias waterTempC: decoder.waterTempC
  property alias echoSamples: decoder.echoSamples
