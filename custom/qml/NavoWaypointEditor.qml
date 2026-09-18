@@ -17,6 +17,7 @@ Rectangle {
     // sequence. ArduPilot still owns WP1/WP2/... while NAVO SMART shows names
     // useful to the angler such as "Lanseta verde" or "Lanseta roșie".
     property var waypointNames: ({})
+    property var persistence
     property int selectedSequence: -1
     signal waypointNameChanged(int sequence, string friendlyName)
 
@@ -34,6 +35,7 @@ Rectangle {
         var clean = name.trim()
         copy[sequence.toString()] = clean.length ? clean : "WP" + sequence
         waypointNames = copy
+        if (persistence) persistence.setWaypointName(sequence, copy[sequence.toString()])
         waypointNameChanged(sequence, copy[sequence.toString()])
     }
 
