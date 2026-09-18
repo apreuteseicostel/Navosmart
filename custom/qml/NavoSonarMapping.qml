@@ -7,7 +7,7 @@ Rectangle {
     property var vehicle
     property real depthM: NaN
     property real waterTempC: NaN
-    property bool sonarConnected: false
+    property bool sonarConnected: false\n    property real bottomHardness: NaN\n    property real bottomEchoStrength: NaN
     property bool scanning: false
     property bool paused: false
     property bool bathymetryComplete: false
@@ -41,7 +41,7 @@ Rectangle {
         if(!scanning || paused || !validPosition() || !sonarConnected || isNaN(depthM)) return
         var c=vehicle.coordinate
         var s=rawSamples.slice(0)
-        s.push({lat:c.latitude, lon:c.longitude, depth:depthM, temp:waterTempC, time:Date.now()})
+        s.push({lat:c.latitude, lon:c.longitude, depth:depthM, temp:waterTempC, hardness:bottomHardness, bottomEcho:bottomEchoStrength, time:Date.now()})
         rawSamples=s
         var t=trackCoordinates.slice(0)
         if(t.length===0 || t[t.length-1].distanceTo(c)>=1.0){t.push(c); trackCoordinates=t}
