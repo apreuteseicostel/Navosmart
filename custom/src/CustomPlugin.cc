@@ -1,8 +1,10 @@
 #include "CustomPlugin.h"
+#include "NavoKoggerDecoder.h"
+#include <QtQml/qqml.h>
 #include <QtQml/QQmlApplicationEngine>
 #include <QtCore/QFile>
 CustomFlyViewOptions::CustomFlyViewOptions(CustomOptions* options,QObject* parent):QGCFlyViewOptions(options,parent){}
-CustomPlugin::CustomPlugin(QObject* parent):QGCCorePlugin(parent),_options(new CustomOptions(this)){}
+CustomPlugin::CustomPlugin(QObject* parent):QGCCorePlugin(parent),_options(new CustomOptions(this)){\n qmlRegisterType<NavoKoggerDecoder>("NavoSmart.Backend",1,0,"NavoKoggerDecoder");\n}
 CustomPlugin::~CustomPlugin(){}
 QQmlApplicationEngine* CustomPlugin::createQmlApplicationEngine(QObject* parent){
  _engine=QGCCorePlugin::createQmlApplicationEngine(parent);
