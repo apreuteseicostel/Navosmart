@@ -1,9 +1,10 @@
 #pragma once
 #include <QObject>
-#include <QByteArray>
-class QIODevice;
+#include "QGCMAVLink.h"
+class Vehicle;
 class NavoNanoTelemetry : public QObject {
  Q_OBJECT
+ Q_PROPERTY(QObject* vehicle READ vehicle WRITE setVehicle NOTIFY vehicleChanged)
  Q_PROPERTY(bool connected READ connected NOTIFY telemetryChanged)
  Q_PROPERTY(double batteryVoltage READ batteryVoltage NOTIFY telemetryChanged)
  Q_PROPERTY(double batteryTempC READ batteryTempC NOTIFY telemetryChanged)
@@ -16,11 +17,13 @@ class NavoNanoTelemetry : public QObject {
  Q_PROPERTY(int rudderUs READ rudderUs NOTIFY telemetryChanged)
  Q_PROPERTY(int alarmMask READ alarmMask NOTIFY telemetryChanged)
 public:
- explicit NavoNanoTelemetry(QObject* p=nullptr):QObject(p){}
- bool connected()const{return _connected;} double batteryVoltage()const{return _batteryMv/1000.0;} double batteryTempC()const{return _tempC10/10.0;}
+ explicit NavoNanoTelemetry(QObject* p=nullptr);
+ QObject* vehicle() const; void setVehicle(QObject*);
+ bool connected()const; double batteryVoltage()const{return _batteryV;} double batteryTempC()const{return _tempC;}
  bool waterDetected()const{return _water;} bool waterSensorFault()const{return _waterFault;} bool headlightOn()const{return _head;}
  bool positionLightsOn()const{return _pos;} int hopperLeftUs()const{return _hl;} int hopperRightUs()const{return _hr;} int rudderUs()const{return _rud;} int alarmMask()const{return _alarm;}
- Q_INVOKABLE bool ingestLine(const QString& line);
-signals:void telemetryChanged(); void frameRejected(QString reason);
-private: bool _connected=false,_water=false,_waterFault=false,_head=false,_pos=false; quint32 _batteryMv=0; qint16 _tempC10=-32768; int _hl=0,_hr=0,_rud=0,_alarm=0;
+signals:void telemetryChanged();void vehicleChanged();
+private slots:void _mavlink(const mavlink_message_t&);void _timeout();
+private:void _set(const char*,float);
+ Vehicle* _vehicle=nullptr; qint64 _lastMs=0; double _batteryV=0,_tempC=qQNaN(); bool _water=false,_waterFault=false,_head=false,_pos=false; int _hl=0,_hr=0,_rud=0,_alarm=0;
 };
