@@ -108,7 +108,11 @@ jobs:
             adb install -r build-x86/NAVO_SMART-x86.apk
             PACKAGE="ro.pescarullupeste.navosmart"
             adb logcat -c
-            ACTIVITY="$(adb shell cmd package resolve-activity --brief -c android.intent.category.LAUNCHER "$PACKAGE" | tr -d "\r" | tail -n 1)"
+            ACTIVITY="$(adb shell dumpsys package "$PACKAGE" | sed -n '/android.intent.action.MAIN:/,/^[^ ]/p' | grep "$PACKAGE/" | head -n 1 | awk '{print $2}')"
+            if [ -z "$ACTIVITY" ]; then
+              ACTIVITY="$(adb shell cmd package resolve-activity --brief "$PACKAGE" | tr -d "\r" | tail -n 1)"
+            fi
+            echo "Resolved activity: $ACTIVITY"
             test -n "$ACTIVITY"
             adb shell am start -W -n "$ACTIVITY"
             sleep 15
