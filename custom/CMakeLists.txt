@@ -33,6 +33,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoSonarRecorder.qml
         qml/NavoSonarMapping.qml
         qml/NavoLakePersistence.qml
+        qml/NavoMyLakes.qml
         qml/NavoBathymetryModel.qml
         qml/NavoScanCoordinator.qml
         qml/NavoFishingSpots.qml
@@ -57,6 +58,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerTcpClient.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerTcpClient.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoPersistence.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoPersistence.h
     CACHE INTERNAL "" FORCE
 )
 set(CUSTOM_LIBRARIES NavoSmartModule CACHE INTERNAL "" FORCE)
