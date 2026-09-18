@@ -1,11 +1,56 @@
 #include "NavoEthernetTransport.h"
 #include <QHostAddress>
 #include <QNetworkDatagram>
-NavoEthernetTransport::NavoEthernetTransport(QObject*p):QObject(p){connect(&_tcp,&QTcpSocket::connected,this,&NavoEthernetTransport::connected);connect(&_tcp,&QTcpSocket::disconnected,this,&NavoEthernetTransport::disconnected);connect(&_tcp,&QTcpSocket::readyRead,this,&NavoEthernetTransport::readTcp);connect(&_tcp,&QTcpSocket::errorOccurred,this,[this](auto){emit errorOccurred(_tcp.errorString());});connect(&_udpSocket,&QUdpSocket::readyRead,this,&NavoEthernetTransport::readUdp);connect(&_watchdog,&QTimer::timeout,this,&NavoEthernetTransport::checkWatchdog);_watchdog.start(1000);}
-void NavoEthernetTransport::setHost(const QString&v){if(_host==v)return;_host=v;emit hostChanged();}void NavoEthernetTransport::setPort(int v){if(_port==v)return;_port=v;emit portChanged();}void NavoEthernetTransport::setUdp(bool v){if(_udp==v)return;_udp=v;emit udpChanged();}void NavoEthernetTransport::setTimeoutMs(int v){v=qMax(500,v);if(_timeoutMs==v)return;_timeoutMs=v;emit timeoutMsChanged();}
-void NavoEthernetTransport::connectLink(){disconnectLink();_lastData.invalidate();if(_udp){QHostAddress a(_host);if(!_udpSocket.bind(QHostAddress::AnyIPv4,quint16(_port),QUdpSocket::ShareAddress|QUdpSocket::ReuseAddressHint)){emit errorOccurred(_udpSocket.errorString());return;}emit connected();}else _tcp.connectToHost(_host,quint16(_port));}
-void NavoEthernetTransport::disconnectLink(){if(_udpSocket.state()!=QAbstractSocket::UnconnectedState)_udpSocket.close();_tcp.abort();}
-void NavoEthernetTransport::writeBytes(const QByteArray&b){if(_udp){QHostAddress a(_host);_udpSocket.writeDatagram(b,a,quint16(_port));}else if(_tcp.state()==QTcpSocket::ConnectedState)_tcp.write(b);}
-void NavoEthernetTransport::readTcp(){auto b=_tcp.readAll();if(!b.isEmpty()){noteData();emit bytesReceived(b);}}void NavoEthernetTransport::readUdp(){while(_udpSocket.hasPendingDatagrams()){auto d=_udpSocket.receiveDatagram();if(!d.data().isEmpty()){noteData();emit bytesReceived(d.data());}}}
-void NavoEthernetTransport::noteData(){_lastData.restart();if(_stale){_stale=false;emit staleChanged();}}
-void NavoEthernetTransport::checkWatchdog(){bool s=_lastData.isValid()&&_lastData.elapsed()>_timeoutMs;if(s!=_stale){_stale=s;emit staleChanged();}}
+
+NavoEthernetTransport::NavoEthernetTransport(QObject* p):QObject(p)
+{
+    connect(&_tcp,&QTcpSocket::connected,this,[this]{setConnected(true);setStatus(QStringLiteral("ONLINE"));});
+    connect(&_tcp,&QTcpSocket::disconnected,this,[this]{setConnected(false);setDataAlive(false);setStatus(QStringLiteral("OFFLINE"));scheduleReconnect();});
+    connect(&_tcp,&QTcpSocket::readyRead,this,&NavoEthernetTransport::readTcp);
+    connect(&_tcp,&QTcpSocket::errorOccurred,this,[this](QAbstractSocket::SocketError){setStatus(_tcp.errorString());});
+    connect(&_udpSocket,&QUdpSocket::readyRead,this,&NavoEthernetTransport::readUdp);
+    connect(&_healthTimer,&QTimer::timeout,this,&NavoEthernetTransport::healthTick);
+    connect(&_reconnectTimer,&QTimer::timeout,this,&NavoEthernetTransport::connectEndpoint);
+    _healthTimer.start(1000);
+    _reconnectTimer.setSingleShot(true);
+}
+
+void NavoEthernetTransport::setHost(const QString& v){if(_host==v)return;_host=v;emit endpointChanged();}
+void NavoEthernetTransport::setPort(quint16 v){if(_port==v)return;_port=v;emit endpointChanged();}
+void NavoEthernetTransport::setUdp(bool v){if(_udp==v)return;_udp=v;emit endpointChanged();}
+void NavoEthernetTransport::setAutoReconnect(bool v){if(_autoReconnect==v)return;_autoReconnect=v;emit autoReconnectChanged();}
+
+void NavoEthernetTransport::connectEndpoint()
+{
+    _manualDisconnect=false;
+    _reconnectTimer.stop();
+    if(_udp){
+        _udpSocket.close();
+        if(!_udpSocket.bind(QHostAddress::AnyIPv4,_port,QUdpSocket::ShareAddress|QUdpSocket::ReuseAddressHint)){
+            setConnected(false);setStatus(_udpSocket.errorString());scheduleReconnect();return;
+        }
+        setConnected(true);setStatus(QStringLiteral("ONLINE"));
+    }else{
+        _tcp.abort();
+        setStatus(QStringLiteral("CONNECTING"));
+        _tcp.connectToHost(_host,_port);
+    }
+}
+
+void NavoEthernetTransport::disconnectEndpoint()
+{
+    _manualDisconnect=true;
+    _reconnectTimer.stop();
+    _udpSocket.close();
+    _tcp.abort();
+    setConnected(false);setDataAlive(false);setStatus(QStringLiteral("OFFLINE"));
+}
+
+void NavoEthernetTransport::readTcp(){const auto b=_tcp.readAll();if(!b.isEmpty()){noteData();emit bytesReceived(b);}}
+void NavoEthernetTransport::readUdp(){while(_udpSocket.hasPendingDatagrams()){const auto d=_udpSocket.receiveDatagram();if(!d.data().isEmpty()){noteData();emit bytesReceived(d.data());}}}
+void NavoEthernetTransport::noteData(){_lastData.restart();setDataAlive(true);}
+void NavoEthernetTransport::healthTick(){if(_dataAlive&&_lastData.isValid()&&_lastData.elapsed()>3000)setDataAlive(false);}
+void NavoEthernetTransport::scheduleReconnect(){if(_autoReconnect&&!_manualDisconnect&&!_reconnectTimer.isActive())_reconnectTimer.start(2000);}
+void NavoEthernetTransport::setConnected(bool v){if(_connected==v)return;_connected=v;emit connectedChanged();}
+void NavoEthernetTransport::setDataAlive(bool v){if(_dataAlive==v)return;_dataAlive=v;emit dataAliveChanged();}
+void NavoEthernetTransport::setStatus(const QString& v){if(_status==v)return;_status=v;emit statusChanged();}
