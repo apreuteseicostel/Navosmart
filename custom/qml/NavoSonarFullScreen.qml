@@ -28,10 +28,7 @@ Popup {
    Button{text:"ÎNCHIDE";onClicked:root.close()}
   }
   Rectangle{Layout.fillWidth:true;Layout.fillHeight:true;color:"#020b12"
-   Canvas{id:echogram;anchors.fill:parent
-    onPaint:{var ctx=getContext("2d");ctx.reset();ctx.fillStyle="#020b12";ctx.fillRect(0,0,width,height);ctx.strokeStyle="#18364a";ctx.lineWidth=1;for(var g=1;g<5;g++){var gy=g*height/5;ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(width,gy);ctx.stroke()}if(root.echoSamples&&root.echoSamples.length>1){ctx.strokeStyle="#21b7ff";ctx.lineWidth=2;ctx.beginPath();for(var i=0;i<root.echoSamples.length;i++){var x=i*width/(root.echoSamples.length-1);var y=height-Math.max(0,Math.min(1,root.echoSamples[i]))*height;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}ctx.stroke()}}
-    Connections{target:root;function onEchoSamplesChanged(){echogram.requestPaint()}}
-   }
+   NavoEchogram{id:echogram;anchors.fill:parent;ping:root.echoSamples;live:root.connected;maxColumns:300}
    Label{anchors.centerIn:parent;visible:!root.connected;text:"Aștept date reale de la Kogger\nEcograma nu este simulată";horizontalAlignment:Text.AlignHCenter;color:"#9db2c5";font.pixelSize:18}
   }
   RowLayout{Layout.fillWidth:true;Layout.margins:12
