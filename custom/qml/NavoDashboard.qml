@@ -25,6 +25,7 @@ Item {
     property bool silentModeActive: false
     property bool cameraConnected: false
     property string cameraStreamUrl: ""
+    property string cameraProtocol: "auto"
     property bool waterAlarm: false
     property real escTempC: NaN
     property real batteryCurrentA: NaN
@@ -69,12 +70,19 @@ Item {
     NavoPersistence { id: persistence }
     NavoAreaScan { id: areaScan }
     NavoFishDetections { id: fishDetections }
-    NavoKoggerDecoder {
-        id: koggerDecoder
-        onDepthChanged: root.depthM=depthM
-        onTemperatureChanged: root.waterTempC=waterTempC
-        onConnectedChanged: root.sonarConnected=connected
+    NavoSonarEthernet {
+        id: sonarEthernet
+        vehicle: root.vehicle
+        onDepthMChanged: root.depthM=depthM
+        onWaterTempCChanged: root.waterTempC=waterTempC
+        onDataAliveChanged: root.sonarConnected=dataAlive
+        onConnectedChanged: if(!connected) root.sonarConnected=false
         onEchoSamplesChanged: fishDetector.analyze(echoSamples,depthM)
+        onGeoSample: function(sample) { persistence.addSonarSample(sample) }
+    }
+    NavoCameraEthernet {
+        id: cameraEthernet
+        onConnectedChanged: root.cameraConnected=connected
     }
     NavoFishDetector {
         id: fishDetector
@@ -241,11 +249,27 @@ Item {
             NavButton { text: "Puncte" }
             NavButton { text: "Mapare Sonar"; onClicked: sonarMappingPopup.open() }
             NavButton { text: "Bălțile mele"; onClicked: myLakes.open() }
-            NavButton { text: "Setări" }
+            NavButton { text: "Setări"; onClicked: ethernetSettingsPopup.open() }
             Item { Layout.fillHeight: true }
             Label { text: root.vehicle ? root.vehicle.vehicleTypeString : "ArduPilot Rover"; color: root.textDim; font.pixelSize: 11 }
             Label { text: "Matek H743-WING V3"; color: root.textDim; font.pixelSize: 10 }
         }
+    }
+
+    NavoEthernetIndicator {
+        id: ethernetIndicator
+        anchors.top: header.bottom
+        anchors.right: rightPanel.left
+        anchors.topMargin: 14
+        anchors.rightMargin: 16
+        z: 4000
+        sonarConnected: sonarEthernet.connected
+        sonarAlive: sonarEthernet.dataAlive
+        sonarStatus: sonarEthernet.status
+        cameraConnected: cameraEthernet.connected
+        cameraAlive: cameraEthernet.dataAlive
+        cameraStatus: cameraEthernet.status
+        visible: !root.mapFullscreen
     }
 
     Rectangle {
@@ -397,7 +421,8 @@ Item {
             z: 1050
             connected: root.cameraConnected
             streamUrl: root.cameraStreamUrl
-            onFullscreenRequested: root.lastNavigationStatus = "Camera GR01: fullscreen va fi activat când conectăm fluxul real G20"
+            protocol: root.cameraProtocol
+            onFullscreenRequested: cameraFull.open()
         }
 
 
@@ -505,8 +530,8 @@ Item {
             Label { text: "CAMERĂ BARCĂ"; color: root.cyan; font.bold: true }
             NavoCameraPip {
                 Layout.fillWidth: true; Layout.preferredHeight: 125
-                connected: root.cameraConnected; streamUrl: root.cameraStreamUrl
-                onFullscreenRequested: root.lastNavigationStatus = "Cameră: fullscreen solicitat"
+                connected: root.cameraConnected; streamUrl: root.cameraStreamUrl; protocol: root.cameraProtocol
+                onFullscreenRequested: cameraFull.open()
             }
             Label { text: "NĂDIRE"; color: root.cyan; font.bold: true }
             Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: baitingController.enabled ? "Cuvele apar automat la apropierea finală." : "Cuve ascunse până la punctul de eliberare."; color: root.textDim; font.pixelSize: 11 }
@@ -557,6 +582,44 @@ Item {
         }
     }
 
+    Popup {
+        id: ethernetSettingsPopup
+        parent: Overlay.overlay
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape
+        anchors.centerIn: parent
+        width: Math.min(760, root.width-40)
+        height: Math.min(620, root.height-40)
+        background: Rectangle { radius:12; color:root.bg; border.color:root.cyan }
+        contentItem: NavoEthernetSettings {
+            id: ethernetSettings
+            sonar: sonarEthernet
+            camera: cameraEthernet
+            onStatus: function(text){ root.lastNavigationStatus=text }
+            onCameraStreamUrlChanged: root.cameraStreamUrl=cameraStreamUrl
+            onCameraProtocolChanged: root.cameraProtocol=cameraProtocol
+        }
+    }
+
+    Popup {
+        id: cameraFull
+        parent: Overlay.overlay
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape
+        x: 0; y: 0
+        width: Overlay.overlay ? Overlay.overlay.width : root.width
+        height: Overlay.overlay ? Overlay.overlay.height : root.height
+        padding: 0
+        background: Rectangle { color:"#02070c" }
+        contentItem: NavoCameraFullScreen {
+            streamUrl: root.cameraStreamUrl
+            protocol: root.cameraProtocol
+            onClosed: cameraFull.close()
+        }
+    }
+
     NavoMyLakes {
         id: myLakes
         parent: Overlay.overlay
@@ -595,6 +658,9 @@ Item {
         speedMps: root.speedMps
         latitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.latitude : NaN
         longitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.longitude : NaN
+        echoSamples: sonarEthernet.echoSamples
+        fishHotspots: fishDetections.hotspots
+        transport: sonarEthernet
         onSaveWaypointRequested: function(latitude, longitude, depth, temperature) {
             var spot=fishingSpots.saveSpot(QtPositioning.coordinate(latitude,longitude),depth,temperature,fishingSpots.suggestedName("Punct sonar"),"Salvat direct din sonar",null)
             if(spot){lakePersistence.fishingSpots=fishingSpots.fishingSpots;scanCoordinator.checkpoint("sonar-spot");root.lastNavigationStatus="Punct salvat: "+spot.name+" • "+depth.toFixed(1)+" m"}
