@@ -263,6 +263,16 @@ Item {
             onTrackCompleted: function(pointCount) { root.lastNavigationStatus = "Task finalizat • traseu GPS păstrat (" + pointCount + " puncte)" }
         }
 
+        NavoBathymetryMapLayer {
+            id: bathymetryLayer
+            anchors.fill: liveMap
+            map: liveMap
+            samples: sonarMappingView.depthPoints
+            minDepthM: sonarMappingView.minDepthM
+            maxDepthM: sonarMappingView.maxDepthM
+            z: 950
+        }
+
         NavoWaypointMapOverlay {
             id: waypointLayer
             anchors.fill: liveMap
