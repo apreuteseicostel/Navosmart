@@ -32,6 +32,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoAreaScan.qml
         qml/NavoSonarRecorder.qml
         qml/NavoSonarMapping.qml
+        qml/NavoSonarEthernet.qml
         qml/NavoEnergyGuard.qml
         qml/NavoActionSequence.qml
         qml/NavoSafetyManager.qml
