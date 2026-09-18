@@ -1,6 +1,5 @@
 #include "NavoEthernetTransport.h"
 #include <QHostAddress>
-#include <QNetworkDatagram>
 
 NavoEthernetTransport::NavoEthernetTransport(QObject* p):QObject(p)
 {
@@ -47,7 +46,7 @@ void NavoEthernetTransport::disconnectEndpoint()
 }
 
 void NavoEthernetTransport::readTcp(){const auto b=_tcp.readAll();if(!b.isEmpty()){noteData();emit bytesReceived(b);}}
-void NavoEthernetTransport::readUdp(){while(_udpSocket.hasPendingDatagrams()){const auto d=_udpSocket.receiveDatagram();if(!d.data().isEmpty()){noteData();emit bytesReceived(d.data());}}}
+void NavoEthernetTransport::readUdp(){while(_udpSocket.hasPendingDatagrams()){QByteArray b; b.resize(int(_udpSocket.pendingDatagramSize())); if(_udpSocket.readDatagram(b.data(),b.size())>=0&&!b.isEmpty()){noteData();emit bytesReceived(b);}}}
 void NavoEthernetTransport::noteData(){_lastData.restart();setDataAlive(true);}
 void NavoEthernetTransport::healthTick(){if(_dataAlive&&_lastData.isValid()&&_lastData.elapsed()>3000)setDataAlive(false);}
 void NavoEthernetTransport::scheduleReconnect(){if(_autoReconnect&&!_manualDisconnect&&!_reconnectTimer.isActive())_reconnectTimer.start(2000);}
