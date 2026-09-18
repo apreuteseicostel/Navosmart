@@ -7,7 +7,9 @@ Rectangle {
     property var vehicle
     property real depthM: NaN
     property real waterTempC: NaN
-    property bool sonarConnected: false\n    property real bottomHardness: NaN\n    property real bottomEchoStrength: NaN
+    property bool sonarConnected: false
+    property real bottomHardness: NaN
+    property real bottomEchoStrength: NaN
     property bool scanning: false
     property bool paused: false
     property bool bathymetryComplete: false
