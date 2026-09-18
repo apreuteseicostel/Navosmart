@@ -203,7 +203,7 @@ Item {
             NavButton { text: "Sonar"; onClicked: sonarFull.open() }
             NavButton { text: "Puncte" }
             NavButton { text: "Mapare Sonar"; onClicked: sonarMappingPopup.open() }
-            NavButton { text: "Setări" }
+            NavButton { text: "Setări"; onClicked: ethernetSettingsPopup.open() }
             Item { Layout.fillHeight: true }
             Label { text: root.vehicle ? root.vehicle.vehicleTypeString : "ArduPilot Rover"; color: root.textDim; font.pixelSize: 11 }
             Label { text: "Matek H743-WING V3"; color: root.textDim; font.pixelSize: 10 }
@@ -429,6 +429,23 @@ Item {
                 Layout.fillWidth: true
                 controller: failsafeController
             }
+        }
+    }
+
+    Popup {
+        id: ethernetSettingsPopup
+        parent: Overlay.overlay
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        anchors.centerIn: parent
+        width: Math.min(700, root.width - 40)
+        height: Math.min(520, root.height - 40)
+        background: Rectangle { radius:12; color:root.bg; border.color:root.cyan }
+        contentItem: NavoEthernetSettings {
+            sonar: sonarEthernet
+            camera: cameraEthernet
+            onStatus: function(text){ root.lastNavigationStatus=text }
         }
     }
 
