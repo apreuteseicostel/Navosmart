@@ -11,6 +11,7 @@ Item {
     property var planner
     property var missionController
     property var planController
+    property var sonarMapping
     property bool missionPrepared: false
     property bool missionUploaded: false
     property bool uploadPending: false
@@ -64,6 +65,10 @@ Item {
     function startMission() {
         if(!vehicle || !missionUploaded) { status("Area Scan: încarcă misiunea înainte de START"); return }
         vehicle.setCurrentMissionSequence(1)
+        if(sonarMapping) {
+            sonarMapping.startScan()
+            if(!sonarMapping.scanning) { status("Area Scan blocat: maparea Kogger nu a putut porni"); return }
+        }
         vehicle.startMission()
         missionRunning=true; finishHandled=false
         status("Area Scan: START misiune solicitat")
@@ -72,6 +77,7 @@ Item {
     function finishMission() {
         if(finishHandled) return
         finishHandled=true; missionRunning=false
+        if(sonarMapping && sonarMapping.scanning) sonarMapping.finishAndBuild()
         if(finishAction==="RTL") {
             vehicle.guidedModeRTL(false)
             status("Area Scan finalizat • RTL solicitat")
@@ -83,11 +89,13 @@ Item {
     function holdMission() {
         if(!vehicle) return
         vehicle.pauseVehicle(); missionRunning=false
+        if(sonarMapping && sonarMapping.scanning) sonarMapping.pauseScan()
         status("Area Scan: HOLD/STOP solicitat")
     }
     function rtlMission() {
         if(!vehicle) return
         vehicle.guidedModeRTL(false); missionRunning=false
+        if(sonarMapping && sonarMapping.scanning) sonarMapping.finishAndBuild()
         status("Area Scan: RTL solicitat")
     }
     function clearPlan() {
