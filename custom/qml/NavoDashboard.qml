@@ -72,7 +72,7 @@ Item {
         id: sonarEthernet
         vehicle: root.vehicle
         // Endpoint remains user-configurable until the physical Kogger Ethernet path is confirmed.
-        onGeoSample: function(sample) { persistence.addSonarSample(sample) }
+        onGeoSample: function(sample) { persistence.addSonarSample(sample); sonarMappingView.addGeoSample(sample) }
     }
     NavoCameraEthernet {
         id: cameraEthernet
