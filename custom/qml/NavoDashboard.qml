@@ -520,7 +520,24 @@ Item {
             sonarConnected: root.sonarConnected
             onStatus: function(text) { root.lastNavigationStatus = text }
             onBathymetryRequested: function(samples) {
-                root.lastNavigationStatus = "Batimetrie: " + samples.length + " puncte georeferențiate pregătite pentru hartă."
+                var meta = {
+                    name: "Scanare " + Qt.formatDateTime(new Date(), "dd-MM-yyyy HH:mm"),
+                    areaM2: areaScanPlanner.estimatedAreaM2,
+                    routeDistanceM: areaScanPlanner.estimatedDistanceM,
+                    laneSpacingM: areaScanPlanner.laneSpacingM,
+                    laneCount: areaScanPlanner.laneCount,
+                    minDepthM: sonarMappingView.minDepthM,
+                    maxDepthM: sonarMappingView.maxDepthM,
+                    sampleCount: samples.length
+                }
+                var id = persistence.saveBathymetrySession(meta, samples)
+                if(id) {
+                    sonarMappingView.markBathymetrySaved(true)
+                    root.lastNavigationStatus = meta.name + " salvată • " + samples.length + " măsurători"
+                } else {
+                    sonarMappingView.markBathymetrySaved(false)
+                    root.lastNavigationStatus = "Eroare salvare scanare • datele brute au fost păstrate"
+                }
             }
         }
     }
