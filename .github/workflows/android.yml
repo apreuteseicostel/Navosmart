@@ -17,9 +17,7 @@ jobs:
           git clone --depth 1 --branch v5.0.7 --recurse-submodules --shallow-submodules https://github.com/mavlink/qgroundcontrol.git qgc
           rm -rf qgc/custom
           cp -a custom qgc/custom
-          # QGC v5.0.7 tracks PX4-GPSDrivers main, which is no longer API-compatible.
           sed -i 's/GIT_TAG main/GIT_TAG caf5158061bd10e79c9f042abb62c86bc6f3e7a7/' qgc/src/GPS/CMakeLists.txt
-          grep -A4 -B2 "PX4-GPSDrivers" qgc/src/GPS/CMakeLists.txt
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -52,56 +50,62 @@ jobs:
           modules: 'qtcharts qtlocation qtpositioning qtspeech qt5compat qtmultimedia qtserialport qtimageformats qtshadertools qtconnectivity qtquick3d qtsensors'
           setup-python: false
           cache: true
-      - name: Install Qt Android arm64
+      - name: Install Qt Android ABIs
         run: |
           python3 -m pip install --user 'aqtinstall==3.1.*'
-          python3 -m aqt install-qt linux android 6.8.3 android_arm64_v8a --outputdir "${{ runner.temp }}/Qt" --modules qtcharts qtlocation qtpositioning qtspeech qt5compat qtmultimedia qtserialport qtimageformats qtshadertools qtconnectivity qtquick3d qtsensors
-      - name: Configure
+          MODS='qtcharts qtlocation qtpositioning qtspeech qt5compat qtmultimedia qtserialport qtimageformats qtshadertools qtconnectivity qtquick3d qtsensors'
+          python3 -m aqt install-qt linux android 6.8.3 android_arm64_v8a --outputdir "${{ runner.temp }}/Qt" --modules $MODS
+          python3 -m aqt install-qt linux android 6.8.3 android_x86_64 --outputdir "${{ runner.temp }}/Qt" --modules $MODS
+      - name: Configure arm64 release
         run: |
           mkdir -p build
           "${{ runner.temp }}/Qt/6.8.3/android_arm64_v8a/bin/qt-cmake" -S qgc -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DQT_ANDROID_ABIS=arm64-v8a \
-            -DQT_ANDROID_BUILD_ALL_ABIS=OFF \
-            -DQT_HOST_PATH="${{ runner.temp }}/Qt/6.8.3/gcc_64" \
-            -DQT_ANDROID_SIGN_APK=OFF \
-            -DQGC_STABLE_BUILD=ON
-      - name: Build APK
+            -DCMAKE_BUILD_TYPE=Release -DQT_ANDROID_ABIS=arm64-v8a -DQT_ANDROID_BUILD_ALL_ABIS=OFF \
+            -DQT_HOST_PATH="${{ runner.temp }}/Qt/6.8.3/gcc_64" -DQT_ANDROID_SIGN_APK=OFF -DQGC_STABLE_BUILD=ON
+      - name: Build arm64 APK
         run: cmake --build build --target all --config Release --parallel
       - name: Prepare installable APK
         run: |
           set -euo pipefail
           APK="$(find build -type f -name '*.apk' | head -n 1)"
           test -n "$APK"
-          echo "Built APK: $APK"
-          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
-          ZIPALIGN="$ANDROID_HOME/build-tools/35.0.0/zipalign"
-          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"; ZIPALIGN="$ANDROID_HOME/build-tools/35.0.0/zipalign"; AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
           if ! "$APKSIGNER" verify "$APK"; then
-            echo "APK is not signed; applying CI debug signature for direct sideload testing."
-            KS="$HOME/.android/debug.keystore"
-            mkdir -p "$HOME/.android"
-            if [ ! -f "$KS" ]; then
-              keytool -genkeypair -v -keystore "$KS" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=NAVO SMART,C=GB"
-            fi
+            KS="$HOME/.android/debug.keystore"; mkdir -p "$HOME/.android"
+            [ -f "$KS" ] || keytool -genkeypair -v -keystore "$KS" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=NAVO SMART,C=GB"
             "$ZIPALIGN" -f -p 4 "$APK" build/NAVO_SMART-aligned.apk
             "$APKSIGNER" sign --ks "$KS" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out build/NAVO_SMART.apk build/NAVO_SMART-aligned.apk
-          else
-            cp "$APK" build/NAVO_SMART.apk
-          fi
+          else cp "$APK" build/NAVO_SMART.apk; fi
           "$APKSIGNER" verify --verbose --print-certs build/NAVO_SMART.apk
           "$AAPT" dump badging build/NAVO_SMART.apk | head -n 8
+      - name: Configure x86_64 smoke-test APK
+        run: |
+          mkdir -p build-x86
+          "${{ runner.temp }}/Qt/6.8.3/android_x86_64/bin/qt-cmake" -S qgc -B build-x86 -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release -DQT_ANDROID_ABIS=x86_64 -DQT_ANDROID_BUILD_ALL_ABIS=OFF \
+            -DQT_HOST_PATH="${{ runner.temp }}/Qt/6.8.3/gcc_64" -DQT_ANDROID_SIGN_APK=OFF -DQGC_STABLE_BUILD=ON
+      - name: Build x86_64 smoke-test APK
+        run: cmake --build build-x86 --target all --config Release --parallel
+      - name: Prepare x86_64 smoke-test APK
+        run: |
+          set -euo pipefail
+          APK="$(find build-x86 -type f -name '*.apk' | head -n 1)"; test -n "$APK"
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"; ZIPALIGN="$ANDROID_HOME/build-tools/35.0.0/zipalign"; KS="$HOME/.android/debug.keystore"
+          if ! "$APKSIGNER" verify "$APK"; then
+            "$ZIPALIGN" -f -p 4 "$APK" build-x86/NAVO_SMART-x86-aligned.apk
+            "$APKSIGNER" sign --ks "$KS" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out build-x86/NAVO_SMART-x86.apk build-x86/NAVO_SMART-x86-aligned.apk
+          else cp "$APK" build-x86/NAVO_SMART-x86.apk; fi
       - name: Android emulator smoke test
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
-          arch: arm64-v8a
+          arch: x86_64
           profile: pixel_6
           disable-animations: true
           script: |
             set -euo pipefail
             adb wait-for-device
-            adb install -r build/NAVO_SMART.apk
+            adb install -r build-x86/NAVO_SMART-x86.apk
             PACKAGE="ro.pescarullupeste.navosmart"
             adb logcat -c
             adb shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1
@@ -111,7 +115,6 @@ jobs:
             adb exec-out screencap -p > build/navo-screenshot.png || true
             adb shell pidof "$PACKAGE" | tee build/navo-pid.txt
             test -s build/navo-pid.txt
-
       - name: Upload Android smoke-test evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -123,7 +126,6 @@ jobs:
             build/navo-logcat.txt
             build/navo-screenshot.png
           if-no-files-found: warn
-
       - name: Upload installable APK
         if: success()
         uses: actions/upload-artifact@v4
