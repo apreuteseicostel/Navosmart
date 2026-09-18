@@ -282,6 +282,7 @@ Item {
             planner: areaScanPlanner
             missionController: planController.missionController
             planController: planController
+            sonarMapping: sonarMappingView
             visible: !root.mapFullscreen
             z: 1300
             onStatus: function(text) { root.lastNavigationStatus = text }
