@@ -1,7 +1,7 @@
 name: Build NAVO SMART Android
 on:
   push:
-    branches: [main, feature/area-scan-bathymetry-resume]
+    branches: [main, feature/area-scan-bathymetry-resume, feature/unified-navosmart-integration]
   pull_request:
     branches: [main]
   workflow_dispatch:
