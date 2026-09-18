@@ -27,8 +27,8 @@ QtObject {
             var north=origin.distanceTo(QtPositioning.coordinate(c.latitude,origin.longitude))*(c.latitude>=origin.latitude?1:-1)
             var east=origin.distanceTo(QtPositioning.coordinate(origin.latitude,c.longitude))*(c.longitude>=origin.longitude?1:-1)
             var gx=Math.round(east/size), gy=Math.round(north/size), key=gx+":"+gy
-            if(!buckets[key]) buckets[key]={gx:gx,gy:gy,sum:0,count:0,min:s.depth,max:s.depth}
-            var b=buckets[key]; b.sum+=s.depth; b.count++; b.min=Math.min(b.min,s.depth); b.max=Math.max(b.max,s.depth)
+            if(!buckets[key]) buckets[key]={gx:gx,gy:gy,sum:0,count:0,min:s.depth,max:s.depth,hardSum:0,hardCount:0,echoSum:0,echoCount:0}
+            var b=buckets[key]; b.sum+=s.depth; b.count++; b.min=Math.min(b.min,s.depth); b.max=Math.max(b.max,s.depth); if(s.hardness!==undefined&&!isNaN(s.hardness)){b.hardSum+=s.hardness;b.hardCount++} if(s.bottomEcho!==undefined&&!isNaN(s.bottomEcho)){b.echoSum+=s.bottomEcho;b.echoCount++}
             minDepthM=isNaN(minDepthM)?s.depth:Math.min(minDepthM,s.depth)
             maxDepthM=isNaN(maxDepthM)?s.depth:Math.max(maxDepthM,s.depth)
         }
@@ -36,7 +36,7 @@ QtObject {
         for(var k in buckets){
             var b=buckets[k]
             var center=origin.atDistanceAndAzimuth(Math.sqrt(Math.pow(b.gx*size,2)+Math.pow(b.gy*size,2)),Math.atan2(b.gx,b.gy)*180/Math.PI)
-            out.push({lat:center.latitude,lon:center.longitude,depth:b.sum/b.count,minDepth:b.min,maxDepth:b.max,samples:b.count})
+            out.push({lat:center.latitude,lon:center.longitude,depth:b.sum/b.count,minDepth:b.min,maxDepth:b.max,samples:b.count,hardness:b.hardCount?b.hardSum/b.hardCount:NaN,bottomEcho:b.echoCount?b.echoSum/b.echoCount:NaN})
         }
         cells=out; rebuilt(out.length); return out
     }
