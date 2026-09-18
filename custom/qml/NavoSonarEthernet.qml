@@ -12,12 +12,16 @@ QtObject {
  property alias waterTempC: decoder.waterTempC
  property alias echoSamples: decoder.echoSamples
  property var vehicle
+ property int rxBytes: 0
+ property int rxChunks: 0
  signal geoSample(var sample)
  function connectSonar(){ transport.connectEndpoint() }
  function disconnectSonar(){ transport.disconnectEndpoint(); decoder.reset() }
+ function connectToSonar(){ connectSonar() }
+ function disconnectFromSonar(){ disconnectSonar() }
  NavoEthernetTransport {
   id: transport
-  onBytesReceived: function(data){ decoder.feedBytes(data) }
+  onBytesReceived: function(data){ root.rxBytes += data.length; root.rxChunks += 1; decoder.feedBytes(data) }
  }
  NavoKoggerDecoder {
   id: decoder
