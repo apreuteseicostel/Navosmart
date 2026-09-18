@@ -135,7 +135,7 @@ Item {
 
         onStateChangedDetailed: function(state, text) {
             root.lastNavigationStatus = "Nădire: " + text
-            if (state === baitingController.FinalApproach) root.hopperStatusExpanded = true
+            if (state === baitingController.finalApproachState) root.hopperStatusExpanded = true
         }
 
         onCycleFinished: function(success, message) {
