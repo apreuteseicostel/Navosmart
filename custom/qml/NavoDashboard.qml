@@ -280,6 +280,8 @@ Item {
             map: liveMap
             vehicle: root.vehicle
             planner: areaScanPlanner
+            missionController: planController.missionController
+            planController: planController
             visible: !root.mapFullscreen
             z: 1300
             onStatus: function(text) { root.lastNavigationStatus = text }
