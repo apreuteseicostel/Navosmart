@@ -44,6 +44,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoNanoTelemetry.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoNanoTelemetry.h
     CACHE INTERNAL "" FORCE
 )
 set(CUSTOM_LIBRARIES NavoSmartModule CACHE INTERNAL "" FORCE)
