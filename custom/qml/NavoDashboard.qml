@@ -68,6 +68,7 @@ Item {
     function rtlBoat() { if (!root.vehicle) return; if (baitingController.enabled) baitingController.abortCycle("RTL manual"); root.vehicle.guidedModeRTL(false); root.lastNavigationStatus = "RTL solicitat" }
 
     NavoPersistence { id: persistence }
+    NavoAreaScan { id: areaScanPlanner; laneSpacingM: 5 }
     NavoSonarEthernet {
         id: sonarEthernet
         vehicle: root.vehicle
@@ -271,6 +272,22 @@ Item {
             minDepthM: sonarMappingView.minDepthM
             maxDepthM: sonarMappingView.maxDepthM
             z: 950
+        }
+
+        NavoAreaScanOverlay {
+            id: areaScanOverlay
+            anchors.fill: liveMap
+            map: liveMap
+            vehicle: root.vehicle
+            planner: areaScanPlanner
+            visible: !root.mapFullscreen
+            z: 1300
+            onStatus: function(text) { root.lastNavigationStatus = text }
+            onStartRequested: function(points) {
+                // Preview/confirmation is intentionally separated from mission upload.
+                // MissionController integration follows after validating QGC mission item creation.
+                root.lastNavigationStatus = "Area Scan: " + points.length + " puncte pregătite • încărcarea în H743 nu este încă activată"
+            }
         }
 
         NavoWaypointMapOverlay {
