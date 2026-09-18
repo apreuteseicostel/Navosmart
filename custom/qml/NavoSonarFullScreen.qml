@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import NavoSmart.Backend 1.0
 Popup {
  id:root
  property bool connected:false
