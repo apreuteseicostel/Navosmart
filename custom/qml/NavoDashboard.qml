@@ -8,6 +8,7 @@ import QGroundControl.Controls
 import QGroundControl.FlyView
 import QGroundControl.FlightMap
 import QGroundControl.PlanView
+import NavoSmart.Backend
 
 Item {
     id: root
@@ -24,7 +25,8 @@ Item {
     property bool silentModeActive: false
     property bool cameraConnected: false
     property string cameraStreamUrl: ""
-    property bool waterAlarm: false
+    property bool waterAlarm: nanoTelemetry.connected && nanoTelemetry.waterDetected
+    readonly property real batteryTempC: nanoTelemetry.connected ? nanoTelemetry.batteryTempC : NaN
     property real escTempC: NaN
     property real batteryCurrentA: NaN
     property string boatId: "NAV0001"
@@ -65,6 +67,12 @@ Item {
     function holdBoat() { if (!root.vehicle) return; if (baitingController.enabled) baitingController.abortCycle("HOLD manual"); else root.vehicle.pauseVehicle(); root.lastNavigationStatus = "HOLD/STOP solicitat" }
     function rtlBoat() { if (!root.vehicle) return; if (baitingController.enabled) baitingController.abortCycle("RTL manual"); root.vehicle.guidedModeRTL(false); root.lastNavigationStatus = "RTL solicitat" }
 
+    NavoNanoTelemetry { id: nanoTelemetry; vehicle: root.vehicle }
+    NavoSafetyManager { id: nanoSafety; vehicle: root.vehicle; waterDetected: root.waterAlarm; batteryTempC: root.batteryTempC
+        onWarning: function(reason){ root.lastNavigationStatus = "ATENȚIE: " + reason }
+        onHoldRequested: function(reason){ if(root.vehicle) root.vehicle.pauseVehicle(); root.lastNavigationStatus="SIGURANȚĂ HOLD: "+reason }
+        onRtlRequested: function(reason){ if(root.vehicle) root.vehicle.guidedModeRTL(false); root.lastNavigationStatus="SIGURANȚĂ RTL: "+reason }
+    }
     NavoDigitalAnchor { id: digitalAnchor; vehicle: root.vehicle; onStatus: function(text) { root.lastNavigationStatus = text } }
     NavoActionSequence { id: actionSequence; vehicle: root.vehicle; hopperBridge: hopperBridge; onStatus: function(text) { root.lastNavigationStatus = text } }
 
@@ -175,6 +183,7 @@ Item {
             }
             StatusPill { label: root.gpsRtk ? "GPS RTK" : "GPS"; value: root.satellites >= 0 ? root.satellites + " sat" : "--"; ok: root.gpsFix >= 3 }
             StatusPill { label: "BATERIE"; value: root.num(root.batteryPercent,0,"%") + "  " + root.num(root.batteryVoltage,1,"V"); ok: !isNaN(root.batteryPercent) && root.batteryPercent > 25 }
+            Label { text: "🌡 " + root.num(root.batteryTempC,1,"°C"); color: isNaN(root.batteryTempC) ? root.textDim : (root.batteryTempC >= 55 ? root.danger : (root.batteryTempC >= 45 ? "#ffc247" : root.textDim)); font.pixelSize: 11; font.bold: root.batteryTempC >= 45; visible: nanoTelemetry.connected }
             StatusPill { label: "VITEZĂ"; value: root.num(root.speedMps,1," m/s"); ok: root.vehicleConnected }
             StatusPill { label: "DIRECȚIE"; value: root.num(root.headingDeg,0,"°"); ok: root.vehicleConnected }
             StatusPill { label: "MOD"; value: root.flightMode; ok: root.vehicleConnected }
@@ -299,8 +308,11 @@ Item {
             z: 1200
             leftHopperCommandOpen: hopperBridge.leftOpen
             rightHopperCommandOpen: hopperBridge.rightOpen
+            headlightOn: nanoTelemetry.connected && nanoTelemetry.headlightOn
+            positionLightsOn: nanoTelemetry.connected && nanoTelemetry.positionLightsOn
+            rudderNormalized: nanoTelemetry.connected && nanoTelemetry.rudderUs > 0 ? (nanoTelemetry.rudderUs-1500)/500.0 : 0
             waterDetected: root.waterAlarm
-            batteryTempC: NaN
+            batteryTempC: root.batteryTempC
             visible: !root.hopperStatusExpanded
             MouseArea { anchors.fill: parent; onClicked: root.hopperStatusExpanded = true }
         }
@@ -322,8 +334,11 @@ Item {
                     compact: false
                     leftHopperCommandOpen: hopperBridge.leftOpen
                     rightHopperCommandOpen: hopperBridge.rightOpen
+                    headlightOn: nanoTelemetry.connected && nanoTelemetry.headlightOn
+                    positionLightsOn: nanoTelemetry.connected && nanoTelemetry.positionLightsOn
+                    rudderNormalized: nanoTelemetry.connected && nanoTelemetry.rudderUs > 0 ? (nanoTelemetry.rudderUs-1500)/500.0 : 0
                     waterDetected: root.waterAlarm
-                    batteryTempC: NaN
+                    batteryTempC: root.batteryTempC
                 }
                 RowLayout {
                     Layout.fillWidth: true
