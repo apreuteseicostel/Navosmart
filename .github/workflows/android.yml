@@ -91,7 +91,40 @@ jobs:
           fi
           "$APKSIGNER" verify --verbose --print-certs build/NAVO_SMART.apk
           "$AAPT" dump badging build/NAVO_SMART.apk | head -n 8
+      - name: Android emulator smoke test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            set -euo pipefail
+            adb wait-for-device
+            adb install -r build/NAVO_SMART.apk
+            PACKAGE="ro.pescarullupeste.navosmart"
+            adb shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1
+            sleep 15
+            adb shell pidof "$PACKAGE" > build/navo-pid.txt
+            adb shell dumpsys window windows > build/window.txt
+            adb logcat -d > build/navo-logcat.txt
+            adb exec-out screencap -p > build/navo-screenshot.png
+            test -s build/navo-pid.txt
+
+      - name: Upload Android smoke-test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NAVO-SMART-ANDROID-SMOKE-TEST
+          path: |
+            build/navo-pid.txt
+            build/window.txt
+            build/navo-logcat.txt
+            build/navo-screenshot.png
+          if-no-files-found: warn
+
       - name: Upload installable APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: NAVO-SMART-INSTALLABLE-APK
