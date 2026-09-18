@@ -251,6 +251,19 @@ Item {
             onTrackCompleted: function(pointCount) { root.lastNavigationStatus = "Task finalizat • traseu GPS păstrat (" + pointCount + " puncte)" }
         }
 
+        NavoAreaDrawOverlay {
+            id: areaDrawOverlay
+            anchors.fill: liveMap; map: liveMap; areaScan: areaScan; z: 2100
+            onStatus: function(text){root.lastNavigationStatus=text}
+            onAreaAccepted: function(polygon,lanes){scanCoordinator.areaPoints=polygon;lakePersistence.areaPoints=polygon;scanCoordinator.checkpoint("area-polygon")}
+        }
+        Button {
+            anchors.left: parent.left; anchors.top: parent.top
+            anchors.leftMargin: 12; anchors.topMargin: 94; z: 2200
+            text: areaDrawOverlay.drawing ? "ANULEAZĂ DESEN" : "DESENEAZĂ ZONA"
+            onClicked:{areaDrawOverlay.drawing=!areaDrawOverlay.drawing;if(areaDrawOverlay.drawing){areaDrawOverlay.clear();root.lastNavigationStatus="Atinge harta pe conturul zonei de scanat"}}
+        }
+
         NavoAreaScanOverlay {
             id: areaScanOverlay
             anchors.fill: liveMap
