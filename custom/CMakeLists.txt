@@ -35,6 +35,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoSonarEthernet.qml
         qml/NavoCameraEthernet.qml
         qml/NavoEthernetSettings.qml
+        qml/NavoEthernetIndicator.qml
         qml/NavoEnergyGuard.qml
         qml/NavoActionSequence.qml
         qml/NavoSafetyManager.qml
