@@ -103,7 +103,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
-            set -euo pipefail
+            set -eu
             adb wait-for-device
             adb install -r build-x86/NAVO_SMART-x86.apk
             PACKAGE="ro.pescarullupeste.navosmart"
