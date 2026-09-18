@@ -9,16 +9,19 @@ class NavoPersistence : public QObject {
  Q_PROPERTY(QVariantMap waypointNames READ waypointNames NOTIFY waypointNamesChanged)
  Q_PROPERTY(QVariantList sonarSamples READ sonarSamples NOTIFY sonarSamplesChanged)
  Q_PROPERTY(QVariantList bathymetrySessions READ bathymetrySessions NOTIFY bathymetrySessionsChanged)
+ Q_PROPERTY(QVariantList lakes READ lakes NOTIFY lakesChanged)
 public:
  explicit NavoPersistence(QObject* parent=nullptr);
- QVariantMap waypointNames() const{return _waypointNames;} QVariantList sonarSamples() const{return _sonarSamples;} QVariantList bathymetrySessions() const{return _bathymetrySessions;}
+ QVariantMap waypointNames() const{return _waypointNames;} QVariantList sonarSamples() const{return _sonarSamples;} QVariantList bathymetrySessions() const{return _bathymetrySessions;} QVariantList lakes() const{return _lakes;}
  Q_INVOKABLE void setWaypointName(int sequence,const QString& name);
  Q_INVOKABLE void addSonarSample(const QVariantMap& sample);
  Q_INVOKABLE void clearSonarSamples();
  Q_INVOKABLE QString saveBathymetrySession(const QVariantMap& metadata,const QVariantList& samples);
  Q_INVOKABLE bool deleteBathymetrySession(const QString& id);
-signals:void waypointNamesChanged();void sonarSamplesChanged();void bathymetrySessionsChanged();
+ Q_INVOKABLE QString saveLake(const QVariantMap& lake);
+ Q_INVOKABLE bool assignSessionToLake(const QString& sessionId,const QString& lakeId);
+signals:void waypointNamesChanged();void sonarSamplesChanged();void bathymetrySessionsChanged();void lakesChanged();
 private slots:void flushSonar();
-private:void load();void saveWaypoints();void saveBathymetrySessions();void scheduleSonarSave();
- QVariantMap _waypointNames; QVariantList _sonarSamples; QVariantList _bathymetrySessions; int _maxSamples=50000; QTimer _sonarSaveTimer;
+private:void load();void saveWaypoints();void saveBathymetrySessions();void saveLakes();void scheduleSonarSave();
+ QVariantMap _waypointNames; QVariantList _sonarSamples; QVariantList _bathymetrySessions; QVariantList _lakes; int _maxSamples=50000; QTimer _sonarSaveTimer;
 };
