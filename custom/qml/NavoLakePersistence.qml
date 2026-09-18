@@ -8,6 +8,7 @@ QtObject {
     property var scanState: ({})
     property var samples: []
     property var areaPoints: []
+    property var fishingSpots: []
     property string lastError: ""
     readonly property url dataFolder: StandardPaths.writableLocation(StandardPaths.AppDataLocation) + "/navosmart"
 
@@ -30,6 +31,7 @@ QtObject {
             lakeName: lakeName,
             savedAt: Date.now(),
             areaPoints: areaPoints,
+            fishingSpots: fishingSpots,
             scanState: scanState,
             samples: samples
         }
@@ -46,6 +48,7 @@ QtObject {
             lakeId=p.lakeId||""
             lakeName=p.lakeName||""
             areaPoints=p.areaPoints||[]
+            fishingSpots=p.fishingSpots||[]
             scanState=p.scanState||({})
             samples=p.samples||[]
             lastError=""
@@ -57,6 +60,6 @@ QtObject {
     }
 
     function clearInMemory() {
-        lakeId=""; lakeName=""; scanState=({}); samples=[]; areaPoints=[]; lastError=""
+        lakeId=""; lakeName=""; scanState=({}); samples=[]; areaPoints=[]; fishingSpots=[]; lastError=""
     }
 }
