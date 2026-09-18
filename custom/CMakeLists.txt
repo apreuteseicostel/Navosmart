@@ -38,6 +38,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoEthernetIndicator.qml
         qml/NavoVideoPlayer.qml
         qml/NavoCameraFullScreen.qml
+        qml/NavoEchogram.qml
         qml/NavoEnergyGuard.qml
         qml/NavoActionSequence.qml
         qml/NavoSafetyManager.qml
