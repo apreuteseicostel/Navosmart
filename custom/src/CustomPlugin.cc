@@ -1,11 +1,13 @@
 #include "CustomPlugin.h"
 #include "NavoKoggerDecoder.h"
+#include "NavoEthernetTransport.h"
 #include <QtQml/qqml.h>
 #include <QtQml/QQmlApplicationEngine>
 #include <QtCore/QFile>
 CustomFlyViewOptions::CustomFlyViewOptions(CustomOptions* options,QObject* parent):QGCFlyViewOptions(options,parent){}
 CustomPlugin::CustomPlugin(QObject* parent):QGCCorePlugin(parent),_options(new CustomOptions(this)){
  qmlRegisterType<NavoKoggerDecoder>("NavoSmart.Backend",1,0,"NavoKoggerDecoder");
+ qmlRegisterType<NavoEthernetTransport>("NavoSmart.Backend",1,0,"NavoEthernetTransport");
 }
 CustomPlugin::~CustomPlugin(){}
 QQmlApplicationEngine* CustomPlugin::createQmlApplicationEngine(QObject* parent){
