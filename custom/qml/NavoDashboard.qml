@@ -317,7 +317,7 @@ Item {
             connected: root.cameraConnected
             streamUrl: root.cameraStreamUrl
             protocol: root.cameraProtocol
-            onFullscreenRequested: root.lastNavigationStatus = "Camera GR01: fullscreen va fi activat când conectăm fluxul real G20"
+            onFullscreenRequested: cameraFull.open()
         }
 
 
@@ -426,7 +426,7 @@ Item {
             NavoCameraPip {
                 Layout.fillWidth: true; Layout.preferredHeight: 125
                 connected: root.cameraConnected; streamUrl: root.cameraStreamUrl; protocol: root.cameraProtocol
-                onFullscreenRequested: root.lastNavigationStatus = "Cameră: fullscreen solicitat"
+                onFullscreenRequested: cameraFull.open()
             }
             Label { text: "NĂDIRE"; color: root.cyan; font.bold: true }
             Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: baitingController.enabled ? "Cuvele apar automat la apropierea finală." : "Cuve ascunse până la punctul de eliberare."; color: root.textDim; font.pixelSize: 11 }
@@ -491,6 +491,24 @@ Item {
                 for (var i=0; i<samples.length; ++i) persistence.addSonarSample(samples[i])
                 root.lastNavigationStatus = "Batimetrie: " + samples.length + " puncte salvate; rendererul urmează validarea."
             }
+        }
+    }
+
+    Popup {
+        id: cameraFull
+        parent: Overlay.overlay
+        modal: true
+        focus: true
+        closePolicy: Popup.NoAutoClose
+        x: 0; y: 0
+        width: Overlay.overlay ? Overlay.overlay.width : root.width
+        height: Overlay.overlay ? Overlay.overlay.height : root.height
+        padding: 0
+        background: Rectangle { color:"#02070c" }
+        contentItem: NavoCameraFullScreen {
+            streamUrl: root.cameraStreamUrl
+            protocol: root.cameraProtocol
+            onClosed: cameraFull.close()
         }
     }
 
