@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtPositioning
+import NavoSmart.Backend 1.0
 
 import QGroundControl
 import QGroundControl.Controls
@@ -16,13 +17,13 @@ Item {
 
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
     property var battery: vehicle && vehicle.batteries.count > 0 ? vehicle.batteries.get(0) : null
-    property var waypointNames: ({})
-    property real depthM: NaN
-    property real waterTempC: NaN
-    property bool sonarConnected: false
+    property var waypointNames: persistence.waypointNames
+    readonly property real depthM: sonarEthernet.depthM
+    readonly property real waterTempC: sonarEthernet.waterTempC
+    readonly property bool sonarConnected: sonarEthernet.connected
     property string lastNavigationStatus: ""
     property bool silentModeActive: false
-    property bool cameraConnected: false
+    readonly property bool cameraConnected: cameraEthernet.connected
     property string cameraStreamUrl: ""
     property bool waterAlarm: false
     property real escTempC: NaN
@@ -64,6 +65,18 @@ Item {
     function setMode(mode) { if (!root.vehicle) return; if (baitingController.enabled && mode.toUpperCase() === "MANUAL") baitingController.abortCycle("AUTO întrerupt: control manual"); root.vehicle.flightMode = mode; root.lastNavigationStatus = "Mod solicitat: " + mode }
     function holdBoat() { if (!root.vehicle) return; if (baitingController.enabled) baitingController.abortCycle("HOLD manual"); else root.vehicle.pauseVehicle(); root.lastNavigationStatus = "HOLD/STOP solicitat" }
     function rtlBoat() { if (!root.vehicle) return; if (baitingController.enabled) baitingController.abortCycle("RTL manual"); root.vehicle.guidedModeRTL(false); root.lastNavigationStatus = "RTL solicitat" }
+
+    NavoPersistence { id: persistence }
+    NavoSonarEthernet {
+        id: sonarEthernet
+        vehicle: root.vehicle
+        // Endpoint remains user-configurable until the physical Kogger Ethernet path is confirmed.
+        onGeoSample: function(sample) { persistence.addSonarSample(sample) }
+    }
+    NavoCameraEthernet {
+        id: cameraEthernet
+        // Network transport only; video codec/stream protocol is bound after hardware confirmation.
+    }
 
     NavoDigitalAnchor { id: digitalAnchor; vehicle: root.vehicle; onStatus: function(text) { root.lastNavigationStatus = text } }
     NavoActionSequence { id: actionSequence; vehicle: root.vehicle; hopperBridge: hopperBridge; onStatus: function(text) { root.lastNavigationStatus = text } }
@@ -436,7 +449,8 @@ Item {
             sonarConnected: root.sonarConnected
             onStatus: function(text) { root.lastNavigationStatus = text }
             onBathymetryRequested: function(samples) {
-                root.lastNavigationStatus = "Batimetrie: " + samples.length + " puncte pregătite; rendererul urmează validarea."
+                for (var i=0; i<samples.length; ++i) persistence.addSonarSample(samples[i])
+                root.lastNavigationStatus = "Batimetrie: " + samples.length + " puncte salvate; rendererul urmează validarea."
             }
         }
     }
