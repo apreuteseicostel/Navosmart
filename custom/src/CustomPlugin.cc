@@ -3,6 +3,7 @@
 #include "NavoKoggerTcpClient.h"
 #include "NavoPersistence.h"
 #include "NavoEthernetTransport.h"
+#include "NavoNanoTelemetry.h"
 #include <QtQml/qqml.h>
 #include <QtQml/QQmlApplicationEngine>
 #include <QtCore/QFile>
@@ -12,6 +13,7 @@ CustomPlugin::CustomPlugin(QObject* parent):QGCCorePlugin(parent),_options(new C
  qmlRegisterType<NavoKoggerTcpClient>("NavoSmart.Backend",1,0,"NavoKoggerTcpClient");
  qmlRegisterType<NavoPersistence>("NavoSmart.Backend",1,0,"NavoPersistence");
  qmlRegisterType<NavoEthernetTransport>("NavoSmart.Backend",1,0,"NavoEthernetTransport");
+ qmlRegisterType<NavoNanoTelemetry>("NavoSmart.Backend",1,0,"NavoNanoTelemetry");
 }
 CustomPlugin::~CustomPlugin(){}
 QQmlApplicationEngine* CustomPlugin::createQmlApplicationEngine(QObject* parent){
