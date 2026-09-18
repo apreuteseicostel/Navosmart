@@ -2,6 +2,7 @@
 #include <QObject>
 #include <QVariantList>
 #include <QVariantMap>
+#include <QTimer>
 class QSettings;
 class NavoPersistence : public QObject {
  Q_OBJECT
@@ -14,6 +15,7 @@ public:
  Q_INVOKABLE void addSonarSample(const QVariantMap& sample);
  Q_INVOKABLE void clearSonarSamples();
 signals:void waypointNamesChanged();void sonarSamplesChanged();
-private:void load();void saveWaypoints();void saveSonar();
- QVariantMap _waypointNames; QVariantList _sonarSamples; int _maxSamples=50000;
+private slots:void flushSonar();
+private:void load();void saveWaypoints();void scheduleSonarSave();
+ QVariantMap _waypointNames; QVariantList _sonarSamples; int _maxSamples=50000; QTimer _sonarSaveTimer;
 };
