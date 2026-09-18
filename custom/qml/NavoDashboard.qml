@@ -17,7 +17,7 @@ Item {
 
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
     property var battery: vehicle && vehicle.batteries.count > 0 ? vehicle.batteries.get(0) : null
-    property var waypointNames: ({})
+    property var waypointNames: persistence.waypointNames
     property real depthM: NaN
     property real waterTempC: NaN
     property bool sonarConnected: false
@@ -66,6 +66,7 @@ Item {
     function holdBoat() { if (!root.vehicle) return; if (baitingController.enabled) baitingController.abortCycle("HOLD manual"); else root.vehicle.pauseVehicle(); root.lastNavigationStatus = "HOLD/STOP solicitat" }
     function rtlBoat() { if (!root.vehicle) return; if (baitingController.enabled) baitingController.abortCycle("RTL manual"); root.vehicle.guidedModeRTL(false); root.lastNavigationStatus = "RTL solicitat" }
 
+    NavoPersistence { id: persistence }
     NavoAreaScan { id: areaScan }
     NavoFishDetections { id: fishDetections }
     NavoKoggerDecoder {
@@ -91,7 +92,20 @@ Item {
         vehicle: root.vehicle; depthM: root.depthM; waterTempC: root.waterTempC; sonarConnected: root.sonarConnected
         bottomHardness: sonarFull.bottomHardnessPercent; bottomEchoStrength: sonarFull.bottomEchoStrength
         onStatus: function(text) { root.lastNavigationStatus=text }
-        onBathymetryRequested: function(samples) { bathymetryModel.rebuild(samples) }
+        onBathymetryRequested: function(samples) {
+            bathymetryModel.rebuild(samples)
+            var currentLakeId=scanCoordinator.lakeId.length?scanCoordinator.lakeId:(root.boatId+"_lake")
+            var currentLakeName=scanCoordinator.lakeName.length?scanCoordinator.lakeName:"Balta curentă"
+            persistence.saveLake({id:currentLakeId,name:currentLakeName})
+            var sessionId=persistence.saveBathymetrySession({
+                lakeId:currentLakeId,
+                name:"Scanare "+new Date().toLocaleString(),
+                sampleCount:samples.length,
+                minDepthM:bathymetryModel.minDepthM,
+                maxDepthM:bathymetryModel.maxDepthM
+            },samples)
+            if(sessionId.length) root.lastNavigationStatus="Hartă batimetrică salvată permanent • "+samples.length+" puncte"
+        }
     }
     NavoScanCoordinator {
         id: scanCoordinator
@@ -226,6 +240,7 @@ Item {
             NavButton { text: "Sonar"; onClicked: sonarFull.open() }
             NavButton { text: "Puncte" }
             NavButton { text: "Mapare Sonar"; onClicked: sonarMappingPopup.open() }
+            NavButton { text: "Bălțile mele"; onClicked: myLakes.open() }
             NavButton { text: "Setări" }
             Item { Layout.fillHeight: true }
             Label { text: root.vehicle ? root.vehicle.vehicleTypeString : "ArduPilot Rover"; color: root.textDim; font.pixelSize: 11 }
@@ -539,6 +554,31 @@ Item {
                 scanCoordinator.checkpoint("bathymetry")
                 root.lastNavigationStatus = "Batimetrie actualizată: " + bathymetryModel.cells.length + " celule."
             }
+        }
+    }
+
+    NavoMyLakes {
+        id: myLakes
+        parent: Overlay.overlay
+        persistence: persistence
+        sonarMapping: scanSonarMapping
+        areaScanPlanner: areaScan
+        onOpenSession: function(session) {
+            if(!session || !session.samples || session.samples.length<1) return
+            scanSonarMapping.rawSamples=session.samples
+            bathymetryModel.rebuild(session.samples)
+            scanCoordinator.bathymetryCells=bathymetryModel.cells
+            if(session.lakeId) {
+                scanCoordinator.lakeId=session.lakeId
+                scanSonarMapping.lakeId=session.lakeId
+            }
+            root.lastNavigationStatus="Hartă încărcată din Bălțile mele • "+session.samples.length+" puncte"
+            myLakes.close()
+        }
+        onContinueMapping: function(lakeId) {
+            scanCoordinator.lakeId=lakeId
+            scanSonarMapping.lakeId=lakeId
+            root.lastNavigationStatus="Continuare hartă selectată • datele vechi rămân salvate"
         }
     }
 
