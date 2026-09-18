@@ -1,11 +1,12 @@
 #include "NavoNanoTelemetry.h"
-#include <QStringList>
-bool NavoNanoTelemetry::ingestLine(const QString& input){
- QString s=input.trimmed(); if(!s.startsWith('$')){emit frameRejected("prefix");return false;} int star=s.lastIndexOf('*'); if(star<2||star+2>=s.size()){emit frameRejected("format");return false;}
- QByteArray p=s.mid(1,star-1).toLatin1(); bool ok=false; int rx=s.mid(star+1,2).toInt(&ok,16); if(!ok){emit frameRejected("checksum");return false;} quint8 cs=0; for(char c:p)cs^=(quint8)c; if(cs!=rx){emit frameRejected("checksum");return false;}
- QStringList f=QString::fromLatin1(p).split(','); if(f.size()!=13||f[0]!="NAVO"||f[1]!="1"){emit frameRejected("version");return false;}
- bool all=true,o=true; auto ui=[&](int i){uint v=f[i].toUInt(&o);all&=o;return v;}; auto si=[&](int i){int v=f[i].toInt(&o);all&=o;return v;};
- ui(2); quint32 batt=ui(3); int temp=si(4); bool water=ui(5),wf=ui(6),head=ui(7),pos=ui(8); int hl=ui(9),hr=ui(10),rud=ui(11),alarm=ui(12);
- if(!all||batt>30000||temp>1500||temp<-32768){emit frameRejected("range");return false;}
- _batteryMv=batt;_tempC10=(qint16)temp;_water=water;_waterFault=wf;_head=head;_pos=pos;_hl=hl;_hr=hr;_rud=rud;_alarm=alarm;_connected=true;emit telemetryChanged();return true;
-}
+#include "Vehicle.h"
+#include <QDateTime>
+#include <QTimer>
+#include <cstring>
+NavoNanoTelemetry::NavoNanoTelemetry(QObject*p):QObject(p){auto*t=new QTimer(this);t->setInterval(1000);connect(t,&QTimer::timeout,this,&NavoNanoTelemetry::_timeout);t->start();}
+QObject* NavoNanoTelemetry::vehicle()const{return _vehicle;}
+void NavoNanoTelemetry::setVehicle(QObject*o){Vehicle*v=qobject_cast<Vehicle*>(o);if(v==_vehicle)return;if(_vehicle)disconnect(_vehicle,nullptr,this,nullptr);_vehicle=v;if(_vehicle)connect(_vehicle,&Vehicle::mavlinkMessageReceived,this,&NavoNanoTelemetry::_mavlink);_lastMs=0;emit vehicleChanged();emit telemetryChanged();}
+bool NavoNanoTelemetry::connected()const{return _lastMs&&QDateTime::currentMSecsSinceEpoch()-_lastMs<2500;}
+void NavoNanoTelemetry::_timeout(){emit telemetryChanged();}
+void NavoNanoTelemetry::_set(const char*n,float v){if(!strcmp(n,"NVBATV"))_batteryV=v;else if(!strcmp(n,"NVBATTEMP"))_tempC=v;else if(!strcmp(n,"NVWATER"))_water=v>0.5f;else if(!strcmp(n,"NVWFAULT"))_waterFault=v>0.5f;else if(!strcmp(n,"NVHEAD"))_head=v>0.5f;else if(!strcmp(n,"NVPOS"))_pos=v>0.5f;else if(!strcmp(n,"NVHOPL"))_hl=qRound(v);else if(!strcmp(n,"NVHOPR"))_hr=qRound(v);else if(!strcmp(n,"NVRUD"))_rud=qRound(v);else if(!strcmp(n,"NVALARM"))_alarm=qRound(v);else return;_lastMs=QDateTime::currentMSecsSinceEpoch();emit telemetryChanged();}
+void NavoNanoTelemetry::_mavlink(const mavlink_message_t&m){if(m.msgid!=MAVLINK_MSG_ID_NAMED_VALUE_FLOAT)return;mavlink_named_value_float_t p{};mavlink_msg_named_value_float_decode(&m,&p);char n[11]{};memcpy(n,p.name,10);_set(n,p.value);}
