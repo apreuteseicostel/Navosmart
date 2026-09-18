@@ -41,6 +41,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoCameraFullScreen.qml
         qml/NavoEchogram.qml
         qml/NavoBathymetryMapLayer.qml
+        qml/NavoMyLakes.qml
         qml/NavoEnergyGuard.qml
         qml/NavoActionSequence.qml
         qml/NavoSafetyManager.qml
