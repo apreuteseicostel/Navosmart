@@ -483,14 +483,14 @@ Item {
         height: Math.min(360, root.height - 40)
         background: Rectangle { radius: 12; color: root.bg; border.color: root.cyan }
         contentItem: NavoSonarMapping {
+            id: sonarMappingView
             vehicle: root.vehicle
             depthM: root.depthM
             waterTempC: root.waterTempC
             sonarConnected: root.sonarConnected
             onStatus: function(text) { root.lastNavigationStatus = text }
             onBathymetryRequested: function(samples) {
-                for (var i=0; i<samples.length; ++i) persistence.addSonarSample(samples[i])
-                root.lastNavigationStatus = "Batimetrie: " + samples.length + " puncte salvate; rendererul urmează validarea."
+                root.lastNavigationStatus = "Batimetrie: " + samples.length + " puncte georeferențiate pregătite pentru hartă."
             }
         }
     }
