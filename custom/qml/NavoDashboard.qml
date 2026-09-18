@@ -65,7 +65,7 @@ Item {
     function holdBoat() { if (!root.vehicle) return; if (baitingController.enabled) baitingController.abortCycle("HOLD manual"); else root.vehicle.pauseVehicle(); root.lastNavigationStatus = "HOLD/STOP solicitat" }
     function rtlBoat() { if (!root.vehicle) return; if (baitingController.enabled) baitingController.abortCycle("RTL manual"); root.vehicle.guidedModeRTL(false); root.lastNavigationStatus = "RTL solicitat" }
 
-    NavoAreaScan { id: areaScan }
+    NavoAreaScan { id: areaScan }\n    NavoFishDetections { id: fishDetections }
     NavoBathymetryModel { id: bathymetryModel }
     NavoLakePersistence { id: lakePersistence }
     NavoFishingSpots { id: fishingSpots; onSpotSaved: scanCoordinator.checkpoint("fishing-spot"); onSpotRemoved: scanCoordinator.checkpoint("fishing-spot-remove") }
@@ -290,6 +290,14 @@ Item {
                 Label { anchors.horizontalCenter: parent.horizontalCenter; text: "AREA SCAN • "+areaScan.progressPercent()+"%"; color: root.textMain; font.bold:true }
                 Label { anchors.horizontalCenter: parent.horizontalCenter; text: areaScan.completedLanes.length+" / "+areaScan.laneCount()+" culoare terminate"; color: root.textDim; font.pixelSize:11 }
             }
+        }
+
+        NavoFishOverlay {
+            id: fishOverlay
+            anchors.fill: liveMap
+            map: liveMap
+            fishModel: fishDetections
+            z: 970
         }
 
         NavoBathymetryOverlay {
