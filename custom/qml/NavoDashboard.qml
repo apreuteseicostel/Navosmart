@@ -237,7 +237,14 @@ Item {
             }
         }
 
-        PlanMasterController { id: planController; Component.onCompleted: { start(); if (root.vehicleConnected) loadFromVehicle() } }
+        PlanMasterController { id: planController; Component.onCompleted: { start(); if (root.vehicleConnected) loadFromVehicle() } }\n        NavoMissionUploader {
+            id: missionUploader
+            planController: planController
+            vehicle: root.vehicle
+            onStatus: function(text){root.lastNavigationStatus=text}
+            onUploadFinished: function(success,message){if(success)scanCoordinator.checkpoint("mission-uploaded")}
+        }
+
 
         NavoActualTrack {
             id: actualTrack
