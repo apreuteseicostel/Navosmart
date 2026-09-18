@@ -65,6 +65,24 @@ Item {
     function holdBoat() { if (!root.vehicle) return; if (baitingController.enabled) baitingController.abortCycle("HOLD manual"); else root.vehicle.pauseVehicle(); root.lastNavigationStatus = "HOLD/STOP solicitat" }
     function rtlBoat() { if (!root.vehicle) return; if (baitingController.enabled) baitingController.abortCycle("RTL manual"); root.vehicle.guidedModeRTL(false); root.lastNavigationStatus = "RTL solicitat" }
 
+    NavoAreaScan { id: areaScan }
+    NavoBathymetryModel { id: bathymetryModel }
+    NavoLakePersistence { id: lakePersistence }
+    NavoFishingSpots { id: fishingSpots; onSpotSaved: scanCoordinator.checkpoint("fishing-spot"); onSpotRemoved: scanCoordinator.checkpoint("fishing-spot-remove") }
+    NavoSonarMapping {
+        id: scanSonarMapping
+        vehicle: root.vehicle; depthM: root.depthM; waterTempC: root.waterTempC; sonarConnected: root.sonarConnected
+        onStatus: function(text) { root.lastNavigationStatus=text }
+        onBathymetryRequested: function(samples) { bathymetryModel.rebuild(samples) }
+    }
+    NavoScanCoordinator {
+        id: scanCoordinator
+        vehicle: root.vehicle; areaScan: areaScan; sonarMapping: scanSonarMapping
+        bathymetry: bathymetryModel; persistence: lakePersistence
+        lakeId: root.boatId + "_lake"; lakeName: "Balta curentă"
+        onStatus: function(text) { root.lastNavigationStatus=text }
+        onMissionPrepared: function(points) { root.lastNavigationStatus="Area Scan: "+points.length+" waypoint-uri pregătite pentru H743" }
+    }
     NavoDigitalAnchor { id: digitalAnchor; vehicle: root.vehicle; onStatus: function(text) { root.lastNavigationStatus = text } }
     NavoActionSequence { id: actionSequence; vehicle: root.vehicle; hopperBridge: hopperBridge; onStatus: function(text) { root.lastNavigationStatus = text } }
 
@@ -231,6 +249,16 @@ Item {
             z: 900
             onTrackStarted: root.lastNavigationStatus = "Înregistrare traseu GPS real pornită"
             onTrackCompleted: function(pointCount) { root.lastNavigationStatus = "Task finalizat • traseu GPS păstrat (" + pointCount + " puncte)" }
+        }
+
+        NavoBathymetryOverlay {
+            id: bathymetryOverlay
+            anchors.fill: liveMap
+            map: liveMap
+            bathymetryCells: bathymetryModel.cells
+            fishingSpotsModel: fishingSpots
+            z: 950
+            onStatus: function(text) { root.lastNavigationStatus=text; scanCoordinator.checkpoint("map-spot") }
         }
 
         NavoWaypointMapOverlay {
@@ -430,13 +458,18 @@ Item {
         height: Math.min(360, root.height - 40)
         background: Rectangle { radius: 12; color: root.bg; border.color: root.cyan }
         contentItem: NavoSonarMapping {
+            id: mappingPopupContent
             vehicle: root.vehicle
             depthM: root.depthM
             waterTempC: root.waterTempC
             sonarConnected: root.sonarConnected
             onStatus: function(text) { root.lastNavigationStatus = text }
             onBathymetryRequested: function(samples) {
-                root.lastNavigationStatus = "Batimetrie: " + samples.length + " puncte pregătite; rendererul urmează validarea."
+                scanSonarMapping.rawSamples = samples
+                bathymetryModel.rebuild(samples)
+                scanCoordinator.bathymetryCells = bathymetryModel.cells
+                scanCoordinator.checkpoint("bathymetry")
+                root.lastNavigationStatus = "Batimetrie actualizată: " + bathymetryModel.cells.length + " celule."
             }
         }
     }
@@ -455,7 +488,8 @@ Item {
         latitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.latitude : NaN
         longitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.longitude : NaN
         onSaveWaypointRequested: function(latitude, longitude, depth, temperature) {
-            root.lastNavigationStatus = "Punct sonar pregătit: " + depth.toFixed(1) + " m • " + latitude.toFixed(6) + ", " + longitude.toFixed(6)
+            var spot=fishingSpots.saveSpot(QtPositioning.coordinate(latitude,longitude),depth,temperature,fishingSpots.suggestedName("Punct sonar"),"Salvat direct din sonar",null)
+            if(spot){lakePersistence.fishingSpots=fishingSpots.fishingSpots;scanCoordinator.checkpoint("sonar-spot");root.lastNavigationStatus="Punct salvat: "+spot.name+" • "+depth.toFixed(1)+" m"}
         }
     }
 
