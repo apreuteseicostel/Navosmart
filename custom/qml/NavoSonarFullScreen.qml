@@ -19,7 +19,7 @@ Popup {
  property real noiseFloor:0.10
  property real surfaceBlankM:0.30
  property bool fishIcons:true
- property bool showRawTrace:false\n property string paletteMode:"NAVO"\n property var bottomStrengthHistory:[]
+ property bool showRawTrace:false\n property string paletteMode:"NAVO"\n property var bottomStrengthHistory:[]\n readonly property real bottomEchoStrength: bottomStrengthHistory.length?Number(bottomStrengthHistory[bottomStrengthHistory.length-1]):NaN\n readonly property real bottomHardnessPercent: isNaN(bottomEchoStrength)?NaN:Math.max(0,Math.min(100,((bottomEchoStrength-noiseFloor)*gain)*100))
  signal saveWaypointRequested(real latitude,real longitude,real depthM,real waterTempC)
  function pushHistory(){if(!echoSamples||!echoSamples.length)return;var h=history.slice(0);h.push(echoSamples.slice(0));while(h.length>historyColumns)h.shift();history=h;var n=Math.max(3,Math.floor(echoSamples.length*0.10)),sum=0,cnt=0;for(var i=Math.max(0,echoSamples.length-n);i<echoSamples.length;i++){sum+=Number(echoSamples[i]);cnt++}var b=bottomStrengthHistory.slice(0);b.push(cnt?sum/cnt:0);while(b.length>historyColumns)b.shift();bottomStrengthHistory=b}
  function bottomColor(v){v=Math.max(0,Math.min(1,(v-root.noiseFloor)*root.gain));if(root.paletteMode==="DAY"){if(v>.72)return "#ffe44d";if(v>.42)return "#ef493d";return "#245fa8"}if(v>.78)return "#fff36a";if(v>.60)return "#f33b2f";if(v>.40)return "#ff8b28";if(v>.22)return "#55c85a";return "#1767a7"}
@@ -64,7 +64,7 @@ Popup {
   }
   RowLayout{Layout.fillWidth:true;Layout.margins:10
    Label{text:"Viteză: "+(isNaN(root.speedMps)?"--":(root.speedMps*3.6).toFixed(1)+" km/h");color:"#9db2c5"}
-   Label{text:"GPS: "+(isNaN(root.latitude)?"--":root.latitude.toFixed(6)+", "+root.longitude.toFixed(6));color:"#9db2c5"}
+   Label{text:"GPS: "+(isNaN(root.latitude)?"--":root.latitude.toFixed(6)+", "+root.longitude.toFixed(6));color:"#9db2c5"}\n   Label{text:"FUND: "+(isNaN(root.bottomHardnessPercent)?"--":Math.round(root.bottomHardnessPercent)+"%");color:root.bottomColor(isNaN(root.bottomEchoStrength)?0:root.bottomEchoStrength);font.bold:true}
    Label{visible:root.transport;text:root.transport?(root.transport.status+" • RX "+root.transport.rxBytes+" B / "+root.transport.rxChunks):"";color:root.transport&&root.transport.connected?"#31d67b":"#9db2c5"}
    Item{Layout.fillWidth:true}
    Button{visible:root.transport;text:root.transport&&root.transport.connected?"DECONECTEAZĂ":"CONECTEAZĂ KOGGER";onClicked:{if(root.transport.connected)root.transport.disconnectFromSonar();else root.transport.connectToSonar()}}
