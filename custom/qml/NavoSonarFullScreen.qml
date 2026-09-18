@@ -10,7 +10,7 @@ Popup {
  property real speedMps:NaN
  property real latitude:NaN
  property real longitude:NaN
- property var echoSamples:[]
+ property var echoSamples:[]\n property var fishHotspots:[]
  signal saveWaypointRequested(real latitude,real longitude,real depthM,real waterTempC)
  modal:true
  focus:true
@@ -28,8 +28,8 @@ Popup {
    Button{text:"ÎNCHIDE";onClicked:root.close()}
   }
   Rectangle{Layout.fillWidth:true;Layout.fillHeight:true;color:"#020b12"
-   Canvas{id:echogram;anchors.fill:parent
-    onPaint:{var ctx=getContext("2d");ctx.reset();ctx.fillStyle="#020b12";ctx.fillRect(0,0,width,height);ctx.strokeStyle="#18364a";ctx.lineWidth=1;for(var g=1;g<5;g++){var gy=g*height/5;ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(width,gy);ctx.stroke()}if(root.echoSamples&&root.echoSamples.length>1){ctx.strokeStyle="#21b7ff";ctx.lineWidth=2;ctx.beginPath();for(var i=0;i<root.echoSamples.length;i++){var x=i*width/(root.echoSamples.length-1);var y=height-Math.max(0,Math.min(1,root.echoSamples[i]))*height;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}ctx.stroke()}}
+   Repeater {\n    model: 5\n    Label { anchors.left:parent.left; anchors.leftMargin:8; y:index*(parent.height/4)-height/2; text:(index===0?"0.0":(!isNaN(root.depthM)?(root.depthM*index/4).toFixed(1):"--"))+" m"; color:"#d9edf7"; z:3 }\n   }\n   Canvas{id:echogram;anchors.fill:parent
+    onPaint:{var ctx=getContext("2d");ctx.reset();ctx.fillStyle="#020b12";ctx.fillRect(0,0,width,height);ctx.strokeStyle="#18364a";ctx.lineWidth=1;for(var g=1;g<5;g++){var gy=g*height/5;ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(width,gy);ctx.stroke()}if(root.echoSamples&&root.echoSamples.length>1){ctx.strokeStyle="#21b7ff";ctx.lineWidth=2;ctx.beginPath();for(var i=0;i<root.echoSamples.length;i++){var x=i*width/(root.echoSamples.length-1);var y=height-Math.max(0,Math.min(1,root.echoSamples[i]))*height;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}ctx.stroke()} if(root.fishHotspots){ctx.font="bold 18px sans-serif";ctx.fillStyle="#f2f7fb";for(var f=0;f<root.fishHotspots.length;f++){var h=root.fishHotspots[f];if(!isNaN(root.depthM)&&root.depthM>0){var fy=Math.max(18,Math.min(height-8,h.minTargetDepth/root.depthM*height));ctx.fillText("🐟"+(h.count>1?h.count:""),width-70,fy)}}}}
     Connections{target:root;function onEchoSamplesChanged(){echogram.requestPaint()}}
    }
    Label{anchors.centerIn:parent;visible:!root.connected;text:"Aștept date reale de la Kogger\nEcograma nu este simulată";horizontalAlignment:Text.AlignHCenter;color:"#9db2c5";font.pixelSize:18}
