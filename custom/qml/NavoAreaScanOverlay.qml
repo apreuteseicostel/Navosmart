@@ -9,6 +9,14 @@ Item {
     required property var map
     property var vehicle
     property var planner
+    property var missionController
+    property var planController
+    property bool missionPrepared: false
+    property bool missionUploaded: false
+    property bool missionRunning: false
+    property int missionPointCount: 0
+    readonly property int currentMissionIndex: vehicle && vehicle.missionItemIndex ? Number(vehicle.missionItemIndex.rawValue) : -1
+    readonly property int progressPercent: missionPointCount > 0 && currentMissionIndex >= 0 ? Math.max(0,Math.min(100,Math.round(currentMissionIndex*100/missionPointCount))) : 0
     property bool editing: false
     property var cornerA: QtPositioning.coordinate()
     property var cornerB: QtPositioning.coordinate()
@@ -16,6 +24,7 @@ Item {
     property bool planReady: planner && planner.generatedPoints && planner.generatedPoints.length >= 4
     signal status(string text)
     signal startRequested(var points)
+    signal uploadRequested(var points)
 
     function valid(c) { return c && c.isValid }
     function formatTime(seconds) {
@@ -28,10 +37,44 @@ Item {
         if(vehicle && valid(vehicle.coordinate)) planner.reverseForNearestStart(vehicle.coordinate)
         status("Area Scan pregătit • "+planner.laneCount+" culoare • "+Math.round(planner.estimatedDistanceM)+" m")
     }
+    function prepareMission() {
+        if(!planReady || !missionController) { status("Area Scan: plan invalid"); return false }
+        missionController.removeAll()
+        for(var i=0;i<planner.generatedPoints.length;i++)
+            missionController.insertSimpleMissionItem(planner.generatedPoints[i], i+1, false)
+        missionPointCount=planner.generatedPoints.length
+        missionPrepared=true; missionUploaded=false; missionRunning=false
+        status("Area Scan: misiune pregătită • "+missionPointCount+" waypoint-uri")
+        return true
+    }
+    function uploadMission() {
+        if(!vehicle || !missionController || !planController) { status("Area Scan: H743/MAVLink indisponibil"); return }
+        if(!missionPrepared && !prepareMission()) return
+        planController.sendToVehicle()
+        missionUploaded=true
+        status("Area Scan: upload misiune solicitat către H743")
+    }
+    function startMission() {
+        if(!vehicle || !missionUploaded) { status("Area Scan: încarcă misiunea înainte de START"); return }
+        vehicle.setCurrentMissionSequence(1)
+        vehicle.startMission()
+        missionRunning=true
+        status("Area Scan: START misiune solicitat")
+    }
+    function holdMission() {
+        if(!vehicle) return
+        vehicle.pauseVehicle(); missionRunning=false
+        status("Area Scan: HOLD/STOP solicitat")
+    }
+    function rtlMission() {
+        if(!vehicle) return
+        vehicle.guidedModeRTL(false); missionRunning=false
+        status("Area Scan: RTL solicitat")
+    }
     function clearPlan() {
         cornerA=QtPositioning.coordinate(); cornerB=QtPositioning.coordinate()
         if(planner) planner.clear()
-        editing=false; status("Area Scan șters")
+        editing=false; missionPrepared=false; missionUploaded=false; missionRunning=false; missionPointCount=0; status("Area Scan șters")
     }
 
     MouseArea {
@@ -70,7 +113,7 @@ Item {
     Rectangle {
         anchors.left: parent.left; anchors.top: parent.top
         anchors.leftMargin: 12; anchors.topMargin: 52
-        width: 300; height: root.planReady ? 226 : 118
+        width: 320; height: root.planReady ? 302 : 118
         radius: 10; color: "#071827ee"; border.color: "#21b7ff"; z: 1500
         ColumnLayout {
             anchors.fill: parent; anchors.margins: 10; spacing: 6
@@ -97,13 +140,18 @@ Item {
             }
             RowLayout {
                 visible:root.planReady; Layout.fillWidth:true
-                Button { text:"ȘTERGE"; onClicked:root.clearPlan() }
+                Button { text:"PREGĂTEȘTE"; enabled:root.planReady; onClicked:root.prepareMission() }
+                Button { text:"UPLOAD H743"; enabled:root.missionPrepared && root.vehicle; onClicked:root.uploadMission() }
+                Button { text:"START"; enabled:root.missionUploaded && root.vehicle; onClicked:root.startMission() }
+            }
+            ProgressBar { visible:root.planReady; Layout.fillWidth:true; from:0; to:100; value:root.progressPercent }
+            Label { visible:root.planReady; text:root.missionRunning ? "SCANARE "+root.progressPercent+"% • WP "+root.currentMissionIndex+"/"+root.missionPointCount : (root.missionUploaded?"Misiune încărcată • gata de START":(root.missionPrepared?"Misiune pregătită local":"Preview")); color:root.missionRunning?"#31d67b":"#9db2c5"; font.bold:root.missionRunning }
+            RowLayout {
+                visible:root.planReady; Layout.fillWidth:true
+                Button { text:"HOLD / STOP"; enabled:root.vehicle; onClicked:root.holdMission() }
+                Button { text:"RTL"; enabled:root.vehicle; onClicked:root.rtlMission() }
                 Item { Layout.fillWidth:true }
-                Button {
-                    text:"PORNEȘTE SCANAREA"
-                    enabled:root.planReady && root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid
-                    onClicked:{root.startRequested(root.planner.generatedPoints);root.status("Area Scan confirmat • pregătit pentru misiune ArduPilot")}
-                }
+                Button { text:"ȘTERGE"; enabled:!root.missionRunning; onClicked:root.clearPlan() }
             }
         }
     }
