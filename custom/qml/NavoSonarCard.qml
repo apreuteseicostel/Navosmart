@@ -29,24 +29,7 @@ Rectangle {
             Item { Layout.fillWidth: true }
             Label { text: isNaN(root.waterTempC) ? "-- °C" : root.waterTempC.toFixed(1) + " °C"; color: "white"; font.pixelSize: 18; font.bold: true }
         }
-        Canvas {
-            id: echogram
-            Layout.fillWidth: true; Layout.fillHeight: true
-            onPaint: {
-                var ctx=getContext("2d"); ctx.reset(); ctx.fillStyle="#03101a"; ctx.fillRect(0,0,width,height)
-                ctx.strokeStyle="#21b7ff"; ctx.lineWidth=1
-                if (root.echoSamples && root.echoSamples.length>1) {
-                    ctx.beginPath()
-                    for (var i=0;i<root.echoSamples.length;i++) {
-                        var x=i*(width/(root.echoSamples.length-1))
-                        var y=height-Math.max(0,Math.min(1,root.echoSamples[i]))*height
-                        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y)
-                    }
-                    ctx.stroke()
-                }
-            }
-            Connections { target: root; function onEchoSamplesChanged(){ echogram.requestPaint() } }
-        }
+        NavoEchogram { id: echogram; Layout.fillWidth: true; Layout.fillHeight: true; ping: root.echoSamples; live: root.connected; maxColumns: 100 }
         Button { Layout.alignment: Qt.AlignRight; text: "SONAR COMPLET"; onClicked: root.openFullSonar() }
     }
 }
