@@ -189,7 +189,7 @@ Item {
             NavButton { text: "Hartă"; active: true }
             NavButton { text: "Sonar"; onClicked: sonarFull.open() }
             NavButton { text: "Puncte" }
-            NavButton { text: "Trasee" }
+            NavButton { text: "Mapare Sonar"; onClicked: sonarMappingPopup.open() }
             NavButton { text: "Setări" }
             Item { Layout.fillHeight: true }
             Label { text: root.vehicle ? root.vehicle.vehicleTypeString : "ArduPilot Rover"; color: root.textDim; font.pixelSize: 11 }
@@ -397,13 +397,8 @@ Item {
                 connected: root.cameraConnected; streamUrl: root.cameraStreamUrl
                 onFullscreenRequested: root.lastNavigationStatus = "Cameră: fullscreen solicitat"
             }
-            Label { text: "NĂDIRE SILENȚIOASĂ"; color: root.cyan; font.bold: true }
-            RowLayout {
-                Layout.fillWidth: true
-                Button { Layout.fillWidth: true; text: "STÂNGA"; enabled: root.vehicleConnected; onClicked: root.lastNavigationStatus = "Cuva stângă selectată" }
-                Button { Layout.fillWidth: true; text: "AMBELE"; enabled: root.vehicleConnected; onClicked: root.lastNavigationStatus = "Ambele cuve selectate" }
-                Button { Layout.fillWidth: true; text: "DREAPTA"; enabled: root.vehicleConnected; onClicked: root.lastNavigationStatus = "Cuva dreaptă selectată" }
-            }
+            Label { text: "NĂDIRE"; color: root.cyan; font.bold: true }
+            Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: baitingController.enabled ? "Cuvele apar automat la apropierea finală." : "Cuve ascunse până la punctul de eliberare."; color: root.textDim; font.pixelSize: 11 }
             Rectangle { Layout.fillWidth: true; height: 1; color: root.line }
             NavoSonarCard {
                 Layout.fillWidth: true
@@ -420,6 +415,28 @@ Item {
             NavoFailsafePanel {
                 Layout.fillWidth: true
                 controller: failsafeController
+            }
+        }
+    }
+
+    Popup {
+        id: sonarMappingPopup
+        parent: Overlay.overlay
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape
+        anchors.centerIn: parent
+        width: Math.min(620, root.width - 40)
+        height: Math.min(360, root.height - 40)
+        background: Rectangle { radius: 12; color: root.bg; border.color: root.cyan }
+        contentItem: NavoSonarMapping {
+            vehicle: root.vehicle
+            depthM: root.depthM
+            waterTempC: root.waterTempC
+            sonarConnected: root.sonarConnected
+            onStatus: function(text) { root.lastNavigationStatus = text }
+            onBathymetryRequested: function(samples) {
+                root.lastNavigationStatus = "Batimetrie: " + samples.length + " puncte pregătite; rendererul urmează validarea."
             }
         }
     }
