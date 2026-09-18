@@ -68,12 +68,31 @@ jobs:
             -DQGC_STABLE_BUILD=ON
       - name: Build APK
         run: cmake --build build --target all --config Release --parallel
-      - name: List APK
-        if: always()
-        run: find build -type f -name '*.apk' -print || true
-      - name: Upload APK
-        if: success()
+      - name: Prepare installable APK
+        run: |
+          set -euo pipefail
+          APK="$(find build -type f -name '*.apk' | head -n 1)"
+          test -n "$APK"
+          echo "Built APK: $APK"
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          ZIPALIGN="$ANDROID_HOME/build-tools/35.0.0/zipalign"
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          if ! "$APKSIGNER" verify "$APK"; then
+            echo "APK is not signed; applying CI debug signature for direct sideload testing."
+            KS="$HOME/.android/debug.keystore"
+            mkdir -p "$HOME/.android"
+            if [ ! -f "$KS" ]; then
+              keytool -genkeypair -v -keystore "$KS" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=NAVO SMART,C=GB"
+            fi
+            "$ZIPALIGN" -f -p 4 "$APK" build/NAVO_SMART-aligned.apk
+            "$APKSIGNER" sign --ks "$KS" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out build/NAVO_SMART.apk build/NAVO_SMART-aligned.apk
+          else
+            cp "$APK" build/NAVO_SMART.apk
+          fi
+          "$APKSIGNER" verify --verbose --print-certs build/NAVO_SMART.apk
+          "$AAPT" dump badging build/NAVO_SMART.apk | head -n 8
+      - name: Upload installable APK
         uses: actions/upload-artifact@v4
         with:
-          name: NAVO-SMART-APK
-          path: build/android-build/*.apk
+          name: NAVO-SMART-INSTALLABLE-APK
+          path: build/NAVO_SMART.apk
