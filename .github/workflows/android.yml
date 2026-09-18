@@ -108,7 +108,9 @@ jobs:
             adb install -r build-x86/NAVO_SMART-x86.apk
             PACKAGE="ro.pescarullupeste.navosmart"
             adb logcat -c
-            adb shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1
+            ACTIVITY="$(adb shell cmd package resolve-activity --brief -c android.intent.category.LAUNCHER "$PACKAGE" | tr -d "\r" | tail -n 1)"
+            test -n "$ACTIVITY"
+            adb shell am start -W -n "$ACTIVITY"
             sleep 15
             adb shell dumpsys window windows > build/window.txt || true
             adb logcat -d > build/navo-logcat.txt || true
