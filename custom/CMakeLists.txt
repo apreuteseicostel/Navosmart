@@ -38,6 +38,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoFishingSpots.qml
         qml/NavoBathymetryOverlay.qml
         qml/NavoAreaScanOverlay.qml
+        qml/NavoAreaDrawOverlay.qml
         qml/NavoEnergyGuard.qml
         qml/NavoActionSequence.qml
         qml/NavoSafetyManager.qml
