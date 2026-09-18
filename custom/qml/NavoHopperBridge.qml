@@ -11,6 +11,8 @@ QtObject {
  property int rightOpenPwm: 1900
  property int releaseHoldMs: 900
  property bool calibrated: false
+ property bool leftOpen: false
+ property bool rightOpen: false
  readonly property int mavCompAutopilot1: 1
  readonly property int mavCmdDoSetServo: 183
  signal commandSent(string text)
@@ -22,10 +24,10 @@ QtObject {
  }
  function release(hopper){
   if(!calibrated){commandSent("Cuve necalibrate - comanda blocată");return false}
-  if(hopper===1||hopper===3)setServo(leftServoOutput,leftOpenPwm)
-  if(hopper===2||hopper===3)setServo(rightServoOutput,rightOpenPwm)
+  if(hopper===1||hopper===3){setServo(leftServoOutput,leftOpenPwm);leftOpen=true}
+  if(hopper===2||hopper===3){setServo(rightServoOutput,rightOpenPwm);rightOpen=true}
   pendingHopper=hopper;closeTimer.restart();commandSent(hopper===3?"Ambele cuve deschise":(hopper===1?"Cuva stânga deschisă":"Cuva dreapta deschisă"));return true
  }
  property int pendingHopper:0
- property Timer closeTimer:Timer{interval:root.releaseHoldMs;repeat:false;onTriggered:{if(root.pendingHopper===1||root.pendingHopper===3)root.setServo(root.leftServoOutput,root.leftClosedPwm);if(root.pendingHopper===2||root.pendingHopper===3)root.setServo(root.rightServoOutput,root.rightClosedPwm);root.commandSent("Cuva/cuve închise");root.pendingHopper=0}}
+ property Timer closeTimer:Timer{interval:root.releaseHoldMs;repeat:false;onTriggered:{if(root.pendingHopper===1||root.pendingHopper===3)root.setServo(root.leftServoOutput,root.leftClosedPwm);if(root.pendingHopper===2||root.pendingHopper===3)root.setServo(root.rightServoOutput,root.rightClosedPwm);root.leftOpen=false;root.rightOpen=false;root.commandSent("Cuva/cuve închise");root.pendingHopper=0}}
 }
