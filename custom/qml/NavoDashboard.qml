@@ -25,6 +25,7 @@ Item {
     property bool silentModeActive: false
     readonly property bool cameraConnected: cameraEthernet.connected
     property string cameraStreamUrl: ""
+    property string cameraProtocol: "auto"
     property bool waterAlarm: false
     property real escTempC: NaN
     property real batteryCurrentA: NaN
@@ -315,6 +316,7 @@ Item {
             z: 1050
             connected: root.cameraConnected
             streamUrl: root.cameraStreamUrl
+            protocol: root.cameraProtocol
             onFullscreenRequested: root.lastNavigationStatus = "Camera GR01: fullscreen va fi activat când conectăm fluxul real G20"
         }
 
@@ -423,7 +425,7 @@ Item {
             Label { text: "CAMERĂ BARCĂ"; color: root.cyan; font.bold: true }
             NavoCameraPip {
                 Layout.fillWidth: true; Layout.preferredHeight: 125
-                connected: root.cameraConnected; streamUrl: root.cameraStreamUrl
+                connected: root.cameraConnected; streamUrl: root.cameraStreamUrl; protocol: root.cameraProtocol
                 onFullscreenRequested: root.lastNavigationStatus = "Cameră: fullscreen solicitat"
             }
             Label { text: "NĂDIRE"; color: root.cyan; font.bold: true }
@@ -461,6 +463,10 @@ Item {
         contentItem: NavoEthernetSettings {
             sonar: sonarEthernet
             camera: cameraEthernet
+            cameraStreamUrl: root.cameraStreamUrl
+            cameraProtocol: root.cameraProtocol
+            onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
+            onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
             onStatus: function(text){ root.lastNavigationStatus=text }
         }
     }
