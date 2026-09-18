@@ -17,6 +17,11 @@ Item {
     property bool uploadFailed: false
     property bool missionRunning: false
     property int missionPointCount: 0
+    property string finishAction: "HOLD"
+    property bool finishHandled: false
+    readonly property int completedPointCount: Math.max(0, Math.min(missionPointCount, currentMissionIndex))
+    readonly property var completedPath: planner && planner.generatedPoints ? planner.generatedPoints.slice(0, Math.min(planner.generatedPoints.length, completedPointCount + 1)) : []
+    readonly property var remainingPath: planner && planner.generatedPoints ? planner.generatedPoints.slice(Math.max(0, completedPointCount)) : []
     readonly property int currentMissionIndex: vehicle && vehicle.missionItemIndex ? Number(vehicle.missionItemIndex.rawValue) : -1
     readonly property int progressPercent: missionPointCount > 0 && currentMissionIndex >= 0 ? Math.max(0,Math.min(100,Math.round(currentMissionIndex*100/missionPointCount))) : 0
     property bool editing: false
@@ -45,7 +50,7 @@ Item {
         for(var i=0;i<planner.generatedPoints.length;i++)
             missionController.insertSimpleMissionItem(planner.generatedPoints[i], i+1, false)
         missionPointCount=planner.generatedPoints.length
-        missionPrepared=true; missionUploaded=false; missionRunning=false
+        missionPrepared=true; missionUploaded=false; missionRunning=false; finishHandled=false
         status("Area Scan: misiune pregătită • "+missionPointCount+" waypoint-uri")
         return true
     }
@@ -60,8 +65,20 @@ Item {
         if(!vehicle || !missionUploaded) { status("Area Scan: încarcă misiunea înainte de START"); return }
         vehicle.setCurrentMissionSequence(1)
         vehicle.startMission()
-        missionRunning=true
+        missionRunning=true; finishHandled=false
         status("Area Scan: START misiune solicitat")
+    }
+
+    function finishMission() {
+        if(finishHandled) return
+        finishHandled=true; missionRunning=false
+        if(finishAction==="RTL") {
+            vehicle.guidedModeRTL(false)
+            status("Area Scan finalizat • RTL solicitat")
+        } else {
+            vehicle.pauseVehicle()
+            status("Area Scan finalizat • HOLD solicitat")
+        }
     }
     function holdMission() {
         if(!vehicle) return
@@ -94,6 +111,15 @@ Item {
         }
     }
 
+    Connections {
+        target: root.vehicle && root.vehicle.missionItemIndex ? root.vehicle.missionItemIndex : null
+        function onRawValueChanged() {
+            if(!root.missionRunning || root.missionPointCount<=0) return
+            if(root.currentMissionIndex >= root.missionPointCount) root.finishMission()
+            else root.status("Area Scan • WP "+root.currentMissionIndex+"/"+root.missionPointCount+" • "+root.progressPercent+"%")
+        }
+    }
+
     MouseArea {
         anchors.fill: parent
         enabled: root.editing
@@ -122,7 +148,24 @@ Item {
         id: routeItem
         path: root.planner ? root.planner.generatedPoints : []
         line.width: 3; line.color: "#21b7ff"
-        visible: root.planReady; z: 810
+        visible: root.planReady && !root.missionRunning; z: 810
+        Component.onCompleted: root.map.addMapItem(this)
+        Component.onDestruction: root.map.removeMapItem(this)
+    }
+
+    MapPolyline {
+        id: completedRouteItem
+        path: root.completedPath
+        line.width: 5; line.color: "#31d67b"
+        visible: root.missionRunning && root.completedPath.length>1; z: 820
+        Component.onCompleted: root.map.addMapItem(this)
+        Component.onDestruction: root.map.removeMapItem(this)
+    }
+    MapPolyline {
+        id: remainingRouteItem
+        path: root.remainingPath
+        line.width: 3; line.color: "#6d7f8f"
+        visible: root.missionRunning && root.remainingPath.length>1; z: 815
         Component.onCompleted: root.map.addMapItem(this)
         Component.onDestruction: root.map.removeMapItem(this)
     }
@@ -130,7 +173,7 @@ Item {
     Rectangle {
         anchors.left: parent.left; anchors.top: parent.top
         anchors.leftMargin: 12; anchors.topMargin: 52
-        width: 320; height: root.planReady ? 302 : 118
+        width: 320; height: root.planReady ? 338 : 118
         radius: 10; color: "#071827ee"; border.color: "#21b7ff"; z: 1500
         ColumnLayout {
             anchors.fill: parent; anchors.margins: 10; spacing: 6
@@ -163,6 +206,12 @@ Item {
             }
             ProgressBar { visible:root.planReady; Layout.fillWidth:true; from:0; to:100; value:root.progressPercent }
             Label { visible:root.planReady; text:root.missionRunning ? "SCANARE "+root.progressPercent+"% • WP "+root.currentMissionIndex+"/"+root.missionPointCount : (root.missionUploaded?"Misiune încărcată • gata de START":(root.uploadPending?"Se așteaptă confirmarea H743…":(root.uploadFailed?"UPLOAD EȘUAT • START BLOCAT":(root.missionPrepared?"Misiune pregătită local":"Preview")))); color:root.missionRunning?"#31d67b":"#9db2c5"; font.bold:root.missionRunning }
+            RowLayout {
+                visible:root.planReady; Layout.fillWidth:true
+                Label { text:"La final:"; color:"#9db2c5" }
+                ComboBox { model:["HOLD","RTL"]; currentIndex:root.finishAction==="RTL"?1:0; enabled:!root.missionRunning; onActivated:function(index){root.finishAction=index===1?"RTL":"HOLD"} }
+                Item { Layout.fillWidth:true }
+            }
             RowLayout {
                 visible:root.planReady; Layout.fillWidth:true
                 Button { text:"HOLD / STOP"; enabled:root.vehicle; onClicked:root.holdMission() }
