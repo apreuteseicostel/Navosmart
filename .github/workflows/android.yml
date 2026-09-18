@@ -116,11 +116,26 @@ jobs:
             test -n "$ACTIVITY"
             echo "Launching $PACKAGE/$ACTIVITY"
             adb logcat -c
+            mkdir -p build/screenshots
+            adb shell settings put system accelerometer_rotation 0 || true
+            adb shell settings put system user_rotation 1 || true
+            adb shell input keyevent KEYCODE_WAKEUP || true
+            adb shell wm dismiss-keyguard || true
             adb shell am start -W -n "$PACKAGE/$ACTIVITY"
+
+            # Capture the real dashboard at several points so slow QML/map loading
+            # still leaves useful visual evidence in the build artifacts.
+            sleep 5
+            adb exec-out screencap -p > build/screenshots/dashboard-05s.png || true
+            sleep 10
+            adb exec-out screencap -p > build/screenshots/dashboard-15s.png || true
             sleep 15
+            adb exec-out screencap -p > build/screenshots/dashboard-30s.png || true
+            cp build/screenshots/dashboard-30s.png build/navo-screenshot.png 2>/dev/null || true
+
             adb shell dumpsys window windows > build/window.txt || true
+            adb shell dumpsys activity activities > build/activity.txt || true
             adb logcat -d > build/navo-logcat.txt || true
-            adb exec-out screencap -p > build/navo-screenshot.png || true
             adb shell pidof "$PACKAGE" | tee build/navo-pid.txt
             test -s build/navo-pid.txt
       - name: Upload Android smoke-test evidence
@@ -131,8 +146,10 @@ jobs:
           path: |
             build/navo-pid.txt
             build/window.txt
+            build/activity.txt
             build/navo-logcat.txt
             build/navo-screenshot.png
+            build/screenshots/*.png
           if-no-files-found: warn
       - name: Upload installable APK
         if: success()
