@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtPositioning
+import QtPositioning\nimport NavoSmart.Backend 1.0
 
 import QGroundControl
 import QGroundControl.Controls
@@ -65,7 +65,23 @@ Item {
     function holdBoat() { if (!root.vehicle) return; if (baitingController.enabled) baitingController.abortCycle("HOLD manual"); else root.vehicle.pauseVehicle(); root.lastNavigationStatus = "HOLD/STOP solicitat" }
     function rtlBoat() { if (!root.vehicle) return; if (baitingController.enabled) baitingController.abortCycle("RTL manual"); root.vehicle.guidedModeRTL(false); root.lastNavigationStatus = "RTL solicitat" }
 
-    NavoAreaScan { id: areaScan }\n    NavoFishDetections { id: fishDetections }
+    NavoAreaScan { id: areaScan }
+    NavoFishDetections { id: fishDetections }
+    NavoKoggerDecoder {
+        id: koggerDecoder
+        onDepthChanged: root.depthM=depthM
+        onTemperatureChanged: root.waterTempC=waterTempC
+        onConnectedChanged: root.sonarConnected=connected
+        onEchoSamplesChanged: fishDetector.analyze(echoSamples,depthM)
+    }
+    NavoFishDetector {
+        id: fishDetector
+        onTargetDetected: function(targetDepthM,strength) {
+            if(!root.vehicle || !root.vehicle.coordinate || !root.vehicle.coordinate.isValid)return
+            fishDetections.addDetection(root.vehicle.coordinate,targetDepthM,root.depthM,strength,Date.now())
+            root.lastNavigationStatus="🐟 Țintă sonar • "+Number(targetDepthM).toFixed(1)+" m"
+        }
+    }
     NavoBathymetryModel { id: bathymetryModel }
     NavoLakePersistence { id: lakePersistence }
     NavoFishingSpots { id: fishingSpots; onSpotSaved: scanCoordinator.checkpoint("fishing-spot"); onSpotRemoved: scanCoordinator.checkpoint("fishing-spot-remove") }
