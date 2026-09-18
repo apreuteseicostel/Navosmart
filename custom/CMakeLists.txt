@@ -40,6 +40,8 @@ qt_add_qml_module(NavoSmartModule
 set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.h
     CACHE INTERNAL "" FORCE
 )
 set(CUSTOM_LIBRARIES NavoSmartModule CACHE INTERNAL "" FORCE)
