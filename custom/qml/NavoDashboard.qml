@@ -186,7 +186,7 @@ Item {
         width: 190; color: "#071522"; border.color: root.line
         ColumnLayout { anchors.fill: parent; anchors.margins: 12; spacing: 8
             NavButton { text: "Hartă"; active: true }
-            NavButton { text: "Sonar" }
+            NavButton { text: "Sonar"; onClicked: sonarFull.open() }
             NavButton { text: "Puncte" }
             NavButton { text: "Trasee" }
             NavButton { text: "Setări" }
@@ -380,7 +380,7 @@ Item {
                 connected: root.sonarConnected
                 depthM: root.depthM
                 waterTempC: root.waterTempC
-                onOpenFullSonar: root.lastNavigationStatus = "Deschidere ecran sonar Kogger Basic 2D+"
+                onOpenFullSonar: sonarFull.open()
             }
             NavoSafetyCard {
                 Layout.fillWidth: true
@@ -390,6 +390,24 @@ Item {
                 Layout.fillWidth: true
                 controller: failsafeController
             }
+        }
+    }
+
+    NavoSonarFullScreen {
+        id: sonarFull
+        parent: Overlay.overlay
+        x: 0
+        y: 0
+        width: Overlay.overlay ? Overlay.overlay.width : root.width
+        height: Overlay.overlay ? Overlay.overlay.height : root.height
+        connected: root.sonarConnected
+        depthM: root.depthM
+        waterTempC: root.waterTempC
+        speedMps: root.speedMps
+        latitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.latitude : NaN
+        longitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.longitude : NaN
+        onSaveWaypointRequested: function(latitude, longitude, depth, temperature) {
+            root.lastNavigationStatus = "Punct sonar pregătit: " + depth.toFixed(1) + " m • " + latitude.toFixed(6) + ", " + longitude.toFixed(6)
         }
     }
 
