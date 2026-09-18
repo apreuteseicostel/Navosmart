@@ -32,6 +32,17 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoAreaScan.qml
         qml/NavoSonarRecorder.qml
         qml/NavoSonarMapping.qml
+        qml/NavoLakePersistence.qml
+        qml/NavoBathymetryModel.qml
+        qml/NavoScanCoordinator.qml
+        qml/NavoFishingSpots.qml
+        qml/NavoBathymetryOverlay.qml
+        qml/NavoAreaScanOverlay.qml
+        qml/NavoAreaDrawOverlay.qml
+        qml/NavoMissionUploader.qml
+        qml/NavoFishDetections.qml
+        qml/NavoFishOverlay.qml
+        qml/NavoFishDetector.qml
         qml/NavoEnergyGuard.qml
         qml/NavoActionSequence.qml
         qml/NavoSafetyManager.qml
@@ -44,6 +55,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerTcpClient.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerTcpClient.h
     CACHE INTERNAL "" FORCE
 )
 set(CUSTOM_LIBRARIES NavoSmartModule CACHE INTERNAL "" FORCE)

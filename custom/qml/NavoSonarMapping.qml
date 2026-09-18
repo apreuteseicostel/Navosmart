@@ -8,13 +8,21 @@ Rectangle {
     property real depthM: NaN
     property real waterTempC: NaN
     property bool sonarConnected: false
+    property real bottomHardness: NaN
+    property real bottomEchoStrength: NaN
     property bool scanning: false
     property bool paused: false
     property bool bathymetryComplete: false
     property var rawSamples: []
     property var trackCoordinates: []
+    property string lakeId: ""
+    property int currentLane: 0
+    property int completedLanes: 0
+    property int totalLanes: 0
+    property var resumeState: ({})
     signal status(string text)
     signal bathymetryRequested(var samples)
+    signal checkpointRequested(var state)
 
     color: "#0b1c2e"
     border.color: "#1c4262"
@@ -26,13 +34,16 @@ Rectangle {
         rawSamples=[]; trackCoordinates=[]; bathymetryComplete=false; scanning=true; paused=false
         addCurrentSample(); status("Mapare sonar pornită")
     }
-    function pauseScan() { if(scanning){paused=true; status("Mapare sonar în pauză • datele sunt păstrate")} }
+    function pauseScan() { if(scanning){paused=true; saveCheckpoint("pause"); status("Mapare sonar în pauză • datele sunt păstrate")} }
+    function setLaneProgress(laneIndex, completed, total){ currentLane=laneIndex; completedLanes=completed; totalLanes=total; saveCheckpoint("lane") }
+    function saveCheckpoint(reason){ resumeState={lakeId:lakeId,currentLane:currentLane,completedLanes:completedLanes,totalLanes:totalLanes,sampleCount:rawSamples.length,lastCoordinate:trackCoordinates.length?trackCoordinates[trackCoordinates.length-1]:null,reason:reason,time:Date.now()}; checkpointRequested(resumeState) }
+    function restoreCheckpoint(state){ if(!state)return false; resumeState=state; lakeId=state.lakeId||""; currentLane=state.currentLane||0; completedLanes=state.completedLanes||0; totalLanes=state.totalLanes||0; paused=true; scanning=true; status("Scanare restaurată • continuă de la culoarul "+(currentLane+1)); return true }
     function resumeScan() { if(scanning){paused=false; status("Mapare sonar continuată")} }
     function addCurrentSample() {
         if(!scanning || paused || !validPosition() || !sonarConnected || isNaN(depthM)) return
         var c=vehicle.coordinate
         var s=rawSamples.slice(0)
-        s.push({lat:c.latitude, lon:c.longitude, depth:depthM, temp:waterTempC, time:Date.now()})
+        s.push({lat:c.latitude, lon:c.longitude, depth:depthM, temp:waterTempC, hardness:bottomHardness, bottomEcho:bottomEchoStrength, time:Date.now()})
         rawSamples=s
         var t=trackCoordinates.slice(0)
         if(t.length===0 || t[t.length-1].distanceTo(c)>=1.0){t.push(c); trackCoordinates=t}
@@ -41,6 +52,7 @@ Rectangle {
         if(!scanning) return
         addCurrentSample(); scanning=false; paused=false
         if(rawSamples.length<3){status("Mapare incompletă: prea puține măsurători valide"); return}
+        saveCheckpoint("finish")
         bathymetryRequested(rawSamples)
         status("Date scanare pregătite pentru generarea hărții batimetrice")
     }
