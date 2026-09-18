@@ -1,7 +1,8 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtPositioning\nimport NavoSmart.Backend 1.0
+import QtPositioning
+import NavoSmart.Backend 1.0
 
 import QGroundControl
 import QGroundControl.Controls
@@ -87,7 +88,8 @@ Item {
     NavoFishingSpots { id: fishingSpots; onSpotSaved: scanCoordinator.checkpoint("fishing-spot"); onSpotRemoved: scanCoordinator.checkpoint("fishing-spot-remove") }
     NavoSonarMapping {
         id: scanSonarMapping
-        vehicle: root.vehicle; depthM: root.depthM; waterTempC: root.waterTempC; sonarConnected: root.sonarConnected\n        bottomHardness: sonarFull.bottomHardnessPercent; bottomEchoStrength: sonarFull.bottomEchoStrength
+        vehicle: root.vehicle; depthM: root.depthM; waterTempC: root.waterTempC; sonarConnected: root.sonarConnected
+        bottomHardness: sonarFull.bottomHardnessPercent; bottomEchoStrength: sonarFull.bottomEchoStrength
         onStatus: function(text) { root.lastNavigationStatus=text }
         onBathymetryRequested: function(samples) { bathymetryModel.rebuild(samples) }
     }
@@ -253,7 +255,8 @@ Item {
             }
         }
 
-        PlanMasterController { id: planController; Component.onCompleted: { start(); if (root.vehicleConnected) loadFromVehicle() } }\n        NavoMissionUploader {
+        PlanMasterController { id: planController; Component.onCompleted: { start(); if (root.vehicleConnected) loadFromVehicle() } }
+        NavoMissionUploader {
             id: missionUploader
             planController: planController
             vehicle: root.vehicle
