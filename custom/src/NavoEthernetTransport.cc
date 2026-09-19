@@ -25,7 +25,7 @@ void NavoEthernetTransport::connectEndpoint()
     _reconnectTimer.stop();
     if(_udp){
         _udpSocket.close();
-        if(!_udpSocket.bind(QHostAddress::AnyIPv4,_port,QUdpSocket::ShareAddress|QUdpSocket::ReuseAddressHint)){
+        if(!_udpSocket.bind(_port,QUdpSocket::ShareAddress|QUdpSocket::ReuseAddressHint)){
             setConnected(false);setStatus(_udpSocket.errorString());scheduleReconnect();return;
         }
         setConnected(true);setStatus(QStringLiteral("ONLINE"));
