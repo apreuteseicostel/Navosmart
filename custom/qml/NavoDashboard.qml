@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtPositioning
+import NavoSmart.Backend 1.0
 
 import QGroundControl
 import QGroundControl.Controls
@@ -16,7 +17,7 @@ Item {
 
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
     property var battery: vehicle && vehicle.batteries.count > 0 ? vehicle.batteries.get(0) : null
-    property var waypointNames: ({})
+    property var waypointNames: persistence.waypointNames
     property real depthM: NaN
     property real waterTempC: NaN
     property bool sonarConnected: false
@@ -24,7 +25,9 @@ Item {
     property bool silentModeActive: false
     property bool cameraConnected: false
     property string cameraStreamUrl: ""
-    property bool waterAlarm: false
+    property string cameraProtocol: "auto"
+    readonly property bool waterAlarm: nanoTelemetry.connected && nanoTelemetry.waterDetected
+    readonly property real batteryTempC: nanoTelemetry.connected ? nanoTelemetry.batteryTempC : NaN
     property real escTempC: NaN
     property real batteryCurrentA: NaN
     property string boatId: "NAV0001"
@@ -65,8 +68,74 @@ Item {
     function holdBoat() { if (!root.vehicle) return; if (baitingController.enabled) baitingController.abortCycle("HOLD manual"); else root.vehicle.pauseVehicle(); root.lastNavigationStatus = "HOLD/STOP solicitat" }
     function rtlBoat() { if (!root.vehicle) return; if (baitingController.enabled) baitingController.abortCycle("RTL manual"); root.vehicle.guidedModeRTL(false); root.lastNavigationStatus = "RTL solicitat" }
 
+    NavoPersistence { id: persistence }
+    NavoNanoTelemetry { id: nanoTelemetry; vehicle: root.vehicle }
+    NavoAreaScan { id: areaScan }
+    NavoFishDetections { id: fishDetections }
+    NavoSonarEthernet {
+        id: sonarEthernet
+        vehicle: root.vehicle
+        onDepthMChanged: root.depthM=depthM
+        onWaterTempCChanged: root.waterTempC=waterTempC
+        onDataAliveChanged: root.sonarConnected=dataAlive
+        onConnectedChanged: if(!connected) root.sonarConnected=false
+        onEchoSamplesChanged: fishDetector.analyze(echoSamples,depthM)
+        onGeoSample: function(sample) { persistence.addSonarSample(sample) }
+    }
+    NavoCameraEthernet {
+        id: cameraEthernet
+        onConnectedChanged: root.cameraConnected=connected
+    }
+    NavoFishDetector {
+        id: fishDetector
+        onTargetDetected: function(targetDepthM,strength) {
+            if(!root.vehicle || !root.vehicle.coordinate || !root.vehicle.coordinate.isValid)return
+            fishDetections.addDetection(root.vehicle.coordinate,targetDepthM,root.depthM,strength,Date.now())
+            root.lastNavigationStatus="🐟 Țintă sonar • "+Number(targetDepthM).toFixed(1)+" m"
+        }
+    }
+    NavoBathymetryModel { id: bathymetryModel }
+    NavoLakePersistence { id: lakePersistence }
+    NavoFishingSpots { id: fishingSpots; onSpotSaved: scanCoordinator.checkpoint("fishing-spot"); onSpotRemoved: scanCoordinator.checkpoint("fishing-spot-remove") }
+    NavoSonarMapping {
+        id: scanSonarMapping
+        vehicle: root.vehicle; depthM: root.depthM; waterTempC: root.waterTempC; sonarConnected: root.sonarConnected
+        bottomHardness: sonarFull.bottomHardnessPercent; bottomEchoStrength: sonarFull.bottomEchoStrength
+        onStatus: function(text) { root.lastNavigationStatus=text }
+        onBathymetryRequested: function(samples) {
+            bathymetryModel.rebuild(samples)
+            var currentLakeId=scanCoordinator.lakeId.length?scanCoordinator.lakeId:(root.boatId+"_lake")
+            var currentLakeName=scanCoordinator.lakeName.length?scanCoordinator.lakeName:"Balta curentă"
+            persistence.saveLake({id:currentLakeId,name:currentLakeName})
+            var sessionId=persistence.saveBathymetrySession({
+                lakeId:currentLakeId,
+                name:"Scanare "+new Date().toLocaleString(),
+                sampleCount:samples.length,
+                minDepthM:bathymetryModel.minDepthM,
+                maxDepthM:bathymetryModel.maxDepthM
+            },samples)
+            if(sessionId.length) root.lastNavigationStatus="Hartă batimetrică salvată permanent • "+samples.length+" puncte"
+        }
+    }
+    NavoScanCoordinator {
+        id: scanCoordinator
+        vehicle: root.vehicle; areaScan: areaScan; sonarMapping: scanSonarMapping
+        bathymetry: bathymetryModel; persistence: lakePersistence
+        lakeId: root.boatId + "_lake"; lakeName: "Balta curentă"
+        onStatus: function(text) { root.lastNavigationStatus=text }
+        onMissionPrepared: function(points) { root.lastNavigationStatus="Area Scan: "+points.length+" waypoint-uri pregătite pentru H743" }
+    }
     NavoDigitalAnchor { id: digitalAnchor; vehicle: root.vehicle; onStatus: function(text) { root.lastNavigationStatus = text } }
     NavoActionSequence { id: actionSequence; vehicle: root.vehicle; hopperBridge: hopperBridge; onStatus: function(text) { root.lastNavigationStatus = text } }
+    NavoSafetyManager {
+        id: nanoSafety
+        vehicle: root.vehicle
+        waterDetected: root.waterAlarm
+        batteryTempC: root.batteryTempC
+        onWarning: function(reason){ root.lastNavigationStatus="ATENȚIE: "+reason }
+        onHoldRequested: function(reason){ if(root.vehicle) root.vehicle.pauseVehicle(); root.lastNavigationStatus="SIGURANȚĂ HOLD: "+reason }
+        onRtlRequested: function(reason){ if(root.vehicle) root.vehicle.guidedModeRTL(false); root.lastNavigationStatus="SIGURANȚĂ RTL: "+reason }
+    }
 
     NavoFailsafeController {
         id: failsafeController
@@ -190,11 +259,28 @@ Item {
             NavButton { text: "Sonar"; onClicked: sonarFull.open() }
             NavButton { text: "Puncte" }
             NavButton { text: "Mapare Sonar"; onClicked: sonarMappingPopup.open() }
-            NavButton { text: "Setări" }
+            NavButton { text: "Bălțile mele"; onClicked: myLakes.open() }
+            NavButton { text: "Setări"; onClicked: ethernetSettingsPopup.open() }
             Item { Layout.fillHeight: true }
             Label { text: root.vehicle ? root.vehicle.vehicleTypeString : "ArduPilot Rover"; color: root.textDim; font.pixelSize: 11 }
             Label { text: "Matek H743-WING V3"; color: root.textDim; font.pixelSize: 10 }
         }
+    }
+
+    NavoEthernetIndicator {
+        id: ethernetIndicator
+        anchors.top: header.bottom
+        anchors.right: rightPanel.left
+        anchors.topMargin: 14
+        anchors.rightMargin: 16
+        z: 4000
+        sonarConnected: sonarEthernet.connected
+        sonarAlive: sonarEthernet.dataAlive
+        sonarStatus: sonarEthernet.status
+        cameraConnected: cameraEthernet.connected
+        cameraAlive: cameraEthernet.dataAlive
+        cameraStatus: cameraEthernet.status
+        visible: !root.mapFullscreen
     }
 
     Rectangle {
@@ -220,6 +306,14 @@ Item {
         }
 
         PlanMasterController { id: planController; Component.onCompleted: { start(); if (root.vehicleConnected) loadFromVehicle() } }
+        NavoMissionUploader {
+            id: missionUploader
+            planController: planController
+            vehicle: root.vehicle
+            onStatus: function(text){root.lastNavigationStatus=text}
+            onUploadFinished: function(success,message){if(success)scanCoordinator.checkpoint("mission-uploaded")}
+        }
+
 
         NavoActualTrack {
             id: actualTrack
@@ -231,6 +325,58 @@ Item {
             z: 900
             onTrackStarted: root.lastNavigationStatus = "Înregistrare traseu GPS real pornită"
             onTrackCompleted: function(pointCount) { root.lastNavigationStatus = "Task finalizat • traseu GPS păstrat (" + pointCount + " puncte)" }
+        }
+
+        NavoAreaDrawOverlay {
+            id: areaDrawOverlay
+            anchors.fill: liveMap; map: liveMap; areaScan: areaScan; z: 2100
+            onStatus: function(text){root.lastNavigationStatus=text}
+            onAreaAccepted: function(polygon,lanes){scanCoordinator.areaPoints=polygon;lakePersistence.areaPoints=polygon;scanCoordinator.checkpoint("area-polygon")}
+        }
+        Button {
+            anchors.left: parent.left; anchors.top: parent.top
+            anchors.leftMargin: 12; anchors.topMargin: 94; z: 2200
+            text: areaDrawOverlay.drawing ? "ANULEAZĂ DESEN" : "DESENEAZĂ ZONA"
+            onClicked:{areaDrawOverlay.drawing=!areaDrawOverlay.drawing;if(areaDrawOverlay.drawing){areaDrawOverlay.clear();root.lastNavigationStatus="Atinge harta pe conturul zonei de scanat"}}
+        }
+
+        NavoAreaScanOverlay {
+            id: areaScanOverlay
+            anchors.fill: liveMap
+            map: liveMap
+            areaScan: areaScan
+            z: 940
+        }
+
+        Rectangle {
+            visible: areaScan.laneCount() > 0
+            anchors.left: parent.left; anchors.top: parent.top
+            anchors.leftMargin: 12; anchors.topMargin: 52
+            width: 220; height: 54; radius: 8; z: 1200
+            color: "#071827e8"; border.color: root.cyan
+            Column {
+                anchors.centerIn: parent; spacing: 2
+                Label { anchors.horizontalCenter: parent.horizontalCenter; text: "AREA SCAN • "+areaScan.progressPercent()+"%"; color: root.textMain; font.bold:true }
+                Label { anchors.horizontalCenter: parent.horizontalCenter; text: areaScan.completedLanes.length+" / "+areaScan.laneCount()+" culoare terminate"; color: root.textDim; font.pixelSize:11 }
+            }
+        }
+
+        NavoFishOverlay {
+            id: fishOverlay
+            anchors.fill: liveMap
+            map: liveMap
+            fishModel: fishDetections
+            z: 970
+        }
+
+        NavoBathymetryOverlay {
+            id: bathymetryOverlay
+            anchors.fill: liveMap
+            map: liveMap
+            bathymetryCells: bathymetryModel.cells
+            fishingSpotsModel: fishingSpots
+            z: 950
+            onStatus: function(text) { root.lastNavigationStatus=text; scanCoordinator.checkpoint("map-spot") }
         }
 
         NavoWaypointMapOverlay {
@@ -286,7 +432,8 @@ Item {
             z: 1050
             connected: root.cameraConnected
             streamUrl: root.cameraStreamUrl
-            onFullscreenRequested: root.lastNavigationStatus = "Camera GR01: fullscreen va fi activat când conectăm fluxul real G20"
+            protocol: root.cameraProtocol
+            onFullscreenRequested: cameraFull.open()
         }
 
 
@@ -300,7 +447,10 @@ Item {
             leftHopperCommandOpen: hopperBridge.leftOpen
             rightHopperCommandOpen: hopperBridge.rightOpen
             waterDetected: root.waterAlarm
-            batteryTempC: NaN
+            batteryTempC: root.batteryTempC
+            headlightOn: nanoTelemetry.connected && nanoTelemetry.headlightOn
+            positionLightsOn: nanoTelemetry.connected && nanoTelemetry.positionLightsOn
+            rudderNormalized: nanoTelemetry.connected && nanoTelemetry.rudderUs > 0 ? (nanoTelemetry.rudderUs-1500)/500.0 : 0
             visible: !root.hopperStatusExpanded
             MouseArea { anchors.fill: parent; onClicked: root.hopperStatusExpanded = true }
         }
@@ -323,7 +473,10 @@ Item {
                     leftHopperCommandOpen: hopperBridge.leftOpen
                     rightHopperCommandOpen: hopperBridge.rightOpen
                     waterDetected: root.waterAlarm
-                    batteryTempC: NaN
+            batteryTempC: root.batteryTempC
+            headlightOn: nanoTelemetry.connected && nanoTelemetry.headlightOn
+            positionLightsOn: nanoTelemetry.connected && nanoTelemetry.positionLightsOn
+            rudderNormalized: nanoTelemetry.connected && nanoTelemetry.rudderUs > 0 ? (nanoTelemetry.rudderUs-1500)/500.0 : 0
                 }
                 RowLayout {
                     Layout.fillWidth: true
@@ -394,8 +547,8 @@ Item {
             Label { text: "CAMERĂ BARCĂ"; color: root.cyan; font.bold: true }
             NavoCameraPip {
                 Layout.fillWidth: true; Layout.preferredHeight: 125
-                connected: root.cameraConnected; streamUrl: root.cameraStreamUrl
-                onFullscreenRequested: root.lastNavigationStatus = "Cameră: fullscreen solicitat"
+                connected: root.cameraConnected; streamUrl: root.cameraStreamUrl; protocol: root.cameraProtocol
+                onFullscreenRequested: cameraFull.open()
             }
             Label { text: "NĂDIRE"; color: root.cyan; font.bold: true }
             Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: baitingController.enabled ? "Cuvele apar automat la apropierea finală." : "Cuve ascunse până la punctul de eliberare."; color: root.textDim; font.pixelSize: 11 }
@@ -430,14 +583,82 @@ Item {
         height: Math.min(360, root.height - 40)
         background: Rectangle { radius: 12; color: root.bg; border.color: root.cyan }
         contentItem: NavoSonarMapping {
+            id: mappingPopupContent
             vehicle: root.vehicle
             depthM: root.depthM
             waterTempC: root.waterTempC
             sonarConnected: root.sonarConnected
             onStatus: function(text) { root.lastNavigationStatus = text }
             onBathymetryRequested: function(samples) {
-                root.lastNavigationStatus = "Batimetrie: " + samples.length + " puncte pregătite; rendererul urmează validarea."
+                scanSonarMapping.rawSamples = samples
+                bathymetryModel.rebuild(samples)
+                scanCoordinator.bathymetryCells = bathymetryModel.cells
+                scanCoordinator.checkpoint("bathymetry")
+                root.lastNavigationStatus = "Batimetrie actualizată: " + bathymetryModel.cells.length + " celule."
             }
+        }
+    }
+
+    Popup {
+        id: ethernetSettingsPopup
+        parent: Overlay.overlay
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape
+        anchors.centerIn: parent
+        width: Math.min(760, root.width-40)
+        height: Math.min(620, root.height-40)
+        background: Rectangle { radius:12; color:root.bg; border.color:root.cyan }
+        contentItem: NavoEthernetSettings {
+            id: ethernetSettings
+            sonar: sonarEthernet
+            camera: cameraEthernet
+            onStatus: function(text){ root.lastNavigationStatus=text }
+            onCameraStreamUrlChanged: root.cameraStreamUrl=cameraStreamUrl
+            onCameraProtocolChanged: root.cameraProtocol=cameraProtocol
+        }
+    }
+
+    Popup {
+        id: cameraFull
+        parent: Overlay.overlay
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape
+        x: 0; y: 0
+        width: Overlay.overlay ? Overlay.overlay.width : root.width
+        height: Overlay.overlay ? Overlay.overlay.height : root.height
+        padding: 0
+        background: Rectangle { color:"#02070c" }
+        contentItem: NavoCameraFullScreen {
+            streamUrl: root.cameraStreamUrl
+            protocol: root.cameraProtocol
+            onClosed: cameraFull.close()
+        }
+    }
+
+    NavoMyLakes {
+        id: myLakes
+        parent: Overlay.overlay
+        persistence: persistence
+        sonarMapping: scanSonarMapping
+        areaScanPlanner: areaScan
+        onOpenSession: function(session) {
+            if(!session || !session.samples || session.samples.length<1) return
+            scanSonarMapping.rawSamples=session.samples
+            bathymetryModel.rebuild(session.samples)
+            scanCoordinator.bathymetryCells=bathymetryModel.cells
+            if(session.lakeId) {
+                scanCoordinator.lakeId=session.lakeId
+                scanSonarMapping.lakeId=session.lakeId
+            }
+            root.lastNavigationStatus="Hartă încărcată din Bălțile mele • "+session.samples.length+" puncte"
+            myLakes.close()
+        }
+        onContinueMapping: function(lakeId) {
+            scanCoordinator.lakeId=lakeId
+            scanSonarMapping.lakeId=lakeId
+            root.lastNavigationStatus="Continuare hartă selectată • datele vechi rămân salvate"
         }
     }
 
@@ -454,8 +675,12 @@ Item {
         speedMps: root.speedMps
         latitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.latitude : NaN
         longitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.longitude : NaN
+        echoSamples: sonarEthernet.echoSamples
+        fishHotspots: fishDetections.hotspots
+        transport: sonarEthernet
         onSaveWaypointRequested: function(latitude, longitude, depth, temperature) {
-            root.lastNavigationStatus = "Punct sonar pregătit: " + depth.toFixed(1) + " m • " + latitude.toFixed(6) + ", " + longitude.toFixed(6)
+            var spot=fishingSpots.saveSpot(QtPositioning.coordinate(latitude,longitude),depth,temperature,fishingSpots.suggestedName("Punct sonar"),"Salvat direct din sonar",null)
+            if(spot){lakePersistence.fishingSpots=fishingSpots.fishingSpots;scanCoordinator.checkpoint("sonar-spot");root.lastNavigationStatus="Punct salvat: "+spot.name+" • "+depth.toFixed(1)+" m"}
         }
     }
 
