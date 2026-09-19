@@ -6,10 +6,7 @@ set_property(DIRECTORY ${CMAKE_SOURCE_DIR} APPEND PROPERTY COMPILE_DEFINITIONS
     CUSTOMCLASS=CustomPlugin
 )
 
-qt_add_library(NavoSmartModule STATIC
-    src/NavoEthernetTransport.cc
-    src/NavoEthernetTransport.h
-)
+qt_add_library(NavoSmartModule STATIC)
 qt_add_qml_module(NavoSmartModule
     URI NavoSmart
     VERSION 1.0
@@ -58,6 +55,9 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoSafetyManager.qml
         qml/NavoBoatStatus.qml
     NO_PLUGIN
+    SOURCES
+        src/NavoEthernetTransport.h
+        src/NavoEthernetTransport.cc
 )
 
 set(CUSTOM_SOURCES
