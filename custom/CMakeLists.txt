@@ -6,7 +6,10 @@ set_property(DIRECTORY ${CMAKE_SOURCE_DIR} APPEND PROPERTY COMPILE_DEFINITIONS
     CUSTOMCLASS=CustomPlugin
 )
 
-qt_add_library(NavoSmartModule STATIC)
+qt_add_library(NavoSmartModule STATIC
+    src/NavoEthernetTransport.cc
+    src/NavoEthernetTransport.h
+)
 qt_add_qml_module(NavoSmartModule
     URI NavoSmart
     VERSION 1.0
@@ -66,12 +69,9 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerTcpClient.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoPersistence.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoPersistence.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoNanoTelemetry.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoNanoTelemetry.h
     CACHE INTERNAL "" FORCE
 )
-set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.h PROPERTIES SKIP_AUTOMOC OFF)
 set(CUSTOM_LIBRARIES NavoSmartModule CACHE INTERNAL "" FORCE)
 set(CUSTOM_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/src CACHE INTERNAL "" FORCE)
