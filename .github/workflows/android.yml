@@ -108,9 +108,9 @@ jobs:
             set -eu
             adb wait-for-device
             adb install -r build-x86/NAVO_SMART-x86.apk
-            AAPT="${ANDROID_HOME}/build-tools/35.0.0/aapt"
+            AAPT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}/build-tools/35.0.0/aapt"
             test -x "$AAPT"
-            BADGING="$($AAPT dump badging build-x86/NAVO_SMART-x86.apk)"
+            BADGING="$("$AAPT" dump badging build-x86/NAVO_SMART-x86.apk)"
             PACKAGE="$(printf '%s\n' "$BADGING" | sed -n "s/package: name='\([^']*\)'.*/\1/p" | head -n 1)"
             ACTIVITY="$(printf '%s\n' "$BADGING" | sed -n "s/launchable-activity: name='\([^']*\)'.*/\1/p" | head -n 1)"
             test -n "$PACKAGE"
