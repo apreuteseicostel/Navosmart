@@ -7,6 +7,7 @@ set_property(DIRECTORY ${CMAKE_SOURCE_DIR} APPEND PROPERTY COMPILE_DEFINITIONS
 )
 
 qt_add_library(NavoSmartModule STATIC)
+set_target_properties(NavoSmartModule PROPERTIES AUTOMOC ON)
 qt_add_qml_module(NavoSmartModule
     URI NavoSmart
     VERSION 1.0
