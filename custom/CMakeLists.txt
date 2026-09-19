@@ -54,18 +54,11 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoActionSequence.qml
         qml/NavoSafetyManager.qml
         qml/NavoBoatStatus.qml
+    SOURCES
+        src/NavoEthernetTransport.cc
+        src/NavoEthernetTransport.h
     NO_PLUGIN
 )
-
-target_sources(NavoSmartModule PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.h
-)
-qt_wrap_cpp(NAVO_ETHERNET_MOC
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.h
-    TARGET NavoSmartModule
-)
-target_sources(NavoSmartModule PRIVATE ${NAVO_ETHERNET_MOC})
 
 set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.cc
