@@ -53,9 +53,3 @@ void NavoEthernetTransport::scheduleReconnect(){if(_autoReconnect&&!_manualDisco
 void NavoEthernetTransport::setConnected(bool v){if(_connected==v)return;_connected=v;emit connectedChanged();}
 void NavoEthernetTransport::setDataAlive(bool v){if(_dataAlive==v)return;_dataAlive=v;emit dataAliveChanged();}
 void NavoEthernetTransport::setStatus(const QString& v){if(_status==v)return;_status=v;emit statusChanged();}
-
-// The custom QGC build injects this source into the final application target.
-// Including the generated moc unit here guarantees the QObject meta-object code
-// is linked with the same translation unit instead of depending on cross-target
-// AUTOMOC propagation from the custom QML static library.
-#include "NavoEthernetTransport.moc"
