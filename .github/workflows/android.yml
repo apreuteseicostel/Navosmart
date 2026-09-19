@@ -108,8 +108,9 @@ jobs:
             set -eu
             adb wait-for-device
             adb install -r build-x86/NAVO_SMART-x86.apk
-            AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
-            BADGING="$("$AAPT" dump badging build-x86/NAVO_SMART-x86.apk)"
+            AAPT="${ANDROID_HOME}/build-tools/35.0.0/aapt"
+            test -x "$AAPT"
+            BADGING="$($AAPT dump badging build-x86/NAVO_SMART-x86.apk)"
             PACKAGE="$(printf '%s\n' "$BADGING" | sed -n "s/package: name='\([^']*\)'.*/\1/p" | head -n 1)"
             ACTIVITY="$(printf '%s\n' "$BADGING" | sed -n "s/launchable-activity: name='\([^']*\)'.*/\1/p" | head -n 1)"
             test -n "$PACKAGE"
@@ -122,9 +123,6 @@ jobs:
             adb shell input keyevent KEYCODE_WAKEUP || true
             adb shell wm dismiss-keyguard || true
             adb shell am start -W -n "$PACKAGE/$ACTIVITY"
-
-            # Capture the real dashboard at several points so slow QML/map loading
-            # still leaves useful visual evidence in the build artifacts.
             sleep 5
             adb exec-out screencap -p > build/screenshots/dashboard-05s.png || true
             sleep 10
@@ -132,7 +130,6 @@ jobs:
             sleep 15
             adb exec-out screencap -p > build/screenshots/dashboard-30s.png || true
             cp build/screenshots/dashboard-30s.png build/navo-screenshot.png 2>/dev/null || true
-
             adb shell dumpsys window windows > build/window.txt || true
             adb shell dumpsys activity activities > build/activity.txt || true
             adb logcat -d > build/navo-logcat.txt || true
