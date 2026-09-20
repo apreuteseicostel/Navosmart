@@ -14,9 +14,8 @@ qt_add_qml_module(NavoSmartModule
     IMPORTS
         QGroundControl
         QGroundControl.Controls
-        QGroundControl.FlyView
+        QGroundControl.FlightDisplay
         QGroundControl.FlightMap
-        QGroundControl.PlanView
     QML_FILES
         qml/NavoDashboard.qml
         qml/NavoTelemetryCard.qml
