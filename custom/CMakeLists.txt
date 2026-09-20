@@ -54,9 +54,6 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoActionSequence.qml
         qml/NavoSafetyManager.qml
         qml/NavoBoatStatus.qml
-    SOURCES
-        src/NavoEthernetTransport.cc
-        src/NavoEthernetTransport.h
     NO_PLUGIN
 )
 
@@ -69,6 +66,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerTcpClient.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoPersistence.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoPersistence.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoNanoTelemetry.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoNanoTelemetry.h
     CACHE INTERNAL "" FORCE
