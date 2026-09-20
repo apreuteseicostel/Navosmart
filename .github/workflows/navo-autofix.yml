@@ -10,6 +10,10 @@ permissions:
   contents: read
   actions: read
 
+concurrency:
+  group: navo-autofix-${{ github.event.workflow_run.head_branch || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   diagnose:
     if: >
@@ -43,7 +47,34 @@ jobs:
             grep -RniE "error:|FAILED:|undefined symbol|fatal error|Exception|exit code|FAILURE" navo-autofix/logs 2>/dev/null | tail -n 200 || true
           } > navo-autofix/diagnostic.md
 
-      - name: Upload diagnostic
+      - name: Classify failure and write repair hint
+        if: github.event_name == 'workflow_run'
+        run: |
+          set -euo pipefail
+          ERRORS="navo-autofix/errors.txt"
+          grep -RhiE "error:|FAILED:|undefined symbol|fatal error|Exception|exit code|device offline|test -n" navo-autofix/logs 2>/dev/null | tail -n 250 > "$ERRORS" || true
+          {
+            echo
+            echo "## Repair classification"
+            if grep -qi "undefined symbol.*NavoEthernetTransport\|vtable for NavoEthernetTransport" "$ERRORS"; then
+              echo "qt-moc-link: inspect NavoEthernetTransport target/source ownership; do not make unrelated changes."
+            elif grep -qi "device offline" "$ERRORS"; then
+              echo "emulator-infra: retry/boot stability issue; do not modify application code."
+            elif grep -qi "test -n.*PACKAGE\|launchable-activity\|aapt2" "$ERRORS"; then
+              echo "smoke-metadata: inspect Android package/activity extraction in android.yml."
+            else
+              echo "unknown: human/agent diagnosis required before modifying code."
+            fi
+          } >> navo-autofix/diagnostic.md
+
+      - name: Guard against repair loops
+        if: github.event_name == 'workflow_run'
+        run: |
+          set -euo pipefail
+          echo "AutoFix Guard is diagnostic-only inside GitHub."
+          echo "Code-writing is intentionally delegated to the authorized external repair agent."
+          echo "This prevents an untrusted failed build log from directly rewriting repository code."
+
         if: always()
         uses: actions/upload-artifact@v4
         with:
