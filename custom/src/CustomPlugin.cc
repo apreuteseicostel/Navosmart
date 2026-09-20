@@ -7,6 +7,11 @@
 #include <QtQml/qqml.h>
 #include <QtQml/QQmlApplicationEngine>
 #include <QtCore/QFile>
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
+#include <QtCore/QApplicationStatic>
+#endif
+Q_APPLICATION_STATIC(CustomPlugin, _customPluginInstance);
+
 CustomFlyViewOptions::CustomFlyViewOptions(CustomOptions* options,QObject* parent):QGCFlyViewOptions(options,parent){}
 CustomPlugin::CustomPlugin(QObject* parent):QGCCorePlugin(parent),_options(new CustomOptions(this)){
  qmlRegisterType<NavoKoggerDecoder>("NavoSmart.Backend",1,0,"NavoKoggerDecoder");
@@ -16,6 +21,7 @@ CustomPlugin::CustomPlugin(QObject* parent):QGCCorePlugin(parent),_options(new C
  qmlRegisterType<NavoNanoTelemetry>("NavoSmart.Backend",1,0,"NavoNanoTelemetry");
 }
 CustomPlugin::~CustomPlugin(){}
+QGCCorePlugin* CustomPlugin::instance(){ return _customPluginInstance(); }
 QQmlApplicationEngine* CustomPlugin::createQmlApplicationEngine(QObject* parent){
  _engine=QGCCorePlugin::createQmlApplicationEngine(parent);
  _engine->addImportPath("qrc:/qml");
