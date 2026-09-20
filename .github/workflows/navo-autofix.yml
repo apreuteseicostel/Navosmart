@@ -1,0 +1,52 @@
+name: NAVO AutoFix Guard
+
+on:
+  workflow_run:
+    workflows: ["Build NAVO SMART Android"]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  diagnose:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'failure' &&
+       github.event.workflow_run.head_branch == 'feature/unified-navosmart-integration')
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download failed run logs
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          mkdir -p navo-autofix
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${RUN_ID}/logs" > navo-autofix/logs.zip
+          unzip -q navo-autofix/logs.zip -d navo-autofix/logs || true
+
+      - name: Produce failure summary
+        if: github.event_name == 'workflow_run'
+        run: |
+          set -euo pipefail
+          {
+            echo "# NAVO AutoFix diagnostic"
+            echo
+            echo "Run: ${{ github.event.workflow_run.html_url }}"
+            echo "Commit: ${{ github.event.workflow_run.head_sha }}"
+            echo
+            echo "## Error lines"
+            grep -RniE "error:|FAILED:|undefined symbol|fatal error|Exception|exit code|FAILURE" navo-autofix/logs 2>/dev/null | tail -n 200 || true
+          } > navo-autofix/diagnostic.md
+
+      - name: Upload diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NAVO-AUTOFIX-DIAGNOSTIC
+          path: navo-autofix/
+          if-no-files-found: ignore
