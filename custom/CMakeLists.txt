@@ -11,6 +11,12 @@ qt_add_qml_module(NavoSmartModule
     URI NavoSmart
     VERSION 1.0
     RESOURCE_PREFIX /qml
+    IMPORTS
+        QGroundControl
+        QGroundControl.Controls
+        QGroundControl.FlyView
+        QGroundControl.FlightMap
+        QGroundControl.PlanView
     QML_FILES
         qml/NavoDashboard.qml
         qml/NavoTelemetryCard.qml
