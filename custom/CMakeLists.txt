@@ -78,5 +78,12 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoNanoTelemetry.h
     CACHE INTERNAL "" FORCE
 )
-set(CUSTOM_LIBRARIES NavoSmartModule CACHE INTERNAL "" FORCE)
+# Link both the QML module target and its generated resource target into the
+# final QGC executable. Static-library linking alone can discard the raw QML
+# resource object because no C++ symbol references it.
+set(CUSTOM_LIBRARIES
+    NavoSmartModule
+    NavoSmartModule_resources_1
+    CACHE INTERNAL "" FORCE
+)
 set(CUSTOM_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/src CACHE INTERNAL "" FORCE)
