@@ -91,12 +91,13 @@ jobs:
       - name: Prepare x86_64 smoke-test APK
         run: |
           set -euo pipefail
-          APK="$(find build-x86 -type f -name '*.apk' | head -n 1)"; test -n "$APK"
+          APK="$(find build-x86/android-build/build/outputs/apk -type f -name '*-unsigned.apk' | head -n 1)"; test -n "$APK"
           APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"; ZIPALIGN="$ANDROID_HOME/build-tools/35.0.0/zipalign"; KS="$HOME/.android/debug.keystore"
-          if ! "$APKSIGNER" verify "$APK"; then
-            "$ZIPALIGN" -f -p 4 "$APK" build-x86/NAVO_SMART-x86-aligned.apk
-            "$APKSIGNER" sign --ks "$KS" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out build-x86/NAVO_SMART-x86.apk build-x86/NAVO_SMART-x86-aligned.apk
-          else cp "$APK" build-x86/NAVO_SMART-x86.apk; fi
+          test -f "$KS"
+          "$ZIPALIGN" -f -p 4 "$APK" build-x86/NAVO_SMART-x86-aligned.apk
+          "$APKSIGNER" sign --ks "$KS" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out build-x86/NAVO_SMART-x86.apk build-x86/NAVO_SMART-x86-aligned.apk
+          "$APKSIGNER" verify --verbose build-x86/NAVO_SMART-x86.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging build-x86/NAVO_SMART-x86.apk >/dev/null
       - name: Android emulator smoke test
         uses: reactivecircus/android-emulator-runner@v2
         with:
