@@ -32,8 +32,9 @@ QQmlApplicationEngine* CustomPlugin::createQmlApplicationEngine(QObject* parent)
 void CustomPlugin::cleanup(){if(_engine&&_selector)_engine->removeUrlInterceptor(_selector);delete _selector;_selector=nullptr;}
 QUrl CustomOverrideInterceptor::intercept(const QUrl& url,DataType type){
  if((type==DataType::QmlFile||type==DataType::UrlString)&&url.scheme()=="qrc"){
-  // Replace QGC FlyView with NAVO SMART dashboard while retaining QGC backend.
-  if(url.path().endsWith("/FlyView.qml")) return QUrl("qrc:/qml/NavoSmart/NavoDashboard.qml");
+  // QML_FILES are declared as qml/<file> under URI NavoSmart, so the
+  // generated Qt resource keeps that qml/ directory below the module URI.
+  if(url.path().endsWith("/FlyView.qml")) return QUrl("qrc:/qml/NavoSmart/qml/NavoDashboard.qml");
  }
  return url;
 }
