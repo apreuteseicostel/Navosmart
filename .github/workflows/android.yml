@@ -111,20 +111,10 @@ jobs:
           disable-animations: true
           script: |
             set -eu
-            # Retry transient hosted-runner ADB/emulator startup failures.
-            for attempt in 1 2 3; do
-              adb start-server || true
-              if adb wait-for-device && adb shell getprop sys.boot_completed | grep -q 1 && adb install -r build-x86/NAVO_SMART-x86.apk; then
-                break
-              fi
-              if [ "$attempt" -eq 3 ]; then
-                echo "ADB/emulator infrastructure unavailable after 3 attempts" >&2
-                exit 1
-              fi
-              echo "ADB/emulator attempt $attempt failed; restarting adb before retry"
-              adb kill-server || true
-              sleep 10
-            done
+            # The emulator action already waits for ADB/device readiness.
+            # Keep the test script simple: nested retry loops can be split by the action runner.
+            adb wait-for-device
+            adb install -r build-x86/NAVO_SMART-x86.apk
             test -x "$ANDROID_HOME/build-tools/35.0.0/aapt2"
             "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging build-x86/NAVO_SMART-x86.apk | grep -m1 '^package:'
             "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging build-x86/NAVO_SMART-x86.apk | grep -m1 '^launchable-activity:'
