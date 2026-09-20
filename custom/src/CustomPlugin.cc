@@ -14,6 +14,9 @@ Q_APPLICATION_STATIC(CustomPlugin, _customPluginInstance);
 
 CustomFlyViewOptions::CustomFlyViewOptions(CustomOptions* options,QObject* parent):QGCFlyViewOptions(options,parent){}
 CustomPlugin::CustomPlugin(QObject* parent):QGCCorePlugin(parent),_options(new CustomOptions(this)){
+ // The NAVO QML module is a static library. Force registration of its raw QML
+ // resource collection so Android can resolve qrc:/qml/NavoSmart/qml/*.qml.
+ Q_INIT_RESOURCE(NavoSmartModule_raw_qml_0);
  qmlRegisterType<NavoKoggerDecoder>("NavoSmart.Backend",1,0,"NavoKoggerDecoder");
  qmlRegisterType<NavoKoggerTcpClient>("NavoSmart.Backend",1,0,"NavoKoggerTcpClient");
  qmlRegisterType<NavoPersistence>("NavoSmart.Backend",1,0,"NavoPersistence");
