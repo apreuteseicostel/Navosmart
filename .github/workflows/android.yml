@@ -19,6 +19,10 @@ jobs:
           git clone --depth 1 --branch v5.0.7 --recurse-submodules --shallow-submodules https://github.com/mavlink/qgroundcontrol.git qgc
           rm -rf qgc/custom
           cp -a custom qgc/custom
+          # QGC v5.0.7 exposes FlyViewMap from QGroundControl.FlightDisplay;
+          # PlanView is not a QML module in this release (its module CMake is disabled).
+          sed -i 's/QGroundControl\.FlyView/QGroundControl.FlightDisplay/g' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
+          sed -i '/QGroundControl\.PlanView/d' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
           sed -i 's/GIT_TAG main/GIT_TAG caf5158061bd10e79c9f042abb62c86bc6f3e7a7/' qgc/src/GPS/CMakeLists.txt
       - name: Setup Java
         uses: actions/setup-java@v4
