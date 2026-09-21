@@ -120,7 +120,7 @@ Item {
     NavoScanCoordinator {
         id: scanCoordinator
         vehicle: root.vehicle; areaScan: areaScan; sonarMapping: scanSonarMapping
-        bathymetry: bathymetryModel; persistence: lakePersistence
+        bathymetry: bathymetryModel; persistence: persistence; fishingSpots: fishingSpots
         lakeId: root.boatId + "_lake"; lakeName: "Balta curentă"
         onStatus: function(text) { root.lastNavigationStatus=text }
         onMissionPrepared: function(points) { root.lastNavigationStatus="Area Scan: "+points.length+" waypoint-uri pregătite pentru H743" }
@@ -641,8 +641,7 @@ Item {
         id: myLakes
         parent: Overlay.overlay
         persistence: persistence
-        sonarMapping: scanSonarMapping
-        areaScanPlanner: areaScan
+        scanCoordinator: scanCoordinator
         onOpenSession: function(session) {
             if(!session || !session.samples || session.samples.length<1) return
             scanSonarMapping.rawSamples=session.samples
@@ -655,14 +654,7 @@ Item {
             root.lastNavigationStatus="Hartă încărcată din Bălțile mele • "+session.samples.length+" puncte"
             myLakes.close()
         }
-        onContinueMapping: function(lakeId) {
-            scanCoordinator.lakeId=lakeId
-            scanSonarMapping.lakeId=lakeId
-            root.lastNavigationStatus="Continuare hartă selectată • datele vechi rămân salvate"
-        }
-    }
-
-    NavoSonarFullScreen {
+        onLakeRestored: function(lakeId) {\n            root.lastNavigationStatus="Baltă restaurată • Resume disponibil"\n        }\n    }\n\n    NavoSonarFullScreen {
         id: sonarFull
         parent: Overlay.overlay
         x: 0
@@ -680,7 +672,7 @@ Item {
         transport: sonarEthernet
         onSaveWaypointRequested: function(latitude, longitude, depth, temperature) {
             var spot=fishingSpots.saveSpot(QtPositioning.coordinate(latitude,longitude),depth,temperature,fishingSpots.suggestedName("Punct sonar"),"Salvat direct din sonar",null)
-            if(spot){lakePersistence.fishingSpots=fishingSpots.fishingSpots;scanCoordinator.checkpoint("sonar-spot");root.lastNavigationStatus="Punct salvat: "+spot.name+" • "+depth.toFixed(1)+" m"}
+            if(spot){scanCoordinator.checkpoint("sonar-spot");root.lastNavigationStatus="Punct salvat: "+spot.name+" • "+depth.toFixed(1)+" m"}
         }
     }
 
