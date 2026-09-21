@@ -75,6 +75,7 @@ jobs:
           echo "Code-writing is intentionally delegated to the authorized external repair agent."
           echo "This prevents an untrusted failed build log from directly rewriting repository code."
 
+      - name: Upload AutoFix diagnostic
         if: always()
         uses: actions/upload-artifact@v4
         with:
