@@ -19,12 +19,10 @@ QtObject {
  function disconnectSonar(){ transport.disconnectEndpoint(); decoder.reset() }
  function connectToSonar(){ connectSonar() }
  function disconnectFromSonar(){ disconnectSonar() }
- NavoEthernetTransport {
-  id: transport
+ property NavoEthernetTransport transport: NavoEthernetTransport {
   onBytesReceived: function(data){ root.rxBytes += data.length; root.rxChunks += 1; decoder.feedBytes(data) }
  }
- NavoKoggerDecoder {
-  id: decoder
+ property NavoKoggerDecoder decoder: NavoKoggerDecoder {
   onDepthChanged: {
    if(root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid && !isNaN(depthM))
     root.geoSample({time:Date.now(),lat:root.vehicle.coordinate.latitude,lon:root.vehicle.coordinate.longitude,
