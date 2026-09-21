@@ -107,12 +107,12 @@ jobs:
             adb wait-for-device
             adb install -r build-x86/NAVO_SMART-x86.apk
             adb logcat -c
-            adb shell am start -W -n ro.pescarullupeste.navosmart/org.mavlink.qgroundcontrol.QGCActivity
+            adb shell am start -W -n org.mavlink.qgroundcontrol/org.mavlink.qgroundcontrol.QGCActivity
             sleep 15
             adb shell dumpsys window windows > build/window.txt || true
             adb logcat -d > build/navo-logcat.txt || true
             adb exec-out screencap -p > build/navo-screenshot.png || true
-            adb shell pidof ro.pescarullupeste.navosmart | tee build/navo-pid.txt
+            adb shell pidof org.mavlink.qgroundcontrol | tee build/navo-pid.txt
             test -s build/navo-pid.txt
       - name: Upload Android smoke-test evidence
         if: always()
