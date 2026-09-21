@@ -13,6 +13,7 @@ qt_add_qml_module(NavoSmartModule
     RESOURCE_PREFIX /qml
     IMPORTS
         QGroundControl
+        QGroundControl.Controllers
         QGroundControl.Controls
         QGroundControl.FlightDisplay
         QGroundControl.FlightMap
