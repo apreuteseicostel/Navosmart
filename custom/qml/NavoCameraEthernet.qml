@@ -13,5 +13,7 @@ QtObject {
  signal packetReceived(var bytes)
  function connectCamera(){transport.connectEndpoint()}
  function disconnectCamera(){transport.disconnectEndpoint()}
- NavoEthernetTransport { id:transport; onBytesReceived:function(data){root.packetReceived(data)} }
+ property NavoEthernetTransport transport: NavoEthernetTransport {
+  onBytesReceived: function(data){root.packetReceived(data)}
+ }
 }
