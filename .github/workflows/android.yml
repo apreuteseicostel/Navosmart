@@ -23,60 +23,23 @@ jobs:
           sed -i 's/QGroundControl\.FlyView/QGroundControl.FlightDisplay/g' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
           sed -i '/QGroundControl\.PlanView/d' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
           sed -i 's/GIT_TAG main/GIT_TAG caf5158061bd10e79c9f042abb62c86bc6f3e7a7/' qgc/src/GPS/CMakeLists.txt
-          # NAVO Android lifecycle guard: on some real Android devices Qt can deliver
-          # QEvent::Quit before QGC has cached/created the main QML window. QGC 5.0.7
-          # dereferences _mainRootWindow unconditionally in QGCApplication::event(),
-          # which produces SIGSEGV/null-pointer on arm64. Patch the pinned upstream
-          # source before compiling so Quit is handled safely.
+          # NAVO Android lifecycle guard. QGC v5.0.7 dereferences
+          # _mainRootWindow on QEvent::Quit even when it is still null. Current
+          # upstream QGC has this guard; apply the same minimal fix to v5.0.7.
           python3 - <<'PY'
           from pathlib import Path
-
           p = Path("qgc/src/QGCApplication.cc")
           src = p.read_text()
-          old = """    if (e->type() == QEvent::Quit) {
-              // On OSX if the user selects Quit from the menu (or Command-Q) the ApplicationWindow does not signal closing. Instead you get a Quit event here only.
-              // This in turn causes the standard QGC shutdown sequence to not run. So in this case we close the window ourselves such that the
-              // signal is sent and the normal shutdown sequence runs.
-              const bool forceClose = _mainRootWindow->property("_forceClose").toBool();
-              qCDebug(QGCApplicationLog) << "Quit event" << forceClose;
-              // forceClose
-              //  true:   Standard QGC shutdown sequence is complete. Let the app quit normally by falling through to the base class processing.
-              //  false:  QGC shutdown sequence has not been run yet. Don't let this event close the app yet. Close the main window to kick off the normal shutdown.
-              if (!forceClose) {
-                  //
-                  _mainRootWindow->close();
-                  e->ignore();
-                  return true;
-              }
+          needle = '        const bool forceClose = _mainRootWindow->property("_forceClose").toBool();'
+          guard = '''        if (!_mainRootWindow) {
+              return QApplication::event(e);
           }
-          """
-          new = """    if (e->type() == QEvent::Quit) {
-              // On OSX if the user selects Quit from the menu (or Command-Q) the ApplicationWindow does not signal closing. Instead you get a Quit event here only.
-              // This in turn causes the standard QGC shutdown sequence to not run. So in this case we close the window ourselves such that the
-              // signal is sent and the normal shutdown sequence runs.
-              QQuickWindow *const rootWindow = mainRootWindow();
-              if (!rootWindow) {
-                  qCWarning(QGCApplicationLog) << "Quit event received before main root window is available";
-                  return QApplication::event(e);
-              }
-              const bool forceClose = rootWindow->property("_forceClose").toBool();
-              qCDebug(QGCApplicationLog) << "Quit event" << forceClose;
-              // forceClose
-              //  true:   Standard QGC shutdown sequence is complete. Let the app quit normally by falling through to the base class processing.
-              //  false:  QGC shutdown sequence has not been run yet. Don't let this event close the app yet. Close the main window to kick off the normal shutdown.
-              if (!forceClose) {
-                  //
-                  rootWindow->close();
-                  e->ignore();
-                  return true;
-              }
-          }
-          """
-          if old not in src:
-              raise SystemExit("QGCApplication::event() patch anchor not found in pinned v5.0.7")
-          p.write_text(src.replace(old, new, 1))
+          const bool forceClose = _mainRootWindow->property("_forceClose").toBool();'''
+          if needle not in src:
+              raise SystemExit("QGCApplication forceClose line not found in pinned v5.0.7")
+          p.write_text(src.replace(needle, guard, 1))
           PY
-          grep -n -A12 -B3 'Quit event received before main root window' qgc/src/QGCApplication.cc
+          grep -n -A9 -B4 'if (!_mainRootWindow)' qgc/src/QGCApplication.cc
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
