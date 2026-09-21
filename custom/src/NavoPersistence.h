@@ -3,7 +3,6 @@
 #include <QVariantList>
 #include <QVariantMap>
 #include <QTimer>
-class QSettings;
 class NavoPersistence : public QObject {
  Q_OBJECT
  Q_PROPERTY(QVariantMap waypointNames READ waypointNames NOTIFY waypointNamesChanged)
@@ -19,9 +18,12 @@ public:
  Q_INVOKABLE QString saveBathymetrySession(const QVariantMap& metadata,const QVariantList& samples);
  Q_INVOKABLE bool deleteBathymetrySession(const QString& id);
  Q_INVOKABLE QString saveLake(const QVariantMap& lake);
+ Q_INVOKABLE QVariantMap lakeState(const QString& lakeId) const;
+ Q_INVOKABLE bool saveLakeState(const QString& lakeId,const QVariantMap& state);
+ Q_INVOKABLE bool deleteLake(const QString& lakeId);
  Q_INVOKABLE bool assignSessionToLake(const QString& sessionId,const QString& lakeId);
 signals:void waypointNamesChanged();void sonarSamplesChanged();void bathymetrySessionsChanged();void lakesChanged();
 private slots:void flushSonar();
-private:void load();void saveWaypoints();void saveBathymetrySessions();void saveLakes();void scheduleSonarSave();
+private:void load();void saveWaypoints();void saveBathymetrySessions();void saveLakes();void scheduleSonarSave();void syncSettings();
  QVariantMap _waypointNames; QVariantList _sonarSamples; QVariantList _bathymetrySessions; QVariantList _lakes; int _maxSamples=50000; QTimer _sonarSaveTimer;
 };
