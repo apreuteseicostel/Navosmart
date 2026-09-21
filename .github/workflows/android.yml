@@ -114,7 +114,7 @@ jobs:
             adb start-server
             adb wait-for-device
             adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 2; done; input keyevent 82' || true
-            adb install -r build-x86/NAVO_SMART-x86.apk
+            adb install --no-streaming -r build-x86/NAVO_SMART-x86.apk
             test -x "$ANDROID_HOME/build-tools/35.0.0/aapt2"
             "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging build-x86/NAVO_SMART-x86.apk | grep -m1 '^package:'
             "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging build-x86/NAVO_SMART-x86.apk | grep -m1 '^launchable-activity:'
