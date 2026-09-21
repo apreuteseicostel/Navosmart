@@ -102,18 +102,34 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -no-metrics
           script: |
-            set -eu
+            set -euo pipefail
+            export ADB_SERVER_SOCKET=tcp:localhost:5037
+            adb start-server
             adb wait-for-device
+            for i in $(seq 1 120); do
+              BOOT="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
+              [ "$BOOT" = "1" ] && break
+              sleep 5
+            done
+            test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1"
             adb install -r build-x86/NAVO_SMART-x86.apk
             adb logcat -c
+            adb shell am force-stop org.mavlink.qgroundcontrol || true
             adb shell am start -W -n org.mavlink.qgroundcontrol/org.mavlink.qgroundcontrol.QGCActivity
-            sleep 15
+            PID=""
+            for i in $(seq 1 30); do
+              PID="$(adb shell pidof org.mavlink.qgroundcontrol 2>/dev/null | tr -d '\r' || true)"
+              [ -n "$PID" ] && break
+              sleep 2
+            done
             adb shell dumpsys window windows > build/window.txt || true
             adb logcat -d > build/navo-logcat.txt || true
             adb exec-out screencap -p > build/navo-screenshot.png || true
-            adb shell pidof org.mavlink.qgroundcontrol | tee build/navo-pid.txt
-            test -s build/navo-pid.txt
+            printf '%s\n' "$PID" | tee build/navo-pid.txt
+            test -n "$PID"
       - name: Upload Android smoke-test evidence
         if: always()
         uses: actions/upload-artifact@v4
