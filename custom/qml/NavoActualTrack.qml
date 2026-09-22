@@ -61,7 +61,15 @@ Item {
 
     MapPolyline {
         id: actualTrack
-        map: root.map
+        Component.onCompleted: {
+            if (root.map) {
+                actualTrack.parent = root.map
+                root.map.addMapItem(actualTrack)
+            }
+        }
+        Component.onDestruction: {
+            if (root.map) root.map.removeMapItem(actualTrack)
+        }
         line.width: 4
         line.color: "#21b7ff"
         path: root.trackCoordinates
@@ -71,7 +79,15 @@ Item {
 
     MapPolyline {
         id: homeLeg
-        map: root.map
+        Component.onCompleted: {
+            if (root.map) {
+                homeLeg.parent = root.map
+                root.map.addMapItem(homeLeg)
+            }
+        }
+        Component.onDestruction: {
+            if (root.map) root.map.removeMapItem(homeLeg)
+        }
         line.width: 2
         line.color: "#31d67b"
         path: root.trackCoordinates.length > 0 && root.valid(root.homeCoordinate)
