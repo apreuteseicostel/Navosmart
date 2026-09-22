@@ -190,9 +190,21 @@ Item {
                         MouseArea { anchors.fill: parent; onClicked: root.hopperStatusExpanded = !root.hopperStatusExpanded }
                         Row {
                             visible: root.hopperStatusExpanded; spacing: 6
-                            Rectangle { width: 65; height: 32; radius: 6; color: root.hopperControlsEnabled ? "#24465a" : "#242b31"; Text { anchors.centerIn: parent; text: "STG"; color: root.text; font.pixelSize: 11 }; MouseArea { anchors.fill: parent; enabled: root.hopperControlsEnabled; onPressAndHold: root.openHopper("stanga") } }
-                            Rectangle { width: 65; height: 32; radius: 6; color: root.hopperControlsEnabled ? "#24465a" : "#242b31"; Text { anchors.centerIn: parent; text: "DR"; color: root.text; font.pixelSize: 11 }; MouseArea { anchors.fill: parent; enabled: root.hopperControlsEnabled; onPressAndHold: root.openHopper("dreapta") } }
-                            Rectangle { width: 65; height: 32; radius: 6; color: root.hopperControlsEnabled ? "#24465a" : "#242b31"; Text { anchors.centerIn: parent; text: "AMBELE"; color: root.text; font.pixelSize: 9 }; MouseArea { anchors.fill: parent; enabled: root.hopperControlsEnabled; onPressAndHold: root.openHopper("ambele") } }
+                            Rectangle {
+                                width: 65; height: 32; radius: 6; color: root.hopperControlsEnabled ? "#24465a" : "#242b31"
+                                Text { anchors.centerIn: parent; text: "STG"; color: root.text; font.pixelSize: 11 }
+                                MouseArea { anchors.fill: parent; enabled: root.hopperControlsEnabled; onPressAndHold: root.openHopper("stanga") }
+                            }
+                            Rectangle {
+                                width: 65; height: 32; radius: 6; color: root.hopperControlsEnabled ? "#24465a" : "#242b31"
+                                Text { anchors.centerIn: parent; text: "DR"; color: root.text; font.pixelSize: 11 }
+                                MouseArea { anchors.fill: parent; enabled: root.hopperControlsEnabled; onPressAndHold: root.openHopper("dreapta") }
+                            }
+                            Rectangle {
+                                width: 65; height: 32; radius: 6; color: root.hopperControlsEnabled ? "#24465a" : "#242b31"
+                                Text { anchors.centerIn: parent; text: "AMBELE"; color: root.text; font.pixelSize: 9 }
+                                MouseArea { anchors.fill: parent; enabled: root.hopperControlsEnabled; onPressAndHold: root.openHopper("ambele") }
+                            }
                         }
                     }
                 }
@@ -280,7 +292,11 @@ Item {
                     Column { anchors.centerIn: parent; spacing: 10
                         Text { anchors.horizontalCenter: parent.horizontalCenter; text: "CAMERA ETHERNET"; color: root.text; font.pixelSize: 22; font.bold: true }
                         Text { anchors.horizontalCenter: parent.horizontalCenter; text: root.cameraConnected ? "Flux video conectat" : "Camera nu este conectata"; color: root.cameraConnected ? root.ok : root.muted; font.pixelSize: 13 }
-                        Rectangle { width: 190; height: 42; radius: 8; color: "#1c2a38"; border.color: root.line; Text { anchors.centerIn: parent; text: "FULL SCREEN"; color: root.text; font.bold: true }; MouseArea { anchors.fill: parent; onClicked: root.cameraFullscreen = !root.cameraFullscreen } }
+                        Rectangle {
+                            width: 190; height: 42; radius: 8; color: "#1c2a38"; border.color: root.line
+                            Text { anchors.centerIn: parent; text: "FULL SCREEN"; color: root.text; font.bold: true }
+                            MouseArea { anchors.fill: parent; onClicked: root.cameraFullscreen = !root.cameraFullscreen }
+                        }
                     }
                 }
             }
@@ -331,6 +347,11 @@ Item {
         visible: root.cameraFullscreen
         anchors.fill: parent; z: 200; color: "#050608"
         Text { anchors.centerIn: parent; text: "CAMERA FULL SCREEN"; color: root.text; font.pixelSize: 28; font.bold: true }
-        Rectangle { anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 16; width: 90; height: 38; radius: 8; color: "#99151f2a"; Text { anchors.centerIn: parent; text: "INCHIDE"; color: root.text }; MouseArea { anchors.fill: parent; onClicked: root.cameraFullscreen = false } }
+        Rectangle {
+            anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 16
+            width: 90; height: 38; radius: 8; color: "#99151f2a"
+            Text { anchors.centerIn: parent; text: "INCHIDE"; color: root.text }
+            MouseArea { anchors.fill: parent; onClicked: root.cameraFullscreen = false }
+        }
     }
 }
