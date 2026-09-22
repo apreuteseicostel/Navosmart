@@ -118,6 +118,11 @@ jobs:
           "$APKSIGNER" sign --ks "$KS" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out build-x86/NAVO_SMART-x86.apk build-x86/NAVO_SMART-x86-aligned.apk
           "$APKSIGNER" verify --verbose build-x86/NAVO_SMART-x86.apk
           "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging build-x86/NAVO_SMART-x86.apk >/dev/null
+      - name: Start ADB for emulator
+        run: |
+          adb kill-server || true
+          adb start-server
+          adb version
       - name: Android emulator smoke test
         uses: reactivecircus/android-emulator-runner@v2
         with:
