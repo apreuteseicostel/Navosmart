@@ -262,7 +262,8 @@ Item {
             anchors.fill: parent; active: root.activePage === 1
             sourceComponent: Component {
                 NavoSonarFullScreen {
-                    anchors.fill: parent
+                    width: root.width
+                    height: root.height
                     depthM: root.depthM
                     waterTempC: root.waterTempC
                     connected: root.sonarConnected
