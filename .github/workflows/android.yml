@@ -159,6 +159,8 @@ jobs:
             fi
             adb shell pidof "$("$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging build-x86/NAVO_SMART-x86.apk | sed -n "s/package: name='\([^']*\)'.*/\1/p" | head -n1)" | tee build/navo-pid.txt
             test -s build/navo-pid.txt
+        env:
+          ANDROID_ADB_SERVER_PORT: 5038
       - name: Upload Android smoke-test evidence
         if: always()
         uses: actions/upload-artifact@v4
