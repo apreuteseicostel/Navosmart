@@ -71,5 +71,5 @@ QtObject {
         if(bathymetry && sonarMapping.rawSamples.length) bathymetryCells=bathymetry.rebuild(sonarMapping.rawSamples)
         status("Balta restaurată • sonar, puncte și Area Scan pregătite pentru Resume"); return true
     }
-    Connections {target:areaScan;function onSafetyActionRequested(action,reason){if(action==="HOLD"&&vehicle)vehicle.pauseVehicle();else if(action==="RTL"&&vehicle)vehicle.guidedModeRTL(false);status(action+": "+reason)}}
+    property QtObject areaScanConnections: Connections {target:areaScan;function onSafetyActionRequested(action,reason){if(action==="HOLD"&&vehicle)vehicle.pauseVehicle();else if(action==="RTL"&&vehicle)vehicle.guidedModeRTL(false);status(action+": "+reason)}}
 }
