@@ -46,7 +46,7 @@ QtObject {
         return true
     }
 
-    Connections {
+    property QtObject missionControllerConnections: Connections {
         target: planController ? planController.missionController : null
         function onSendComplete() {
             if(!root.uploadInProgress)return
