@@ -5,9 +5,8 @@ import QtPositioning
 
 import QGroundControl
 import QGroundControl.Controls
-import QGroundControl.FlyView
+import QGroundControl.FlightDisplay
 import QGroundControl.FlightMap
-import QGroundControl.PlanView
 import NavoSmart 1.0
 
 Item {
