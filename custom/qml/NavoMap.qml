@@ -88,8 +88,12 @@ Item {
         onNavigationCommandSent: function(wp, accepted) {
             if (accepted && root.baitingController) root.baitingController.targetWaypoint = wp
         }
+        onWaypointSelected: function(wp) {
+            if(root.baitingController) root.baitingController.targetWaypoint=wp
+            root.baitingWaypointSelected(wp)
+        }
         onEditRequested: function(wp) {
-            if(root.baitingController){root.baitingController.targetWaypoint=wp;root.baitingWaypointSelected(wp)}
+            // Editing remains a distinct action; selection is used by automatic baiting.
         }
     }
 
