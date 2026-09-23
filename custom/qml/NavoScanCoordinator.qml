@@ -12,6 +12,10 @@ QtObject {
     property var vehicle
     property string lakeId: ""
     property string lakeName: ""
+    onLakeIdChanged: {
+        if(sonarMapping && sonarMapping.lakeId !== lakeId)
+            sonarMapping.lakeId = lakeId
+    }
     property var areaPoints: []
     property var bathymetryCells: []
     property string state: "IDLE"
