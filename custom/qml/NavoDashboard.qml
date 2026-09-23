@@ -37,8 +37,15 @@ Item {
         id: baitingController
         vehicle: root.vehicle
         onGotoRequested: function(coordinate, reason) { if(root.vehicle && root.vehicle.guidedModeGotoLocation) root.vehicle.guidedModeGotoLocation(coordinate) }
+        onSpeedRequested: function(metersPerSecond) {
+            if(root.vehicle && root.vehicle.guidedModeChangeGroundSpeedMetersSecond)
+                root.vehicle.guidedModeChangeGroundSpeedMetersSecond(metersPerSecond)
+        }
         onStopRequested: function(reason) { root.holdMission(); root.lastNavigationStatus="Nădire: "+reason }
-        onHopperReleaseRequested: function(hopper) { hopperBridge.release(hopper) }
+        onHopperReleaseRequested: function(hopper) {
+            if(!hopperBridge.release(hopper))
+                baitingController.abortCycle("Cuva nu a putut fi comandată")
+        }
         onRtlRequested: root.rtlMission()
         onStateChangedDetailed: function(state, text) { root.lastNavigationStatus="Nădire: "+text }
         onCycleFinished: function(success, message) { root.lastNavigationStatus=message }
