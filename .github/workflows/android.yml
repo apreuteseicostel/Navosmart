@@ -1,7 +1,7 @@
 name: Build NAVO SMART Android
 on:
   push:
-    branches: [main, feature/area-scan-bathymetry-resume, feature/unified-navosmart-integration, feature/bathymetry-3d]
+    branches: [main, feature/area-scan-bathymetry-resume, feature/unified-navosmart-integration, feature/bathymetry-3d, audit/full-integration-23-sep]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -23,34 +23,10 @@ jobs:
           sed -i 's/QGroundControl\.FlyView/QGroundControl.FlightDisplay/g' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
           sed -i '/QGroundControl\.PlanView/d' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
           sed -i 's/GIT_TAG main/GIT_TAG caf5158061bd10e79c9f042abb62c86bc6f3e7a7/' qgc/src/GPS/CMakeLists.txt
-          # NAVO Android does not use QGC's optional 3D viewer. On the pinned
-          # Android build the Viewer3D type resolves without Item anchors and
-          # prevents FlyView from loading. Keep the id/API expected by FlyView,
-          # but replace the optional viewer with an inert Item.
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("qgc/src/FlightDisplay/FlyView.qml")
-          src = p.read_text()
-          start = src.find("        Viewer3D{")
-          if start < 0:
-              start = src.find("        Viewer3D {")
-          if start < 0:
-              raise SystemExit("Viewer3D start not found in pinned v5.0.7 FlyView.qml")
-          anchor = src.find("anchors.fill:", start)
-          if anchor < 0:
-              raise SystemExit("Viewer3D anchors.fill not found in pinned v5.0.7 FlyView.qml")
-          end = src.find("\n        }", anchor)
-          if end < 0:
-              raise SystemExit("Viewer3D end not found in pinned v5.0.7 FlyView.qml")
-          end += len("\n        }")
-          replacement = '''        Item {
-              id:                     viewer3DWindow
-              anchors.fill:           parent
-              property bool isOpen:   false
-              visible:                false
-          }'''
-          p.write_text(src[:start] + replacement + src[end:])
-          PY
+          # NAVO replaces QGC FlyView through the custom URL interceptor.
+          # Do not patch upstream Viewer3D here: the old text patch was brittle and
+          # run #229 still loaded the upstream FlyView, masking NAVO QML errors.
+          grep -n "NavoDashboard.qml" qgc/custom/src/CustomPlugin.cc
           # NAVO Android lifecycle guard. QGC v5.0.7 dereferences
           # _mainRootWindow on QEvent::Quit even when it is still null. Current
           # upstream QGC has this guard; apply the same minimal fix to v5.0.7.
