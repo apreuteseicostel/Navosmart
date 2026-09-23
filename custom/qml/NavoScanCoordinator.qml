@@ -8,6 +8,7 @@ QtObject {
     property var bathymetry
     property var persistence
     property var fishingSpots
+    property var fishStore
     property var vehicle
     property string lakeId: ""
     property string lakeName: ""
@@ -100,6 +101,7 @@ QtObject {
             schemaVersion:2, reason:reason, state:state, lakeName:lakeName, savedAt:Date.now(),
             areaPoints:jsonCoordinates(areaPoints), sonarSamples:sonarMapping.rawSamples,
             fishingSpots:fishingSpots ? fishingSpots.fishingSpots : [],
+            fishDetections:fishStore ? fishStore.detections : [],
             bathymetryCells:bathymetryCells,
             currentLane:areaScan.activeLaneIndex, completedLanes:areaScan.completedLanes,
             totalLanes:areaScan.laneCount(),
@@ -114,6 +116,7 @@ QtObject {
         lakeId=id; lakeName=p.lakeName||lakeName; areaPoints=geoCoordinates(p.areaPoints||[])
         sonarMapping.lakeId=id; sonarMapping.rawSamples=p.sonarSamples||[]
         if(fishingSpots) fishingSpots.fishingSpots=p.fishingSpots||[]
+        if(fishStore){fishStore.detections=p.fishDetections||[];fishStore.rebuildHotspots()}
         state=p.state||"PAUSED"; bathymetryCells=p.bathymetryCells||[]
         areaScan.generatedPoints=areaPoints; areaScan.completedLanes=p.completedLanes||[]
         areaScan.activeLaneIndex=(p.currentLane===undefined?-1:Number(p.currentLane))
