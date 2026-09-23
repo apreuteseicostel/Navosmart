@@ -29,10 +29,14 @@ Item {
         Component.onCompleted: start()
     }
 
+    NavoPersistence { id: persistence }
+    NavoFishingSpots { id: fishingSpots }
     NavoAreaScan { id: areaScanController }
     NavoScanCoordinator {
         id: scanCoordinator
         areaScan: areaScanController
+        persistence: persistence
+        fishingSpots: fishingSpots
         vehicle: root.vehicle
         onMissionPrepared: function(points) {
             if (!missionUploader.prepare(points))
@@ -68,7 +72,7 @@ Item {
         }
     }
     property var battery: vehicle && vehicle.batteries.count > 0 ? vehicle.batteries.get(0) : null
-    property var waypointNames: ({})
+    property var waypointNames: persistence.waypointNames
     property real depthM: NaN
     property real waterTempC: NaN
     property bool sonarConnected: false
