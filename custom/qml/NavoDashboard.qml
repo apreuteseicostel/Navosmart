@@ -73,9 +73,10 @@ Item {
     }
     property var battery: vehicle && vehicle.batteries.count > 0 ? vehicle.batteries.get(0) : null
     property var waypointNames: persistence.waypointNames
-    property real depthM: NaN
-    property real waterTempC: NaN
-    property bool sonarConnected: false
+    readonly property real depthM: sonar.depthM
+    readonly property real waterTempC: sonar.waterTempC
+    readonly property bool sonarConnected: sonar.connected && sonar.dataAlive
+    property var fishDetections: []
     property string lastNavigationStatus: ""
     property bool silentModeActive: false
     property bool cameraConnected: false
@@ -102,6 +103,38 @@ Item {
     property color ok: "#47d16c"
     property color warn: "#ffc857"
     property color danger: "#ff5c5c"
+
+    NavoSonarEthernet {
+        id: sonar
+        vehicle: root.vehicle
+        onGeoSample: function(sample) {
+            persistence.addSonarSample(sample)
+            fishDetector.analyze(sonar.echoSamples, sonar.depthM)
+        }
+    }
+    NavoFishDetector {
+        id: fishDetector
+        onTargetDetected: function(targetDepthM, strength) {
+            if (!root.vehicle || !root.vehicle.coordinate || !root.vehicle.coordinate.isValid) return
+            var detection = {
+                time: Date.now(),
+                lat: root.vehicle.coordinate.latitude,
+                lon: root.vehicle.coordinate.longitude,
+                targetDepth: targetDepthM,
+                strength: strength,
+                bottomDepth: sonar.depthM,
+                temp: sonar.waterTempC
+            }
+            var next = root.fishDetections.slice(0)
+            next.push(detection)
+            while (next.length > 2000) next.shift()
+            root.fishDetections = next
+        }
+    }
+    Connections {
+        target: sonar.decoder
+        function onEchoSamplesChanged() { fishDetector.analyze(sonar.echoSamples, sonar.depthM) }
+    }
 
     NavoNanoTelemetry {
         id: nanoTelemetry
@@ -347,6 +380,15 @@ Item {
                 NavoSonarFullScreen {
                     Layout.fillWidth: true; Layout.fillHeight: true
                     connected: root.sonarConnected; depthM: root.depthM; waterTempC: root.waterTempC
+                    echoSamples: sonar.echoSamples
+                    transport: sonar
+                    fishHotspots: root.fishDetections
+                    latitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.latitude : NaN
+                    longitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.longitude : NaN
+                    onSaveWaypointRequested: function(latitude, longitude, depth, temp) {
+                        var spot=fishingSpots.saveSpot(QtPositioning.coordinate(latitude,longitude),depth,temp,"","",null)
+                        if(spot){scanCoordinator.checkpoint("sonar-fishing-spot");root.lastNavigationStatus="Punct sonar salvat: "+spot.name}
+                    }
                 }
             }
         }
@@ -506,7 +548,12 @@ Item {
         id: settingsPage
         Item {
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
-            NavoEthernetSettings { anchors.fill: parent; anchors.margins: 12 }
+            NavoEthernetSettings {
+                id: ethernetSettings
+                anchors.fill: parent; anchors.margins: 12
+                sonar: sonar
+                onStatus: function(text) { root.lastNavigationStatus=text }
+            }
         }
     }
 
