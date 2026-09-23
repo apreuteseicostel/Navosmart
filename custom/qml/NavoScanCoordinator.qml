@@ -56,10 +56,11 @@ QtObject {
         state="SCANNING"; missionCurrentIndex=-1; lastCompletedLaneFromMission=-1; checkpoint("start"); return true
     }
     function laneCompleted(index) {
+        if(!areaScan || !sonarMapping || index<0) return
         areaScan.markLaneCompleted(index); sonarMapping.setLaneProgress(areaScan.activeLaneIndex,areaScan.completedLanes.length,areaScan.laneCount())
         checkpoint("lane"); if(areaScan.completedLanes.length>=areaScan.laneCount()) finish()
     }
-    function pause(reason) {var boat=vehicle&&vehicle.coordinate?vehicle.coordinate:null;areaScan.hold(reason||"Pauză scanare",boat);sonarMapping.pauseScan();state="PAUSED";checkpoint("pause")}
+    function pause(reason) {if(!areaScan||!sonarMapping)return;var boat=vehicle&&vehicle.coordinate?vehicle.coordinate:null;areaScan.hold(reason||"Pauză scanare",boat);sonarMapping.pauseScan();state="PAUSED";checkpoint("pause")}
     function resume() {
         if(!areaScan || !sonarMapping){status("Resume indisponibil: controlere neinițializate");return []}
         if(!areaScan.generatedPoints || !areaScan.generatedPoints.length){status("Resume indisponibil: traseul Area Scan lipsește");return []}
@@ -69,8 +70,8 @@ QtObject {
         if(!sonarMapping.scanning){status("Resume blocat: sonar mapping nu a intrat în scanare");return []}
         state="SCANNING";checkpoint("resume");return mission
     }
-    function rtl(reason) {areaScan.rtl(reason||"RTL scanare");sonarMapping.pauseScan();state="RTL";checkpoint("rtl")}
-    function finish() {sonarMapping.finishAndBuild();if(bathymetry)bathymetryCells=bathymetry.rebuild(sonarMapping.rawSamples);state="COMPLETE";checkpoint("complete");status("Scanare terminată • "+bathymetryCells.length+" celule batimetrice")}
+    function rtl(reason) {if(!areaScan||!sonarMapping)return;areaScan.rtl(reason||"RTL scanare");sonarMapping.pauseScan();state="RTL";checkpoint("rtl")}
+    function finish() {if(!sonarMapping)return;sonarMapping.finishAndBuild();if(bathymetry)bathymetryCells=bathymetry.rebuild(sonarMapping.rawSamples);state="COMPLETE";checkpoint("complete");status("Scanare terminată • "+bathymetryCells.length+" celule batimetrice")}
 
     function jsonCoordinates(points) {
         var out=[]
@@ -105,7 +106,6 @@ QtObject {
             missionCurrentIndex:missionCurrentIndex,
             lastCompletedLaneFromMission:lastCompletedLaneFromMission
         }
-        sonarMapping.saveCheckpoint(reason)
         return persistence.saveLakeState(lakeId,payload)
     }
     function restoreLake(id) {
