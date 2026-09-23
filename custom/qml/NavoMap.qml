@@ -73,6 +73,7 @@ Item {
     }
 
     NavoActualTrack { map: liveMap; vehicle: root.vehicle; taskActive: !!root.vehicle }
+    NavoAreaScanOverlay { map: liveMap; areaScan: root.baitingController ? root.baitingController.areaScanController : null }
     NavoFishOverlay { map: liveMap; fishModel: root.fishModel }
     NavoBathymetryOverlay { map: liveMap; bathymetryCells: root.bathymetryCells; fishingSpotsModel: root.fishingSpotsModel }
 
