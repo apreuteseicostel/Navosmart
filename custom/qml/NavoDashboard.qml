@@ -31,7 +31,15 @@ Item {
 
     NavoPersistence { id: persistence }
     NavoFishingSpots { id: fishingSpots }
+    NavoFishDetections { id: fishStore }
     NavoAreaScan { id: areaScanController }
+    NavoFailsafeController {
+        id: failsafeController
+        vehicle: root.vehicle
+        onHoldRequested: function(reason) { root.lastNavigationStatus="FAILSAFE HOLD: "+reason; root.holdMission() }
+        onRtlRequested: function(reason) { root.lastNavigationStatus="FAILSAFE RTL: "+reason; root.rtlMission() }
+        onRecovered: function(subsystem, action) { root.lastNavigationStatus=subsystem+": "+action }
+    }
     NavoSonarMapping {
         id: sonarMapping
         visible: false
@@ -86,7 +94,7 @@ Item {
     readonly property real depthM: sonar.depthM
     readonly property real waterTempC: sonar.waterTempC
     readonly property bool sonarConnected: sonar.connected && sonar.dataAlive
-    property var fishDetections: []
+    property alias fishDetections: fishStore.detections
     property string cameraStreamUrl: ""
     property string cameraProtocol: "auto"
     property string lastNavigationStatus: ""
@@ -129,19 +137,9 @@ Item {
         id: fishDetector
         onTargetDetected: function(targetDepthM, strength) {
             if (!root.vehicle || !root.vehicle.coordinate || !root.vehicle.coordinate.isValid) return
-            var detection = {
-                time: Date.now(),
-                lat: root.vehicle.coordinate.latitude,
-                lon: root.vehicle.coordinate.longitude,
-                targetDepth: targetDepthM,
-                strength: strength,
-                bottomDepth: sonar.depthM,
-                temp: sonar.waterTempC
-            }
-            var next = root.fishDetections.slice(0)
-            next.push(detection)
-            while (next.length > 2000) next.shift()
-            root.fishDetections = next
+            fishStore.addDetection(root.vehicle.coordinate, targetDepthM, sonar.depthM, strength, Date.now())
+            if (fishStore.detections.length > 2000)
+                fishStore.detections = fishStore.detections.slice(fishStore.detections.length - 2000)
         }
     }
     Connections {
