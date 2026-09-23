@@ -13,7 +13,24 @@ void NavoBathymetryMesh::clear(){_vertices.clear();_triangles.clear();_minDepth=
 
 bool NavoBathymetryMesh::build(const QVariantList& samples,double gridSizeM,double maxGapM,int lodLevel){
     clear(); if(samples.size()<3) return false; _lodLevel=qBound(0,lodLevel,3);
-    QCryptographicHash hh(QCryptographicHash::Sha256); hh.addData(QByteArray::number(samples.size())); hh.addData("|"); hh.addData(QByteArray::number(gridSizeM,'f',3)); hh.addData("|"); hh.addData(QByteArray::number(maxGapM,'f',3)); if(!samples.isEmpty()){auto a=samples.first().toMap(),b=samples.last().toMap();for(const auto& sm:{a,b}){hh.addData("|");hh.addData(QByteArray::number(sm.value("lat").toDouble(),'f',7));hh.addData(",");hh.addData(QByteArray::number(sm.value("lon").toDouble(),'f',7));hh.addData(",");hh.addData(QByteArray::number(sm.value("depth").toDouble(),'f',3));}} _cacheKey=QString::fromLatin1(hh.result().toHex());
+    // Cache identity must change for any measurement or mesh parameter change.
+    // Hashing only first/last samples allowed stale meshes when middle sonar data changed.
+    QCryptographicHash hh(QCryptographicHash::Sha256);
+    hh.addData("NAVO-BATHYMETRY-MESH-V2|");
+    hh.addData(QByteArray::number(gridSizeM,'g',17)); hh.addData("|");
+    hh.addData(QByteArray::number(maxGapM,'g',17)); hh.addData("|");
+    hh.addData(QByteArray::number(_lodLevel)); hh.addData("|");
+    hh.addData(QByteArray::number(samples.size()));
+    for (const QVariant& v : samples) {
+        const QVariantMap sm = v.toMap();
+        hh.addData("|"); hh.addData(QByteArray::number(sm.value("lat").toDouble(),'g',17));
+        hh.addData(","); hh.addData(QByteArray::number(sm.value("lon").toDouble(),'g',17));
+        hh.addData(","); hh.addData(QByteArray::number(sm.value("depth").toDouble(),'g',17));
+        // Include optional sonar metadata when present so corrected samples invalidate cache too.
+        if (sm.contains("timestamp")) { hh.addData(",t="); hh.addData(sm.value("timestamp").toString().toUtf8()); }
+        if (sm.contains("confidence")) { hh.addData(",c="); hh.addData(QByteArray::number(sm.value("confidence").toDouble(),'g',17)); }
+    }
+    _cacheKey=QString::fromLatin1(hh.result().toHex());
     QVariantMap first=samples.first().toMap(); _originLat=first.value("lat").toDouble(); _originLon=first.value("lon").toDouble();
     const double R=6378137.0, lat0=qDegreesToRadians(_originLat), cell=qMax(0.5,gridSizeM*qPow(2.0,_lodLevel));
     struct Raw{double x,y,d;}; QVector<Raw> raw; raw.reserve(samples.size());
@@ -36,5 +53,15 @@ bool NavoBathymetryMesh::build(const QVariantList& samples,double gridSizeM,doub
     emit meshChanged();return !_triangles.isEmpty();
 }
 
-bool NavoBathymetryMesh::saveCache(const QString& path) const{ QFile f(path);if(!f.open(QIODevice::WriteOnly))return false;QDataStream s(&f);s.setVersion(QDataStream::Qt_6_8);s<<quint32(0x4E564D33)<<quint16(1)<<_cacheKey<<qint32(_lodLevel)<<_originLat<<_originLon<<_minDepth<<_maxDepth<<qint32(_measuredCount)<<qint32(_interpolatedCount)<<_vertices<<_triangles;return s.status()==QDataStream::Ok;}
-bool NavoBathymetryMesh::loadCache(const QString& path,const QString& expectedKey){ QFile f(path);if(!f.open(QIODevice::ReadOnly))return false;QDataStream s(&f);s.setVersion(QDataStream::Qt_6_8);quint32 magic;quint16 ver;qint32 lod,mc,ic;QString key;QVariantList v,t;double la,lo,mi,ma;s>>magic>>ver>>key>>lod>>la>>lo>>mi>>ma>>mc>>ic>>v>>t;if(s.status()!=QDataStream::Ok||magic!=0x4E564D33||ver!=1||(!expectedKey.isEmpty()&&key!=expectedKey))return false;_cacheKey=key;_lodLevel=lod;_originLat=la;_originLon=lo;_minDepth=mi;_maxDepth=ma;_measuredCount=mc;_interpolatedCount=ic;_vertices=v;_triangles=t;emit meshChanged();return true;}
+bool NavoBathymetryMesh::saveCache(const QString& path) const{
+    const QString tmpPath = path + ".tmp";
+    QFile f(tmpPath); if(!f.open(QIODevice::WriteOnly|QIODevice::Truncate)) return false;
+    QDataStream s(&f); s.setVersion(QDataStream::Qt_6_8);
+    s<<quint32(0x4E564D33)<<quint16(2)<<_cacheKey<<qint32(_lodLevel)<<_originLat<<_originLon<<_minDepth<<_maxDepth<<qint32(_measuredCount)<<qint32(_interpolatedCount)<<_vertices<<_triangles;
+    if(s.status()!=QDataStream::Ok){ f.close(); QFile::remove(tmpPath); return false; }
+    f.flush(); f.close();
+    QFile::remove(path);
+    if(!QFile::rename(tmpPath,path)){ QFile::remove(tmpPath); return false; }
+    return true;
+}
+bool NavoBathymetryMesh::loadCache(const QString& path,const QString& expectedKey){ QFile f(path);if(!f.open(QIODevice::ReadOnly))return false;QDataStream s(&f);s.setVersion(QDataStream::Qt_6_8);quint32 magic;quint16 ver;qint32 lod,mc,ic;QString key;QVariantList v,t;double la,lo,mi,ma;s>>magic>>ver>>key>>lod>>la>>lo>>mi>>ma>>mc>>ic>>v>>t;if(s.status()!=QDataStream::Ok||magic!=0x4E564D33||ver!=2||(!expectedKey.isEmpty()&&key!=expectedKey))return false;_cacheKey=key;_lodLevel=lod;_originLat=la;_originLon=lo;_minDepth=mi;_maxDepth=ma;_measuredCount=mc;_interpolatedCount=ic;_vertices=v;_triangles=t;emit meshChanged();return true;}
