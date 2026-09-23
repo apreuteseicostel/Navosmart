@@ -49,8 +49,15 @@ Item {
  }
  TapHandler{onTapped:function(e){var p=view.pick(e.position.x,e.position.y);if(!p.objectHit){selectedObject=null;selectedPoint=null;return}if(p.objectHit.kind){root.select(p.objectHit.kind,p.objectHit.modelData);return}if(p.objectHit===terrain){var best=null,bd=1e99;for(var i=0;i<meshEngine.vertices.length;i++){var v=meshEngine.vertices[i],dx=v.x-p.scenePosition.x,dz=(-v.y)-p.scenePosition.z,d=dx*dx+dz*dz;if(d<bd){bd=d;best=v}}selectedPoint=best;selectedObject=null;selectedKind="bottom"}}}
  DragHandler{target:null;acceptedButtons:Qt.LeftButton;onTranslationChanged:{root.yaw+=translation.x*.18;root.pitch=Math.max(-82,Math.min(-8,root.pitch-translation.y*.14))}} PinchHandler{target:null;onScaleChanged:root.cameraDistance=Math.max(12,Math.min(1800,root.cameraDistance/scale))} WheelHandler{onWheel:root.cameraDistance=Math.max(12,Math.min(1800,root.cameraDistance*(wheel.angleDelta.y > 0 ? 0.9 : 1.1)))}
- Row{anchors{top:parent.top;left:parent.left;margins:12}spacing:5;Button{text:"Top";onClicked:root.topCamera()}Button{text:"ISO";onClicked:root.isoCamera()}Button{text:"Reset";onClicked:root.resetCamera()}Button{text:"1×";onClicked:root.verticalExaggeration=1}Button{text:"2×";onClicked:root.verticalExaggeration=2}Button{text:"3×";onClicked:root.verticalExaggeration=3}Button{text:"5×";onClicked:root.verticalExaggeration=5}}
- Row{anchors{top:parent.top;right:parent.right;margins:12}spacing:4;CheckBox{text:"Traseu";checked:root.showTrack;onToggled:root.showTrack=checked}CheckBox{text:"WP";checked:root.showWaypoints;onToggled:root.showWaypoints=checked}CheckBox{text:"Locuri";checked:root.showSpots;onToggled:root.showSpots=checked}CheckBox{text:"Pești";checked:root.showFish;onToggled:root.showFish=checked}}
+ ColumnLayout{anchors{top:parent.top;left:parent.left;right:parent.right;margins:12}spacing:2
+  Flow{Layout.fillWidth:true;spacing:5
+   Button{text:"Top";onClicked:root.topCamera()}Button{text:"ISO";onClicked:root.isoCamera()}Button{text:"Reset";onClicked:root.resetCamera()}
+   Button{text:"1×";onClicked:root.verticalExaggeration=1}Button{text:"2×";onClicked:root.verticalExaggeration=2}Button{text:"3×";onClicked:root.verticalExaggeration=3}Button{text:"5×";onClicked:root.verticalExaggeration=5}
+  }
+  Flow{Layout.fillWidth:true;spacing:4
+   CheckBox{text:"Traseu";checked:root.showTrack;onToggled:root.showTrack=checked}CheckBox{text:"WP";checked:root.showWaypoints;onToggled:root.showWaypoints=checked}CheckBox{text:"Locuri";checked:root.showSpots;onToggled:root.showSpots=checked}CheckBox{text:"Pești";checked:root.showFish;onToggled:root.showFish=checked}
+  }
+ }
  Rectangle{visible:root.selectedObject!==null||root.selectedPoint!==null;anchors{left:parent.left;bottom:parent.bottom;margins:12}width:310;height:details.implicitHeight+24;radius:8;color:"#d9101c29";border.color:"#45677e"
   Column{id:details;anchors{left:parent.left;right:parent.right;top:parent.top;margins:12}spacing:4
    Text{color:"white";font.bold:true;text:selectedKind==="waypoint"?"Waypoint: "+(selectedObject?(selectedObject.name||selectedObject.friendlyName||"WP"):""):selectedKind==="spot"?"Loc pescuit: "+(selectedObject?(selectedObject.name||""):""):selectedKind==="fish"?"Detecție pește":"Fund lac"}

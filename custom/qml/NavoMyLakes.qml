@@ -18,8 +18,9 @@ Popup {
   anchors.fill:parent;anchors.margins:14;spacing:10
   RowLayout{Layout.fillWidth:true;Label{text:"BĂLȚILE MELE";color:"#21b7ff";font.bold:true;font.pixelSize:20}Item{Layout.fillWidth:true}Button{text:"ÎNCHIDE";onClicked:root.close()}}
   RowLayout{Layout.fillWidth:true;TextField{id:newLakeName;Layout.fillWidth:true;placeholderText:"Nume baltă / lac"}Button{text:"+ ADAUGĂ";enabled:newLakeName.text.trim().length>0;onClicked:{var id=root.persistence.saveLake({name:newLakeName.text.trim()});newLakeName.clear();for(var i=0;i<root.persistence.lakes.length;i++)if(root.persistence.lakes[i].id===id){root.selectLake(root.persistence.lakes[i]);root.scanCoordinator.checkpoint("lake-created");break}}}}
-  SplitView{Layout.fillWidth:true;Layout.fillHeight:true
-   ListView{SplitView.preferredWidth:190;clip:true;model:root.persistence?root.persistence.lakes:[];delegate:Button{required property var modelData;width:ListView.view.width;text:modelData.name||"Baltă";checkable:true;checked:root.selectedLakeId===modelData.id;onClicked:root.selectLake(modelData)}}
+  SplitView{Layout.fillWidth:true;Layout.fillHeight:true;orientation:root.width<500?Qt.Vertical:Qt.Horizontal
+   handle:Rectangle{implicitWidth:4;implicitHeight:4;color:"#1c4262"}
+   ListView{SplitView.preferredWidth:Math.min(190,root.width*.36);SplitView.preferredHeight:root.width<500?130:root.height-130;clip:true;model:root.persistence?root.persistence.lakes:[];delegate:Button{required property var modelData;width:ListView.view.width;text:modelData.name||"Baltă";checkable:true;checked:root.selectedLakeId===modelData.id;onClicked:root.selectLake(modelData)}}
    ColumnLayout{SplitView.fillWidth:true
     Label{text:root.selectedLake?(root.selectedLake.name||"Baltă"):"Selectează o baltă";color:"#f2f7fb";font.bold:true;font.pixelSize:18}
     Label{visible:!!root.selectedLake;text:root.selectedLake?root.sessionsForLake(root.selectedLakeId).length+" scanări batimetrice salvate":"";color:"#9db2c5"}

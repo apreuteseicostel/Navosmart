@@ -378,8 +378,16 @@ Item {
         id: rightPanel
         anchors.right: parent.right; anchors.top: header.bottom; anchors.bottom: footer.top
         width: 260; color: root.panel; border.color: root.line
+        Flickable {
+            anchors.fill: parent
+            clip: true
+            contentWidth: width
+            contentHeight: statusColumn.implicitHeight + 24
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
         ColumnLayout {
-            anchors.fill: parent; anchors.margins: 12; spacing: 10
+            id: statusColumn
+            x: 12; y: 12; width: parent.width - 24; spacing: 10
             Label { text: "STATUS BARCA"; color: root.text; font.bold: true }
             NavoEthernetIndicator {
                 Layout.fillWidth: true
@@ -442,6 +450,7 @@ Item {
             Button { Layout.fillWidth: true; text: "AMBELE"; enabled: root.hopperControlsEnabled; onClicked: root.openHopper("ambele") }
             Item { Layout.fillHeight: true }
             Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: root.lastNavigationStatus; color: root.muted; font.pixelSize: 11 }
+        }
         }
     }
 

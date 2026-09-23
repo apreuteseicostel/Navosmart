@@ -29,6 +29,9 @@ Popup {
  function bottomColor(v){v=Math.max(0,Math.min(1,(v-root.noiseFloor)*root.gain));if(root.paletteMode==="DAY"){if(v>.72)return "#ffe44d";if(v>.42)return "#ef493d";return "#245fa8"}if(v>.78)return "#fff36a";if(v>.60)return "#f33b2f";if(v>.40)return "#ff8b28";if(v>.22)return "#55c85a";return "#1767a7"}
  function palette(v){v=Math.max(0,Math.min(1,v));if(v<.22)return "rgba(16,92,170,"+(0.25+v*2)+")";if(v<.48)return "rgba(28,205,225,"+(0.45+v)+")";if(v<.72)return "rgba(246,218,70,"+(0.55+v*.5)+")";return "rgba(244,75,46,"+(0.65+v*.35)+")"}
  modal:true;focus:true;visible:true;closePolicy:Popup.CloseOnEscape;padding:0
+ width: parent ? Math.max(320,parent.width-24) : 960
+ height: parent ? Math.max(320,parent.height-24) : 640
+ anchors.centerIn: parent
  background:Rectangle{color:"#03101a";border.color:"#21b7ff"}
  contentItem:ColumnLayout{
   spacing:6
@@ -40,16 +43,15 @@ Popup {
    Label{text:isNaN(root.waterTempC)?"-- °C":root.waterTempC.toFixed(1)+" °C";color:"white";font.pixelSize:20}
    Button{text:"ÎNCHIDE";onClicked:root.close()}
   }
-  RowLayout{Layout.fillWidth:true;Layout.leftMargin:10;Layout.rightMargin:10
+  Flow{Layout.fillWidth:true;Layout.leftMargin:10;Layout.rightMargin:10;spacing:8
    Label{text:"SENSIBILITATE";color:"#9db2c5"}
-   Slider{id:gainSlider;from:.5;to:2.2;value:root.gain;stepSize:.05;Layout.preferredWidth:170;onMoved:root.gain=value}
-   Label{text:Math.round(root.gain*100)+"%";color:"white";Layout.preferredWidth:45}
+   Slider{id:gainSlider;from:.5;to:2.2;value:root.gain;stepSize:.05;width:150;onMoved:root.gain=value}
+   Label{text:Math.round(root.gain*100)+"%";color:"white"}
    Label{text:"FILTRU ZGOMOT";color:"#9db2c5"}
-   Slider{id:noiseSlider;from:0;to:.35;value:root.noiseFloor;stepSize:.01;Layout.preferredWidth:140;onMoved:root.noiseFloor=value}
+   Slider{id:noiseSlider;from:0;to:.35;value:root.noiseFloor;stepSize:.01;width:130;onMoved:root.noiseFloor=value}
    Button{text:root.fishIcons?"🐟 PEȘTI ON":"PEȘTI OFF";checkable:true;checked:root.fishIcons;onClicked:root.fishIcons=checked}
    Button{text:root.showRawTrace?"ECOU BRUT ON":"ECOU BRUT";checkable:true;checked:root.showRawTrace;onClicked:root.showRawTrace=checked}
    ComboBox{model:["NAVO","DAY"];currentIndex:root.paletteMode==="NAVO"?0:1;onActivated:root.paletteMode=currentText}
-   Item{Layout.fillWidth:true}
   }
   Rectangle{Layout.fillWidth:true;Layout.fillHeight:true;color:"#020b12"
    Repeater{model:5;Label{anchors.left:parent.left;anchors.leftMargin:8;y:index*(parent.height/4)-height/2;text:(index===0?"0.0":(!isNaN(root.depthM)?(root.depthM*index/4).toFixed(1):"--"))+" m";color:"#d9edf7";z:3}}
