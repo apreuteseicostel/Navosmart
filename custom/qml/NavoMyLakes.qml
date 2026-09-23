@@ -11,13 +11,13 @@ Popup {
  modal:true;focus:true;width:Math.min(560,parent?parent.width-24:560);height:Math.min(620,parent?parent.height-24:620);anchors.centerIn:parent
  background:Rectangle{color:"#081522";border.color:"#1c4262";radius:12}
  function sessionsForLake(id){var out=[];if(!persistence)return out;for(var i=0;i<persistence.bathymetrySessions.length;i++){var s=persistence.bathymetrySessions[i];if(s.lakeId===id)out.push(s)}return out}
- function selectLake(lake){selectedLake=lake;selectedLakeId=lake?lake.id:""}
+ function selectLake(lake){selectedLake=lake;selectedLakeId=lake?lake.id:"";if(scanCoordinator&&lake){scanCoordinator.lakeId=lake.id;scanCoordinator.lakeName=lake.name||"Baltă"}}
  signal openSession(var session)
  signal lakeRestored(string lakeId)
  ColumnLayout {
   anchors.fill:parent;anchors.margins:14;spacing:10
   RowLayout{Layout.fillWidth:true;Label{text:"BĂLȚILE MELE";color:"#21b7ff";font.bold:true;font.pixelSize:20}Item{Layout.fillWidth:true}Button{text:"ÎNCHIDE";onClicked:root.close()}}
-  RowLayout{Layout.fillWidth:true;TextField{id:newLakeName;Layout.fillWidth:true;placeholderText:"Nume baltă / lac"}Button{text:"+ ADAUGĂ";enabled:newLakeName.text.trim().length>0;onClicked:{var id=root.persistence.saveLake({name:newLakeName.text.trim()});newLakeName.clear();for(var i=0;i<root.persistence.lakes.length;i++)if(root.persistence.lakes[i].id===id){root.selectLake(root.persistence.lakes[i]);break}}}}
+  RowLayout{Layout.fillWidth:true;TextField{id:newLakeName;Layout.fillWidth:true;placeholderText:"Nume baltă / lac"}Button{text:"+ ADAUGĂ";enabled:newLakeName.text.trim().length>0;onClicked:{var id=root.persistence.saveLake({name:newLakeName.text.trim()});newLakeName.clear();for(var i=0;i<root.persistence.lakes.length;i++)if(root.persistence.lakes[i].id===id){root.selectLake(root.persistence.lakes[i]);root.scanCoordinator.checkpoint("lake-created");break}}}}
   SplitView{Layout.fillWidth:true;Layout.fillHeight:true
    ListView{SplitView.preferredWidth:190;clip:true;model:root.persistence?root.persistence.lakes:[];delegate:Button{required property var modelData;width:ListView.view.width;text:modelData.name||"Baltă";checkable:true;checked:root.selectedLakeId===modelData.id;onClicked:root.selectLake(modelData)}}
    ColumnLayout{SplitView.fillWidth:true
