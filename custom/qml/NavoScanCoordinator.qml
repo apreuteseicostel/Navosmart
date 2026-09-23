@@ -144,7 +144,9 @@ QtObject {
         sonarMapping.lakeId=id; sonarMapping.rawSamples=p.sonarSamples||[]
         if(fishingSpots) fishingSpots.fishingSpots=p.fishingSpots||[]
         if(fishStore){fishStore.detections=p.fishDetections||[];fishStore.rebuildHotspots()}
-        state=p.state||"PAUSED"; bathymetryCells=p.bathymetryCells||[]
+        // A restored session cannot be considered live until the mission is
+        // uploaded again and H743 confirms AUTO for this connection.
+        state=(p.state==="COMPLETE" ? "COMPLETE" : "PAUSED"); bathymetryCells=p.bathymetryCells||[]
         areaScan.generatedPoints=areaPoints; areaScan.completedLanes=p.completedLanes||[]
         areaScan.activeLaneIndex=(p.currentLane===undefined?-1:Number(p.currentLane))
         missionCurrentIndex=(p.missionCurrentIndex===undefined?-1:Number(p.missionCurrentIndex))
