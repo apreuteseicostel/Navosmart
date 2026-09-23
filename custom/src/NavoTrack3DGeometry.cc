@@ -1,0 +1,6 @@
+#include "NavoTrack3DGeometry.h"
+#include <QVector3D>
+#include <QVariantMap>
+NavoTrack3DGeometry::NavoTrack3DGeometry(QQuick3DObject*p):QQuick3DGeometry(p){}
+void NavoTrack3DGeometry::setPoints(const QVariantList&p){_p=p;rebuild();emit changed();}void NavoTrack3DGeometry::setWidth(float w){_w=qMax(.03f,w);rebuild();emit changed();}
+void NavoTrack3DGeometry::rebuild(){clear();if(_p.size()<2)return;QVector<QVector3D> p;for(auto&v:_p){auto m=v.toMap();p<<QVector3D(m["x"].toFloat(),m["y"].toFloat(),m["z"].toFloat());}QByteArray vb(p.size()*2*3*sizeof(float),Qt::Uninitialized);float*o=reinterpret_cast<float*>(vb.data());for(int i=0;i<p.size();++i){QVector3D d=i+1<p.size()?p[i+1]-p[i]:p[i]-p[i-1];d.setY(0);d.normalize();QVector3D side=QVector3D::crossProduct(QVector3D(0,1,0),d).normalized()*_w*.5f;for(auto v:{p[i]-side,p[i]+side}){*o++=v.x();*o++=v.y();*o++=v.z();}}QByteArray ib((p.size()-1)*6*sizeof(quint32),Qt::Uninitialized);auto*ix=reinterpret_cast<quint32*>(ib.data());for(int i=0;i<p.size()-1;i++){quint32 a=i*2,b=a+1,c=a+2,d=a+3;*ix++=a;*ix++=c;*ix++=b;*ix++=b;*ix++=c;*ix++=d;}setStride(3*sizeof(float));setVertexData(vb);setIndexData(ib);addAttribute(Attribute::PositionSemantic,0,Attribute::F32Type);addAttribute(Attribute::IndexSemantic,0,Attribute::U32Type);}
