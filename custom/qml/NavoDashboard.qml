@@ -387,6 +387,12 @@ Item {
                 Component.onDestruction: if(root.mapController===navoMap) root.mapController=null
                 vehicle: root.vehicle
                 waypointNames: root.waypointNames
+                fishModel: fishStore
+                fishingSpotsModel: fishingSpots
+                bathymetryCells: scanCoordinator.bathymetryCells
+                baitingController: baitingController
+                savedDepthM: root.depthM
+                savedWaterTempC: root.waterTempC
                 onNavigateRequested: function(coordinate) { root.navigateToCoordinate(coordinate) }
                 onAreaRectangleRequested: function(cornerA, cornerB) {
                     var pts=scanCoordinator.prepareRectangle(cornerA,cornerB)
@@ -580,7 +586,7 @@ Item {
             NavoBaitingPanel {
                 anchors.centerIn: parent
                 controller: baitingController
-                waypoint: null
+                waypoint: baitingController.targetWaypoint
                 onStartConfirmed: function(waypoint, name, hopper) { baitingController.startCycle(waypoint,name,hopper) }
                 onAbortRequested: baitingController.abortCycle("Oprit de utilizator")
             }
