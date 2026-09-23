@@ -12,6 +12,12 @@ Item {
 
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
     property var waypointNames: ({})
+    property var fishModel
+    property var fishingSpotsModel
+    property var bathymetryCells: []
+    property var baitingController
+    property real savedDepthM: NaN
+    property real savedWaterTempC: NaN
 
     signal navigateRequested(var coordinate)
     signal savePointRequested(var coordinate)
@@ -65,8 +71,23 @@ Item {
         }
     }
 
-    MapItemView {
+    NavoActualTrack { map: liveMap; vehicle: root.vehicle; taskActive: !!root.vehicle }
+    NavoFishOverlay { map: liveMap; fishModel: root.fishModel }
+    NavoBathymetryOverlay { map: liveMap; bathymetryCells: root.bathymetryCells; fishingSpotsModel: root.fishingSpotsModel }
+
+    NavoWaypointMapOverlay {
         map: liveMap
+        missionController: planController.missionController
+        vehicle: root.vehicle
+        waypointNames: root.waypointNames
+        savedDepthM: root.savedDepthM
+        savedWaterTempC: root.savedWaterTempC
+        onNavigationCommandSent: function(wp, accepted) {
+            if (accepted && root.baitingController) root.baitingController.targetWaypoint = wp
+        }
+    }
+
+    MapItemView {
         model: root.areaDraftPoints
         delegate: MapQuickItem {
             required property var modelData
