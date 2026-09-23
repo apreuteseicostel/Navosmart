@@ -407,6 +407,7 @@ Item {
                 savedDepthM: root.depthM
                 savedWaterTempC: root.waterTempC
                 onNavigateRequested: function(coordinate) { root.navigateToCoordinate(coordinate) }
+                onBaitingWaypointSelected: function(waypoint) { root.activePage=8; root.lastNavigationStatus="Punct selectat pentru nădire automată" }
                 onAreaRectangleRequested: function(cornerA, cornerB) {
                     var pts=scanCoordinator.prepareRectangle(cornerA,cornerB)
                     root.lastNavigationStatus="Area Scan dreptunghi • "+pts.length+" WP generate"
