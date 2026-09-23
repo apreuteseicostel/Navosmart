@@ -19,6 +19,7 @@ qt_add_qml_module(NavoSmartModule
         QGroundControl.FlightMap
     QML_FILES
         qml/NavoDashboard.qml
+        qml/NavoMap.qml
         qml/NavoTelemetryCard.qml
         qml/NavoModeButton.qml
         qml/NavoWaypointEditor.qml
