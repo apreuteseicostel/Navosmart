@@ -37,11 +37,13 @@ Item {
         waypointSelected(wp)
     }
 
-    MapItemView {
+    Repeater {
         model: root.missionController ? root.missionController.visualItems : null
         delegate: MapQuickItem {
             id: marker
             required property var object
+            Component.onCompleted: { parent = root.map; root.map.addMapItem(this) }
+            Component.onDestruction: root.map.removeMapItem(this)
             coordinate: object.coordinate
             visible: object && object.coordinate && object.coordinate.isValid && object.sequenceNumber > 0
             z: QGroundControl.zOrderTopMost

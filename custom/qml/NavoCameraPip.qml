@@ -5,6 +5,7 @@ Rectangle {
  property bool connected:false
  property string streamUrl:""
  property string protocol:"auto"
+ readonly property bool live: player.playing
  property string statusText: player.playing?"LIVE • LAN":(connected?"CAMERA LAN • READY":"CAMERA LAN")
  signal fullscreenRequested()
  width:230;height:145;radius:9;color:"#02070cdd";border.color:player.playing?"#31d67b":"#1c4262";clip:true

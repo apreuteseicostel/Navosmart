@@ -10,10 +10,12 @@ Item {
     property var selectedHotspot: null
     anchors.fill: parent
 
-    MapItemView {
+    Repeater {
         model: fishModel ? fishModel.hotspots : []
         delegate: MapQuickItem {
             required property var modelData
+            Component.onCompleted: { parent = root.map; root.map.addMapItem(this) }
+            Component.onDestruction: root.map.removeMapItem(this)
             coordinate: QtPositioning.coordinate(modelData.lat,modelData.lon)
             anchorPoint.x: marker.width/2; anchorPoint.y: marker.height/2
             sourceItem: Rectangle {

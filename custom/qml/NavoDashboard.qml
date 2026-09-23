@@ -246,16 +246,22 @@ Item {
         return false
     }
     function holdMission() {
-        if (vehicle && vehicle.pauseVehicle) vehicle.pauseVehicle()
-        root.lastNavigationStatus = "HOLD activ"
+        if (!vehicle || !vehicle.pauseVehicle) { root.lastNavigationStatus = "HOLD indisponibil: H743 deconectat"; return false }
+        vehicle.pauseVehicle()
+        root.lastNavigationStatus = "Comandă HOLD trimisă • aștept confirmarea H743"
+        return true
     }
     function rtlMission() {
-        if (vehicle && vehicle.guidedModeRTL) vehicle.guidedModeRTL(false)
-        root.lastNavigationStatus = "RTL activ"
+        if (!vehicle || !vehicle.guidedModeRTL) { root.lastNavigationStatus = "RTL indisponibil: H743 deconectat"; return false }
+        vehicle.guidedModeRTL(false)
+        root.lastNavigationStatus = "Comandă RTL trimisă • aștept confirmarea H743"
+        return true
     }
     function stopMission() {
-        if (vehicle && vehicle.pauseVehicle) vehicle.pauseVehicle()
-        root.lastNavigationStatus = "Misiune oprita"
+        if (!vehicle || !vehicle.pauseVehicle) { root.lastNavigationStatus = "STOP indisponibil: H743 deconectat"; return false }
+        vehicle.pauseVehicle()
+        root.lastNavigationStatus = "Comandă STOP/HOLD trimisă • aștept confirmarea H743"
+        return true
     }
     function navigateToCoordinate(c) {
         if (!vehicle || !c || !c.isValid) {
@@ -337,9 +343,9 @@ Item {
                 sonarConnected: sonar.connected
                 sonarAlive: sonar.dataAlive
                 cameraConnected: root.cameraStreamUrl.length > 0
-                cameraAlive: root.cameraStreamUrl.length > 0
+                cameraAlive: root.cameraConnected
                 sonarStatus: sonar.status
-                cameraStatus: root.cameraStreamUrl.length ? "URL configurat" : "OFFLINE"
+                cameraStatus: root.cameraConnected ? "Flux video LIVE" : (root.cameraStreamUrl.length ? "URL configurat; flux inactiv" : "OFFLINE")
             }
             DataLine { name: "Conexiune"; value: vehicle ? "ONLINE" : "OFFLINE"; valueColor: vehicle ? root.ok : root.danger }
             DataLine { name: "Mod"; value: root.flightMode.length ? root.flightMode : "--"; valueColor: root.modeColor() }
@@ -651,6 +657,8 @@ Item {
                     connected: root.cameraStreamUrl.length > 0
                     streamUrl: root.cameraStreamUrl
                     protocol: root.cameraProtocol
+                    onLiveChanged: root.cameraConnected = live
+                    Component.onDestruction: root.cameraConnected = false
                     onFullscreenRequested: root.cameraFullscreen = true
                 }
             }

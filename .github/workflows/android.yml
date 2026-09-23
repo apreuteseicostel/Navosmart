@@ -142,7 +142,12 @@ jobs:
           }
           trap cleanup EXIT
           adb start-server
-          timeout 1200 bash -c 'until [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = "1" ] && adb -s emulator-5554 shell service check input 2>/dev/null | grep -q "found"; do sleep 2; done'
+          if ! timeout 1200 bash -c 'until [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = "1" ] && adb -s emulator-5554 shell service check input 2>/dev/null | grep -q "found"; do sleep 2; done'; then
+            echo "Emulator boot or input service timed out"
+            adb devices -l || true
+            tail -n 120 build/emulator.log || true
+            exit 1
+          fi
           adb -s emulator-5554 wait-for-device
           adb -s emulator-5554 shell input keyevent 82 || true
           adb -s emulator-5554 shell settings put global window_animation_scale 0.0 || true
@@ -181,6 +186,7 @@ jobs:
         with:
           name: NAVO-SMART-ANDROID-SMOKE-TEST
           path: |
+            build/emulator.log
             build/navo-pid.txt
             build/window.txt
             build/activity.txt
@@ -189,7 +195,7 @@ jobs:
             build/screenshots/*.png
           if-no-files-found: warn
       - name: Upload installable APK
-        if: success()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: NAVO-SMART-INSTALLABLE-APK

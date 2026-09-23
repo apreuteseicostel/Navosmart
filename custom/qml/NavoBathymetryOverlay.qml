@@ -22,10 +22,12 @@ Item {
         cellPopup.open()
     }
 
-    MapItemView {
+    Repeater {
         model: root.bathymetryCells
         delegate: MapQuickItem {
             required property var modelData
+            Component.onCompleted: { parent = root.map; root.map.addMapItem(this) }
+            Component.onDestruction: root.map.removeMapItem(this)
             coordinate: QtPositioning.coordinate(modelData.lat,modelData.lon)
             anchorPoint.x: body.width/2
             anchorPoint.y: body.height/2
@@ -39,10 +41,12 @@ Item {
         }
     }
 
-    MapItemView {
+    Repeater {
         model: root.fishingSpotsModel ? root.fishingSpotsModel.fishingSpots : []
         delegate: MapQuickItem {
             required property var modelData
+            Component.onCompleted: { parent = root.map; root.map.addMapItem(this) }
+            Component.onDestruction: root.map.removeMapItem(this)
             coordinate: QtPositioning.coordinate(modelData.lat,modelData.lon)
             anchorPoint.x: pin.width/2; anchorPoint.y: pin.height
             sourceItem: Rectangle {

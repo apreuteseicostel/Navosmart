@@ -97,10 +97,12 @@ Item {
         }
     }
 
-    MapItemView {
+    Repeater {
         model: root.areaDraftPoints
         delegate: MapQuickItem {
             required property var modelData
+            Component.onCompleted: { parent = liveMap; liveMap.addMapItem(this) }
+            Component.onDestruction: liveMap.removeMapItem(this)
             coordinate: modelData
             anchorPoint.x: 6; anchorPoint.y: 6
             sourceItem: Rectangle { width: 12; height: 12; radius: 6; color: "#26c6da"; border.color: "white" }
