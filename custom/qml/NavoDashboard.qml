@@ -29,6 +29,34 @@ Item {
         Component.onCompleted: start()
     }
 
+    NavoAreaScan { id: areaScanController }
+    NavoScanCoordinator {
+        id: scanCoordinator
+        areaScan: areaScanController
+        vehicle: root.vehicle
+        onMissionPrepared: function(points) {
+            if (!missionUploader.prepare(points))
+                root.lastNavigationStatus = "Pregătire misiune eșuată: " + missionUploader.lastError
+        }
+        onStatus: function(message) { root.lastNavigationStatus = message }
+    }
+    Connections {
+        target: root.planController ? root.planController.missionController : null
+        function onCurrentMissionIndexChanged(currentMissionIndex) {
+            scanCoordinator.missionIndexChanged(currentMissionIndex)
+        }
+    }
+    Connections {
+        target: root.vehicle
+        function onFlightModeChanged() {
+            if (!root.vehicle) return
+            var expected = String(root.vehicle.missionFlightMode || "").toUpperCase()
+            var actual = String(root.vehicle.flightMode || "").toUpperCase()
+            if (expected.length && actual === expected)
+                root.lastNavigationStatus = "H743 confirmă " + root.vehicle.flightMode + " • misiune activă"
+        }
+    }
+
     NavoMissionUploader {
         id: missionUploader
         planController: root.planController
