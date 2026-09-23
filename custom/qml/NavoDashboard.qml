@@ -329,7 +329,7 @@ Item {
     Rectangle {
         id: sidebar
         anchors.left: parent.left; anchors.top: header.bottom; anchors.bottom: footer.top
-        width: 190; color: root.panel; border.color: root.line
+        width: root.width < 1100 ? 150 : 190; color: root.panel; border.color: root.line
         Flickable {
             anchors.fill: parent
             anchors.margins: 8
@@ -337,12 +337,12 @@ Item {
             contentWidth: width
             contentHeight: navColumn.implicitHeight
             boundsBehavior: Flickable.StopAtBounds
-            ScrollBar.vertical: ScrollBar { policy: navColumn.implicitHeight > parent.height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff }
+            ScrollBar.vertical: ScrollBar { policy: navColumn.implicitHeight > sidebar.height - 16 ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
             ColumnLayout {
                 id: navColumn
                 width: parent.width
                 spacing: Math.max(3, Math.min(8, (sidebar.height - 44 - 9 * 36) / 10))
-                Label { text: "NAVIGATIE"; color: root.muted; font.bold: true; font.pixelSize: 13 }
+                Label { text: navColumn.implicitHeight > sidebar.height - 16 ? "NAVIGAȚIE ↓" : "NAVIGAȚIE"; color: root.muted; font.bold: true; font.pixelSize: 13 }
                 NavButton { text: "HARTA"; active: root.activePage === 0; onClicked: root.activePage = 0 }
                 NavButton { text: "SONAR"; active: root.activePage === 1; onClicked: root.activePage = 1 }
                 NavButton { text: "AREA SCAN"; active: root.activePage === 2; onClicked: root.activePage = 2 }
@@ -377,7 +377,7 @@ Item {
     Rectangle {
         id: rightPanel
         anchors.right: parent.right; anchors.top: header.bottom; anchors.bottom: footer.top
-        width: 260; color: root.panel; border.color: root.line
+        width: root.width < 1100 ? 220 : 260; color: root.panel; border.color: root.line
         Flickable {
             anchors.fill: parent
             clip: true
