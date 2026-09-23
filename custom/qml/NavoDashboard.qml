@@ -306,7 +306,11 @@ Item {
                 waypointNames: root.waypointNames
                 onNavigateRequested: function(coordinate) { root.navigateToCoordinate(coordinate) }
                 onSavePointRequested: function(coordinate) {
-                    root.lastNavigationStatus = "Punct salvat la " + coordinate.latitude.toFixed(5) + ", " + coordinate.longitude.toFixed(5)
+                    var spot = fishingSpots.saveSpot(coordinate, root.depthM, root.waterTempC, "", "", null)
+                    if (spot) {
+                        scanCoordinator.checkpoint("fishing-spot")
+                        root.lastNavigationStatus = "Punct salvat: " + spot.name
+                    } else root.lastNavigationStatus = "Punct invalid: nu a fost salvat"
                 }
             }
         }
@@ -341,10 +345,24 @@ Item {
         Item {
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             ColumnLayout {
-                anchors.fill: parent; anchors.margins: 16
+                anchors.fill: parent; anchors.margins: 16; spacing: 8
                 Label { text: "PUNCTE DE PESCUIT"; color: root.text; font.pixelSize: 20; font.bold: true }
-                Label { text: "Punctele salvate GPS + adancime + temperatura apar aici."; color: root.muted }
-                Item { Layout.fillHeight: true }
+                Label { text: fishingSpots.fishingSpots.length + " puncte salvate"; color: root.muted }
+                ListView {
+                    Layout.fillWidth: true; Layout.fillHeight: true; clip: true
+                    model: fishingSpots.fishingSpots
+                    delegate: Rectangle {
+                        required property var modelData
+                        width: ListView.view.width; height: 76; radius: 7; color: root.bg; border.color: root.line
+                        Column {
+                            anchors.left: parent.left; anchors.leftMargin: 10; anchors.verticalCenter: parent.verticalCenter
+                            Label { text: modelData.name || "Loc pescuit"; color: root.text; font.bold: true }
+                            Label { text: Number(modelData.lat).toFixed(5) + ", " + Number(modelData.lon).toFixed(5); color: root.muted; font.pixelSize: 11 }
+                            Label { text: (modelData.depth === null ? "--" : Number(modelData.depth).toFixed(1) + " m") + " • " + (modelData.temp === null ? "--" : Number(modelData.temp).toFixed(1) + " °C"); color: root.muted; font.pixelSize: 11 }
+                        }
+                        Button { anchors.right: parent.right; anchors.rightMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: "ȘTERGE"; onClicked: { fishingSpots.removeSpot(modelData.id); scanCoordinator.checkpoint("fishing-spot-delete") } }
+                    }
+                }
             }
         }
     }
@@ -354,10 +372,20 @@ Item {
         Item {
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             ColumnLayout {
-                anchors.fill: parent; anchors.margins: 16
+                anchors.fill: parent; anchors.margins: 16; spacing: 10
                 Label { text: "BALȚILE MELE"; color: root.text; font.pixelSize: 20; font.bold: true }
-                Label { text: "Sesiuni sonar, batimetrie, puncte si Area Scan."; color: root.muted }
+                Label { text: persistence.lakes.length + " bălți salvate • sonar + puncte + Area Scan + Resume"; color: root.muted }
+                Button { text: "DESCHIDE BĂLȚILE MELE"; onClicked: myLakesPopup.open() }
                 Item { Layout.fillHeight: true }
+            }
+            NavoMyLakes {
+                id: myLakesPopup
+                persistence: persistence
+                scanCoordinator: scanCoordinator
+                onLakeRestored: function(lakeId) {
+                    root.activePage = 2
+                    root.lastNavigationStatus = "Balta restaurată • pregătită pentru Resume"
+                }
             }
         }
     }
