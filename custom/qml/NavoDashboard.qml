@@ -14,6 +14,10 @@ Item {
     implicitWidth: 1280
     implicitHeight: 720
 
+    // Compatibility with QGroundControl v5.0.7 MainWindow, which binds this
+    // property on the FlyView root. NAVO does not currently use UTM/SP.
+    property bool utmspSendActTrigger: false
+
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
     property var battery: vehicle && vehicle.batteries.count > 0 ? vehicle.batteries.get(0) : null
     property var waypointNames: ({})
@@ -98,260 +102,221 @@ Item {
         RowLayout {
             anchors.fill: parent; anchors.leftMargin: 16; anchors.rightMargin: 16; spacing: 12
             ColumnLayout {
-                Layout.fillWidth: true; spacing: 1
-                Text { text: "NAVO SMART"; color: root.text; font.pixelSize: 22; font.bold: true }
-                Text { text: "Pescarul lu Peste"; color: root.muted; font.pixelSize: 11 }
+                Layout.fillWidth: true
+                spacing: 0
+                Label { text: "NAVO SMART"; color: root.text; font.pixelSize: 22; font.bold: true }
+                Label { text: "Pescarul lu Peste"; color: root.muted; font.pixelSize: 11 }
             }
-            Rectangle { width: 10; height: 10; radius: 5; color: root.sonarConnected ? root.ok : root.danger }
-            Text { text: root.sonarConnected ? "SONAR" : "SONAR OFF"; color: root.text; font.pixelSize: 12 }
-            Rectangle { width: 10; height: 10; radius: 5; color: root.cameraConnected ? root.ok : root.muted }
-            Text { text: root.cameraConnected ? "CAM" : "CAM OFF"; color: root.text; font.pixelSize: 12 }
-            Rectangle {
-                radius: 12; height: 32; width: modeText.width + 22; color: root.modeColor()
-                Text { id: modeText; anchors.centerIn: parent; text: root.flightMode || "NO MODE"; color: "#071014"; font.bold: true; font.pixelSize: 12 }
-            }
+            StatusPill { title: "GPS"; value: vehicle && vehicle.gps ? String(vehicle.gps.count.rawValue) + " sat" : "--"; good: vehicle && vehicle.gps }
+            StatusPill { title: "BATERIE"; value: battery ? Number(battery.percentRemaining.rawValue).toFixed(0) + "%" : "--"; good: battery && battery.percentRemaining.rawValue > 20 }
+            StatusPill { title: "MOD"; value: root.flightMode.length ? root.flightMode : "OFFLINE"; good: vehicle !== null }
         }
     }
 
     Rectangle {
         id: sidebar
         anchors.left: parent.left; anchors.top: header.bottom; anchors.bottom: footer.top
-        width: root.mapFullscreen ? 0 : 190; visible: !root.mapFullscreen; color: "#0e151e"; border.color: root.line
+        width: 190; color: root.panel; border.color: root.line
         ColumnLayout {
             anchors.fill: parent; anchors.margins: 10; spacing: 8
-            Repeater {
-                model: ["HARTA", "SONAR", "BALTI", "CAMERA", "SETARI"]
-                delegate: Rectangle {
-                    Layout.fillWidth: true; height: 42; radius: 8
-                    color: root.activePage === index ? "#203242" : "#151f2a"; border.color: root.activePage === index ? root.accent : root.line
-                    Text { anchors.centerIn: parent; text: modelData; color: root.text; font.bold: root.activePage === index; font.pixelSize: 12 }
-                    MouseArea { anchors.fill: parent; onClicked: root.activePage = index }
-                }
-            }
+            Label { text: "NAVIGATIE"; color: root.muted; font.bold: true }
+            NavButton { text: "HARTA"; active: root.activePage === 0; onClicked: root.activePage = 0 }
+            NavButton { text: "SONAR"; active: root.activePage === 1; onClicked: root.activePage = 1 }
+            NavButton { text: "AREA SCAN"; active: root.activePage === 2; onClicked: root.activePage = 2 }
+            NavButton { text: "PUNCTE PESCUIT"; active: root.activePage === 3; onClicked: root.activePage = 3 }
+            NavButton { text: "BALȚILE MELE"; active: root.activePage === 4; onClicked: root.activePage = 4 }
+            NavButton { text: "CAMERA"; active: root.activePage === 5; onClicked: root.activePage = 5 }
+            NavButton { text: "SETARI"; active: root.activePage === 6; onClicked: root.activePage = 6 }
             Item { Layout.fillHeight: true }
-            Rectangle {
-                Layout.fillWidth: true; height: 58; radius: 8; color: "#151f2a"; border.color: root.line
-                Column { anchors.centerIn: parent; spacing: 2
-                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: "ID BARCA"; color: root.muted; font.pixelSize: 10 }
-                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: root.boatId; color: root.text; font.pixelSize: 13; font.bold: true }
-                }
-            }
+            Label { text: "BARCA " + root.boatId; color: root.muted; font.pixelSize: 11 }
+        }
+    }
+
+    Rectangle {
+        id: content
+        anchors.left: sidebar.right; anchors.right: rightPanel.left; anchors.top: header.bottom; anchors.bottom: footer.top
+        color: root.bg
+        Loader {
+            anchors.fill: parent; anchors.margins: 10
+            sourceComponent: root.activePage === 0 ? mapPage :
+                             root.activePage === 1 ? sonarPage :
+                             root.activePage === 2 ? areaPage :
+                             root.activePage === 3 ? fishingPage :
+                             root.activePage === 4 ? lakesPage :
+                             root.activePage === 5 ? cameraPage : settingsPage
         }
     }
 
     Rectangle {
         id: rightPanel
         anchors.right: parent.right; anchors.top: header.bottom; anchors.bottom: footer.top
-        width: root.mapFullscreen ? 0 : 250; visible: !root.mapFullscreen; color: "#0e151e"; border.color: root.line
-        Flickable {
-            anchors.fill: parent; contentHeight: rightCol.height + 20; clip: true
-            Column {
-                id: rightCol; width: parent.width - 20; x: 10; y: 10; spacing: 9
-                Rectangle {
-                    width: parent.width; height: 84; radius: 9; color: root.panel; border.color: root.line
-                    Column { anchors.fill: parent; anchors.margins: 10; spacing: 5
-                        Text { text: "BATERIE"; color: root.muted; font.pixelSize: 10 }
-                        Text { text: root.battery ? Number(root.battery.percentRemaining.rawValue).toFixed(0) + "%" : "--%"; color: root.text; font.pixelSize: 24; font.bold: true }
-                        Rectangle { width: parent.width; height: 7; radius: 3; color: "#27313b"
-                            Rectangle { height: parent.height; radius: 3; width: parent.width * (root.battery ? Math.max(0, Math.min(100, Number(root.battery.percentRemaining.rawValue))) : 0) / 100; color: root.ok }
-                        }
-                    }
-                }
-                Rectangle {
-                    width: parent.width; height: 70; radius: 9; color: root.panel; border.color: root.line
-                    RowLayout { anchors.fill: parent; anchors.margins: 10
-                        ColumnLayout { Layout.fillWidth: true
-                            Text { text: "ADANCIME"; color: root.muted; font.pixelSize: 10 }
-                            Text { text: isNaN(root.depthM) ? "--.- m" : root.depthM.toFixed(1) + " m"; color: root.text; font.pixelSize: 19; font.bold: true }
-                        }
-                        ColumnLayout {
-                            Text { text: "APA"; color: root.muted; font.pixelSize: 10 }
-                            Text { text: isNaN(root.waterTempC) ? "--.- C" : root.waterTempC.toFixed(1) + " C"; color: root.waterTempC > 30 ? root.danger : (root.waterTempC > 25 ? root.warn : root.text); font.pixelSize: 16; font.bold: true }
-                        }
-                    }
-                }
-                Rectangle {
-                    width: parent.width; height: 82; radius: 9; color: root.panel; border.color: root.line
-                    Column { anchors.fill: parent; anchors.margins: 10; spacing: 5
-                        Text { text: "DISTANTE"; color: root.muted; font.pixelSize: 10 }
-                        Text { text: "Acasa: " + root.distanceToHome.toFixed(0) + " m"; color: root.text; font.pixelSize: 14 }
-                        Text { text: "Tinta: " + root.distanceToTarget.toFixed(0) + " m"; color: root.text; font.pixelSize: 14 }
-                    }
-                }
-                Rectangle {
-                    width: parent.width; height: root.hopperStatusExpanded ? 132 : 76; radius: 9; color: root.panel; border.color: root.line
-                    Column { anchors.fill: parent; anchors.margins: 10; spacing: 5
-                        Row { spacing: 8
-                            Text { text: "CUVE"; color: root.muted; font.pixelSize: 10 }
-                            Text { text: root.hopperControlsEnabled ? "ACTIVE" : "BLOCATE"; color: root.hopperControlsEnabled ? root.ok : root.warn; font.pixelSize: 10; font.bold: true }
-                        }
-                        Text { text: root.selectedHopper === "none" ? "Inchise" : ("Deschisa: " + root.selectedHopper); color: root.text; font.pixelSize: 14 }
-                        MouseArea { anchors.fill: parent; onClicked: root.hopperStatusExpanded = !root.hopperStatusExpanded }
-                        Row {
-                            visible: root.hopperStatusExpanded; spacing: 6
-                            Rectangle {
-                                width: 65; height: 32; radius: 6; color: root.hopperControlsEnabled ? "#24465a" : "#242b31"
-                                Text { anchors.centerIn: parent; text: "STG"; color: root.text; font.pixelSize: 11 }
-                                MouseArea { anchors.fill: parent; enabled: root.hopperControlsEnabled; onPressAndHold: root.openHopper("stanga") }
-                            }
-                            Rectangle {
-                                width: 65; height: 32; radius: 6; color: root.hopperControlsEnabled ? "#24465a" : "#242b31"
-                                Text { anchors.centerIn: parent; text: "DR"; color: root.text; font.pixelSize: 11 }
-                                MouseArea { anchors.fill: parent; enabled: root.hopperControlsEnabled; onPressAndHold: root.openHopper("dreapta") }
-                            }
-                            Rectangle {
-                                width: 65; height: 32; radius: 6; color: root.hopperControlsEnabled ? "#24465a" : "#242b31"
-                                Text { anchors.centerIn: parent; text: "AMBELE"; color: root.text; font.pixelSize: 9 }
-                                MouseArea { anchors.fill: parent; enabled: root.hopperControlsEnabled; onPressAndHold: root.openHopper("ambele") }
-                            }
-                        }
-                    }
-                }
-                Rectangle {
-                    width: parent.width; height: 74; radius: 9; color: root.panel; border.color: root.line
-                    Column { anchors.fill: parent; anchors.margins: 10; spacing: 5
-                        Text { text: "STATUS"; color: root.muted; font.pixelSize: 10 }
-                        Text { width: parent.width; wrapMode: Text.Wrap; text: root.lastNavigationStatus || "Pregatit"; color: root.text; font.pixelSize: 12 }
-                    }
+        width: 260; color: root.panel; border.color: root.line
+        ColumnLayout {
+            anchors.fill: parent; anchors.margins: 12; spacing: 10
+            Label { text: "STATUS BARCA"; color: root.text; font.bold: true }
+            DataLine { name: "Conexiune"; value: vehicle ? "ONLINE" : "OFFLINE"; valueColor: vehicle ? root.ok : root.danger }
+            DataLine { name: "Mod"; value: root.flightMode.length ? root.flightMode : "--"; valueColor: root.modeColor() }
+            DataLine { name: "Acasa"; value: Number(root.distanceToHome).toFixed(0) + " m" }
+            DataLine { name: "Tinta"; value: root.distanceToTarget > 0 ? Number(root.distanceToTarget).toFixed(0) + " m" : "--" }
+            Rectangle { Layout.fillWidth: true; height: 1; color: root.line }
+            Label { text: "CONTROL MISIUNE"; color: root.muted; font.bold: true }
+            RowLayout {
+                Layout.fillWidth: true
+                Button { Layout.fillWidth: true; text: "START"; onClicked: root.startMission() }
+                Button { Layout.fillWidth: true; text: "HOLD"; onClicked: root.holdMission() }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Button { Layout.fillWidth: true; text: "RTL"; onClicked: root.rtlMission() }
+                Button { Layout.fillWidth: true; text: "STOP"; onClicked: root.stopMission() }
+            }
+            Rectangle { Layout.fillWidth: true; height: 1; color: root.line }
+            Label { text: "CUVE"; color: root.muted; font.bold: true }
+            Label {
+                Layout.fillWidth: true; wrapMode: Text.WordWrap
+                text: root.hopperControlsEnabled ? "Control disponibil" : "Blocate pana aproape de punct"
+                color: root.hopperControlsEnabled ? root.ok : root.warn; font.pixelSize: 11
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Button { Layout.fillWidth: true; text: "STANGA"; enabled: root.hopperControlsEnabled; onClicked: root.openHopper("stanga") }
+                Button { Layout.fillWidth: true; text: "DREAPTA"; enabled: root.hopperControlsEnabled; onClicked: root.openHopper("dreapta") }
+            }
+            Button { Layout.fillWidth: true; text: "AMBELE"; enabled: root.hopperControlsEnabled; onClicked: root.openHopper("ambele") }
+            Item { Layout.fillHeight: true }
+            Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: root.lastNavigationStatus; color: root.muted; font.pixelSize: 11 }
+        }
+    }
+
+    Component {
+        id: mapPage
+        Item {
+            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
+            NavoMap {
+                anchors.fill: parent; anchors.margins: 8
+                vehicle: root.vehicle
+                waypointNames: root.waypointNames
+                onNavigateRequested: function(coordinate) { root.navigateToCoordinate(coordinate) }
+                onSavePointRequested: function(coordinate) {
+                    root.lastNavigationStatus = "Punct salvat la " + coordinate.latitude.toFixed(5) + ", " + coordinate.longitude.toFixed(5)
                 }
             }
         }
     }
 
-    Rectangle {
-        id: mapPanel
-        anchors.left: root.mapFullscreen ? parent.left : sidebar.right
-        anchors.right: root.mapFullscreen ? parent.right : rightPanel.left
-        anchors.top: root.mapFullscreen ? parent.top : header.bottom
-        anchors.bottom: root.mapFullscreen ? parent.bottom : footer.top
-        anchors.margins: root.mapFullscreen ? 0 : 10
-        radius: root.mapFullscreen ? 0 : 10
-        color: root.panel; border.color: root.mapFullscreen ? "transparent" : root.line; clip: true
-        z: root.mapFullscreen ? 100 : 0
-
-        Loader {
-            anchors.fill: parent
-            active: root.activePage === 0
-            sourceComponent: Component {
-                FlightMap {
-                    id: flightMap
-                    anchors.fill: parent
-                    mapName: "NAVO SMART"
-                    center: root.vehicle ? root.vehicle.coordinate : QtPositioning.coordinate(45.0, 25.0)
-                    zoomLevel: 17
-                    Rectangle {
-                        anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 10
-                        width: 94; height: 34; radius: 8; color: "#b0101822"; border.color: root.line; z: 20
-                        Text { anchors.centerIn: parent; text: root.mapFullscreen ? "INCHIDE" : "HARTA MARE"; color: root.text; font.pixelSize: 10; font.bold: true }
-                        MouseArea { anchors.fill: parent; onClicked: root.mapFullscreen = !root.mapFullscreen }
-                    }
-                    MouseArea {
-                        anchors.fill: parent
-                        acceptedButtons: Qt.RightButton
-                        onClicked: function(mouse) {
-                            var c = flightMap.toCoordinate(Qt.point(mouse.x, mouse.y), false)
-                            root.navigateToCoordinate(c)
-                        }
-                    }
+    Component {
+        id: sonarPage
+        Item {
+            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
+            ColumnLayout {
+                anchors.fill: parent; anchors.margins: 12; spacing: 8
+                Label { text: "KOGGER SONAR"; color: root.text; font.pixelSize: 18; font.bold: true }
+                NavoSonarCard {
+                    Layout.fillWidth: true; Layout.preferredHeight: 150
+                    connected: root.sonarConnected; depthM: root.depthM; waterTempC: root.waterTempC
                 }
-            }
-        }
-
-        Loader {
-            anchors.fill: parent; active: root.activePage === 1
-            sourceComponent: Component {
                 NavoSonarFullScreen {
-                    width: root.width
-                    height: root.height
-                    depthM: root.depthM
-                    waterTempC: root.waterTempC
-                    connected: root.sonarConnected
+                    Layout.fillWidth: true; Layout.fillHeight: true
+                    connected: root.sonarConnected; depthM: root.depthM; waterTempC: root.waterTempC
                 }
             }
         }
+    }
 
-        Loader {
-            anchors.fill: parent; active: root.activePage === 2
-            sourceComponent: Component {
-                Rectangle {
-                    color: root.bg
-                    Column { anchors.centerIn: parent; spacing: 12
-                        Text { anchors.horizontalCenter: parent.horizontalCenter; text: "BALTILE MELE"; color: root.text; font.pixelSize: 22; font.bold: true }
-                        Text { anchors.horizontalCenter: parent.horizontalCenter; text: "Hartile salvate si punctele de pescuit vor aparea aici"; color: root.muted; font.pixelSize: 13 }
-                        Rectangle { width: 220; height: 44; radius: 8; color: "#1c2a38"; border.color: root.accent; Text { anchors.centerIn: parent; text: "SALVEAZA BALTA CURENTA"; color: root.text; font.bold: true; font.pixelSize: 11 } }
-                    }
+    Component {
+        id: areaPage
+        NavoAreaScan { anchors.fill: parent }
+    }
+
+    Component {
+        id: fishingPage
+        Item {
+            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
+            ColumnLayout {
+                anchors.fill: parent; anchors.margins: 16
+                Label { text: "PUNCTE DE PESCUIT"; color: root.text; font.pixelSize: 20; font.bold: true }
+                Label { text: "Punctele salvate GPS + adancime + temperatura apar aici."; color: root.muted }
+                Item { Layout.fillHeight: true }
+            }
+        }
+    }
+
+    Component {
+        id: lakesPage
+        Item {
+            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
+            ColumnLayout {
+                anchors.fill: parent; anchors.margins: 16
+                Label { text: "BALȚILE MELE"; color: root.text; font.pixelSize: 20; font.bold: true }
+                Label { text: "Sesiuni sonar, batimetrie, puncte si Area Scan."; color: root.muted }
+                Item { Layout.fillHeight: true }
+            }
+        }
+    }
+
+    Component {
+        id: cameraPage
+        Item {
+            Rectangle { anchors.fill: parent; radius: 8; color: "#05080c"; border.color: root.line }
+            ColumnLayout {
+                anchors.fill: parent; anchors.margins: 12
+                Label { text: "CAMERA ETHERNET"; color: root.text; font.pixelSize: 18; font.bold: true }
+                NavoCameraPip {
+                    Layout.fillWidth: true; Layout.fillHeight: true
+                    connected: root.cameraConnected
+                    onFullscreenRequested: root.cameraFullscreen = true
                 }
             }
         }
+    }
 
-        Loader {
-            anchors.fill: parent; active: root.activePage === 3
-            sourceComponent: Component {
-                Rectangle {
-                    color: "#080b0f"
-                    Column { anchors.centerIn: parent; spacing: 10
-                        Text { anchors.horizontalCenter: parent.horizontalCenter; text: "CAMERA ETHERNET"; color: root.text; font.pixelSize: 22; font.bold: true }
-                        Text { anchors.horizontalCenter: parent.horizontalCenter; text: root.cameraConnected ? "Flux video conectat" : "Camera nu este conectata"; color: root.cameraConnected ? root.ok : root.muted; font.pixelSize: 13 }
-                        Rectangle {
-                            width: 190; height: 42; radius: 8; color: "#1c2a38"; border.color: root.line
-                            Text { anchors.centerIn: parent; text: "FULL SCREEN"; color: root.text; font.bold: true }
-                            MouseArea { anchors.fill: parent; onClicked: root.cameraFullscreen = !root.cameraFullscreen }
-                        }
-                    }
-                }
-            }
-        }
-
-        Loader {
-            anchors.fill: parent; active: root.activePage === 4
-            sourceComponent: Component {
-                Rectangle {
-                    color: root.bg
-                    Column { anchors.centerIn: parent; spacing: 10
-                        Text { anchors.horizontalCenter: parent.horizontalCenter; text: "SETARI NAVO SMART"; color: root.text; font.pixelSize: 22; font.bold: true }
-                        Text { anchors.horizontalCenter: parent.horizontalCenter; text: "LAN / SONAR / CAMERA / MAVLink"; color: root.muted; font.pixelSize: 13 }
-                    }
-                }
-            }
+    Component {
+        id: settingsPage
+        Item {
+            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
+            NavoEthernetSettings { anchors.fill: parent; anchors.margins: 12 }
         }
     }
 
     Rectangle {
         id: footer
         anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-        height: 66; color: "#101822"; border.color: root.line
+        height: 34; color: "#0d141d"; border.color: root.line
         RowLayout {
-            anchors.fill: parent; anchors.margins: 10; spacing: 8
-            Repeater {
-                model: [
-                    {t:"START MISIUNE", c:"#1f6f43", a:"start"},
-                    {t:"HOLD", c:"#735d1d", a:"hold"},
-                    {t:"RTL", c:"#6a3e20", a:"rtl"},
-                    {t:"STOP", c:"#6f2424", a:"stop"}
-                ]
-                delegate: Rectangle {
-                    Layout.fillWidth: true; height: 44; radius: 8; color: modelData.c; border.color: "#ffffff22"
-                    Text { anchors.centerIn: parent; text: modelData.t; color: "white"; font.bold: true; font.pixelSize: 11 }
-                    MouseArea { anchors.fill: parent; onClicked: { if (modelData.a === "start") root.startMission(); else if (modelData.a === "hold") root.holdMission(); else if (modelData.a === "rtl") root.rtlMission(); else root.stopMission() } }
-                }
-            }
-            Rectangle {
-                Layout.preferredWidth: 180; height: 44; radius: 8; color: root.silentModeActive ? "#315b4b" : "#1c2a38"; border.color: root.line
-                Text { anchors.centerIn: parent; text: root.silentModeActive ? "SILENT ON" : "SILENT OFF"; color: root.text; font.bold: true; font.pixelSize: 11 }
-                MouseArea { anchors.fill: parent; onClicked: root.silentModeActive = !root.silentModeActive }
-            }
+            anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
+            Label { text: vehicle ? "MAVLink conectat" : "Astept conexiunea ArduPilot"; color: vehicle ? root.ok : root.warn }
+            Item { Layout.fillWidth: true }
+            Label { text: "NAVO SMART"; color: root.muted }
         }
     }
 
-    Rectangle {
-        visible: root.cameraFullscreen
-        anchors.fill: parent; z: 200; color: "#050608"
-        Text { anchors.centerIn: parent; text: "CAMERA FULL SCREEN"; color: root.text; font.pixelSize: 28; font.bold: true }
-        Rectangle {
-            anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 16
-            width: 90; height: 38; radius: 8; color: "#99151f2a"
-            Text { anchors.centerIn: parent; text: "INCHIDE"; color: root.text }
-            MouseArea { anchors.fill: parent; onClicked: root.cameraFullscreen = false }
+    component StatusPill: Rectangle {
+        property string title: ""
+        property string value: "--"
+        property bool good: false
+        Layout.preferredWidth: 100; Layout.preferredHeight: 42; radius: 7
+        color: root.panel; border.color: good ? root.ok : root.line
+        Column {
+            anchors.centerIn: parent; spacing: 0
+            Label { anchors.horizontalCenter: parent.horizontalCenter; text: title; color: root.muted; font.pixelSize: 9 }
+            Label { anchors.horizontalCenter: parent.horizontalCenter; text: value; color: good ? root.ok : root.text; font.pixelSize: 12; font.bold: true }
         }
+    }
+
+    component NavButton: Button {
+        property bool active: false
+        Layout.fillWidth: true; Layout.preferredHeight: 40
+        background: Rectangle { radius: 6; color: parent.active ? "#183248" : "transparent"; border.color: parent.active ? root.accent : "transparent" }
+        contentItem: Label { text: parent.text; color: parent.active ? root.accent : root.text; verticalAlignment: Text.AlignVCenter; leftPadding: 8; font.bold: parent.active }
+    }
+
+    component DataLine: RowLayout {
+        property string name: ""
+        property string value: "--"
+        property color valueColor: root.text
+        Layout.fillWidth: true
+        Label { text: parent.name; color: root.muted }
+        Item { Layout.fillWidth: true }
+        Label { text: parent.value; color: parent.valueColor; font.bold: true }
     }
 }
