@@ -8,7 +8,8 @@ QtObject {
     property var scanState: ({})
     property var samples: []
     property var areaPoints: []
-    property var fishingSpots: []\n    property var bathymetry3DCache: ({})
+    property var fishingSpots: []
+    property var bathymetry3DCache: ({})
     property string lastError: ""
     readonly property url dataFolder: StandardPaths.writableLocation(StandardPaths.AppDataLocation) + "/navosmart"
 
@@ -33,7 +34,8 @@ QtObject {
             areaPoints: areaPoints,
             fishingSpots: fishingSpots,
             scanState: scanState,
-            samples: samples
+            samples: samples,
+            bathymetry3DCache: bathymetry3DCache
         }
     }
 
@@ -50,7 +52,8 @@ QtObject {
             areaPoints=p.areaPoints||[]
             fishingSpots=p.fishingSpots||[]
             scanState=p.scanState||({})
-            samples=p.samples||[]\n            bathymetry3DCache=p.bathymetry3DCache||({})
+            samples=p.samples||[]
+            bathymetry3DCache=p.bathymetry3DCache||({})
             lastError=""
             loaded(lakeId)
             return true
