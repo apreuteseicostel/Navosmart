@@ -17,6 +17,7 @@ qt_add_qml_module(NavoSmartModule
         QGroundControl.Controls
         QGroundControl.FlightDisplay
         QGroundControl.FlightMap
+        QtQuick3D
     QML_FILES
         qml/NavoDashboard.qml
         qml/NavoMap.qml
@@ -48,6 +49,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoVideoPlayer.qml
         qml/NavoCameraFullScreen.qml
         qml/NavoBathymetryModel.qml
+        qml/NavoBathymetry3D.qml
         qml/NavoScanCoordinator.qml
         qml/NavoFishingSpots.qml
         qml/NavoBathymetryOverlay.qml
@@ -79,6 +81,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoNanoTelemetry.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoBathymetryMesh.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoBathymetryMesh.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoBathymetryGeometry.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoBathymetryGeometry.h
     CACHE INTERNAL "" FORCE
 )
 # Link both the QML module target and its generated resource target into the
