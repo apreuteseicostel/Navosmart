@@ -154,8 +154,7 @@ Item {
         onTargetDetected: function(targetDepthM, strength) {
             if (!root.vehicle || !root.vehicle.coordinate || !root.vehicle.coordinate.isValid) return
             fishStore.addDetection(root.vehicle.coordinate, targetDepthM, sonar.depthM, strength, Date.now())
-            if (fishStore.detections.length > 2000)
-                fishStore.detections = fishStore.detections.slice(fishStore.detections.length - 2000)
+            // NavoFishDetections owns bounded history and hotspot rebuilding.
         }
     }
     Connections {
