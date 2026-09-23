@@ -337,7 +337,72 @@ Item {
 
     Component {
         id: areaPage
-        NavoAreaScan { anchors.fill: parent }
+        Item {
+            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
+            ColumnLayout {
+                anchors.fill: parent; anchors.margins: 14; spacing: 10
+                RowLayout {
+                    Layout.fillWidth: true
+                    Label { text: "AREA SCAN"; color: root.text; font.pixelSize: 20; font.bold: true }
+                    Item { Layout.fillWidth: true }
+                    Label { text: areaScanController.progressPercent() + "%"; color: root.accent; font.bold: true }
+                }
+                ProgressBar {
+                    Layout.fillWidth: true
+                    from: 0; to: 100
+                    value: areaScanController.progressPercent()
+                }
+                Label {
+                    Layout.fillWidth: true
+                    text: areaScanController.laneCount() ?
+                          (areaScanController.completedLanes.length + " / " + areaScanController.laneCount() + " culoare • WP H743 " + scanCoordinator.missionCurrentIndex) :
+                          "Definește zona de scanare pe hartă."
+                    color: root.muted
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    Button {
+                        text: "PREGĂTEȘTE MISIUNEA"
+                        enabled: areaScanController.generatedPoints.length > 0 && !missionUploader.uploadInProgress
+                        onClicked: scanCoordinator.prepareMission(false)
+                    }
+                    Button {
+                        text: "START"
+                        enabled: missionUploader.preparedCount > 0 && !missionUploader.uploadInProgress
+                        onClicked: {
+                            if (scanCoordinator.start()) root.startMission()
+                        }
+                    }
+                    Button {
+                        text: "RESUME"
+                        enabled: areaScanController.generatedPoints.length > 0 && areaScanController.completedLanes.length < areaScanController.laneCount()
+                        onClicked: {
+                            var mission = scanCoordinator.resume()
+                            if (mission.length && missionUploader.prepare(mission)) root.startMission()
+                        }
+                    }
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    Button { text: "HOLD"; onClicked: { scanCoordinator.pause("HOLD utilizator"); root.holdMission() } }
+                    Button { text: "RTL"; onClicked: { scanCoordinator.rtl("RTL utilizator"); root.rtlMission() } }
+                    Button { text: "STOP"; onClicked: { scanCoordinator.pause("STOP utilizator"); root.stopMission() } }
+                    Item { Layout.fillWidth: true }
+                    Label { text: scanCoordinator.state; color: root.modeColor(); font.bold: true }
+                }
+                Rectangle {
+                    Layout.fillWidth: true; Layout.fillHeight: true
+                    radius: 8; color: root.bg; border.color: root.line
+                    Column {
+                        anchors.centerIn: parent; spacing: 8
+                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Traseu Area Scan"; color: root.text; font.pixelSize: 18; font.bold: true }
+                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: areaScanController.generatedPoints.length + " waypoint-uri"; color: root.muted }
+                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Culoar activ: " + (areaScanController.activeLaneIndex >= 0 ? (areaScanController.activeLaneIndex + 1) : "--"); color: root.muted }
+                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Zona se definește din hartă; aici se controlează misiunea H743."; color: root.muted }
+                    }
+                }
+            }
+        }
     }
 
     Component {
