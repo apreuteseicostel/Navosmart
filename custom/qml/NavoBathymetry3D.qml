@@ -1,33 +1,34 @@
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Layouts
 import QtQuick3D
+import QtPositioning
 import NavoSmart.Backend 1.0
 Item {
- id:root; property var samples:[]; property real gridSizeM:2; property real maxGapM:6; property real verticalExaggeration:2; property real yaw:-35; property real pitch:-48; property real cameraDistance:180; property point panOffset:Qt.point(0,0); property var selectedPoint:null
+ id:root
+ property var samples:[]; property var boatTrack:[]; property var waypoints:[]; property var fishingSpots:[]; property var fishDetections:[]
+ property real gridSizeM:2; property real maxGapM:6; property real verticalExaggeration:2; property real yaw:-35; property real pitch:-48; property real cameraDistance:180; property point panOffset:Qt.point(0,0); property var selectedPoint:null
+ property bool showTrack:true; property bool showWaypoints:true; property bool showSpots:true; property bool showFish:true
  function rebuild(){meshEngine.build(samples,gridSizeM,maxGapM)}
- function resetCamera(){yaw=-35;pitch=-48;cameraDistance=180;panOffset=Qt.point(0,0)}
- function topCamera(){yaw=0;pitch=-89;cameraDistance=180}
- function isoCamera(){yaw=-45;pitch=-42;cameraDistance=180}
+ function resetCamera(){yaw=-35;pitch=-48;cameraDistance=180;panOffset=Qt.point(0,0)} function topCamera(){yaw=0;pitch=-89;cameraDistance=180} function isoCamera(){yaw=-45;pitch=-42;cameraDistance=180}
+ function localPoint(lat,lon,depth){var R=6378137,lat0=meshEngine.originLatitude*Math.PI/180,x=(lon-meshEngine.originLongitude)*Math.PI/180*Math.cos(lat0)*R,z=-(lat-meshEngine.originLatitude)*Math.PI/180*R,y=-(depth||0)*verticalExaggeration;return Qt.vector3d(x,y,z)}
+ function bottomDepth(lat,lon){var best=null,bd=1e99;for(var i=0;i<meshEngine.vertices.length;i++){var v=meshEngine.vertices[i],p=localPoint(lat,lon,0),d=(v.x-p.x)*(v.x-p.x)+((-v.y)-p.z)*((-v.y)-p.z);if(d<bd){bd=d;best=v}}return best?best.depth:0}
  NavoBathymetryMesh{id:meshEngine}
  Rectangle{anchors.fill:parent;color:"#071019"}
- View3D{id:view;anchors.fill:parent;environment:SceneEnvironment{clearColor:"#071019";backgroundMode:SceneEnvironment.Color;antialiasingMode:SceneEnvironment.MSAA;antialiasingQuality:SceneEnvironment.High}
+ View3D{id:view;anchors.fill:parent;camera:camera;environment:SceneEnvironment{clearColor:"#071019";backgroundMode:SceneEnvironment.Color;antialiasingMode:SceneEnvironment.MSAA;antialiasingQuality:SceneEnvironment.High}
   PerspectiveCamera{id:camera;position:Qt.vector3d(root.panOffset.x,65+root.panOffset.y,root.cameraDistance);eulerRotation.x:root.pitch;eulerRotation.y:root.yaw;clipNear:.1;clipFar:5000}
   DirectionalLight{eulerRotation.x:-45;eulerRotation.y:-35;brightness:1.15;castsShadow:true} DirectionalLight{eulerRotation.x:35;eulerRotation.y:145;brightness:.35}
-  Model{id:terrain;pickable:true;geometry:NavoBathymetryGeometry{vertices:meshEngine.vertices;triangles:meshEngine.triangles;verticalExaggeration:root.verticalExaggeration;minDepth:meshEngine.minDepthM;maxDepth:meshEngine.maxDepthM}
-   materials:PrincipledMaterial{vertexColorsEnabled:true;roughness:.72;metalness:0;cullMode:Material.NoCulling}}
+  Model{id:terrain;pickable:true;geometry:NavoBathymetryGeometry{vertices:meshEngine.vertices;triangles:meshEngine.triangles;verticalExaggeration:root.verticalExaggeration;minDepth:meshEngine.minDepthM;maxDepth:meshEngine.maxDepthM}materials:PrincipledMaterial{vertexColorsEnabled:true;roughness:.72;cullMode:Material.NoCulling}}
+  Node{id:overlayRoot
+   Repeater3D{model:root.showWaypoints?root.waypoints:[];delegate:Model{required property var modelData;position:root.localPoint(modelData.lat!==undefined?modelData.lat:modelData.coordinate.latitude,modelData.lon!==undefined?modelData.lon:modelData.coordinate.longitude,Math.max(0,root.bottomDepth(modelData.lat!==undefined?modelData.lat:modelData.coordinate.latitude,modelData.lon!==undefined?modelData.lon:modelData.coordinate.longitude)-.7));source:"#Sphere";scale:Qt.vector3d(.8,.8,.8);materials:PrincipledMaterial{baseColor:"#ffd54f";emissiveFactor:Qt.vector3d(.25,.18,0)}}}
+   Repeater3D{model:root.showSpots?root.fishingSpots:[];delegate:Model{required property var modelData;position:root.localPoint(modelData.lat,modelData.lon,Math.max(0,(modelData.depth!==null&&modelData.depth!==undefined?modelData.depth:root.bottomDepth(modelData.lat,modelData.lon))-.8));source:"#Cylinder";scale:Qt.vector3d(.45,1.4,.45);materials:PrincipledMaterial{baseColor:"#ff8a3d"}}}
+   Repeater3D{model:root.showFish?root.fishDetections:[];delegate:Model{required property var modelData;position:root.localPoint(modelData.lat,modelData.lon,modelData.targetDepth||0);source:"#Sphere";scale:Qt.vector3d(.38,.22,.65);materials:PrincipledMaterial{baseColor:(modelData.strength!==null&&modelData.strength>0.65)?"#ff5252":"#67e480";emissiveFactor:Qt.vector3d(.15,.15,.15)}}}
+   Repeater3D{model:root.showTrack?root.boatTrack:[];delegate:Model{required property var modelData;position:root.localPoint(modelData.latitude!==undefined?modelData.latitude:modelData.lat,modelData.longitude!==undefined?modelData.longitude:modelData.lon,0);source:"#Sphere";scale:Qt.vector3d(.12,.12,.12);materials:PrincipledMaterial{baseColor:"#21b7ff";emissiveFactor:Qt.vector3d(.1,.35,.5)}}}
+  }
  }
- TapHandler{onTapped:function(eventPoint){var p=view.pick(eventPoint.position.x,eventPoint.position.y);if(p.objectHit===terrain){var best=null,bd=1e99;for(var i=0;i<meshEngine.vertices.length;i++){var v=meshEngine.vertices[i],dx=v.x-p.scenePosition.x,dz=(-v.y)-p.scenePosition.z,d=dx*dx+dz*dz;if(d<bd){bd=d;best=v}}root.selectedPoint=best}}}
- DragHandler{target:null;acceptedButtons:Qt.LeftButton;onTranslationChanged:{root.yaw+=translation.x*.18;root.pitch=Math.max(-82,Math.min(-8,root.pitch-translation.y*.14))}}
- PinchHandler{target:null;onScaleChanged:root.cameraDistance=Math.max(12,Math.min(1800,root.cameraDistance/scale))}
- WheelHandler{onWheel:root.cameraDistance=Math.max(12,Math.min(1800,root.cameraDistance*(wheel.angleDelta.y>0?.9:1.1)))}
- Row{anchors{top:parent.top;left:parent.left;margins:12}spacing:6
-  Button{text:"Top";onClicked:root.topCamera()} Button{text:"ISO";onClicked:root.isoCamera()} Button{text:"Reset";onClicked:root.resetCamera()}
-  Button{text:"1×";onClicked:root.verticalExaggeration=1} Button{text:"2×";onClicked:root.verticalExaggeration=2} Button{text:"3×";onClicked:root.verticalExaggeration=3} Button{text:"5×";onClicked:root.verticalExaggeration=5}}
- Column{anchors{right:parent.right;bottom:parent.bottom;margins:12}spacing:5
-  Rectangle{width:180;height:18;gradient:Gradient{orientation:Gradient.Horizontal;GradientStop{position:0;color:"#0db8c7"}GradientStop{position:.5;color:"#0a3d9e"}GradientStop{position:1;color:"#330a61"}}}
-  Text{color:"white";text:Number(meshEngine.minDepthM).toFixed(1)+" m                         "+Number(meshEngine.maxDepthM).toFixed(1)+" m"}
-  Text{color:"white";text:meshEngine.measuredVertexCount+" măsurate • "+meshEngine.interpolatedVertexCount+" interpolate"}
-  Text{visible:root.selectedPoint!==null;color:"white";text:root.selectedPoint?("Punct: "+Number(root.selectedPoint.depth).toFixed(2)+" m • "+(root.selectedPoint.measured?"măsurat":"interpolat")+" • conf. "+Math.round(root.selectedPoint.confidence*100)+"%"):""}}
+ TapHandler{onTapped:function(e){var p=view.pick(e.position.x,e.position.y,terrain);if(p.objectHit===terrain){var best=null,bd=1e99;for(var i=0;i<meshEngine.vertices.length;i++){var v=meshEngine.vertices[i],dx=v.x-p.scenePosition.x,dz=(-v.y)-p.scenePosition.z,d=dx*dx+dz*dz;if(d<bd){bd=d;best=v}}root.selectedPoint=best}}}
+ DragHandler{target:null;acceptedButtons:Qt.LeftButton;onTranslationChanged:{root.yaw+=translation.x*.18;root.pitch=Math.max(-82,Math.min(-8,root.pitch-translation.y*.14))}} PinchHandler{target:null;onScaleChanged:root.cameraDistance=Math.max(12,Math.min(1800,root.cameraDistance/scale))} WheelHandler{onWheel:root.cameraDistance=Math.max(12,Math.min(1800,root.cameraDistance*(wheel.angleDelta.y>0?.9:1.1)))}
+ Row{anchors{top:parent.top;left:parent.left;margins:12}spacing:5;Button{text:"Top";onClicked:root.topCamera()}Button{text:"ISO";onClicked:root.isoCamera()}Button{text:"Reset";onClicked:root.resetCamera()}Button{text:"1×";onClicked:root.verticalExaggeration=1}Button{text:"2×";onClicked:root.verticalExaggeration=2}Button{text:"3×";onClicked:root.verticalExaggeration=3}Button{text:"5×";onClicked:root.verticalExaggeration=5}}
+ Row{anchors{top:parent.top;right:parent.right;margins:12}spacing:4;CheckBox{text:"Traseu";checked:root.showTrack;onToggled:root.showTrack=checked}CheckBox{text:"WP";checked:root.showWaypoints;onToggled:root.showWaypoints=checked}CheckBox{text:"Locuri";checked:root.showSpots;onToggled:root.showSpots=checked}CheckBox{text:"Pești";checked:root.showFish;onToggled:root.showFish=checked}}
+ Column{anchors{right:parent.right;bottom:parent.bottom;margins:12}spacing:5;Rectangle{width:180;height:18;gradient:Gradient{orientation:Gradient.Horizontal;GradientStop{position:0;color:"#0db8c7"}GradientStop{position:.5;color:"#0a3d9e"}GradientStop{position:1;color:"#330a61"}}}Text{color:"white";text:Number(meshEngine.minDepthM).toFixed(1)+" m                         "+Number(meshEngine.maxDepthM).toFixed(1)+" m"}Text{color:"white";text:meshEngine.measuredVertexCount+" măsurate • "+meshEngine.interpolatedVertexCount+" interpolate"}Text{visible:root.selectedPoint!==null;color:"white";text:root.selectedPoint?("Punct: "+Number(root.selectedPoint.depth).toFixed(2)+" m • "+(root.selectedPoint.measured?"măsurat":"interpolat")+" • conf. "+Math.round(root.selectedPoint.confidence*100)+"%"):""}}
  Component.onCompleted:if(samples.length)rebuild();onSamplesChanged:if(samples.length)rebuild()
 }
