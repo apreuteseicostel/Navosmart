@@ -6,7 +6,7 @@ Rectangle {
  property string streamUrl:""
  property string protocol:"auto"
  readonly property bool live: player.playing
- property string statusText: player.playing?"LIVE • LAN":(connected?"CAMERA LAN • READY":"CAMERA LAN")
+ property string statusText: player.playing?"FAȚĂ • LIVE":(connected?"CAMERA FAȚĂ • READY":"CAMERA FAȚĂ")
  signal fullscreenRequested()
  width:230;height:145;radius:9;color:"#02070cdd";border.color:player.playing?"#31d67b":"#1c4262";clip:true
  NavoVideoPlayer{id:player;anchors.fill:parent;streamUrl:root.streamUrl;protocol:root.protocol;onVideoError:function(message){console.warn("NAVO camera:",message)}}

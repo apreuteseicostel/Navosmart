@@ -155,6 +155,8 @@ Item {
     property bool hopperStatusExpanded: false
     property bool mapFullscreen: false
     property var mapController: null
+    property string pendingAreaDrawMode: "none"
+    property string lakeSaveStatus: ""
     property string selectedHopper: "none"
     property int manualHopperHoldMs: 1500
     readonly property bool manualMode: root.flightMode.toUpperCase() === "MANUAL"
@@ -314,17 +316,28 @@ Item {
         id: header
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
         height: 64; color: "#101822"; border.color: root.line
+        Flickable {
+            anchors.fill: parent
+            clip: true
+            contentWidth: Math.max(width, headerItems.implicitWidth + 32)
+            contentHeight: height
+            boundsBehavior: Flickable.StopAtBounds
         RowLayout {
-            anchors.fill: parent; anchors.leftMargin: 16; anchors.rightMargin: 16; spacing: 12
+            id: headerItems
+            x: 16; height: parent.height; spacing: 12
             ColumnLayout {
-                Layout.fillWidth: true
+                Layout.preferredWidth: 150
                 spacing: 0
                 Label { text: "NAVO SMART"; color: root.text; font.pixelSize: 22; font.bold: true }
                 Label { text: "Pescarul lu Peste"; color: root.muted; font.pixelSize: 11 }
             }
-            StatusPill { title: "GPS"; value: vehicle && vehicle.gps ? String(vehicle.gps.count.rawValue) + " sat" : "--"; good: vehicle && vehicle.gps }
+            StatusPill { title: "SATELIȚI"; value: vehicle && vehicle.gps ? String(vehicle.gps.count.rawValue) : "--"; good: vehicle && vehicle.gps }
+            StatusPill { title: "VITEZĂ"; value: vehicle && vehicle.groundSpeed ? Number(vehicle.groundSpeed.rawValue * 3.6).toFixed(1) + " km/h" : "--"; good: !!vehicle }
             StatusPill { title: "BATERIE"; value: battery ? Number(battery.percentRemaining.rawValue).toFixed(0) + "%" : "--"; good: battery && battery.percentRemaining.rawValue > 20 }
             StatusPill { title: "MOD"; value: root.flightMode.length ? root.flightMode : "OFFLINE"; good: vehicle !== null }
+            StatusPill { title: "SONAR"; value: root.sonarConnected ? "LIVE" : "OFFLINE"; good: root.sonarConnected }
+            StatusPill { title: "NANO"; value: nanoTelemetry.connected ? "ONLINE" : "OFFLINE"; good: nanoTelemetry.connected }
+        }
         }
     }
 
@@ -464,7 +477,12 @@ Item {
             NavoMap {
                 id: navoMap
                 anchors.fill: parent; anchors.margins: 8
-                Component.onCompleted: root.mapController = navoMap
+                Component.onCompleted: {
+                    root.mapController = navoMap
+                    if (root.pendingAreaDrawMode === "rectangle") navoMap.beginAreaRectangle()
+                    else if (root.pendingAreaDrawMode === "polygon") navoMap.beginAreaPolygon()
+                    root.pendingAreaDrawMode = "none"
+                }
                 Component.onDestruction: if(root.mapController===navoMap) root.mapController=null
                 vehicle: root.vehicle
                 waypointNames: root.waypointNames
@@ -514,9 +532,20 @@ Item {
                 NavoSonarCard {
                     Layout.fillWidth: true; Layout.preferredHeight: 150
                     connected: root.sonarConnected; depthM: root.depthM; waterTempC: root.waterTempC
+                    echoSamples: sonar.echoSamples
+                    onOpenFullSonar: fullSonar.open()
                 }
-                NavoSonarFullScreen {
-                    Layout.fillWidth: true; Layout.fillHeight: true
+                Label {
+                    Layout.fillWidth: true
+                    text: root.sonarConnected ? "Sonar conectat • atinge ⛶ pentru ecogramă" : "Kogger offline • atinge ⛶ pentru ecogramă și conexiune"
+                    color: root.muted
+                    wrapMode: Text.WordWrap
+                }
+                Item { Layout.fillHeight: true }
+            }
+            NavoSonarFullScreen {
+                    id: fullSonar
+                    parent: Overlay.overlay
                     connected: root.sonarConnected; depthM: root.depthM; waterTempC: root.waterTempC
                     echoSamples: sonar.echoSamples
                     transport: sonar
@@ -528,7 +557,6 @@ Item {
                         if(spot){scanCoordinator.checkpoint("sonar-fishing-spot");root.lastNavigationStatus="Punct sonar salvat: "+spot.name}
                     }
                 }
-            }
         }
     }
 
@@ -561,15 +589,17 @@ Item {
                     Button {
                         text: "DREPTUNGHI PE HARTĂ"
                         onClicked: {
+                            root.pendingAreaDrawMode="rectangle"
                             root.activePage=0
-                            Qt.callLater(function(){ if(root.mapController)root.mapController.beginAreaRectangle() })
+                            root.lastNavigationStatus="Atinge două colțuri pe hartă pentru dreptunghi"
                         }
                     }
                     Button {
                         text: "POLIGON PE HARTĂ"
                         onClicked: {
+                            root.pendingAreaDrawMode="polygon"
                             root.activePage=0
-                            Qt.callLater(function(){ if(root.mapController)root.mapController.beginAreaPolygon() })
+                            root.lastNavigationStatus="Atinge cel puțin trei puncte și apoi TERMINĂ"
                         }
                     }
                     Button {
@@ -667,8 +697,41 @@ Item {
                     maximumLineCount: 2
                     elide: Text.ElideRight
                 }
+                RowLayout {
+                    Layout.fillWidth: true
+                    TextField { id: inlineLakeName; Layout.fillWidth: true; placeholderText: "Nume baltă nouă"; onAccepted: addLakeButton.clicked() }
+                    Button {
+                        id: addLakeButton
+                        text: "+ ADAUGĂ"
+                        enabled: inlineLakeName.text.trim().length > 0
+                        onClicked: {
+                            var name=inlineLakeName.text.trim()
+                            var id=persistence.saveLake({name:name})
+                            var found=false
+                            for (var i=0;i<persistence.lakes.length;i++)
+                                if (persistence.lakes[i].id===id) { found=true; break }
+                            if (found) {
+                                inlineLakeName.clear()
+                                root.lakeSaveStatus="Salvată: "+name
+                            } else root.lakeSaveStatus="Salvarea a eșuat • încearcă din nou"
+                        }
+                    }
+                }
+                Label { Layout.fillWidth: true; visible: root.lakeSaveStatus.length>0; text: root.lakeSaveStatus; color: root.accent }
+                ListView {
+                    Layout.fillWidth: true; Layout.fillHeight: true; clip: true
+                    model: persistence.lakes
+                    delegate: Button {
+                        required property var modelData
+                        width: ListView.view.width
+                        text: modelData.name || "Baltă"
+                        onClicked: {
+                            myLakesPopup.selectLake(modelData)
+                            myLakesPopup.open()
+                        }
+                    }
+                }
                 Button { text: "DESCHIDE BĂLȚILE MELE"; onClicked: myLakesPopup.open() }
-                Item { Layout.fillHeight: true }
             }
             NavoMyLakes {
                 id: myLakesPopup
@@ -729,7 +792,7 @@ Item {
             Rectangle { anchors.fill: parent; radius: 8; color: "#05080c"; border.color: root.line }
             ColumnLayout {
                 anchors.fill: parent; anchors.margins: 12
-                Label { text: "CAMERA ETHERNET"; color: root.text; font.pixelSize: 18; font.bold: true }
+                Label { text: "CAMERA FAȚĂ"; color: root.text; font.pixelSize: 18; font.bold: true }
                 NavoCameraPip {
                     Layout.fillWidth: true; Layout.fillHeight: true
                     connected: root.cameraStreamUrl.length > 0

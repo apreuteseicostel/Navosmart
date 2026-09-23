@@ -51,7 +51,7 @@ Rectangle {
    }
   }
   GroupBox {
-   title:"Cameră";Layout.fillWidth:true
+   title:"Cameră față";Layout.fillWidth:true
    GridLayout {columns:2;anchors.fill:parent
     Label{text:"IP / Host"}
     TextField{id:cameraHost;Layout.fillWidth:true;text:cfg.cameraHost;placeholderText:"ex. 192.168.x.x"}
