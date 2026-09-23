@@ -33,6 +33,22 @@ Item {
     NavoFishingSpots { id: fishingSpots }
     NavoFishDetections { id: fishStore }
     NavoAreaScan { id: areaScanController }
+    NavoBaitingController {
+        id: baitingController
+        vehicle: root.vehicle
+        onGotoRequested: function(coordinate, reason) { if(root.vehicle && root.vehicle.guidedModeGotoLocation) root.vehicle.guidedModeGotoLocation(coordinate) }
+        onStopRequested: function(reason) { root.holdMission(); root.lastNavigationStatus="Nădire: "+reason }
+        onHopperReleaseRequested: function(hopper) { hopperBridge.release(hopper) }
+        onRtlRequested: root.rtlMission()
+        onStateChangedDetailed: function(state, text) { root.lastNavigationStatus="Nădire: "+text }
+        onCycleFinished: function(success, message) { root.lastNavigationStatus=message }
+    }
+    NavoDigitalAnchor {
+        id: digitalAnchor
+        vehicle: root.vehicle
+        onStatus: function(text) { root.lastNavigationStatus=text }
+    }
+    NavoEnergyGuard { id: energyGuard }
     NavoFailsafeController {
         id: failsafeController
         vehicle: root.vehicle
@@ -277,6 +293,7 @@ Item {
             NavButton { text: "BALȚILE MELE"; active: root.activePage === 4; onClicked: root.activePage = 4 }
             NavButton { text: "CAMERA"; active: root.activePage === 5; onClicked: root.activePage = 5 }
             NavButton { text: "3D"; active: root.activePage === 7; onClicked: root.activePage = 7 }
+            NavButton { text: "NĂDIRE"; active: root.activePage === 8; onClicked: root.activePage = 8 }
             NavButton { text: "SETARI"; active: root.activePage === 6; onClicked: root.activePage = 6 }
             Item { Layout.fillHeight: true }
             Label { text: "BARCA " + root.boatId; color: root.muted; font.pixelSize: 11 }
@@ -295,7 +312,8 @@ Item {
                              root.activePage === 3 ? fishingPage :
                              root.activePage === 4 ? lakesPage :
                              root.activePage === 5 ? cameraPage :
-                             root.activePage === 7 ? bathymetryPage : settingsPage
+                             root.activePage === 7 ? bathymetryPage :
+                             root.activePage === 8 ? baitingPage : settingsPage
         }
     }
 
@@ -306,6 +324,15 @@ Item {
         ColumnLayout {
             anchors.fill: parent; anchors.margins: 12; spacing: 10
             Label { text: "STATUS BARCA"; color: root.text; font.bold: true }
+            NavoEthernetIndicator {
+                Layout.fillWidth: true
+                sonarConnected: sonar.connected
+                sonarAlive: sonar.dataAlive
+                cameraConnected: root.cameraStreamUrl.length > 0
+                cameraAlive: root.cameraStreamUrl.length > 0
+                sonarStatus: sonar.status
+                cameraStatus: root.cameraStreamUrl.length ? "URL configurat" : "OFFLINE"
+            }
             DataLine { name: "Conexiune"; value: vehicle ? "ONLINE" : "OFFLINE"; valueColor: vehicle ? root.ok : root.danger }
             DataLine { name: "Mod"; value: root.flightMode.length ? root.flightMode : "--"; valueColor: root.modeColor() }
             DataLine { name: "Acasa"; value: Number(root.distanceToHome).toFixed(0) + " m" }
@@ -314,6 +341,7 @@ Item {
             DataLine { name: "Temp baterie"; value: nanoTelemetry.connected && !isNaN(nanoTelemetry.batteryTempC) ? Number(nanoTelemetry.batteryTempC).toFixed(1) + " °C" : "--"; valueColor: safetyManager.state === "CRITICAL" ? root.danger : safetyManager.state === "WARNING" ? root.warn : root.text }
             DataLine { name: "Apa"; value: nanoTelemetry.connected ? (nanoTelemetry.waterDetected ? "DETECTATA" : "OK") : "--"; valueColor: nanoTelemetry.waterDetected ? root.danger : root.text }
             Rectangle { Layout.fillWidth: true; height: 1; color: root.line }
+            NavoFailsafePanel { Layout.fillWidth: true; controller: failsafeController }
             Label { text: "CONTROL MISIUNE"; color: root.muted; font.bold: true }
             RowLayout {
                 Layout.fillWidth: true
@@ -324,6 +352,11 @@ Item {
                 Layout.fillWidth: true
                 Button { Layout.fillWidth: true; text: "RTL"; onClicked: root.rtlMission() }
                 Button { Layout.fillWidth: true; text: "STOP"; onClicked: root.stopMission() }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Button { Layout.fillWidth: true; text: digitalAnchor.active ? "ANCORĂ ON" : "ANCORĂ GPS"; onClicked: digitalAnchor.active ? digitalAnchor.release() : digitalAnchor.engage() }
+                Label { text: energyGuard.message(root.distanceToHome, battery ? Number(battery.percentRemaining.rawValue) : NaN); color: battery && energyGuard.canStart(root.distanceToHome, Number(battery.percentRemaining.rawValue)) ? root.ok : root.warn; font.pixelSize: 9 }
             }
             Rectangle { Layout.fillWidth: true; height: 1; color: root.line }
             Label { text: "CUVE"; color: root.muted; font.bold: true }
@@ -537,6 +570,19 @@ Item {
                     root.activePage = 2
                     root.lastNavigationStatus = "Balta restaurată • pregătită pentru Resume"
                 }
+            }
+        }
+    }
+
+    Component {
+        id: baitingPage
+        Item {
+            NavoBaitingPanel {
+                anchors.centerIn: parent
+                controller: baitingController
+                waypoint: null
+                onStartConfirmed: function(waypoint, name, hopper) { baitingController.startCycle(waypoint,name,hopper) }
+                onAbortRequested: baitingController.abortCycle("Oprit de utilizator")
             }
         }
     }
