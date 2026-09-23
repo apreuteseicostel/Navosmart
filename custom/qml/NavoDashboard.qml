@@ -170,6 +170,7 @@ Item {
     NavoHopperBridge {
         id: hopperBridge
         vehicle: root.vehicle
+        calibrated: nanoTelemetry.connected && nanoTelemetry.hopperLeftUs > 0 && nanoTelemetry.hopperRightUs > 0
         onCommandSent: function(message) { root.lastNavigationStatus = message }
         onCommandRejected: function(reason) { root.lastNavigationStatus = "Cuve: " + reason }
     }
@@ -340,6 +341,18 @@ Item {
             DataLine { name: "Nano"; value: nanoTelemetry.connected ? "ONLINE" : "OFFLINE"; valueColor: nanoTelemetry.connected ? root.ok : root.warn }
             DataLine { name: "Temp baterie"; value: nanoTelemetry.connected && !isNaN(nanoTelemetry.batteryTempC) ? Number(nanoTelemetry.batteryTempC).toFixed(1) + " °C" : "--"; valueColor: safetyManager.state === "CRITICAL" ? root.danger : safetyManager.state === "WARNING" ? root.warn : root.text }
             DataLine { name: "Apa"; value: nanoTelemetry.connected ? (nanoTelemetry.waterDetected ? "DETECTATA" : "OK") : "--"; valueColor: nanoTelemetry.waterDetected ? root.danger : root.text }
+            NavoBoatStatus {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 150
+                compact: true
+                waterDetected: nanoTelemetry.waterDetected
+                batteryTempC: nanoTelemetry.batteryTempC
+                headlightOn: nanoTelemetry.headlightOn
+                positionLightsOn: nanoTelemetry.positionLightsOn
+                rudderNormalized: nanoTelemetry.rudderUs > 0 ? Math.max(-1,Math.min(1,(nanoTelemetry.rudderUs-1500)/500.0)) : 0
+                leftHopperCommandOpen: hopperBridge.commandPending && (hopperBridge.pendingHopper===1||hopperBridge.pendingHopper===3)
+                rightHopperCommandOpen: hopperBridge.commandPending && (hopperBridge.pendingHopper===2||hopperBridge.pendingHopper===3)
+            }
             Rectangle { Layout.fillWidth: true; height: 1; color: root.line }
             NavoFailsafePanel { Layout.fillWidth: true; controller: failsafeController }
             Label { text: "CONTROL MISIUNE"; color: root.muted; font.bold: true }
@@ -554,6 +567,17 @@ Item {
                     }
                 }
             }
+        }
+    }
+
+    Component {
+        id: waypointEditorPage
+        NavoWaypointEditor {
+            anchors.fill: parent
+            planController: root.planController
+            vehicle: root.vehicle
+            waypointNames: root.waypointNames
+            onWaypointNameChanged: function(sequence, friendlyName) { persistence.setWaypointName(sequence, friendlyName) }
         }
     }
 
