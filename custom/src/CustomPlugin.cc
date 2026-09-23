@@ -6,6 +6,7 @@
 #include "NavoNanoTelemetry.h"
 #include "NavoBathymetryMesh.h"
 #include "NavoBathymetryGeometry.h"
+#include "NavoTrack3DGeometry.h"
 #include <QtQml/qqml.h>
 #include <QtQml/QQmlApplicationEngine>
 #include <QtCore/QFile>
@@ -23,6 +24,7 @@ CustomPlugin::CustomPlugin(QObject* parent):QGCCorePlugin(parent),_options(new C
  qmlRegisterType<NavoNanoTelemetry>("NavoSmart.Backend",1,0,"NavoNanoTelemetry");
  qmlRegisterType<NavoBathymetryMesh>("NavoSmart.Backend",1,0,"NavoBathymetryMesh");
  qmlRegisterType<NavoBathymetryGeometry>("NavoSmart.Backend",1,0,"NavoBathymetryGeometry");
+ qmlRegisterType<NavoTrack3DGeometry>("NavoSmart.Backend",1,0,"NavoTrack3DGeometry");
 }
 CustomPlugin::~CustomPlugin(){}
 QGCCorePlugin* CustomPlugin::instance(){ return _customPluginInstance(); }
