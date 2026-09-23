@@ -56,7 +56,10 @@ Item {
 
     Connections {
         target: root.vehicle
-        function onCoordinateChanged() { root.appendCurrentPosition() }
+        function onCoordinateChanged() {
+            if (root.taskActive && !root.recording) root.startTask()
+            root.appendCurrentPosition()
+        }
     }
 
     MapPolyline {

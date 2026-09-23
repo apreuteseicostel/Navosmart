@@ -494,7 +494,9 @@ Item {
                 savedDepthM: root.depthM
                 savedWaterTempC: root.waterTempC
                 onNavigateRequested: function(coordinate) { root.navigateToCoordinate(coordinate) }
-                onBaitingWaypointSelected: function(waypoint) { root.activePage=8; root.lastNavigationStatus="Punct selectat pentru nădire automată" }
+                onBaitingWaypointSelected: function(waypoint) {
+                    root.lastNavigationStatus="Punct selectat: " + (waypoint.sequenceNumber !== undefined ? "WP" + waypoint.sequenceNumber : "waypoint") + " • poți deschide NĂDIRE când dorești"
+                }
                 onAreaRectangleRequested: function(cornerA, cornerB) {
                     missionUploader.invalidate()
                     var pts=scanCoordinator.prepareRectangle(cornerA,cornerB)

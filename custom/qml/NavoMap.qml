@@ -73,7 +73,7 @@ Item {
         }
     }
 
-    NavoActualTrack { map: liveMap; vehicle: root.vehicle; taskActive: !!root.vehicle }
+    NavoActualTrack { id: actualTrack; map: liveMap; vehicle: root.vehicle; taskActive: !!root.vehicle }
     NavoAreaScanOverlay { map: liveMap; areaScan: root.areaScanController }
     NavoFishOverlay { map: liveMap; fishModel: root.fishModel }
     NavoBathymetryOverlay { map: liveMap; bathymetryCells: root.bathymetryCells; fishingSpotsModel: root.fishingSpotsModel }
@@ -126,11 +126,48 @@ Item {
         }
     }
     Row {
-        anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 10; spacing: 6
+        anchors.left: parent.left; anchors.bottom: parent.bottom; anchors.margins: 10; spacing: 6
         visible: root.areaDrawMode!=="none"
-        Button { text: root.areaDrawMode==="rectangle" ? "DREPTUNGHI: 2 COLȚURI" : "POLIGON: "+root.areaDraftPoints.length+" PUNCTE"; enabled:false }
+        Button { text: root.areaDrawMode==="rectangle" ? "DREPTUNGHI: "+root.areaDraftPoints.length+"/2 COLȚURI" : "POLIGON: "+root.areaDraftPoints.length+" PUNCTE"; enabled:false }
         Button { visible: root.areaDrawMode==="polygon"; text:"TERMINĂ"; enabled:root.areaDraftPoints.length>=3; onClicked:root.finishAreaDrawing() }
         Button { text:"ANULEAZĂ"; onClicked:root.cancelAreaDrawing() }
+    }
+    Column {
+        anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 10
+        spacing: 5
+        Button { text: "+"; width: 55; onClicked: liveMap.zoomLevel = liveMap.zoomLevel + 1 }
+        Button { text: "−"; width: 55; onClicked: liveMap.zoomLevel = liveMap.zoomLevel - 1 }
+        Button {
+            text: "BARCĂ"
+            enabled: !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
+            onClicked: liveMap.center = root.vehicle.coordinate
+        }
+        Button {
+            text: "ACASĂ"
+            enabled: !!root.vehicle && !!root.vehicle.homePosition && root.vehicle.homePosition.isValid
+            onClicked: liveMap.center = root.vehicle.homePosition
+        }
+        Button {
+            text: "SALVEAZĂ PUNCT"
+            enabled: !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
+            onClicked: root.savePointRequested(root.vehicle.coordinate)
+        }
+    }
+    Rectangle {
+        anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 10
+        width: Math.max(110, Math.min(parent.width - 180, mapHint.implicitWidth + 20))
+        height: mapHint.implicitHeight + 14; radius: 7; color: "#d9101c29"
+        Label {
+            id: mapHint; anchors.centerIn: parent
+            text: root.areaDrawMode === "rectangle" ? "Atinge două colțuri pe hartă" :
+                  root.areaDrawMode === "polygon" ? "Atinge punctele, apoi TERMINĂ" :
+                  (root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ?
+                   "Traseu: " + actualTrack.trackCoordinates.length + " poziții • " +
+                   (root.areaScanController ? root.areaScanController.laneCount() : 0) + " culoare scanate" :
+                   "Harta este disponibilă • aștept poziția bărcii")
+            color: "white"; font.pixelSize: 12; elide: Text.ElideRight
+            width: parent.width - 16
+        }
     }
 
     Connections {
