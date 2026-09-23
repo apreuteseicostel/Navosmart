@@ -60,7 +60,15 @@ QtObject {
         checkpoint("lane"); if(areaScan.completedLanes.length>=areaScan.laneCount()) finish()
     }
     function pause(reason) {var boat=vehicle&&vehicle.coordinate?vehicle.coordinate:null;areaScan.hold(reason||"Pauză scanare",boat);sonarMapping.pauseScan();state="PAUSED";checkpoint("pause")}
-    function resume() {var mission=prepareMission(true);if(!mission.length){status("Nu există culoare rămase");return []}sonarMapping.resumeScan();state="SCANNING";checkpoint("resume");return mission}
+    function resume() {
+        if(!areaScan || !sonarMapping){status("Resume indisponibil: controlere neinițializate");return []}
+        if(!areaScan.generatedPoints || !areaScan.generatedPoints.length){status("Resume indisponibil: traseul Area Scan lipsește");return []}
+        var mission=prepareMission(true)
+        if(!mission.length){status("Nu există culoare rămase");return []}
+        sonarMapping.resumeScan()
+        if(!sonarMapping.scanning){status("Resume blocat: sonar mapping nu a intrat în scanare");return []}
+        state="SCANNING";checkpoint("resume");return mission
+    }
     function rtl(reason) {areaScan.rtl(reason||"RTL scanare");sonarMapping.pauseScan();state="RTL";checkpoint("rtl")}
     function finish() {sonarMapping.finishAndBuild();if(bathymetry)bathymetryCells=bathymetry.rebuild(sonarMapping.rawSamples);state="COMPLETE";checkpoint("complete");status("Scanare terminată • "+bathymetryCells.length+" celule batimetrice")}
 
@@ -93,7 +101,9 @@ QtObject {
             fishingSpots:fishingSpots ? fishingSpots.fishingSpots : [],
             bathymetryCells:bathymetryCells,
             currentLane:areaScan.activeLaneIndex, completedLanes:areaScan.completedLanes,
-            totalLanes:areaScan.laneCount()
+            totalLanes:areaScan.laneCount(),
+            missionCurrentIndex:missionCurrentIndex,
+            lastCompletedLaneFromMission:lastCompletedLaneFromMission
         }
         sonarMapping.saveCheckpoint(reason)
         return persistence.saveLakeState(lakeId,payload)
@@ -106,9 +116,11 @@ QtObject {
         if(fishingSpots) fishingSpots.fishingSpots=p.fishingSpots||[]
         state=p.state||"PAUSED"; bathymetryCells=p.bathymetryCells||[]
         areaScan.generatedPoints=areaPoints; areaScan.completedLanes=p.completedLanes||[]
-        areaScan.activeLaneIndex=(p.currentLane===undefined?-1:p.currentLane)
-        lastCompletedLaneFromMission=-1
-        for(var ci=0;ci<areaScan.completedLanes.length;ci++) lastCompletedLaneFromMission=Math.max(lastCompletedLaneFromMission,Number(areaScan.completedLanes[ci]))
+        areaScan.activeLaneIndex=(p.currentLane===undefined?-1:Number(p.currentLane))
+        missionCurrentIndex=(p.missionCurrentIndex===undefined?-1:Number(p.missionCurrentIndex))
+        lastCompletedLaneFromMission=(p.lastCompletedLaneFromMission===undefined?-1:Number(p.lastCompletedLaneFromMission))
+        if(lastCompletedLaneFromMission<0)
+            for(var ci=0;ci<areaScan.completedLanes.length;ci++) lastCompletedLaneFromMission=Math.max(lastCompletedLaneFromMission,Number(areaScan.completedLanes[ci]))
         sonarMapping.restoreCheckpoint({lakeId:id,currentLane:areaScan.activeLaneIndex,completedLanes:areaScan.completedLanes.length,totalLanes:p.totalLanes||areaScan.laneCount(),sampleCount:sonarMapping.rawSamples.length,reason:"restart-restore",time:Date.now()})
         if(bathymetry && sonarMapping.rawSamples.length) bathymetryCells=bathymetry.rebuild(sonarMapping.rawSamples)
         status("Balta restaurată • sonar, puncte și Area Scan pregătite pentru Resume"); return true
