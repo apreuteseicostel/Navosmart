@@ -23,6 +23,28 @@ jobs:
           sed -i 's/QGroundControl\.FlyView/QGroundControl.FlightDisplay/g' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
           sed -i '/QGroundControl\.PlanView/d' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
           sed -i 's/GIT_TAG main/GIT_TAG caf5158061bd10e79c9f042abb62c86bc6f3e7a7/' qgc/src/GPS/CMakeLists.txt
+          # NAVO Android does not use QGC's optional 3D viewer. On the pinned
+          # Android build the Viewer3D type resolves without Item anchors and
+          # prevents FlyView from loading. Keep the id/API expected by FlyView,
+          # but replace the optional viewer with an inert Item.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("qgc/src/FlightDisplay/FlyView.qml")
+          src = p.read_text()
+          old = '''        Viewer3D{
+              id:                     viewer3DWindow
+              anchors.fill:           parent
+          }'''
+          new = '''        Item {
+              id:                     viewer3DWindow
+              anchors.fill:           parent
+              property bool isOpen:   false
+              visible:                false
+          }'''
+          if old not in src:
+              raise SystemExit("Viewer3D block not found in pinned v5.0.7 FlyView.qml")
+          p.write_text(src.replace(old, new, 1))
+          PY
           # NAVO Android lifecycle guard. QGC v5.0.7 dereferences
           # _mainRootWindow on QEvent::Quit even when it is still null. Current
           # upstream QGC has this guard; apply the same minimal fix to v5.0.7.
