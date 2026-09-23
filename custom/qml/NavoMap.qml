@@ -23,6 +23,7 @@ Item {
     signal savePointRequested(var coordinate)
     signal areaRectangleRequested(var cornerA, var cornerB)
     signal areaPolygonRequested(var polygon)
+    signal baitingWaypointSelected(var waypoint)
 
     property string areaDrawMode: "none"
     property var areaDraftPoints: []
@@ -84,6 +85,9 @@ Item {
         savedWaterTempC: root.savedWaterTempC
         onNavigationCommandSent: function(wp, accepted) {
             if (accepted && root.baitingController) root.baitingController.targetWaypoint = wp
+        }
+        onEditRequested: function(wp) {
+            if(root.baitingController){root.baitingController.targetWaypoint=wp;root.baitingWaypointSelected(wp)}
         }
     }
 
