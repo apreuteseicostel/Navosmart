@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import QtPositioning
 
 import QGroundControl
+import QGroundControl.Controllers
 import QGroundControl.Controls
 import QGroundControl.FlightDisplay
 import QGroundControl.FlightMap
@@ -20,6 +21,24 @@ Item {
     property bool utmspSendActTrigger: false
 
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
+    property var planController: _planController
+
+    PlanMasterController {
+        id: _planController
+        flyView: true
+        Component.onCompleted: start()
+    }
+
+    NavoMissionUploader {
+        id: missionUploader
+        planController: root.planController
+        vehicle: root.vehicle
+        onStatus: function(message) { root.lastNavigationStatus = message }
+        onUploadFinished: function(success, message) {
+            root.lastNavigationStatus = message
+            if (success) root.startUploadedMission()
+        }
+    }
     property var battery: vehicle && vehicle.batteries.count > 0 ? vehicle.batteries.get(0) : null
     property var waypointNames: ({})
     property real depthM: NaN
@@ -95,7 +114,36 @@ Item {
     function closeHoppers() {
         root.selectedHopper = "none"
     }
-    function startMission() { root.lastNavigationStatus = "Misiune pornita" }
+    function startMission() {
+        if (!root.vehicle) {
+            root.lastNavigationStatus = "START blocat: H743 neconectat"
+            return false
+        }
+        if (missionUploader.uploadInProgress) {
+            root.lastNavigationStatus = "Upload misiune deja în curs"
+            return false
+        }
+        if (missionUploader.preparedCount < 1) {
+            root.lastNavigationStatus = "START blocat: nu există misiune pregătită"
+            return false
+        }
+        return missionUploader.uploadPrepared()
+    }
+    function startUploadedMission() {
+        if (!root.vehicle) {
+            root.lastNavigationStatus = "Upload confirmat, dar H743 nu mai este conectat"
+            return false
+        }
+        // QGC Vehicle::startMission() is the normal MAVLink mission-start path.
+        // Never report AUTO before the vehicle reports the resulting mode.
+        if (root.vehicle.startMission) {
+            root.vehicle.startMission()
+            root.lastNavigationStatus = "Upload confirmat • comandă START trimisă H743"
+            return true
+        }
+        root.lastNavigationStatus = "Upload confirmat • START indisponibil în Vehicle API"
+        return false
+    }
     function holdMission() {
         if (vehicle && vehicle.pauseVehicle) vehicle.pauseVehicle()
         root.lastNavigationStatus = "HOLD activ"
