@@ -42,6 +42,13 @@ QtObject {
     signal status(string text)
     signal uploadFinished(bool success, string message)
 
+    function invalidate() {
+        uploadTimeout.stop()
+        uploadInProgress = false
+        uploadVerified = false
+        preparedCount = 0
+    }
+
     function canUpload() {
         if(!planController || !planController.missionController){lastError="MissionController indisponibil";return false}
         if(!vehicle){lastError="H743/vehicul neconectat";return false}
@@ -51,6 +58,7 @@ QtObject {
     }
 
     function prepare(points) {
+        invalidate()
         if(!planController || !planController.missionController || !points || !points.length)return false
         var mc=planController.missionController
         if(mc.syncInProgress){lastError="MissionController ocupat";return false}

@@ -81,8 +81,10 @@ Item {
         sonarMapping: sonarMapping
         vehicle: root.vehicle
         onMissionPrepared: function(points) {
-            if (!missionUploader.prepare(points))
+            if (!missionUploader.prepare(points)) {
+                scanCoordinator.state = "ERROR"
                 root.lastNavigationStatus = "Pregătire misiune eșuată: " + missionUploader.lastError
+            }
         }
         onStatus: function(message) { root.lastNavigationStatus = message }
     }
@@ -100,6 +102,12 @@ Item {
             var actual = String(root.vehicle.flightMode || "").toUpperCase()
             if (expected.length && actual === expected)
                 root.lastNavigationStatus = "H743 confirmă " + root.vehicle.flightMode + " • misiune activă"
+            if (root.awaitingMissionStart && expected.length && actual === expected && scanCoordinator.state === "READY")
+                scanCoordinator.start()
+            else if (root.awaitingMissionStart && expected.length && actual === expected && scanCoordinator.state === "RESUME_READY")
+                scanCoordinator.activateResume()
+            if (root.awaitingMissionStart && expected.length && actual === expected)
+                root.awaitingMissionStart = false
         }
     }
 
@@ -110,6 +118,7 @@ Item {
         onStatus: function(message) { root.lastNavigationStatus = message }
         onUploadFinished: function(success, message) {
             root.lastNavigationStatus = message
+            if (!success) root.awaitingMissionStart = false
             // Upload confirmation is not permission to start motors. Require a second press.
         }
     }
@@ -125,6 +134,17 @@ Item {
     property bool silentModeActive: false
     property bool cameraConnected: false
     property bool cameraFullscreen: false
+    property bool awaitingMissionStart: false
+    onVehicleChanged: awaitingMissionStart = false
+    Timer {
+        interval: 10000
+        running: root.awaitingMissionStart
+        repeat: false
+        onTriggered: {
+            root.awaitingMissionStart = false
+            root.lastNavigationStatus = "START trimis, dar modul AUTO nu a fost confirmat de H743"
+        }
+    }
     property string flightMode: vehicle ? vehicle.flightMode : ""
     property real distanceToHome: vehicle && vehicle.distanceToHome ? vehicle.distanceToHome.rawValue : 0
     property real distanceToTarget: vehicle && vehicle.distanceToGoal ? vehicle.distanceToGoal.rawValue : 0
@@ -235,9 +255,19 @@ Item {
             root.lastNavigationStatus = "Upload confirmat, dar H743 nu mai este conectat"
             return false
         }
+        if (root.awaitingMissionStart) return false
+        if (!root.vehicle.coordinate || !root.vehicle.coordinate.isValid) {
+            root.lastNavigationStatus = "START blocat: GPS H743 indisponibil"
+            return false
+        }
+        if ((scanCoordinator.state === "READY" || scanCoordinator.state === "RESUME_READY") && !root.sonarConnected) {
+            root.lastNavigationStatus = "START Area Scan blocat: sonar fără date live"
+            return false
+        }
         // QGC Vehicle::startMission() is the normal MAVLink mission-start path.
         // Never report AUTO before the vehicle reports the resulting mode.
         if (root.vehicle.startMission) {
+            root.awaitingMissionStart = true
             root.vehicle.startMission()
             root.lastNavigationStatus = "Upload confirmat • comandă START trimisă H743"
             return true
@@ -246,18 +276,21 @@ Item {
         return false
     }
     function holdMission() {
+        root.awaitingMissionStart = false
         if (!vehicle || !vehicle.pauseVehicle) { root.lastNavigationStatus = "HOLD indisponibil: H743 deconectat"; return false }
         vehicle.pauseVehicle()
         root.lastNavigationStatus = "Comandă HOLD trimisă • aștept confirmarea H743"
         return true
     }
     function rtlMission() {
+        root.awaitingMissionStart = false
         if (!vehicle || !vehicle.guidedModeRTL) { root.lastNavigationStatus = "RTL indisponibil: H743 deconectat"; return false }
         vehicle.guidedModeRTL(false)
         root.lastNavigationStatus = "Comandă RTL trimisă • aștept confirmarea H743"
         return true
     }
     function stopMission() {
+        root.awaitingMissionStart = false
         if (!vehicle || !vehicle.pauseVehicle) { root.lastNavigationStatus = "STOP indisponibil: H743 deconectat"; return false }
         vehicle.pauseVehicle()
         root.lastNavigationStatus = "Comandă STOP/HOLD trimisă • aștept confirmarea H743"
@@ -433,14 +466,17 @@ Item {
                 onNavigateRequested: function(coordinate) { root.navigateToCoordinate(coordinate) }
                 onBaitingWaypointSelected: function(waypoint) { root.activePage=8; root.lastNavigationStatus="Punct selectat pentru nădire automată" }
                 onAreaRectangleRequested: function(cornerA, cornerB) {
+                    missionUploader.invalidate()
                     var pts=scanCoordinator.prepareRectangle(cornerA,cornerB)
                     root.lastNavigationStatus="Area Scan dreptunghi • "+pts.length+" WP generate"
                     root.activePage=2
                 }
                 onAreaPolygonRequested: function(polygon) {
+                    missionUploader.invalidate()
                     var boat=root.vehicle&&root.vehicle.coordinate&&root.vehicle.coordinate.isValid?root.vehicle.coordinate:null
                     var pts=areaScanController.generatePolygon(polygon)
                     scanCoordinator.areaPoints=pts
+                    scanCoordinator.state=pts.length ? "AREA_DEFINED" : "IDLE"
                     scanCoordinator.checkpoint("area-polygon")
                     root.lastNavigationStatus="Area Scan poligon • "+pts.length+" WP generate"
                     root.activePage=2
@@ -530,18 +566,16 @@ Item {
                         onClicked: scanCoordinator.prepareMission(false)
                     }
                     Button {
-                        text: "START"
+                        text: missionUploader.uploadVerified ? "START H743" : "UPLOAD"
                         enabled: missionUploader.preparedCount > 0 && !missionUploader.uploadInProgress
-                        onClicked: {
-                            if (scanCoordinator.start()) root.startMission()
-                        }
+                        onClicked: root.startMission()
                     }
                     Button {
                         text: "RESUME"
                         enabled: areaScanController.generatedPoints.length > 0 && areaScanController.completedLanes.length < areaScanController.laneCount()
                         onClicked: {
                             var mission = scanCoordinator.resume()
-                            if (mission.length) root.startMission()
+                            if (mission.length) root.lastNavigationStatus = "Resume pregătit • apasă UPLOAD și apoi START H743"
                         }
                     }
                 }
@@ -629,6 +663,7 @@ Item {
                 persistence: persistence
                 scanCoordinator: scanCoordinator
                 onLakeRestored: function(lakeId) {
+                    missionUploader.invalidate()
                     root.activePage = 2
                     root.lastNavigationStatus = "Balta restaurată • pregătită pentru Resume"
                 }
