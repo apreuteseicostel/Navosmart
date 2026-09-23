@@ -130,7 +130,8 @@ jobs:
           # Start the emulator directly so transient Android input-service failures
           # cannot abort the smoke test before the APK is installed.
           sudo chmod 666 /dev/kvm
-          yes | sdkmanager --licenses >/dev/null
+          # setup-android has already accepted SDK licences; avoid a yes(1)
+          # SIGPIPE being promoted to a workflow failure by pipefail.
           sdkmanager "emulator" "system-images;android-34;default;x86_64"
           echo no | avdmanager create avd --force --name navo-smoke --package "system-images;android-34;default;x86_64" --device "pixel_6"
           "$ANDROID_HOME/emulator/emulator" -avd navo-smoke -port 5554 -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none > build/emulator.log 2>&1 &
