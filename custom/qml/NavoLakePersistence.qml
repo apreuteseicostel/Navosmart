@@ -8,7 +8,7 @@ QtObject {
     property var scanState: ({})
     property var samples: []
     property var areaPoints: []
-    property var fishingSpots: []
+    property var fishingSpots: []\n    property var bathymetry3DCache: ({})
     property string lastError: ""
     readonly property url dataFolder: StandardPaths.writableLocation(StandardPaths.AppDataLocation) + "/navosmart"
 
@@ -50,7 +50,7 @@ QtObject {
             areaPoints=p.areaPoints||[]
             fishingSpots=p.fishingSpots||[]
             scanState=p.scanState||({})
-            samples=p.samples||[]
+            samples=p.samples||[]\n            bathymetry3DCache=p.bathymetry3DCache||({})
             lastError=""
             loaded(lakeId)
             return true
@@ -60,6 +60,6 @@ QtObject {
     }
 
     function clearInMemory() {
-        lakeId=""; lakeName=""; scanState=({}); samples=[]; areaPoints=[]; fishingSpots=[]; lastError=""
+        lakeId=""; lakeName=""; scanState=({}); samples=[]; areaPoints=[]; fishingSpots=[]; bathymetry3DCache=({}); lastError=""
     }
 }
