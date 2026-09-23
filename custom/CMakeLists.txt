@@ -77,6 +77,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoNanoTelemetry.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoNanoTelemetry.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoBathymetryMesh.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoBathymetryMesh.h
     CACHE INTERNAL "" FORCE
 )
 # Link both the QML module target and its generated resource target into the
