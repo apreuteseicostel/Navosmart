@@ -404,6 +404,7 @@ Item {
                 fishingSpotsModel: fishingSpots
                 bathymetryCells: scanCoordinator.bathymetryCells
                 baitingController: baitingController
+                areaScanController: areaScanController
                 savedDepthM: root.depthM
                 savedWaterTempC: root.waterTempC
                 onNavigateRequested: function(coordinate) { root.navigateToCoordinate(coordinate) }
