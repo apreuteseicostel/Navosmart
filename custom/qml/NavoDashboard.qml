@@ -32,11 +32,21 @@ Item {
     NavoPersistence { id: persistence }
     NavoFishingSpots { id: fishingSpots }
     NavoAreaScan { id: areaScanController }
+    NavoSonarMapping {
+        id: sonarMapping
+        visible: false
+        vehicle: root.vehicle
+        depthM: root.depthM
+        waterTempC: root.waterTempC
+        sonarConnected: root.sonarConnected
+        onCheckpointRequested: function(state) { scanCoordinator.checkpoint("sonar-mapping") }
+    }
     NavoScanCoordinator {
         id: scanCoordinator
         areaScan: areaScanController
         persistence: persistence
         fishingSpots: fishingSpots
+        sonarMapping: sonarMapping
         vehicle: root.vehicle
         onMissionPrepared: function(points) {
             if (!missionUploader.prepare(points))
@@ -111,6 +121,7 @@ Item {
         vehicle: root.vehicle
         onGeoSample: function(sample) {
             persistence.addSonarSample(sample)
+            sonarMapping.addCurrentSample()
             fishDetector.analyze(sonar.echoSamples, sonar.depthM)
         }
     }
@@ -538,6 +549,7 @@ Item {
             NavoBathymetry3D {
                 anchors.fill: parent
                 samples: persistence.sonarSamples
+                boatTrack: sonarMapping.trackCoordinates
                 fishingSpots: fishingSpots.fishingSpots
                 fishDetections: root.fishDetections
             }
