@@ -124,61 +124,103 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging build-x86/NAVO_SMART-x86.apk >/dev/null
       - name: Android emulator smoke test
         shell: bash
+        env:
+          ANDROID_AVD_HOME: ${{ runner.temp }}/android-avd
         run: |
           set -euo pipefail
-          mkdir -p build/screenshots
-          # Start the emulator directly so transient Android input-service failures
-          # cannot abort the smoke test before the APK is installed.
-          sudo chmod 666 /dev/kvm
-          # setup-android has already accepted SDK licences; avoid a yes(1)
-          # SIGPIPE being promoted to a workflow failure by pipefail.
+          mkdir -p build/screenshots "$ANDROID_AVD_HOME"
+          sudo chmod 666 /dev/kvm || true
+
           sdkmanager "emulator" "system-images;android-34;default;x86_64"
-          echo no | avdmanager create avd --force --name navo-smoke --package "system-images;android-34;default;x86_64" --device "pixel_6"
-          "$ANDROID_HOME/emulator/emulator" -avd navo-smoke -port 5554 -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot -camera-back none > build/emulator.log 2>&1 &
+
+          # Create the AVD in an explicit directory. Previous runs could create it
+          # outside the directory searched by the emulator, producing
+          # "Unknown AVD name [navo-smoke]".
+          rm -rf "$ANDROID_AVD_HOME/navo-smoke.avd" "$ANDROID_AVD_HOME/navo-smoke.ini"
+          printf 'no\n' | avdmanager create avd --force \
+            --name navo-smoke \
+            --package "system-images;android-34;default;x86_64" \
+            --device "pixel_6"
+
+          echo "Available AVDs:"
+          "$ANDROID_HOME/emulator/emulator" -list-avds
+          test -f "$ANDROID_AVD_HOME/navo-smoke.ini"
+          test -d "$ANDROID_AVD_HOME/navo-smoke.avd"
+
+          "$ANDROID_HOME/emulator/emulator" @navo-smoke \
+            -port 5554 \
+            -no-window \
+            -gpu swiftshader_indirect \
+            -noaudio \
+            -no-boot-anim \
+            -no-snapshot \
+            -no-snapshot-save \
+            -camera-back none \
+            > build/emulator.log 2>&1 &
           EMULATOR_PID=$!
+
           cleanup() {
             adb -s emulator-5554 emu kill >/dev/null 2>&1 || true
             kill "$EMULATOR_PID" >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
+
+          adb kill-server >/dev/null 2>&1 || true
           adb start-server
-          if ! timeout 1200 bash -c 'until [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = "1" ] && adb -s emulator-5554 shell service check input 2>/dev/null | grep -q "found"; do sleep 2; done'; then
-            echo "Emulator boot or input service timed out"
+
+          # sys.boot_completed is the stable readiness signal. Do not make the
+          # flaky Android input service a prerequisite for the whole build.
+          if ! timeout 600 bash -c '
+            until adb -s emulator-5554 get-state 2>/dev/null | grep -q "^device$" &&
+                  [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = "1" ]; do
+              sleep 2
+            done
+          '; then
+            echo "Emulator boot timed out"
             adb devices -l || true
-            tail -n 120 build/emulator.log || true
+            tail -n 160 build/emulator.log || true
             exit 1
           fi
+
           adb -s emulator-5554 wait-for-device
+          sleep 5
+
           adb -s emulator-5554 shell input keyevent 82 || true
           adb -s emulator-5554 shell settings put global window_animation_scale 0.0 || true
           adb -s emulator-5554 shell settings put global transition_animation_scale 0.0 || true
           adb -s emulator-5554 shell settings put global animator_duration_scale 0.0 || true
-          adb install --no-streaming -r build-x86/NAVO_SMART-x86.apk
+
+          adb -s emulator-5554 install --no-streaming -r build-x86/NAVO_SMART-x86.apk
+
           AAPT2="$ANDROID_HOME/build-tools/35.0.0/aapt2"
           test -x "$AAPT2"
           PACKAGE="$("$AAPT2" dump badging build-x86/NAVO_SMART-x86.apk | sed -n "s/package: name='\([^']*\)'.*/\1/p" | head -n1)"
           ACTIVITY="$("$AAPT2" dump badging build-x86/NAVO_SMART-x86.apk | sed -n "s/launchable-activity: name='\([^']*\)'.*/\1/p" | head -n1)"
           test -n "$PACKAGE"
           test -n "$ACTIVITY"
+
           "$AAPT2" dump badging build-x86/NAVO_SMART-x86.apk | grep -m1 '^package:'
           "$AAPT2" dump badging build-x86/NAVO_SMART-x86.apk | grep -m1 '^launchable-activity:'
-          adb logcat -c
-          adb shell settings put system accelerometer_rotation 0 || true
-          adb shell settings put system user_rotation 1 || true
-          adb shell input keyevent KEYCODE_WAKEUP || true
-          adb shell wm dismiss-keyguard || true
-          adb shell am start -W -n "$PACKAGE/$ACTIVITY"
+
+          adb -s emulator-5554 logcat -c
+          adb -s emulator-5554 shell settings put system accelerometer_rotation 0 || true
+          adb -s emulator-5554 shell settings put system user_rotation 1 || true
+          adb -s emulator-5554 shell input keyevent KEYCODE_WAKEUP || true
+          adb -s emulator-5554 shell wm dismiss-keyguard || true
+          adb -s emulator-5554 shell am start -W -n "$PACKAGE/$ACTIVITY"
+
           sleep 5
-          adb exec-out screencap -p > build/screenshots/dashboard-05s.png || true
+          adb -s emulator-5554 exec-out screencap -p > build/screenshots/dashboard-05s.png || true
           sleep 10
-          adb exec-out screencap -p > build/screenshots/dashboard-15s.png || true
+          adb -s emulator-5554 exec-out screencap -p > build/screenshots/dashboard-15s.png || true
           sleep 15
-          adb exec-out screencap -p > build/screenshots/dashboard-30s.png || true
+          adb -s emulator-5554 exec-out screencap -p > build/screenshots/dashboard-30s.png || true
           cp build/screenshots/dashboard-30s.png build/navo-screenshot.png 2>/dev/null || true
-          adb shell dumpsys window windows > build/window.txt || true
-          adb shell dumpsys activity activities > build/activity.txt || true
-          adb logcat -d > build/navo-logcat.txt || true
-          adb shell pidof "$PACKAGE" | tee build/navo-pid.txt
+
+          adb -s emulator-5554 shell dumpsys window windows > build/window.txt || true
+          adb -s emulator-5554 shell dumpsys activity activities > build/activity.txt || true
+          adb -s emulator-5554 logcat -d > build/navo-logcat.txt || true
+          adb -s emulator-5554 shell pidof "$PACKAGE" | tee build/navo-pid.txt
           test -s build/navo-pid.txt
       - name: Upload Android smoke-test evidence
         if: always()
