@@ -14,8 +14,27 @@ QtObject {
     property var areaPoints: []
     property var bathymetryCells: []
     property string state: "IDLE"
+    property int missionCurrentIndex: -1
+    property int lastCompletedLaneFromMission: -1
     signal status(string text)
     signal missionPrepared(var missionPoints)
+
+    function missionIndexChanged(index) {
+        if(!areaScan || index === undefined || index === null || index < 0) return
+        missionCurrentIndex=index
+        // QGC mission index 0 is MissionSettings/Home; Area Scan WP start at 1.
+        // A lane has two WP. Entering the first WP of the next lane confirms
+        // the previous lane was completed by the autopilot.
+        var missionWp=Math.max(0,index-1)
+        var completedThrough=Math.floor(missionWp/2)-1
+        var maxLane=areaScan.laneCount()-1
+        completedThrough=Math.min(completedThrough,maxLane)
+        for(var lane=lastCompletedLaneFromMission+1;lane<=completedThrough;lane++) {
+            laneCompleted(lane)
+            lastCompletedLaneFromMission=lane
+        }
+        status("Area Scan • WP "+index+" • "+areaScan.progressPercent()+"%")
+    }
 
     function prepareRectangle(cornerA, cornerB) {
         if(!areaScan) return []
@@ -34,7 +53,7 @@ QtObject {
     function start() {
         if(!sonarMapping || !areaScan || !areaScan.generatedPoints.length) {status("Scanare blocată: definește zona");return false}
         sonarMapping.startScan(); if(!sonarMapping.scanning) return false
-        state="SCANNING"; checkpoint("start"); return true
+        state="SCANNING"; missionCurrentIndex=-1; lastCompletedLaneFromMission=-1; checkpoint("start"); return true
     }
     function laneCompleted(index) {
         areaScan.markLaneCompleted(index); sonarMapping.setLaneProgress(areaScan.activeLaneIndex,areaScan.completedLanes.length,areaScan.laneCount())
@@ -45,11 +64,32 @@ QtObject {
     function rtl(reason) {areaScan.rtl(reason||"RTL scanare");sonarMapping.pauseScan();state="RTL";checkpoint("rtl")}
     function finish() {sonarMapping.finishAndBuild();if(bathymetry)bathymetryCells=bathymetry.rebuild(sonarMapping.rawSamples);state="COMPLETE";checkpoint("complete");status("Scanare terminată • "+bathymetryCells.length+" celule batimetrice")}
 
+    function jsonCoordinates(points) {
+        var out=[]
+        if(!points)return out
+        for(var i=0;i<points.length;i++) {
+            var p=points[i]
+            if(p && p.isValid) out.push({latitude:p.latitude,longitude:p.longitude})
+            else if(p && p.latitude!==undefined && p.longitude!==undefined) out.push({latitude:Number(p.latitude),longitude:Number(p.longitude)})
+        }
+        return out
+    }
+    function geoCoordinates(points) {
+        var out=[]
+        if(!points)return out
+        for(var i=0;i<points.length;i++) {
+            var p=points[i]
+            if(p && p.isValid) out.push(p)
+            else if(p && p.latitude!==undefined && p.longitude!==undefined) out.push(QtPositioning.coordinate(Number(p.latitude),Number(p.longitude)))
+        }
+        return out
+    }
+
     function checkpoint(reason) {
         if(!persistence || !sonarMapping || !areaScan || !lakeId.length) return false
         var payload={
             schemaVersion:2, reason:reason, state:state, lakeName:lakeName, savedAt:Date.now(),
-            areaPoints:areaPoints, sonarSamples:sonarMapping.rawSamples,
+            areaPoints:jsonCoordinates(areaPoints), sonarSamples:sonarMapping.rawSamples,
             fishingSpots:fishingSpots ? fishingSpots.fishingSpots : [],
             bathymetryCells:bathymetryCells,
             currentLane:areaScan.activeLaneIndex, completedLanes:areaScan.completedLanes,
@@ -61,12 +101,14 @@ QtObject {
     function restoreLake(id) {
         if(!persistence || !id.length) return false
         var p=persistence.lakeState(id); if(!p || Object.keys(p).length===0){status("Balta nu are încă stare salvată");return false}
-        lakeId=id; lakeName=p.lakeName||lakeName; areaPoints=p.areaPoints||[]
+        lakeId=id; lakeName=p.lakeName||lakeName; areaPoints=geoCoordinates(p.areaPoints||[])
         sonarMapping.lakeId=id; sonarMapping.rawSamples=p.sonarSamples||[]
         if(fishingSpots) fishingSpots.fishingSpots=p.fishingSpots||[]
         state=p.state||"PAUSED"; bathymetryCells=p.bathymetryCells||[]
         areaScan.generatedPoints=areaPoints; areaScan.completedLanes=p.completedLanes||[]
         areaScan.activeLaneIndex=(p.currentLane===undefined?-1:p.currentLane)
+        lastCompletedLaneFromMission=-1
+        for(var ci=0;ci<areaScan.completedLanes.length;ci++) lastCompletedLaneFromMission=Math.max(lastCompletedLaneFromMission,Number(areaScan.completedLanes[ci]))
         sonarMapping.restoreCheckpoint({lakeId:id,currentLane:areaScan.activeLaneIndex,completedLanes:areaScan.completedLanes.length,totalLanes:p.totalLanes||areaScan.laneCount(),sampleCount:sonarMapping.rawSamples.length,reason:"restart-restore",time:Date.now()})
         if(bathymetry && sonarMapping.rawSamples.length) bathymetryCells=bathymetry.rebuild(sonarMapping.rawSamples)
         status("Balta restaurată • sonar, puncte și Area Scan pregătite pentru Resume"); return true
