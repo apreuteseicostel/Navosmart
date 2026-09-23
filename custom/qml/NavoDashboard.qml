@@ -297,20 +297,30 @@ Item {
         id: sidebar
         anchors.left: parent.left; anchors.top: header.bottom; anchors.bottom: footer.top
         width: 190; color: root.panel; border.color: root.line
-        ColumnLayout {
-            anchors.fill: parent; anchors.margins: 10; spacing: 8
-            Label { text: "NAVIGATIE"; color: root.muted; font.bold: true }
-            NavButton { text: "HARTA"; active: root.activePage === 0; onClicked: root.activePage = 0 }
-            NavButton { text: "SONAR"; active: root.activePage === 1; onClicked: root.activePage = 1 }
-            NavButton { text: "AREA SCAN"; active: root.activePage === 2; onClicked: root.activePage = 2 }
-            NavButton { text: "PUNCTE PESCUIT"; active: root.activePage === 3; onClicked: root.activePage = 3 }
-            NavButton { text: "BALȚILE MELE"; active: root.activePage === 4; onClicked: root.activePage = 4 }
-            NavButton { text: "CAMERA"; active: root.activePage === 5; onClicked: root.activePage = 5 }
-            NavButton { text: "3D"; active: root.activePage === 7; onClicked: root.activePage = 7 }
-            NavButton { text: "NĂDIRE"; active: root.activePage === 8; onClicked: root.activePage = 8 }
-            NavButton { text: "SETARI"; active: root.activePage === 6; onClicked: root.activePage = 6 }
-            Item { Layout.fillHeight: true }
-            Label { text: "BARCA " + root.boatId; color: root.muted; font.pixelSize: 11 }
+        Flickable {
+            anchors.fill: parent
+            anchors.margins: 8
+            clip: true
+            contentWidth: width
+            contentHeight: navColumn.implicitHeight
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar { policy: navColumn.implicitHeight > parent.height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff }
+            ColumnLayout {
+                id: navColumn
+                width: parent.width
+                spacing: Math.max(3, Math.min(8, (sidebar.height - 44 - 9 * 36) / 10))
+                Label { text: "NAVIGATIE"; color: root.muted; font.bold: true; font.pixelSize: 13 }
+                NavButton { text: "HARTA"; active: root.activePage === 0; onClicked: root.activePage = 0 }
+                NavButton { text: "SONAR"; active: root.activePage === 1; onClicked: root.activePage = 1 }
+                NavButton { text: "AREA SCAN"; active: root.activePage === 2; onClicked: root.activePage = 2 }
+                NavButton { text: "PUNCTE PESCUIT"; active: root.activePage === 3; onClicked: root.activePage = 3 }
+                NavButton { text: "BALȚILE MELE"; active: root.activePage === 4; onClicked: root.activePage = 4 }
+                NavButton { text: "CAMERA"; active: root.activePage === 5; onClicked: root.activePage = 5 }
+                NavButton { text: "3D"; active: root.activePage === 7; onClicked: root.activePage = 7 }
+                NavButton { text: "NĂDIRE"; active: root.activePage === 8; onClicked: root.activePage = 8 }
+                NavButton { text: "SETARI"; active: root.activePage === 6; onClicked: root.activePage = 6 }
+                Label { text: "BARCA " + root.boatId; color: root.muted; font.pixelSize: 10; Layout.topMargin: 2 }
+            }
         }
     }
 
@@ -603,7 +613,14 @@ Item {
             ColumnLayout {
                 anchors.fill: parent; anchors.margins: 16; spacing: 10
                 Label { text: "BALȚILE MELE"; color: root.text; font.pixelSize: 20; font.bold: true }
-                Label { text: persistence.lakes.length + " bălți salvate • sonar + puncte + Area Scan + Resume"; color: root.muted }
+                Label {
+                    Layout.fillWidth: true
+                    text: persistence.lakes.length + " bălți salvate • sonar + puncte + Area Scan + Resume"
+                    color: root.muted
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
+                    elide: Text.ElideRight
+                }
                 Button { text: "DESCHIDE BĂLȚILE MELE"; onClicked: myLakesPopup.open() }
                 Item { Layout.fillHeight: true }
             }
@@ -720,9 +737,10 @@ Item {
 
     component NavButton: Button {
         property bool active: false
-        Layout.fillWidth: true; Layout.preferredHeight: 40
+        Layout.fillWidth: true
+        Layout.preferredHeight: Math.max(32, Math.min(40, (sidebar.height - 70) / 9))
         background: Rectangle { radius: 6; color: parent.active ? "#183248" : "transparent"; border.color: parent.active ? root.accent : "transparent" }
-        contentItem: Label { text: parent.text; color: parent.active ? root.accent : root.text; verticalAlignment: Text.AlignVCenter; leftPadding: 8; font.bold: parent.active }
+        contentItem: Label { text: parent.text; color: parent.active ? root.accent : root.text; verticalAlignment: Text.AlignVCenter; leftPadding: 8; font.pixelSize: Math.max(11, Math.min(14, parent.height * 0.36)); font.bold: parent.active; elide: Text.ElideRight }
     }
 
     component DataLine: RowLayout {
