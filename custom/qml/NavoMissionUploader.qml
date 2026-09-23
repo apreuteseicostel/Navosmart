@@ -8,6 +8,7 @@ QtObject {
     property bool uploadInProgress: false
     property int preparedCount: 0
     property string lastError: ""
+    property int uploadTimeoutMs: 15000
     signal status(string text)
     signal uploadFinished(bool success, string message)
 
@@ -39,6 +40,7 @@ QtObject {
     function uploadPrepared() {
         if(!canUpload() || preparedCount<1){if(!lastError.length)lastError="Nu există misiune pregătită";status(lastError);return false}
         uploadInProgress=true;lastError=""
+        uploadTimeout.restart()
         status("Încarc "+preparedCount+" waypoint-uri în H743…")
         // Use QGC's normal PlanMasterController upload path. It converts VisualMissionItems
         // to MissionItems and MissionManager writes them over MAVLink.
@@ -46,10 +48,23 @@ QtObject {
         return true
     }
 
+    property Timer uploadTimeout: Timer {
+        interval: root.uploadTimeoutMs
+        repeat: false
+        onTriggered: {
+            if(!root.uploadInProgress)return
+            root.uploadInProgress=false
+            root.lastError="Timeout upload H743: nu am primit confirmarea QGroundControl"
+            root.status(root.lastError)
+            root.uploadFinished(false,root.lastError)
+        }
+    }
+
     property QtObject missionControllerConnections: Connections {
         target: planController ? planController.missionController : null
         function onSendComplete() {
             if(!root.uploadInProgress)return
+            uploadTimeout.stop()
             root.uploadInProgress=false
             root.status("Misiune Area Scan încărcată în H743 • "+root.preparedCount+" WP")
             root.uploadFinished(true,"Upload H743 terminat")
