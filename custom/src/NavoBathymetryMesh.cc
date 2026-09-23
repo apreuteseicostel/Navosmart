@@ -1,6 +1,7 @@
 #include "NavoBathymetryMesh.h"
 #include <QVariantMap>
 #include <QHash>
+#include <QSet>
 #include <QtMath>
 #include <algorithm>
 #include <limits>
@@ -44,9 +45,37 @@ bool NavoBathymetryMesh::build(const QVariantList& samples,double gridSizeM,doub
     struct Cell{double x,y,d,confidence;bool measured;int n;};QHash<QString,Cell> cells;
     for(auto it=bins.cbegin();it!=bins.cend();++it){auto a=it.value();cells.insert(it.key(),{a.sx/a.n,a.sy/a.n,a.sd/a.n,qMin(1.0,0.45+0.15*a.n),true,a.n});}
     const int reach=qMax(1,qFloor(maxGapM/cell));
+    // Spatially indexed interpolation: each candidate cell only inspects measured
+    // neighbours inside the local grid window instead of rescanning every bin.
+    // Complexity becomes proportional to candidates * local neighbourhood, rather
+    // than candidates * all sonar samples, which is critical for large lakes.
     QHash<QString,Cell> additions;
-    for(auto it=bins.cbegin();it!=bins.cend();++it){auto parts=it.key().split(':');int gx=parts[0].toInt(),gy=parts[1].toInt();for(int oy=-reach;oy<=reach;oy++)for(int ox=-reach;ox<=reach;ox++){if(!ox&&!oy)continue;QString k=QString::number(gx+ox)+":"+QString::number(gy+oy);if(cells.contains(k)||additions.contains(k))continue;double sw=0,sd=0;int neighbours=0;for(auto jt=bins.cbegin();jt!=bins.cend();++jt){auto p=jt.key().split(':');int nx=p[0].toInt(),ny=p[1].toInt();double dist=qSqrt(qPow(nx-(gx+ox),2)+qPow(ny-(gy+oy),2))*cell;if(dist>maxGapM||dist<0.01)continue;double w=1.0/(dist*dist);sw+=w;sd+=w*(jt.value().sd/jt.value().n);neighbours++;}if(neighbours>=3&&sw>0)additions.insert(k,{(gx+ox)*cell,(gy+oy)*cell,sd/sw,qMin(0.7,0.2+0.1*neighbours),false,0});}}
-    for(auto it=additions.cbegin();it!=additions.cend();++it)cells.insert(it.key(),it.value());
+    QSet<QString> candidates;
+    for(auto it=bins.cbegin();it!=bins.cend();++it){
+        const auto parts=it.key().split(':'); const int gx=parts[0].toInt(),gy=parts[1].toInt();
+        for(int oy=-reach;oy<=reach;oy++) for(int ox=-reach;ox<=reach;ox++){
+            if(!ox&&!oy) continue;
+            const QString k=QString::number(gx+ox)+":"+QString::number(gy+oy);
+            if(!cells.contains(k)) candidates.insert(k);
+        }
+    }
+    for(const QString& k : candidates){
+        const auto parts=k.split(':'); const int cx=parts[0].toInt(),cy=parts[1].toInt();
+        double sw=0.0, sd=0.0; int neighbours=0;
+        for(int ny=cy-reach;ny<=cy+reach;ny++) for(int nx=cx-reach;nx<=cx+reach;nx++){
+            const int dx=nx-cx, dy=ny-cy;
+            if(!dx&&!dy) continue;
+            const double dist=qSqrt(double(dx*dx+dy*dy))*cell;
+            if(dist>maxGapM||dist<0.01) continue;
+            const QString nk=QString::number(nx)+":"+QString::number(ny);
+            auto jt=bins.constFind(nk); if(jt==bins.cend()) continue;
+            const double w=1.0/(dist*dist);
+            sw+=w; sd+=w*(jt.value().sd/jt.value().n); neighbours++;
+        }
+        if(neighbours>=3&&sw>0.0)
+            additions.insert(k,{cx*cell,cy*cell,sd/sw,qMin(0.7,0.2+0.1*neighbours),false,0});
+    }
+    for(auto it=additions.cbegin();it!=additions.cend();++it) cells.insert(it.key(),it.value());
     QHash<QString,int> index;
     for(auto it=cells.cbegin();it!=cells.cend();++it){auto a=it.value();QVariantMap p{{"x",a.x},{"y",a.y},{"z",-a.d},{"depth",a.d},{"samples",a.n},{"measured",a.measured},{"confidence",a.confidence}};index.insert(it.key(),_vertices.size());_vertices<<p;if(a.measured)_measuredCount++;else _interpolatedCount++;}
     for(auto it=cells.cbegin();it!=cells.cend();++it){auto p=it.key().split(':');int x=p[0].toInt(),y=p[1].toInt();QString k00=it.key(),k10=QString::number(x+1)+":"+QString::number(y),k01=QString::number(x)+":"+QString::number(y+1),k11=QString::number(x+1)+":"+QString::number(y+1);if(index.contains(k10)&&index.contains(k01)&&index.contains(k11)){_triangles<<QVariantList{index[k00],index[k10],index[k11]}<<QVariantList{index[k00],index[k11],index[k01]};}}
