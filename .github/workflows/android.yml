@@ -31,18 +31,25 @@ jobs:
           from pathlib import Path
           p = Path("qgc/src/FlightDisplay/FlyView.qml")
           src = p.read_text()
-          import re
-          pattern = r'(?ms)^(?P<i>[ \\t]*)Viewer3D\\s*\\{\\s*\\n(?P=i)[ \\t]+id:\\s*viewer3DWindow\\s*\\n(?P=i)[ \\t]+anchors\\.fill:\\s*parent\\s*\\n(?P=i)\\}'
+          start = src.find("        Viewer3D{")
+          if start < 0:
+              start = src.find("        Viewer3D {")
+          if start < 0:
+              raise SystemExit("Viewer3D start not found in pinned v5.0.7 FlyView.qml")
+          anchor = src.find("anchors.fill:", start)
+          if anchor < 0:
+              raise SystemExit("Viewer3D anchors.fill not found in pinned v5.0.7 FlyView.qml")
+          end = src.find("\n        }", anchor)
+          if end < 0:
+              raise SystemExit("Viewer3D end not found in pinned v5.0.7 FlyView.qml")
+          end += len("\n        }")
           replacement = '''        Item {
               id:                     viewer3DWindow
               anchors.fill:           parent
               property bool isOpen:   false
               visible:                false
           }'''
-          src, count = re.subn(pattern, replacement, src, count=1)
-          if count != 1:
-              raise SystemExit(f"Expected one Viewer3D block in pinned v5.0.7 FlyView.qml, replaced {count}")
-          p.write_text(src)
+          p.write_text(src[:start] + replacement + src[end:])
           PY
           # NAVO Android lifecycle guard. QGC v5.0.7 dereferences
           # _mainRootWindow on QEvent::Quit even when it is still null. Current
