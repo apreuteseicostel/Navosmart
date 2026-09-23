@@ -14,9 +14,18 @@ Item {
  readonly property int adaptiveFishLimit: lodLevel===3?60:lodLevel===2?140:lodLevel===1?280:maxFish3D
  property string meshCachePath:""
  property int cachedSampleCount:0
- function rebuild(){meshEngine.build(samples,gridSizeM,maxGapM,lodLevel);cachedSampleCount=samples.length;if(meshCachePath.length)meshEngine.saveCache(meshCachePath)}
+ property string cachedSampleSignature:""
+ function sampleSignature(){
+  if(!samples||!samples.length)return "0"
+  var h=2166136261
+  function mix(v){var s=String(v);for(var j=0;j<s.length;j++){h^=s.charCodeAt(j);h=Math.imul(h,16777619)}}
+  mix(samples.length);mix(gridSizeM);mix(maxGapM);mix(lodLevel)
+  for(var i=0;i<samples.length;i++){var s=samples[i];mix(s.lat);mix(s.lon);mix(s.depth);mix(s.time===undefined?s.timestamp:s.time);mix(s.confidence)}
+  return String(h>>>0)
+ }
+ function rebuild(){meshEngine.build(samples,gridSizeM,maxGapM,lodLevel);cachedSampleCount=samples.length;cachedSampleSignature=sampleSignature();if(meshCachePath.length)meshEngine.saveCache(meshCachePath)}
  function loadCached(){return meshCachePath.length?meshEngine.loadCache(meshCachePath):false}
- function refreshForSamples(){if(samples.length!==cachedSampleCount)rebuild()}
+ function refreshForSamples(){var sig=sampleSignature();if(sig!==cachedSampleSignature)rebuild()}
  function resetCamera(){yaw=-35;pitch=-48;cameraDistance=180;panOffset=Qt.point(0,0)} function topCamera(){yaw=0;pitch=-89;cameraDistance=180} function isoCamera(){yaw=-45;pitch=-42;cameraDistance=180}
  function localPoint(lat,lon,depth){var R=6378137,lat0=meshEngine.originLatitude*Math.PI/180,x=(lon-meshEngine.originLongitude)*Math.PI/180*Math.cos(lat0)*R,z=-(lat-meshEngine.originLatitude)*Math.PI/180*R,y=-(depth||0)*verticalExaggeration;return Qt.vector3d(x,y,z)}
  function bottomDepth(lat,lon){var best=null,bd=1e99,p=localPoint(lat,lon,0);for(var i=0;i<meshEngine.vertices.length;i++){var v=meshEngine.vertices[i],d=(v.x-p.x)*(v.x-p.x)+((-v.y)-p.z)*((-v.y)-p.z);if(d<bd){bd=d;best=v}}return best?best.depth:0}
@@ -54,6 +63,6 @@ Item {
  Column{anchors{right:parent.right;bottom:parent.bottom;margins:12}spacing:5;Rectangle{width:180;height:18;gradient:Gradient{orientation:Gradient.Horizontal;GradientStop{position:0;color:"#0db8c7"}GradientStop{position:.5;color:"#0a3d9e"}GradientStop{position:1;color:"#330a61"}}}Text{color:"white";text:Number(meshEngine.minDepthM).toFixed(1)+" m                         "+Number(meshEngine.maxDepthM).toFixed(1)+" m"}Text{color:"white";text:meshEngine.measuredVertexCount+" măsurate • "+meshEngine.interpolatedVertexCount+" interpolate • LOD "+root.lodLevel}}
  Timer{id:lodDebounce;interval:220;repeat:false;onTriggered:if(samples.length)root.rebuild()}
  onLodLevelChanged:if(samples.length)lodDebounce.restart()
- Component.onCompleted:{if(!loadCached()&&samples.length)rebuild();else cachedSampleCount=samples.length}
+ Component.onCompleted:{if(!loadCached()&&samples.length)rebuild();else{cachedSampleCount=samples.length;cachedSampleSignature=sampleSignature()}}
  onSamplesChanged:if(samples.length)refreshForSamples()
 }
