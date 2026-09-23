@@ -8,6 +8,7 @@ import QGroundControl.Controls
 import QGroundControl.FlightDisplay
 import QGroundControl.FlightMap
 import NavoSmart 1.0
+import NavoSmart.Backend 1.0
 
 Item {
     id: root
@@ -50,6 +51,32 @@ Item {
     property color warn: "#ffc857"
     property color danger: "#ff5c5c"
 
+    NavoNanoTelemetry {
+        id: nanoTelemetry
+        vehicle: root.vehicle
+    }
+    NavoHopperBridge {
+        id: hopperBridge
+        vehicle: root.vehicle
+        onCommandSent: function(message) { root.lastNavigationStatus = message }
+        onCommandRejected: function(reason) { root.lastNavigationStatus = "Cuve: " + reason }
+    }
+    NavoSafetyManager {
+        id: safetyManager
+        vehicle: root.vehicle
+        waterDetected: nanoTelemetry.waterDetected
+        batteryTempC: nanoTelemetry.batteryTempC
+        onWarning: function(reason) { root.lastNavigationStatus = "AVERTISMENT: " + reason }
+        onHoldRequested: function(reason) {
+            root.lastNavigationStatus = "SIGURANTA HOLD: " + reason
+            root.holdMission()
+        }
+        onRtlRequested: function(reason) {
+            root.lastNavigationStatus = "SIGURANTA RTL: " + reason
+            root.rtlMission()
+        }
+    }
+
     function modeColor() {
         var m = root.flightMode.toUpperCase()
         if (m === "AUTO" || m === "GUIDED") return root.ok
@@ -61,13 +88,12 @@ Item {
             root.lastNavigationStatus = "Cuve blocate: mergi aproape de punct sau treci pe MANUAL"
             return
         }
+        var hopper = side === "stanga" ? 1 : side === "dreapta" ? 2 : 3
+        if (!hopperBridge.release(hopper)) return
         root.selectedHopper = side
-        root.lastNavigationStatus = "Cuva " + side + " deschisa"
-        hopperPulse.restart()
     }
     function closeHoppers() {
         root.selectedHopper = "none"
-        root.lastNavigationStatus = "Cuve inchise"
     }
     function startMission() { root.lastNavigationStatus = "Misiune pornita" }
     function holdMission() {
@@ -91,7 +117,6 @@ Item {
         root.lastNavigationStatus = "Navighez la punct"
     }
 
-    Timer { id: hopperPulse; interval: root.manualHopperHoldMs; onTriggered: root.closeHoppers() }
 
     Rectangle { anchors.fill: parent; color: root.bg }
 
@@ -158,6 +183,9 @@ Item {
             DataLine { name: "Mod"; value: root.flightMode.length ? root.flightMode : "--"; valueColor: root.modeColor() }
             DataLine { name: "Acasa"; value: Number(root.distanceToHome).toFixed(0) + " m" }
             DataLine { name: "Tinta"; value: root.distanceToTarget > 0 ? Number(root.distanceToTarget).toFixed(0) + " m" : "--" }
+            DataLine { name: "Nano"; value: nanoTelemetry.connected ? "ONLINE" : "OFFLINE"; valueColor: nanoTelemetry.connected ? root.ok : root.warn }
+            DataLine { name: "Temp baterie"; value: nanoTelemetry.connected && !isNaN(nanoTelemetry.batteryTempC) ? Number(nanoTelemetry.batteryTempC).toFixed(1) + " °C" : "--"; valueColor: safetyManager.state === "CRITICAL" ? root.danger : safetyManager.state === "WARNING" ? root.warn : root.text }
+            DataLine { name: "Apa"; value: nanoTelemetry.connected ? (nanoTelemetry.waterDetected ? "DETECTATA" : "OK") : "--"; valueColor: nanoTelemetry.waterDetected ? root.danger : root.text }
             Rectangle { Layout.fillWidth: true; height: 1; color: root.line }
             Label { text: "CONTROL MISIUNE"; color: root.muted; font.bold: true }
             RowLayout {
