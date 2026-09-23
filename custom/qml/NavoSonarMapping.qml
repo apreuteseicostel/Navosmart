@@ -74,17 +74,53 @@ Rectangle {
     }
 
     ColumnLayout {
-        anchors.fill: parent; anchors.margins: 12; spacing: 8
-        Label { text:"MAPARE SONAR / BATIMETRIE"; color:"#21b7ff"; font.bold:true }
-        Label { text: root.scanning ? (root.paused ? "PAUZĂ" : "SCANARE ACTIVĂ") : (root.bathymetryComplete ? "HARTĂ SALVATĂ" : "PREGĂTIT"); color:"#f2f7fb"; font.bold:true }
-        Label { text: "Puncte valide: "+root.rawSamples.length+" • Urmă GPS: "+root.trackCoordinates.length; color:"#9db2c5" }
-        RowLayout {
-            Layout.fillWidth:true
-            Button { text:"START SCAN"; enabled:!root.scanning; onClicked:root.startScan() }
-            Button { text:root.paused?"CONTINUĂ":"PAUZĂ"; enabled:root.scanning; onClicked:root.paused?root.resumeScan():root.pauseScan() }
-            Button { text:"FINALIZEAZĂ"; enabled:root.scanning; onClicked:root.finishAndBuild() }
+        anchors.fill: parent
+        anchors.margins: 12
+        spacing: 8
+
+        Label {
+            text: "MAPARE SONAR / BATIMETRIE"
+            color: "#21b7ff"
+            font.bold: true
         }
-        Button { Layout.fillWidth:true; text:"ȘTERGE DATELE BRUTE"; enabled:!root.scanning && root.rawSamples.length>0; onClicked:root.deleteRawData() }
-        Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; color:"#9db2c5"; text:"Urma GPS este temporară. Se elimină automat numai după confirmarea că harta batimetrică a fost generată și salvată. Datele brute GPS + sonar se păstrează până la ștergerea explicită." }
+        Label {
+            text: root.scanning ? (root.paused ? "PAUZĂ" : "SCANARE ACTIVĂ") : (root.bathymetryComplete ? "HARTĂ SALVATĂ" : "PREGĂTIT")
+            color: "#f2f7fb"
+            font.bold: true
+        }
+        Label {
+            text: "Puncte valide: " + root.rawSamples.length + " • Urmă GPS: " + root.trackCoordinates.length
+            color: "#9db2c5"
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            Button {
+                text: "START SCAN"
+                enabled: !root.scanning
+                onClicked: root.startScan()
+            }
+            Button {
+                text: root.paused ? "CONTINUĂ" : "PAUZĂ"
+                enabled: root.scanning
+                onClicked: root.paused ? root.resumeScan() : root.pauseScan()
+            }
+            Button {
+                text: "FINALIZEAZĂ"
+                enabled: root.scanning
+                onClicked: root.finishAndBuild()
+            }
+        }
+        Button {
+            Layout.fillWidth: true
+            text: "ȘTERGE DATELE BRUTE"
+            enabled: !root.scanning && root.rawSamples.length > 0
+            onClicked: root.deleteRawData()
+        }
+        Label {
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            color: "#9db2c5"
+            text: "Urma GPS este temporară. Se elimină automat numai după confirmarea că harta batimetrică a fost generată și salvată. Datele brute GPS + sonar se păstrează până la ștergerea explicită."
+        }
     }
 }
