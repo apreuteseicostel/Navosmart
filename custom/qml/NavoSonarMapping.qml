@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtPositioning
 import QtQuick.Layouts
 
 Rectangle {
@@ -8,6 +9,7 @@ Rectangle {
     property real depthM: NaN
     property real waterTempC: NaN
     property bool sonarConnected: false
+    property bool externalSampleIngestion: false
     property real bottomHardness: NaN
     property real bottomEchoStrength: NaN
     property bool scanning: false
@@ -39,14 +41,19 @@ Rectangle {
     function saveCheckpoint(reason){ resumeState={lakeId:lakeId,currentLane:currentLane,completedLanes:completedLanes,totalLanes:totalLanes,sampleCount:rawSamples.length,lastCoordinate:trackCoordinates.length?trackCoordinates[trackCoordinates.length-1]:null,reason:reason,time:Date.now()}; checkpointRequested(resumeState) }
     function restoreCheckpoint(state){ if(!state)return false; resumeState=state; lakeId=state.lakeId||""; currentLane=state.currentLane||0; completedLanes=state.completedLanes||0; totalLanes=state.totalLanes||0; paused=true; scanning=true; status("Scanare restaurată • continuă de la culoarul "+(currentLane+1)); return true }
     function resumeScan() { if(scanning){paused=false; status("Mapare sonar continuată")} }
-    function addCurrentSample() {
-        if(!scanning || paused || !validPosition() || !sonarConnected || isNaN(depthM)) return
-        var c=vehicle.coordinate
+    function ingestSample(sample) {
+        if(!scanning || paused || !sonarConnected || !sample || isNaN(Number(sample.depth))) return
+        var lat=Number(sample.lat), lon=Number(sample.lon)
+        if(isNaN(lat)||isNaN(lon)) return
         var s=rawSamples.slice(0)
-        s.push({lat:c.latitude, lon:c.longitude, depth:depthM, temp:waterTempC, hardness:bottomHardness, bottomEcho:bottomEchoStrength, time:Date.now()})
+        s.push({lat:lat,lon:lon,depth:Number(sample.depth),temp:sample.temp,hardness:sample.hardness===undefined?bottomHardness:sample.hardness,bottomEcho:sample.bottomEcho===undefined?bottomEchoStrength:sample.bottomEcho,time:sample.time||Date.now()})
         rawSamples=s
-        var t=trackCoordinates.slice(0)
-        if(t.length===0 || t[t.length-1].distanceTo(c)>=1.0){t.push(c); trackCoordinates=t}
+        var c=QtPositioning.coordinate(lat,lon),t=trackCoordinates.slice(0)
+        if(t.length===0 || t[t.length-1].distanceTo(c)>=1.0){t.push(c);trackCoordinates=t}
+    }
+    function addCurrentSample() {
+        if(externalSampleIngestion || !scanning || paused || !validPosition() || !sonarConnected || isNaN(depthM)) return
+        ingestSample({lat:vehicle.coordinate.latitude,lon:vehicle.coordinate.longitude,depth:depthM,temp:waterTempC,hardness:bottomHardness,bottomEcho:bottomEchoStrength,time:Date.now()})
     }
     function finishAndBuild() {
         if(!scanning) return
