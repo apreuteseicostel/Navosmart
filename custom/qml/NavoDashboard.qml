@@ -577,6 +577,19 @@ Item {
         }
     }
 
+    Loader {
+        anchors.fill: parent
+        z: 1000
+        active: root.cameraFullscreen
+        sourceComponent: Component {
+            NavoCameraFullScreen {
+                streamUrl: root.cameraStreamUrl
+                protocol: root.cameraProtocol
+                onClosed: root.cameraFullscreen = false
+            }
+        }
+    }
+
     Rectangle {
         id: footer
         anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
