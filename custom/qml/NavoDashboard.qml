@@ -110,7 +110,7 @@ Item {
         onStatus: function(message) { root.lastNavigationStatus = message }
         onUploadFinished: function(success, message) {
             root.lastNavigationStatus = message
-            if (success) root.startUploadedMission()
+            // Upload confirmation is not permission to start motors. Require a second press.
         }
     }
     property var battery: vehicle && vehicle.batteries.count > 0 ? vehicle.batteries.get(0) : null
@@ -223,6 +223,7 @@ Item {
             root.lastNavigationStatus = "Upload misiune deja în curs"
             return false
         }
+        if (missionUploader.uploadVerified) return root.startUploadedMission()
         if (missionUploader.preparedCount < 1) {
             root.lastNavigationStatus = "START blocat: nu există misiune pregătită"
             return false
@@ -364,7 +365,7 @@ Item {
             Label { text: "CONTROL MISIUNE"; color: root.muted; font.bold: true }
             RowLayout {
                 Layout.fillWidth: true
-                Button { Layout.fillWidth: true; text: "START"; onClicked: root.startMission() }
+                Button { Layout.fillWidth: true; text: missionUploader.uploadVerified ? "START H743" : "UPLOAD"; onClicked: root.startMission() }
                 Button { Layout.fillWidth: true; text: "HOLD"; onClicked: root.holdMission() }
             }
             RowLayout {
