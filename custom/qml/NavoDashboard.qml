@@ -749,10 +749,25 @@ Item {
     Component {
         id: baitingPage
         Item {
+            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             NavoBaitingPanel {
                 anchors.centerIn: parent
                 controller: baitingController
                 waypoint: baitingController.targetWaypoint
+                availableSpots: fishingSpots.fishingSpots
+                onChooseOnMapRequested: {
+                    root.activePage = 0
+                    root.lastNavigationStatus = "Selectează un waypoint pe hartă sau salvează un loc de pescuit, apoi revino la NĂDIRE"
+                }
+                onSpotChosen: function(spot) {
+                    var coordinate = QtPositioning.coordinate(Number(spot.lat), Number(spot.lon))
+                    if (!coordinate.isValid) {
+                        root.lastNavigationStatus = "Locul salvat nu are coordonate valide"
+                        return
+                    }
+                    baitingController.targetWaypoint = {coordinate: coordinate, name: spot.name, sequenceNumber: 0}
+                    root.lastNavigationStatus = "Punct de nădire ales: " + spot.name
+                }
                 onStartConfirmed: function(waypoint, name, hopper) { baitingController.startCycle(waypoint,name,hopper) }
                 onAbortRequested: baitingController.abortCycle("Oprit de utilizator")
             }

@@ -7,10 +7,13 @@ Rectangle {
     id: root
     property var controller
     property var waypoint
-    property string waypointName: waypoint ? "WP" + waypoint.sequenceNumber : "Niciun punct selectat"
+    property var availableSpots: []
+    property string waypointName: waypoint ? (waypoint.name || "WP" + waypoint.sequenceNumber) : "Niciun punct selectat"
     readonly property int selectedHopper: hopperBox.currentIndex === 0 ? 1 : hopperBox.currentIndex === 1 ? 2 : hopperBox.currentIndex === 2 ? 3 : 0
     signal startConfirmed(var waypoint, string name, int hopper)
     signal abortRequested()
+    signal chooseOnMapRequested()
+    signal spotChosen(var spot)
     color: "#0b1c2eee"; border.color: "#21b7ff"; radius: 10
     width: Math.min(370, parent ? parent.width - 20 : 370)
     implicitHeight: summary.implicitHeight + 28
@@ -50,6 +53,21 @@ Rectangle {
         anchors.margins: 14; spacing: 10
         Label { text: "NĂDIRE AUTOMATĂ"; color: "white"; font.bold: true; font.pixelSize: 17 }
         Label { Layout.fillWidth: true; text: "Punct: " + root.waypointName; color: "#21b7ff"; font.bold: true; wrapMode: Text.WordWrap }
+        Label {
+            Layout.fillWidth: true
+            visible: !root.waypoint
+            text: "Alege un waypoint pe hartă sau un loc de pescuit salvat. Pornirea cere apoi GPS și H743 conectate."
+            color: "#9db2c5"; wrapMode: Text.WordWrap
+        }
+        ComboBox {
+            Layout.fillWidth: true
+            visible: !root.waypoint && root.availableSpots.length > 0
+            model: root.availableSpots
+            textRole: "name"
+            displayText: "Alege un loc salvat"
+            onActivated: function(index) { root.spotChosen(root.availableSpots[index]) }
+        }
+        Button { visible: !root.waypoint; text: "ALEGE PUNCT PE HARTĂ"; onClicked: root.chooseOnMapRequested() }
         RowLayout {
             Layout.fillWidth: true
             Label { text: "Cuva"; color: "#9db2c5" }
