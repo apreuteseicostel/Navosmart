@@ -16,6 +16,7 @@ Item {
     property var fishingSpotsModel
     property var bathymetryCells: []
     property var baitingController
+    property var areaScanController
     property real savedDepthM: NaN
     property real savedWaterTempC: NaN
 
@@ -73,7 +74,7 @@ Item {
     }
 
     NavoActualTrack { map: liveMap; vehicle: root.vehicle; taskActive: !!root.vehicle }
-    NavoAreaScanOverlay { map: liveMap; areaScan: root.baitingController ? root.baitingController.areaScanController : null }
+    NavoAreaScanOverlay { map: liveMap; areaScan: root.areaScanController }
     NavoFishOverlay { map: liveMap; fishModel: root.fishModel }
     NavoBathymetryOverlay { map: liveMap; bathymetryCells: root.bathymetryCells; fishingSpotsModel: root.fishingSpotsModel }
 
