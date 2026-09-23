@@ -77,6 +77,8 @@ Item {
     readonly property real waterTempC: sonar.waterTempC
     readonly property bool sonarConnected: sonar.connected && sonar.dataAlive
     property var fishDetections: []
+    property string cameraStreamUrl: ""
+    property string cameraProtocol: "auto"
     property string lastNavigationStatus: ""
     property bool silentModeActive: false
     property bool cameraConnected: false
@@ -265,6 +267,7 @@ Item {
             NavButton { text: "PUNCTE PESCUIT"; active: root.activePage === 3; onClicked: root.activePage = 3 }
             NavButton { text: "BALȚILE MELE"; active: root.activePage === 4; onClicked: root.activePage = 4 }
             NavButton { text: "CAMERA"; active: root.activePage === 5; onClicked: root.activePage = 5 }
+            NavButton { text: "3D"; active: root.activePage === 7; onClicked: root.activePage = 7 }
             NavButton { text: "SETARI"; active: root.activePage === 6; onClicked: root.activePage = 6 }
             Item { Layout.fillHeight: true }
             Label { text: "BARCA " + root.boatId; color: root.muted; font.pixelSize: 11 }
@@ -282,7 +285,8 @@ Item {
                              root.activePage === 2 ? areaPage :
                              root.activePage === 3 ? fishingPage :
                              root.activePage === 4 ? lakesPage :
-                             root.activePage === 5 ? cameraPage : settingsPage
+                             root.activePage === 5 ? cameraPage :
+                             root.activePage === 7 ? bathymetryPage : settingsPage
         }
     }
 
@@ -529,6 +533,18 @@ Item {
     }
 
     Component {
+        id: bathymetryPage
+        Item {
+            NavoBathymetry3D {
+                anchors.fill: parent
+                samples: persistence.sonarSamples
+                fishingSpots: fishingSpots.fishingSpots
+                fishDetections: root.fishDetections
+            }
+        }
+    }
+
+    Component {
         id: cameraPage
         Item {
             Rectangle { anchors.fill: parent; radius: 8; color: "#05080c"; border.color: root.line }
@@ -537,7 +553,9 @@ Item {
                 Label { text: "CAMERA ETHERNET"; color: root.text; font.pixelSize: 18; font.bold: true }
                 NavoCameraPip {
                     Layout.fillWidth: true; Layout.fillHeight: true
-                    connected: root.cameraConnected
+                    connected: root.cameraStreamUrl.length > 0
+                    streamUrl: root.cameraStreamUrl
+                    protocol: root.cameraProtocol
                     onFullscreenRequested: root.cameraFullscreen = true
                 }
             }
@@ -552,6 +570,8 @@ Item {
                 id: ethernetSettings
                 anchors.fill: parent; anchors.margins: 12
                 sonar: sonar
+                onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
+                onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
                 onStatus: function(text) { root.lastNavigationStatus=text }
             }
         }
