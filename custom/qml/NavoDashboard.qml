@@ -87,6 +87,7 @@ Item {
     property int activePage: 0
     property bool hopperStatusExpanded: false
     property bool mapFullscreen: false
+    property var mapController: null
     property string selectedHopper: "none"
     property int manualHopperHoldMs: 1500
     readonly property bool manualMode: root.flightMode.toUpperCase() === "MANUAL"
@@ -301,10 +302,26 @@ Item {
         Item {
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             NavoMap {
+                id: navoMap
                 anchors.fill: parent; anchors.margins: 8
+                Component.onCompleted: root.mapController = navoMap
+                Component.onDestruction: if(root.mapController===navoMap) root.mapController=null
                 vehicle: root.vehicle
                 waypointNames: root.waypointNames
                 onNavigateRequested: function(coordinate) { root.navigateToCoordinate(coordinate) }
+                onAreaRectangleRequested: function(cornerA, cornerB) {
+                    var pts=scanCoordinator.prepareRectangle(cornerA,cornerB)
+                    root.lastNavigationStatus="Area Scan dreptunghi • "+pts.length+" WP generate"
+                    root.activePage=2
+                }
+                onAreaPolygonRequested: function(polygon) {
+                    var boat=root.vehicle&&root.vehicle.coordinate&&root.vehicle.coordinate.isValid?root.vehicle.coordinate:null
+                    var pts=areaScanController.generatePolygon(polygon)
+                    scanCoordinator.areaPoints=pts
+                    scanCoordinator.checkpoint("area-polygon")
+                    root.lastNavigationStatus="Area Scan poligon • "+pts.length+" WP generate"
+                    root.activePage=2
+                }
                 onSavePointRequested: function(coordinate) {
                     var spot = fishingSpots.saveSpot(coordinate, root.depthM, root.waterTempC, "", "", null)
                     if (spot) {
@@ -361,6 +378,20 @@ Item {
                 }
                 RowLayout {
                     Layout.fillWidth: true
+                    Button {
+                        text: "DREPTUNGHI PE HARTĂ"
+                        onClicked: {
+                            root.activePage=0
+                            Qt.callLater(function(){ if(root.mapController)root.mapController.beginAreaRectangle() })
+                        }
+                    }
+                    Button {
+                        text: "POLIGON PE HARTĂ"
+                        onClicked: {
+                            root.activePage=0
+                            Qt.callLater(function(){ if(root.mapController)root.mapController.beginAreaPolygon() })
+                        }
+                    }
                     Button {
                         text: "PREGĂTEȘTE MISIUNEA"
                         enabled: areaScanController.generatedPoints.length > 0 && !missionUploader.uploadInProgress
