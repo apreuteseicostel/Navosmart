@@ -138,15 +138,11 @@ jobs:
             unset ANDROID_ADB_SERVER_PORT
             adb start-server
             adb -s emulator-5554 wait-for-device
-            for i in $(seq 1 180); do
-              [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ] && break
-              sleep 2
-            done
+            # android-emulator-runner invokes each script line separately, so keep
+            # the post-boot verification single-line/POSIX-safe.
             test "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1"
             adb -s emulator-5554 shell input keyevent 82 || true
             adb -s emulator-5554 devices >/dev/null
-            adb wait-for-device
-            adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 2; done; input keyevent 82' || true
             adb install --no-streaming -r build-x86/NAVO_SMART-x86.apk
             test -x "$ANDROID_HOME/build-tools/35.0.0/aapt2"
             "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging build-x86/NAVO_SMART-x86.apk | grep -m1 '^package:'
