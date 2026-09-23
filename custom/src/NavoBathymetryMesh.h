@@ -11,6 +11,8 @@ class NavoBathymetryMesh : public QObject {
     Q_PROPERTY(double maxDepthM READ maxDepthM NOTIFY meshChanged)
     Q_PROPERTY(double originLatitude READ originLatitude NOTIFY meshChanged)
     Q_PROPERTY(double originLongitude READ originLongitude NOTIFY meshChanged)
+    Q_PROPERTY(int measuredVertexCount READ measuredVertexCount NOTIFY meshChanged)
+    Q_PROPERTY(int interpolatedVertexCount READ interpolatedVertexCount NOTIFY meshChanged)
 public:
     explicit NavoBathymetryMesh(QObject* parent=nullptr);
     Q_INVOKABLE bool build(const QVariantList& samples, double gridSizeM=2.0, double maxGapM=6.0);
@@ -21,8 +23,11 @@ public:
     double maxDepthM() const { return _maxDepth; }
     double originLatitude() const { return _originLat; }
     double originLongitude() const { return _originLon; }
+    int measuredVertexCount() const { return _measuredCount; }
+    int interpolatedVertexCount() const { return _interpolatedCount; }
 signals: void meshChanged();
 private:
     QVariantList _vertices, _triangles;
     double _minDepth=0, _maxDepth=0, _originLat=0, _originLon=0;
+    int _measuredCount=0, _interpolatedCount=0;
 };
