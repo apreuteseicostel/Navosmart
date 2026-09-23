@@ -8,6 +8,7 @@ Item {
  property var samples:[]; property var boatTrack:[]; property var waypoints:[]; property var fishingSpots:[]; property var fishDetections:[]
  property real gridSizeM:2; property real maxGapM:6; property real verticalExaggeration:2; property real yaw:-35; property real pitch:-48; property real cameraDistance:180; property point panOffset:Qt.point(0,0)
  property var selectedPoint:null; property var selectedObject:null; property string selectedKind:""
+ signal openSonarRequested()
  property bool showTrack:true; property bool showWaypoints:true; property bool showSpots:true; property bool showFish:true; property int maxTrackPoints3D:1200; property int maxFish3D:500
  readonly property int lodLevel: cameraDistance>500?3:cameraDistance>250?2:cameraDistance>110?1:0
  readonly property int adaptiveTrackLimit: lodLevel===3?180:lodLevel===2?350:lodLevel===1?700:maxTrackPoints3D
@@ -56,6 +57,13 @@ Item {
   }
   Flow{Layout.fillWidth:true;spacing:4
    CheckBox{text:"Traseu";checked:root.showTrack;onToggled:root.showTrack=checked}CheckBox{text:"WP";checked:root.showWaypoints;onToggled:root.showWaypoints=checked}CheckBox{text:"Locuri";checked:root.showSpots;onToggled:root.showSpots=checked}CheckBox{text:"Pești";checked:root.showFish;onToggled:root.showFish=checked}
+  }
+ }
+ Rectangle{visible:!root.samples||root.samples.length===0;anchors.centerIn:parent;width:Math.min(parent.width-24,430);height:empty3d.implicitHeight+32;radius:10;color:"#102232";border.color:"#315b75"
+  ColumnLayout{id:empty3d;anchors.centerIn:parent;width:parent.width-24;spacing:8
+   Label{Layout.fillWidth:true;text:"Nu există încă măsurători 3D";color:"white";font.bold:true;horizontalAlignment:Text.AlignHCenter}
+   Label{Layout.fillWidth:true;text:"Conectează Kogger și salvează probe sonar cu poziție GPS pentru a construi fundul bălții.";color:"#9db2c5";wrapMode:Text.WordWrap;horizontalAlignment:Text.AlignHCenter}
+   Button{Layout.alignment:Qt.AlignHCenter;text:"DESCHIDE SONAR";onClicked:root.openSonarRequested()}
   }
  }
  Rectangle{visible:root.selectedObject!==null||root.selectedPoint!==null;anchors{left:parent.left;bottom:parent.bottom;margins:12}width:310;height:details.implicitHeight+24;radius:8;color:"#d9101c29";border.color:"#45677e"

@@ -30,6 +30,7 @@ Item {
     }
 
     NavoPersistence { id: persistence }
+    property alias lakePersistence: persistence
     NavoFishingSpots { id: fishingSpots }
     NavoFishDetections { id: fishStore }
     NavoAreaScan { id: areaScanController }
@@ -88,6 +89,7 @@ Item {
         }
         onStatus: function(message) { root.lastNavigationStatus = message }
     }
+    property alias areaCoordinator: scanCoordinator
     Connections {
         target: root.planController ? root.planController.missionController : null
         function onCurrentMissionIndexChanged(currentMissionIndex) {
@@ -341,7 +343,7 @@ Item {
             ColumnLayout {
                 id: navColumn
                 width: parent.width
-                spacing: Math.max(3, Math.min(8, (sidebar.height - 44 - 9 * 36) / 10))
+                spacing: Math.max(3, Math.min(8, (sidebar.height - 44 - 10 * 36) / 11))
                 Label { text: navColumn.implicitHeight > sidebar.height - 16 ? "NAVIGAȚIE ↓" : "NAVIGAȚIE"; color: root.muted; font.bold: true; font.pixelSize: 13 }
                 NavButton { text: "HARTA"; active: root.activePage === 0; onClicked: root.activePage = 0 }
                 NavButton { text: "SONAR"; active: root.activePage === 1; onClicked: root.activePage = 1 }
@@ -351,6 +353,7 @@ Item {
                 NavButton { text: "CAMERA"; active: root.activePage === 5; onClicked: root.activePage = 5 }
                 NavButton { text: "3D"; active: root.activePage === 7; onClicked: root.activePage = 7 }
                 NavButton { text: "NĂDIRE"; active: root.activePage === 8; onClicked: root.activePage = 8 }
+                NavButton { text: "SIGURANȚĂ"; active: root.activePage === 9; onClicked: root.activePage = 9 }
                 NavButton { text: "SETARI"; active: root.activePage === 6; onClicked: root.activePage = 6 }
                 Label { text: "BARCA " + root.boatId; color: root.muted; font.pixelSize: 10; Layout.topMargin: 2 }
             }
@@ -370,7 +373,8 @@ Item {
                              root.activePage === 4 ? lakesPage :
                              root.activePage === 5 ? cameraPage :
                              root.activePage === 7 ? bathymetryPage :
-                             root.activePage === 8 ? baitingPage : settingsPage
+                             root.activePage === 8 ? baitingPage :
+                             root.activePage === 9 ? failsafePage : settingsPage
         }
     }
 
@@ -407,7 +411,7 @@ Item {
             DataLine { name: "Apa"; value: nanoTelemetry.connected ? (nanoTelemetry.waterDetected ? "DETECTATA" : "OK") : "--"; valueColor: nanoTelemetry.waterDetected ? root.danger : root.text }
             NavoBoatStatus {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 150
+                Layout.preferredHeight: 170
                 compact: true
                 waterDetected: nanoTelemetry.waterDetected
                 batteryTempC: nanoTelemetry.batteryTempC
@@ -418,7 +422,6 @@ Item {
                 rightHopperCommandOpen: hopperBridge.commandPending && (hopperBridge.pendingHopper===2||hopperBridge.pendingHopper===3)
             }
             Rectangle { Layout.fillWidth: true; height: 1; color: root.line }
-            NavoFailsafePanel { Layout.fillWidth: true; controller: failsafeController }
             Label { text: "CONTROL MISIUNE"; color: root.muted; font.bold: true }
             RowLayout {
                 Layout.fillWidth: true
@@ -669,8 +672,8 @@ Item {
             }
             NavoMyLakes {
                 id: myLakesPopup
-                persistence: persistence
-                scanCoordinator: scanCoordinator
+                persistence: root.lakePersistence
+                scanCoordinator: root.areaCoordinator
                 onLakeRestored: function(lakeId) {
                     missionUploader.invalidate()
                     root.activePage = 2
@@ -694,6 +697,19 @@ Item {
     }
 
     Component {
+        id: failsafePage
+        Item {
+            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
+            ColumnLayout {
+                anchors.fill: parent; anchors.margins: 16; spacing: 12
+                Label { text: "SIGURANȚĂ & FAILSAFE"; color: root.text; font.pixelSize: 20; font.bold: true }
+                NavoFailsafePanel { Layout.fillWidth: true; controller: failsafeController }
+                Item { Layout.fillHeight: true }
+            }
+        }
+    }
+
+    Component {
         id: bathymetryPage
         Item {
             NavoBathymetry3D {
@@ -702,6 +718,7 @@ Item {
                 boatTrack: sonarMapping.trackCoordinates
                 fishingSpots: fishingSpots.fishingSpots
                 fishDetections: root.fishDetections
+                onOpenSonarRequested: root.activePage = 1
             }
         }
     }
