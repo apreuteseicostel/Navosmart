@@ -63,6 +63,7 @@ Item {
         depthM: root.depthM
         waterTempC: root.waterTempC
         sonarConnected: root.sonarConnected
+        externalSampleIngestion: true
         onCheckpointRequested: function(state) { scanCoordinator.checkpoint("sonar-mapping") }
     }
     NavoScanCoordinator {
@@ -145,8 +146,7 @@ Item {
         vehicle: root.vehicle
         onGeoSample: function(sample) {
             persistence.addSonarSample(sample)
-            sonarMapping.addCurrentSample()
-            fishDetector.analyze(sonar.echoSamples, sonar.depthM)
+            sonarMapping.ingestSample(sample)
         }
     }
     NavoFishDetector {
@@ -517,7 +517,7 @@ Item {
                         enabled: areaScanController.generatedPoints.length > 0 && areaScanController.completedLanes.length < areaScanController.laneCount()
                         onClicked: {
                             var mission = scanCoordinator.resume()
-                            if (mission.length && missionUploader.prepare(mission)) root.startMission()
+                            if (mission.length) root.startMission()
                         }
                     }
                 }
