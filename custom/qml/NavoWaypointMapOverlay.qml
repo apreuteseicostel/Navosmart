@@ -18,6 +18,7 @@ Item {
     property real savedWaterTempC: NaN
     property string waypointNote: ""
 
+    signal waypointSelected(var waypoint)
     signal editRequested(var waypoint)
     signal deleteRequested(var waypoint)
     signal navigationCommandSent(var waypoint, bool accepted)
@@ -33,6 +34,7 @@ Item {
     function selectWaypoint(wp) {
         selectedWaypoint = wp
         selectedScreenPoint = map.fromCoordinate(wp.coordinate, false)
+        waypointSelected(wp)
     }
 
     MapItemView {
