@@ -45,6 +45,7 @@ QtObject {
             sonarMapping.currentLane=0; sonarMapping.completedLanes=0; sonarMapping.totalLanes=0
             if(fishingSpots) fishingSpots.fishingSpots=[]
             if(fishStore) fishStore.clear()
+            if(persistence.replaceWaypointNames) persistence.replaceWaypointNames({})
             state="IDLE"; missionLanes=[]; missionWaypointCount=0; missionCurrentIndex=-1
             lastCompletedLaneFromMission=-1; lastCompletedRouteLaneFromMission=-1
             if(!checkpoint("lake-created")) return false
