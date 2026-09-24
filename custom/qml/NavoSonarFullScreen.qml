@@ -29,6 +29,7 @@ Popup {
  readonly property real bottomEchoStrength: bottomStrengthHistory.length?Number(bottomStrengthHistory[bottomStrengthHistory.length-1]):NaN
  readonly property real bottomHardnessPercent: isNaN(bottomEchoStrength)?NaN:Math.max(0,Math.min(100,((bottomEchoStrength-noiseFloor)*gain)*100))
  signal saveWaypointRequested(real latitude,real longitude,real depthM,real waterTempC)
+ signal recordingRequested(bool start)
  function pushHistory(){if(root.paused||!echoSamples||!echoSamples.length)return;var h=history.slice(0);h.push({samples:echoSamples.slice(0),depth:depthM});while(h.length>historyColumns)h.shift();history=h;var n=Math.max(3,Math.floor(echoSamples.length*0.10)),sum=0,cnt=0;for(var i=Math.max(0,echoSamples.length-n);i<echoSamples.length;i++){sum+=Number(echoSamples[i]);cnt++}var b=bottomStrengthHistory.slice(0);b.push(cnt?sum/cnt:0);while(b.length>historyColumns)b.shift();bottomStrengthHistory=b;var bd=bottomDepthHistory.slice(0);bd.push(depthM);while(bd.length>historyColumns)bd.shift();bottomDepthHistory=bd}
  function bottomColor(v){v=Math.max(0,Math.min(1,(v-root.noiseFloor)*root.gain));if(root.paletteMode==="DAY"){if(v>.72)return "#ffe44d";if(v>.42)return "#ef493d";return "#245fa8"}if(v>.78)return "#fff36a";if(v>.60)return "#f33b2f";if(v>.40)return "#ff8b28";if(v>.22)return "#55c85a";return "#1767a7"}
  function palette(v){v=Math.max(0,Math.min(1,v));if(v<.22)return "rgba(16,92,170,"+(0.25+v*2)+")";if(v<.48)return "rgba(28,205,225,"+(0.45+v)+")";if(v<.72)return "rgba(246,218,70,"+(0.55+v*.5)+")";return "rgba(244,75,46,"+(0.65+v*.35)+")"}
@@ -101,7 +102,7 @@ Popup {
    }
   }
   Flow{Layout.fillWidth:true;Layout.leftMargin:10;Layout.rightMargin:10;Layout.bottomMargin:10;spacing:6
-   Button{text:root.recording?"■ OPREȘTE ÎNREGISTRAREA":"● ÎNREGISTREAZĂ";checkable:true;checked:root.recording;onClicked:root.recording=checked}
+   Button{text:root.recording?"OPREȘTE ÎNREGISTRAREA":"ÎNREGISTREAZĂ";checkable:true;checked:root.recording;onClicked:{root.recording=checked;root.recordingRequested(root.recording)}}
    Button{text:root.paused?"▶ REDĂ":"Ⅱ PAUZĂ";onClicked:root.paused=!root.paused}
    Label{text:"Viteză: "+(isNaN(root.speedMps)?"--":(root.speedMps*3.6).toFixed(1)+" km/h");color:"#9db2c5";height:40;verticalAlignment:Text.AlignVCenter}
    Label{text:"GPS: "+(isNaN(root.latitude)?"--":root.latitude.toFixed(6)+", "+root.longitude.toFixed(6));color:"#9db2c5";height:40;verticalAlignment:Text.AlignVCenter;visible:root.width>=760}
