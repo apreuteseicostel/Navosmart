@@ -99,8 +99,9 @@ test('Recovered NAVO mobile UI remains reachable from the dashboard',()=>{
   const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
   const area=fs.readFileSync(path.join(dir,'NavoAreaScanOverlay.qml'),'utf8');
   const uploader=fs.readFileSync(path.join(dir,'NavoMissionUploader.qml'),'utf8');
-  for(const token of ['property bool mapMaximized: false','id: statusStrip','id: areaScanMap','id: fishingMap','FINAL: HOLD','onMaximizeRequested: root.mapMaximized = !root.mapMaximized'])
+  for(const token of ['property bool mapMaximized: false','id: areaScanMap','id: fishingMap','FINAL: HOLD','onMaximizeRequested: root.mapMaximized = !root.mapMaximized'])
     assert(dash.includes(token),token);
+  assert(!dash.includes('id: statusStrip'),'legacy bottom status strip must stay removed');
   assert(area.includes('▶ "+(root.areaScan.activeLaneIndex+1)+"/"+root.areaScan.laneCount()'));
   assert(uploader.includes('property int verifiedCount: 0'));
 });
