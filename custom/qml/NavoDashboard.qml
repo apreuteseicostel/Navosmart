@@ -660,7 +660,7 @@ Item {
                 }
                 Label {
                     Layout.fillWidth: true
-                    text: root.sonarConnected ? "Sonar conectat • atinge ⛶ pentru ecogramă" : "Kogger offline • atinge ⛶ pentru ecogramă și conexiune"
+                    text: root.sonarConnected ? "Sonar conectat • apasă MĂREȘTE pentru ecogramă" : "Kogger offline • apasă MĂREȘTE pentru ecogramă și conexiune"
                     color: root.muted
                     wrapMode: Text.WordWrap
                 }
