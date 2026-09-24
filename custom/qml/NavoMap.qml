@@ -133,7 +133,7 @@ Item {
         id: renameDialog; parent: Overlay.overlay; anchors.centerIn: parent; modal: true
         property int sequence: -1
         title: "Nume waypoint"; standardButtons: Dialog.Save | Dialog.Cancel
-        TextField { id: waypointName; width: Math.min(300, root.width); placeholderText: "Lanseta verde" }
+        TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff"; id: waypointName; width: Math.min(300, root.width); placeholderText: "Lanseta verde" }
         onAccepted: if(sequence>0 && waypointName.text.trim().length) root.waypointNameChanged(sequence,waypointName.text.trim())
     }
 
@@ -225,7 +225,7 @@ Item {
         Column {
             spacing: 8
             Label { text: "Nume punct (opțional)" }
-            TextField { id: fishingName; width: Math.min(300, root.width-40); placeholderText: "ex. Lanseta verde" }
+            TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff"; id: fishingName; width: Math.min(300, root.width-40); placeholderText: "ex. Lanseta verde" }
             Label { text: "Culoare marker"; font.pixelSize: 11 }
             Row {
                 spacing: 8
