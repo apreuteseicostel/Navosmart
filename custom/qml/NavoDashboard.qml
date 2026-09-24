@@ -830,6 +830,8 @@ Item {
                     baitingController: baitingController; areaScanController: areaScanController
                     savedDepthM: root.depthM; savedWaterTempC: root.waterTempC
                     onNavigateRequested: function(c){root.navigateToCoordinate(c)}
+                    onFishingSpotRenameRequested: function(spot){ spotRenameId=spot.id; spotRename.text=spot.name; spotRenameDialog.open() }
+                    onBaitingWaypointSelected: function(wp){ baitingController.targetWaypoint=wp; root.lastNavigationStatus="Punct de nădire ales: "+wp.name }
                     onSaveNamedPointRequested: function(c,name){
                         if(!scanCoordinator.lakeId.length){root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
                         var s=fishingSpots.saveSpot(c,NaN,NaN,name,"Punct ales pe hartă",null)
