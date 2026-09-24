@@ -812,61 +812,107 @@ Item {
     Component {
         id: fishingPage
         Item {
-            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
-            ColumnLayout {
-                anchors.fill: parent; anchors.margins: 10; spacing: 7
-                RowLayout {
-                    Layout.fillWidth: true
-                    Label { text: "PUNCTE DE PESCUIT"; color: root.text; font.pixelSize: 18; font.bold: true }
-                    Item { Layout.fillWidth: true }
-                    Label { text: fishingSpots.fishingSpots.length+" salvate"; color: root.muted }
-                }
-                Label { Layout.fillWidth: true; text: "Ține apăsat pe hartă pentru un punct nou. ＋ salvează poziția actuală a bărcii."; color: root.muted; font.pixelSize: 11; wrapMode: Text.WordWrap }
-                NavoMap {
-                    id: fishingMap
-                    Layout.fillWidth: true; Layout.preferredHeight: Math.max(180,parent.height*0.55)
-                    vehicle: root.vehicle; planController: root.planController; waypointNames: root.waypointNames
-                    fishModel: fishStore; fishingSpotsModel: fishingSpots; bathymetryCells: scanCoordinator.bathymetryCells
-                    baitingController: baitingController; areaScanController: areaScanController
-                    savedDepthM: root.depthM; savedWaterTempC: root.waterTempC
-                    onNavigateRequested: function(c){root.navigateToCoordinate(c)}
-                    onFishingSpotRenameRequested: function(spot){ spotRenameId=spot.id; spotRename.text=spot.name; spotRenameDialog.open() }
-                    onBaitingWaypointSelected: function(wp){ baitingController.targetWaypoint=wp; root.lastNavigationStatus="Punct de nădire ales: "+wp.name }
-                    onSaveNamedPointRequested: function(c,name,markerColor){
-                        if(!scanCoordinator.lakeId.length){root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
-                        var s=fishingSpots.saveSpot(c,NaN,NaN,name,"Punct ales pe hartă",null,markerColor)
-                        if(s){scanCoordinator.checkpoint("fishing-spot-map");root.lastNavigationStatus="Punct salvat: "+s.name}
-                    }
-                    onSavePointRequested: function(c){
-                        if(!scanCoordinator.lakeId.length){root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
-                        var s=fishingSpots.saveSpot(c,root.depthM,root.waterTempC,"","Poziția bărcii",null)
-                        if(s){scanCoordinator.checkpoint("fishing-spot-boat");root.lastNavigationStatus="Poziția bărcii salvată: "+s.name}
-                    }
-                }
-                ListView {
-                    Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 4
-                    model: fishingSpots.fishingSpots
-                    delegate: Rectangle {
-                        required property var modelData
-                        width: ListView.view.width; height: 64; radius: 7; color: root.bg; border.color: root.line
-                        Column { anchors.left:parent.left;anchors.leftMargin:8;anchors.verticalCenter:parent.verticalCenter
-                            Label { text:modelData.name||"Loc pescuit";color:root.text;font.bold:true }
-                            Label { text:(modelData.depth===null?"--":Number(modelData.depth).toFixed(1)+" m")+" • "+Number(modelData.lat).toFixed(5)+", "+Number(modelData.lon).toFixed(5);color:root.muted;font.pixelSize:10 }
+            id: fishingPageRoot
+            property string spotEditId: ""
+            property string spotEditColor: "#31d67b"
+            Rectangle { anchors.fill:parent; radius:8; color:root.panel; border.color:root.line }
+            RowLayout {
+                anchors.fill:parent; anchors.margins:8; spacing:8
+                Rectangle {
+                    Layout.fillWidth:true; Layout.fillHeight:true
+                    radius:8; color:root.bg; border.color:root.line; clip:true
+                    NavoMap {
+                        id:fishingMap
+                        anchors.fill:parent
+                        vehicle:root.vehicle; planController:root.planController; waypointNames:root.waypointNames
+                        fishModel:fishStore; fishingSpotsModel:fishingSpots; bathymetryCells:scanCoordinator.bathymetryCells
+                        baitingController:baitingController; areaScanController:areaScanController
+                        savedDepthM:root.depthM; savedWaterTempC:root.waterTempC
+                        onNavigateRequested:function(c){root.navigateToCoordinate(c)}
+                        onFishingSpotRenameRequested:function(spot){fishingPageRoot.openEdit(spot)}
+                        onBaitingWaypointSelected:function(wp){baitingController.targetWaypoint=wp;root.lastNavigationStatus="Punct de nădire ales: "+wp.name}
+                        onSaveNamedPointRequested:function(c,name,markerColor){
+                            if(!scanCoordinator.lakeId.length){root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
+                            var s=fishingSpots.saveSpot(c,NaN,NaN,name,"Punct ales pe hartă",null,markerColor)
+                            if(s){scanCoordinator.checkpoint("fishing-spot-map");root.lastNavigationStatus="Punct salvat: "+s.name}
                         }
-                        Row { anchors.right:parent.right;anchors.rightMargin:6;anchors.verticalCenter:parent.verticalCenter;spacing:3
-                            Button { text:"NAV"; width:48; onClicked:root.navigateToCoordinate(QtPositioning.coordinate(Number(modelData.lat),Number(modelData.lon))) }
-                            Button { text:"NUME"; width:58; onClicked:{spotRenameId=modelData.id;spotRename.text=modelData.name;spotRenameDialog.open()} }
-                            Button { text:"×"; width:36; onClicked:{fishingSpots.removeSpot(modelData.id);scanCoordinator.checkpoint("fishing-spot-delete")} }
+                        onSavePointRequested:function(c){
+                            if(!scanCoordinator.lakeId.length){root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
+                            var s=fishingSpots.saveSpot(c,root.depthM,root.waterTempC,"","Poziția bărcii",null,"#31d67b")
+                            if(s){scanCoordinator.checkpoint("fishing-spot-boat");root.lastNavigationStatus="Poziția bărcii salvată: "+s.name}
+                        }
+                    }
+                    Rectangle {
+                        anchors.left:parent.left; anchors.top:parent.top; anchors.margins:10
+                        width:hint.implicitWidth+20; height:34; radius:7; color:"#071827dd"; border.color:root.line
+                        Label { id:hint; anchors.centerIn:parent; text:"ȚINE APĂSAT PE HARTĂ PENTRU PUNCT NOU"; color:root.text; font.pixelSize:10; font.bold:true }
+                    }
+                }
+                Rectangle {
+                    Layout.preferredWidth:Math.max(260,Math.min(360,parent.width*0.31)); Layout.fillHeight:true
+                    radius:8; color:root.panel; border.color:root.line
+                    ColumnLayout {
+                        anchors.fill:parent; anchors.margins:8; spacing:7
+                        RowLayout {
+                            Layout.fillWidth:true
+                            Label { text:"PUNCTE PESCUIT"; color:root.text; font.bold:true; font.pixelSize:15 }
+                            Item { Layout.fillWidth:true }
+                            Label { text:fishingSpots.fishingSpots.length+" salvate"; color:root.muted; font.pixelSize:10 }
+                        }
+                        Label { Layout.fillWidth:true; text:scanCoordinator.lakeName.length ? "Balta: "+scanCoordinator.lakeName : "Selectează o baltă pentru salvare persistentă"; color:scanCoordinator.lakeId.length?root.ok:root.warn; font.pixelSize:10; wrapMode:Text.WordWrap }
+                        ListView {
+                            Layout.fillWidth:true; Layout.fillHeight:true; clip:true; spacing:5
+                            model:fishingSpots.fishingSpots
+                            delegate:Rectangle {
+                                required property var modelData
+                                width:ListView.view.width; height:76; radius:7; color:root.bg; border.color:root.line
+                                Rectangle { width:16;height:16;radius:8;anchors.left:parent.left;anchors.leftMargin:8;anchors.top:parent.top;anchors.topMargin:10;color:modelData.color||"#31d67b";border.color:"white" }
+                                Column {
+                                    anchors.left:parent.left; anchors.leftMargin:31; anchors.right:parent.right; anchors.rightMargin:6; anchors.top:parent.top; anchors.topMargin:7
+                                    Label { width:parent.width; text:modelData.name||"Loc pescuit"; color:root.text; font.bold:true; elide:Text.ElideRight }
+                                    Label { width:parent.width; text:Number(modelData.lat).toFixed(5)+", "+Number(modelData.lon).toFixed(5); color:root.muted; font.pixelSize:9; elide:Text.ElideRight }
+                                }
+                                Row {
+                                    anchors.left:parent.left;anchors.leftMargin:8;anchors.bottom:parent.bottom;anchors.bottomMargin:5;spacing:4
+                                    Button { text:"NAV"; height:27; width:48; padding:2; onClicked:root.navigateToCoordinate(QtPositioning.coordinate(Number(modelData.lat),Number(modelData.lon))) }
+                                    Button { text:"EDIT"; height:27; width:52; padding:2; onClicked:fishingPageRoot.openEdit(modelData) }
+                                    Button { text:"NĂDIRE"; height:27; width:62; padding:2; onClicked:{baitingController.targetWaypoint={coordinate:QtPositioning.coordinate(Number(modelData.lat),Number(modelData.lon)),name:modelData.name,sequenceNumber:0};root.activePage=8;root.lastNavigationStatus="Punct de nădire ales: "+modelData.name} }
+                                    Button { text:"ȘTERGE"; height:27; width:62; padding:2; onClicked:{fishingSpots.removeSpot(modelData.id);scanCoordinator.checkpoint("fishing-spot-delete")} }
+                                }
+                            }
                         }
                     }
                 }
             }
-            property string spotRenameId: ""
+            function openEdit(spot) {
+                spotEditId=spot.id; spotName.text=spot.name||""; spotEditColor=spot.color||"#31d67b"; spotEditDialog.open()
+            }
             Dialog {
-                id: spotRenameDialog; parent: Overlay.overlay; anchors.centerIn: parent; modal:true
-                title:"Redenumește punct"; standardButtons:Dialog.Save|Dialog.Cancel
-                TextField { id:spotRename; width:Math.min(280,parent ? parent.width-40:280); placeholderText:"Lanseta verde" }
-                onAccepted: if(fishingSpots.renameSpot(fishingPageRoot.spotRenameId,spotRename.text)){scanCoordinator.checkpoint("fishing-spot-rename")}
+                id:spotEditDialog; parent:Overlay.overlay; anchors.centerIn:parent; modal:true
+                title:"Editează punct"; standardButtons:Dialog.Save|Dialog.Cancel
+                Column {
+                    spacing:8
+                    TextField { id:spotName; width:280; placeholderText:"Lanseta verde" }
+                    Label { text:"Culoare marker" }
+                    Row {
+                        spacing:8
+                        Repeater {
+                            model:["#31d67b","#ef4444","#3b82f6","#facc15","#a855f7","#f97316"]
+                            delegate:Rectangle {
+                                required property var modelData
+                                width:30;height:30;radius:15;color:modelData
+                                border.color:fishingPageRoot.spotEditColor===modelData?"white":"#607080"
+                                border.width:fishingPageRoot.spotEditColor===modelData?3:1
+                                MouseArea { anchors.fill:parent; onClicked:fishingPageRoot.spotEditColor=modelData }
+                            }
+                        }
+                    }
+                }
+                onAccepted:{
+                    if(fishingSpots.renameSpot(fishingPageRoot.spotEditId,spotName.text))
+                        fishingSpots.setSpotColor(fishingPageRoot.spotEditId,fishingPageRoot.spotEditColor)
+                    scanCoordinator.checkpoint("fishing-spot-edit")
+                }
             }
         }
     }
