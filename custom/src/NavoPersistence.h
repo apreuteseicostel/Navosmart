@@ -13,6 +13,7 @@ public:
  explicit NavoPersistence(QObject* parent=nullptr);
  QVariantMap waypointNames() const{return _waypointNames;} QVariantList sonarSamples() const{return _sonarSamples;} QVariantList bathymetrySessions() const{return _bathymetrySessions;} QVariantList lakes() const{return _lakes;}
  Q_INVOKABLE void setWaypointName(int sequence,const QString& name);
+ Q_INVOKABLE void replaceWaypointNames(const QVariantMap& names);
  Q_INVOKABLE void addSonarSample(const QVariantMap& sample);
  Q_INVOKABLE void clearSonarSamples();
  Q_INVOKABLE QString saveBathymetrySession(const QVariantMap& metadata,const QVariantList& samples);
