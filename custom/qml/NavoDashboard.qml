@@ -421,6 +421,10 @@ Item {
         if(baitingController.enabled) baitingController.abortCycle("STOP utilizator")
         digitalAnchor.release()
         if(scanCoordinator.state==="SCANNING") scanCoordinator.pause("STOP utilizator")
+        else if(scanCoordinator.state==="READY" || scanCoordinator.state==="RESUME_READY") {
+            scanCoordinator.state="PAUSED"
+            scanCoordinator.checkpoint("stop-before-start")
+        }
         missionUploader.invalidate()
         if (!vehicle || !vehicle.pauseVehicle) { root.lastNavigationStatus = "STOP indisponibil: autopilot deconectat"; return false }
         vehicle.pauseVehicle()
@@ -723,9 +727,9 @@ Item {
                 }
                 RowLayout {
                     Layout.fillWidth: true
-                    Button { text: "HOLD"; onClicked: { scanCoordinator.pause("HOLD utilizator"); root.holdMission() } }
-                    Button { text: "RTL"; onClicked: { scanCoordinator.rtl("RTL utilizator"); root.rtlMission() } }
-                    Button { text: "STOP"; onClicked: { scanCoordinator.pause("STOP utilizator"); root.stopMission() } }
+                    Button { text: "HOLD"; enabled: scanCoordinator.state==="SCANNING" || root.awaitingMissionStart; onClicked: root.holdMission() }
+                    Button { text: "RTL"; enabled: scanCoordinator.state==="SCANNING" || scanCoordinator.state==="PAUSED" || scanCoordinator.state==="RESUME_READY"; onClicked: root.rtlMission() }
+                    Button { text: "STOP"; enabled: scanCoordinator.state==="SCANNING" || scanCoordinator.state==="PAUSED" || scanCoordinator.state==="READY" || scanCoordinator.state==="RESUME_READY" || root.awaitingMissionStart; onClicked: root.stopMission() }
                     Item { Layout.fillWidth: true }
                     Label { text: scanCoordinator.state; color: root.modeColor(); font.bold: true }
                 }
