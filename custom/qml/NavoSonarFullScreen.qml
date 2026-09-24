@@ -33,7 +33,7 @@ Popup {
  signal recordingRequested(bool start)
  function pushHistory(){if(root.paused||!echoSamples||!echoSamples.length)return;var h=history.slice(0);h.push({samples:echoSamples.slice(0),depth:depthM});while(h.length>historyColumns)h.shift();history=h;var n=Math.max(3,Math.floor(echoSamples.length*0.10)),sum=0,cnt=0;for(var i=Math.max(0,echoSamples.length-n);i<echoSamples.length;i++){sum+=Number(echoSamples[i]);cnt++}var b=bottomStrengthHistory.slice(0);b.push(cnt?sum/cnt:0);while(b.length>historyColumns)b.shift();bottomStrengthHistory=b;var bd=bottomDepthHistory.slice(0);bd.push(depthM);while(bd.length>historyColumns)bd.shift();bottomDepthHistory=bd}
  function bottomColor(v){v=Math.max(0,Math.min(1,(v-root.noiseFloor)*root.gain));if(root.paletteMode==="DAY"){if(v>.72)return "#ffe44d";if(v>.42)return "#ef493d";return "#245fa8"}if(v>.78)return "#fff36a";if(v>.60)return "#f33b2f";if(v>.40)return "#ff8b28";if(v>.22)return "#55c85a";return "#1767a7"}
- function palette(v){v=Math.max(0,Math.min(1,v));if(v<.22)return "rgba(16,92,170,"+(0.25+v*2)+")";if(v<.48)return "rgba(28,205,225,"+(0.45+v)+")";if(v<.72)return "rgba(246,218,70,"+(0.55+v*.5)+")";return "rgba(244,75,46,"+(0.65+v*.35)+")"}
+ function palette(v){v=Math.max(0,Math.min(1,v));if(root.paletteMode==="DAY"){if(v<.18)return "rgba(220,238,248,"+(0.30+v*2)+")";if(v<.42)return "rgba(48,150,205,"+(0.45+v)+")";if(v<.68)return "rgba(245,202,55,"+(0.60+v*.45)+")";return "rgba(215,55,38,"+(0.72+v*.28)+")"}if(v<.22)return "rgba(16,92,170,"+(0.25+v*2)+")";if(v<.48)return "rgba(28,205,225,"+(0.45+v)+")";if(v<.72)return "rgba(246,218,70,"+(0.55+v*.5)+")";return "rgba(244,75,46,"+(0.65+v*.35)+")"}
  modal:true;focus:true;visible:false;closePolicy:Popup.CloseOnEscape;padding:0
  width: parent ? Math.max(320,parent.width-24) : 960
  height: parent ? Math.max(320,parent.height-24) : 640
@@ -58,7 +58,7 @@ Popup {
    Slider{id:noiseSlider;from:0;to:.35;value:root.noiseFloor;stepSize:.01;width:130;enabled:root.noiseFilter;onMoved:root.noiseFloor=value}
    SonarIconButton{hint:"Afișare pești";checkable:true;checked:root.fishIcons;contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle=parent.checked?"#21b7ff":"#d9edf7";p.lineWidth=2;p.beginPath();p.ellipse(10,13,18,12);p.moveTo(28,19);p.lineTo(35,13);p.lineTo(35,25);p.closePath();p.stroke();p.beginPath();p.arc(15,18,1.3,0,Math.PI*2);p.fillStyle=p.strokeStyle;p.fill()}};onClicked:root.fishIcons=checked}
    Button{text:root.showRawTrace?"ECOU BRUT ON":"ECOU BRUT";checkable:true;checked:root.showRawTrace;onClicked:root.showRawTrace=checked}
-   ComboBox{model:["NAVO","DAY"];currentIndex:root.paletteMode==="NAVO"?0:1;onActivated:root.paletteMode=currentText}
+   ComboBox{model:["NAVO","DAY"];currentIndex:root.paletteMode==="NAVO"?0:1;onActivated:function(index){root.paletteMode=model[index]}}
   }
   RowLayout{Layout.fillWidth:true;Layout.fillHeight:true;spacing:8
   Rectangle{Layout.fillWidth:true;Layout.fillHeight:true;color:"#020b12"
