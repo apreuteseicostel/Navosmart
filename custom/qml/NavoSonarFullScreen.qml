@@ -41,7 +41,7 @@ Popup {
    Item{Layout.fillWidth:true}
    Label{text:isNaN(root.depthM)?"-- m":root.depthM.toFixed(1)+" m";color:"#21b7ff";font.pixelSize:28;font.bold:true}
    Label{text:isNaN(root.waterTempC)?"-- °C":root.waterTempC.toFixed(1)+" °C";color:"white";font.pixelSize:20}
-   Button{width:44;height:44;flat:true;ToolTip.visible:hovered;ToolTip.text:"Închide";contentItem:Label{text:"×";color:"white";font.pixelSize:30;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter};onClicked:root.close()}
+   Button{width:44;height:44;flat:true;ToolTip.visible:hovered;ToolTip.text:"Închide";contentItem:Label{text:"×";color:"white";font.pixelSize:30;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter} onClicked:root.close()}
   }
   Flow{Layout.fillWidth:true;Layout.leftMargin:10;Layout.rightMargin:10;spacing:8
    Label{text:"SENSIBILITATE";color:"#9db2c5"}
