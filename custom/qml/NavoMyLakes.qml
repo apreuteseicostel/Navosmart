@@ -113,7 +113,7 @@ Popup {
 
         RowLayout {
             Layout.fillWidth: true
-            TextField {
+            TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";
                 id: newLakeName
                 Layout.fillWidth: true
                 placeholderText: "Nume baltă / lac"
@@ -242,7 +242,7 @@ Popup {
         modal: true
         title: "Redenumește balta"
         standardButtons: Dialog.Save | Dialog.Cancel
-        TextField {
+        TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";
             id: renameField
             width: Math.min(320, parent ? parent.width-40 : 320)
             placeholderText: "Nume baltă"
