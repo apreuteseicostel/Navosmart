@@ -980,32 +980,72 @@ Item {
     Component {
         id: baitingPage
         Item {
-            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
-            NavoBaitingPanel {
-                anchors.centerIn: parent
-                controller: baitingController
-                hopperBridge: hopperBridge
-                waypoint: baitingController.targetWaypoint
-                availableSpots: fishingSpots.fishingSpots
-                onChooseOnMapRequested: {
-                    root.pendingBaitPointPick = true
-                    root.activePage = 0
-                    root.lastNavigationStatus = "Atinge o singură dată harta pentru punctul de nădire"
-                }
-                onSpotChosen: function(spot) {
-                    var coordinate = QtPositioning.coordinate(Number(spot.lat), Number(spot.lon))
-                    if (!coordinate.isValid) {
-                        root.lastNavigationStatus = "Locul salvat nu are coordonate valide"
-                        return
+            RowLayout {
+                anchors.fill: parent
+                spacing: 8
+                Rectangle {
+                    Layout.fillWidth: true; Layout.fillHeight: true
+                    radius: 8; color: root.panel; border.color: root.line; clip: true
+                    NavoMap {
+                        anchors.fill: parent; anchors.margins: 2
+                        vehicle: root.vehicle
+                        planController: root.planController
+                        waypointNames: root.waypointNames
+                        fishModel: fishStore
+                        fishingSpotsModel: fishingSpots
+                        bathymetryCells: scanCoordinator.bathymetryCells
+                        baitingController: baitingController
+                        areaScanController: areaScanController
+                        savedDepthM: root.depthM
+                        savedWaterTempC: root.waterTempC
+                        maximized: root.mapMaximized
+                        baitPointPickMode: root.pendingBaitPointPick
+                        onBaitPointPicked: function(coordinate) {
+                            root.pendingBaitPointPick=false
+                            baitingController.targetWaypoint={coordinate:coordinate,name:"Punct hartă",sequenceNumber:0}
+                            root.lastNavigationStatus="Punct de nădire selectat pe hartă"
+                        }
+                        onBaitingWaypointSelected: function(wp) {
+                            baitingController.targetWaypoint=wp
+                            root.lastNavigationStatus="Punct de nădire selectat: "+(wp.name||"Punct")
+                        }
+                        onSaveNamedPointRequested: function(coordinate,name,markerColor) {
+                            if(!scanCoordinator.lakeId.length){root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
+                            fishingSpots.saveSpot(coordinate,NaN,NaN,name,"Punct ales pe hartă",null,markerColor)
+                        }
+                        onFishingSpotRenameRequested: function(spot) { root.lastNavigationStatus="Redenumirea punctului este disponibilă în PUNCTE PESCUIT" }
+                        onNavigateRequested: function(c) { root.navigateToCoordinate(c) }
+                        onMaximizeRequested: root.mapMaximized=!root.mapMaximized
                     }
-                    baitingController.targetWaypoint = {coordinate: coordinate, name: spot.name, sequenceNumber: 0}
-                    root.lastNavigationStatus = "Punct de nădire ales: " + spot.name
                 }
-                onStartConfirmed: function(waypoint, name, hopper) {
-                    if(!root.linkAlive || scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || (hopper!==0 && !hopperBridge.calibrated)) { root.lastNavigationStatus="Nădire blocată: verifică legătura, misiunea activă și calibrarea cuvelor"; return }
-                    digitalAnchor.release(); baitingController.startCycle(waypoint,name,hopper)
+                Rectangle {
+                    Layout.preferredWidth: Math.max(250,Math.min(350,parent.width*0.31))
+                    Layout.fillHeight: true
+                    radius: 8; color: root.panel; border.color: root.line
+                    NavoBaitingPanel {
+                        anchors.fill: parent
+                        anchors.margins: 8
+                        controller: baitingController
+                        hopperBridge: hopperBridge
+                        waypoint: baitingController.targetWaypoint
+                        availableSpots: fishingSpots.fishingSpots
+                        onChooseOnMapRequested: {
+                            root.pendingBaitPointPick=true
+                            root.lastNavigationStatus="Atinge harta din stânga pentru punctul de nădire"
+                        }
+                        onSpotChosen: function(spot) {
+                            var coordinate=QtPositioning.coordinate(Number(spot.lat),Number(spot.lon))
+                            if(!coordinate.isValid){root.lastNavigationStatus="Locul salvat nu are coordonate valide";return}
+                            baitingController.targetWaypoint={coordinate:coordinate,name:spot.name,sequenceNumber:0}
+                            root.lastNavigationStatus="Punct de nădire ales: "+spot.name
+                        }
+                        onStartConfirmed: function(waypoint,name,hopper) {
+                            if(!root.linkAlive || scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || (hopper!==0 && !hopperBridge.calibrated)){root.lastNavigationStatus="Nădire blocată: verifică legătura, misiunea activă și calibrarea cuvelor";return}
+                            digitalAnchor.release(); baitingController.startCycle(waypoint,name,hopper)
+                        }
+                        onAbortRequested: baitingController.abortCycle("Oprit de utilizator")
+                    }
                 }
-                onAbortRequested: baitingController.abortCycle("Oprit de utilizator")
             }
         }
     }
