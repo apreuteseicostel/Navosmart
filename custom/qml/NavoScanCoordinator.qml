@@ -35,10 +35,10 @@ QtObject {
         // the previous lane was completed by the autopilot.
         var missionWp=Math.max(0,index-1)
         var completedThrough=Math.floor(missionWp/2)-1
-        // When ArduPilot advances beyond the final Area Scan waypoint, the
-        // last lane is complete as well. Some firmwares expose this as an
-        // index equal to the number of mission waypoints.
-        if(missionWaypointCount>0 && index >= missionWaypointCount + 1) completedThrough=missionLanes.length-1
+        // Do not infer completion of the final lane from an out-of-range
+        // mission index. QGC/ArduPilot index semantics can vary with the
+        // MissionSettings/Home item. Final completion is handled explicitly.
+
         completedThrough=Math.min(completedThrough,missionLanes.length-1)
         for(var routeLane=lastCompletedRouteLaneFromMission+1;routeLane<=completedThrough;routeLane++) {
             var lane=missionLanes[routeLane]
@@ -92,6 +92,21 @@ QtObject {
         sonarMapping.startScan(); if(!sonarMapping.scanning) return false
         state="SCANNING"; missionCurrentIndex=-1; lastCompletedLaneFromMission=-1; lastCompletedRouteLaneFromMission=-1; checkpoint("start"); return true
     }
+    function missionCompleted() {
+        if(!areaScan || state!=="SCANNING") return false
+        // A real mission-complete signal is authoritative for the final lane.
+        var finalLane=missionLanes.length-1
+        if(finalLane>=0) {
+            var originalLane=missionLanes[finalLane]
+            if(areaScan.completedLanes.indexOf(originalLane)<0)
+                areaScan.markLaneCompleted(originalLane)
+        }
+        missionCurrentIndex=missionWaypointCount
+        checkpoint("mission-complete")
+        finish()
+        return true
+    }
+
     function laneCompleted(index) {
         if(!areaScan || !sonarMapping || index<0) return
         areaScan.markLaneCompleted(index); sonarMapping.setLaneProgress(areaScan.activeLaneIndex,areaScan.completedLanes.length,areaScan.laneCount())
