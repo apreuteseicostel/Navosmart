@@ -9,6 +9,7 @@ Rectangle {
  property var camera
  property string cameraStreamUrl:""
  property string cameraProtocol:"auto"
+ readonly property bool compact: width < 760 || height < 430
  signal status(string text)
  color:"#0b1c2e"; border.color:"#1c4262"; radius:10
 
@@ -36,14 +37,14 @@ Rectangle {
  }
  Component.onCompleted:{loadEndpoints();root.cameraStreamUrl=cfg.cameraStreamUrl;root.cameraProtocol=cfg.cameraProtocol}
  ColumnLayout {
-  anchors.fill:parent;anchors.margins:14;spacing:9
+  anchors.fill:parent;anchors.margins:root.compact?7:14;spacing:root.compact?5:9
   Label{text:"REȚEA BARCĂ • ETHERNET";color:"#21b7ff";font.bold:true;font.pixelSize:16}
   Label{Layout.fillWidth:true;wrapMode:Text.WordWrap;color:"#9db2c5";font.pixelSize:11;text:"Configurează separat sonarul Kogger și camera față. Valorile se păstrează pe telefon."}
   RowLayout {
-   Layout.fillWidth:true;Layout.fillHeight:true;spacing:12
+   Layout.fillWidth:true;Layout.fillHeight:true;spacing:root.compact?6:12
    GroupBox {
     title:"KOGGER SONAR";Layout.fillWidth:true;Layout.fillHeight:true;Layout.preferredWidth:1
-    GridLayout {anchors.fill:parent;anchors.margins:8;columns:2;columnSpacing:8;rowSpacing:8
+    GridLayout {anchors.fill:parent;anchors.margins:root.compact?4:8;columns:2;columnSpacing:8;rowSpacing:8
      Label{text:"IP / Host"}
      TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:sonarHost;Layout.fillWidth:true;text:cfg.sonarHost;placeholderText:"ex. 192.168.x.x"}
      Label{text:"Port"}
@@ -58,7 +59,7 @@ Rectangle {
    GroupBox {
     title:"CAMERA FAȚĂ";Layout.fillWidth:true;Layout.fillHeight:true;Layout.preferredWidth:1
     ColumnLayout {
-     anchors.fill:parent;anchors.margins:8;spacing:7
+     anchors.fill:parent;anchors.margins:root.compact?4:8;spacing:7
      GridLayout {Layout.fillWidth:true;columns:2;columnSpacing:8;rowSpacing:7
       Label{text:"IP / Host"}
       TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:cameraHost;Layout.fillWidth:true;text:cfg.cameraHost;placeholderText:"ex. 192.168.x.x"}
