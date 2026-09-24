@@ -632,7 +632,7 @@ Item {
                 onAreaRectangleRequested: function(cornerA, cornerB) {
                     missionUploader.invalidate()
                     var pts=scanCoordinator.prepareRectangle(cornerA,cornerB)
-                    root.lastNavigationStatus=pts.length ? "Area Scan dreptunghi • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP generate" : areaScanController.lastError
+                    root.lastNavigationStatus=pts.length ? "Area Scan dreptunghi pregătit • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP • apasă PREGĂTEȘTE MISIUNEA" : "Dreptunghi respins: "+areaScanController.lastError
                     root.pendingAreaDrawMode="none"
                     root.activePage=2
                 }
@@ -771,7 +771,7 @@ Item {
                             baitPointPickMode: root.pendingBaitPointPick
                             onBaitPointPicked: function(coordinate) { root.pendingBaitPointPick=false; baitingController.targetWaypoint={coordinate:coordinate,name:"Punct hartă",sequenceNumber:0}; root.lastNavigationStatus="Punct de nădire selectat pe hartă"; root.activePage=8 }
                             onMaximizeRequested: root.mapMaximized = !root.mapMaximized
-                            onAreaRectangleRequested: function(cornerA, cornerB) { missionUploader.invalidate(); var pts=scanCoordinator.prepareRectangle(cornerA,cornerB); root.lastNavigationStatus=pts.length ? "Area Scan dreptunghi • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP" : areaScanController.lastError; root.pendingAreaDrawMode="none" }
+                            onAreaRectangleRequested: function(cornerA, cornerB) { missionUploader.invalidate(); var pts=scanCoordinator.prepareRectangle(cornerA,cornerB); root.lastNavigationStatus=pts.length ? "Area Scan dreptunghi pregătit • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP • apasă PREGĂTEȘTE MISIUNEA" : "Dreptunghi respins: "+areaScanController.lastError; root.pendingAreaDrawMode="none" }
                             onAreaPolygonRequested: function(polygon) { missionUploader.invalidate(); var pts=scanCoordinator.preparePolygon(polygon); root.lastNavigationStatus=pts.length ? "Area Scan poligon pregătit • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP • apasă PREGĂTEȘTE MISIUNEA" : "Poligon respins: "+areaScanController.lastError; root.pendingAreaDrawMode="none" }
                             onSavePointRequested: function(coordinate) { if(!scanCoordinator.lakeId.length){root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}; var spot=fishingSpots.saveSpot(coordinate,root.depthM,root.waterTempC,"","",null); if(spot) scanCoordinator.checkpoint("fishing-spot") }
                         }
