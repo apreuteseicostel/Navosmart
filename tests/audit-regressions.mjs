@@ -95,4 +95,21 @@ test('Malformed sonar samples cannot enter the active lake',()=>{
   for(const s of [{lat:52,lon:0,depth:null},{lat:52,lon:0,depth:-1},{lat:Infinity,lon:0,depth:2},{lat:52,lon:181,depth:2}])c.ingestSample(s);
   assert.equal(c.rawSamples.length,0);c.ingestSample({lat:52,lon:0,depth:2});assert.equal(c.rawSamples.length,1);
 });
+test('Recovered NAVO mobile UI remains reachable from the dashboard',()=>{
+  const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+  const area=fs.readFileSync(path.join(dir,'NavoAreaScanOverlay.qml'),'utf8');
+  const uploader=fs.readFileSync(path.join(dir,'NavoMissionUploader.qml'),'utf8');
+  for(const token of ['property bool mapMaximized: false','id: statusStrip','id: areaScanMap','id: fishingMap','FINAL: HOLD','onMaximizeRequested: root.mapMaximized = !root.mapMaximized'])
+    assert(dash.includes(token),token);
+  assert(area.includes('▶ "+(root.areaScan.activeLaneIndex+1)+"/"+root.areaScan.laneCount()'));
+  assert(uploader.includes('property int verifiedCount: 0'));
+});
+test('NAVO starts as ArduPilot Rover Boat without vehicle-selection prompt',()=>{
+  const srcDir=path.resolve(import.meta.dirname,'../custom/src');
+  const h=fs.readFileSync(path.join(srcDir,'CustomPlugin.h'),'utf8');
+  const cc=fs.readFileSync(path.join(srcDir,'CustomPlugin.cc'),'utf8');
+  assert(h.includes('firstRunPromptStdIds() final { return QList<int>({ kUnitsFirstRunPromptId }); }'));
+  assert(cc.includes('QGCMAVLink::FirmwareClassArduPilot'));
+  assert(cc.includes('QGCMAVLink::VehicleClassRoverBoat'));
+});
 console.log(`${passed} regression scenarios passed`);
