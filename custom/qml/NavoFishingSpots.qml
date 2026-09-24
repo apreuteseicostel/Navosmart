@@ -19,7 +19,7 @@ QtObject {
         return base+" "+n
     }
 
-    function saveSpot(coordinate, depthM, waterTempC, name, note, sonarEvidence) {
+    function saveSpot(coordinate, depthM, waterTempC, name, note, sonarEvidence, markerColor) {
         if(!_valid(coordinate)) return null
         var finalName=(name&&name.trim().length)?name.trim():suggestedName("Loc pescuit")
         var spot={
@@ -31,6 +31,7 @@ QtObject {
             temp:isNaN(waterTempC)?null:waterTempC,
             note:note||"",
             sonarEvidence:sonarEvidence||null,
+            color:markerColor||"#31d67b",
             createdAt:Date.now()
         }
         var a=fishingSpots.slice(0); a.push(spot); fishingSpots=a
@@ -49,6 +50,14 @@ QtObject {
         var a=fishingSpots.slice(0)
         for(var i=0;i<a.length;i++) if(a[i].id===id){
             var s=Object.assign({},a[i]); s.name=n; a[i]=s; fishingSpots=a; spotUpdated(s); return true
+        }
+        return false
+    }
+
+    function setSpotColor(id, color) {
+        var a=fishingSpots.slice(0)
+        for(var i=0;i<a.length;i++) if(a[i].id===id){
+            var s=Object.assign({},a[i]); s.color=color||"#31d67b"; a[i]=s; fishingSpots=a; spotUpdated(s); return true
         }
         return false
     }
