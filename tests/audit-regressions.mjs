@@ -112,4 +112,44 @@ test('NAVO starts as ArduPilot Rover Boat without vehicle-selection prompt',()=>
   assert(cc.includes('QGCMAVLink::FirmwareClassArduPilot'));
   assert(cc.includes('QGCMAVLink::VehicleClassRoverBoat'));
 });
+test('Saved lakes expose persistent rename and confirmed delete controls',()=>{
+  const ui=fs.readFileSync(path.join(dir,'NavoMyLakes.qml'),'utf8');
+  const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+  const coordinator=fs.readFileSync(path.join(dir,'NavoScanCoordinator.qml'),'utf8');
+  for(const token of ['beginRename','beginDelete','renameCurrentLake','deleteCurrentLake','🗑 ȘTERGE'])
+    assert(ui.includes(token),token);
+  assert(dash.includes('✏ NUME'));
+  assert(dash.includes('🗑 ȘTERGE'));
+  assert(coordinator.includes('function renameLake(id, name)'));
+  assert(coordinator.includes('function deleteLake(id)'));
+  assert(coordinator.includes('function clearActiveLake()'));
+});
+test('Deleting the active lake clears restored session state instead of leaving stale data',()=>{
+  let deleted='';
+  const c=context('NavoScanCoordinator.qml',{
+    state:'PAUSED',lakeId:'lake-a',lakeName:'A',areaPoints:[1],bathymetryCells:[1],
+    persistence:{deleteLake(id){deleted=id;return true},replaceWaypointNames:noop},
+    sonarMapping:{scanning:false,paused:true,lakeId:'lake-a',rawSamples:[1],trackCoordinates:[1],currentLane:2,completedLanes:1,totalLanes:3},
+    areaScan:{generatedPoints:[1],completedLanes:[0],activeLaneIndex:1,paused:true,lastBoatCoordinate:{}},
+    fishingSpots:{fishingSpots:[1]},fishStore:{clear(){this.cleared=true}},
+    lakeActivated:noop,status:noop
+  });
+  assert.equal(c.deleteLake('lake-a'),true);
+  assert.equal(deleted,'lake-a');assert.equal(c.lakeId,'');assert.equal(c.state,'IDLE');
+  assert.equal(c.areaScan.generatedPoints.length,0);assert.equal(c.sonarMapping.rawSamples.length,0);assert.equal(c.fishingSpots.fishingSpots.length,0);
+});
+test('Baiting animation is bound to live hopper command state',()=>{
+  const panel=fs.readFileSync(path.join(dir,'NavoBaitingPanel.qml'),'utf8');
+  const bridge=fs.readFileSync(path.join(dir,'NavoHopperBridge.qml'),'utf8');
+  assert(panel.includes('property var hopperBridge'));
+  assert(panel.includes('root.hopperLeftOpen ? -52 : 0'));
+  assert(panel.includes('root.hopperRightOpen ? 52 : 0'));
+  assert(bridge.includes('if(hopper===1||hopper===3)leftOpen=true'));
+  assert(bridge.includes('if(hopper===2||hopper===3)rightOpen=true'));
+});
+test('Android workflow cancels superseded PR builds so UI fixes are tested in batches',()=>{
+  const workflow=fs.readFileSync(path.resolve(import.meta.dirname,'../.github/workflows/android.yml'),'utf8');
+  assert(workflow.includes('concurrency:'));
+  assert(workflow.includes('cancel-in-progress: true'));
+});
 console.log(`${passed} regression scenarios passed`);

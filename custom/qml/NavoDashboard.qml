@@ -941,15 +941,37 @@ Item {
                 }
                 Label { Layout.fillWidth: true; visible: root.lakeSaveStatus.length>0; text: root.lakeSaveStatus; color: root.accent }
                 ListView {
-                    Layout.fillWidth: true; Layout.fillHeight: true; clip: true
+                    Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 5
                     model: persistence.lakes
-                    delegate: Button {
+                    delegate: Rectangle {
                         required property var modelData
-                        width: ListView.view.width
-                        text: modelData.name || "Baltă"
-                        onClicked: {
-                            myLakesPopup.selectLake(modelData)
-                            myLakesPopup.open()
+                        width: ListView.view.width; height: 48; radius: 7
+                        color: root.bg; border.color: root.line
+                        RowLayout {
+                            anchors.fill: parent; anchors.margins: 4; spacing: 4
+                            Button {
+                                Layout.fillWidth: true
+                                text: modelData.name || "Baltă"
+                                flat: true
+                                onClicked: {
+                                    myLakesPopup.selectLake(modelData)
+                                    myLakesPopup.open()
+                                }
+                            }
+                            Button {
+                                text: "✏ NUME"
+                                onClicked: {
+                                    myLakesPopup.open()
+                                    myLakesPopup.beginRename(modelData)
+                                }
+                            }
+                            Button {
+                                text: "🗑 ȘTERGE"
+                                onClicked: {
+                                    myLakesPopup.open()
+                                    myLakesPopup.beginDelete(modelData)
+                                }
+                            }
                         }
                     }
                 }
