@@ -60,8 +60,16 @@ Item {
     NavoFailsafeController {
         id: failsafeController
         vehicle: root.vehicle
-        onHoldRequested: function(reason) { root.lastNavigationStatus="FAILSAFE HOLD: "+reason; root.holdMission() }
-        onRtlRequested: function(reason) { root.lastNavigationStatus="FAILSAFE RTL: "+reason; root.rtlMission() }
+        onHoldRequested: function(reason) {
+            root.lastNavigationStatus="FAILSAFE HOLD: "+reason
+            if (scanCoordinator.state === "SCANNING") scanCoordinator.pause(reason)
+            root.holdMission()
+        }
+        onRtlRequested: function(reason) {
+            root.lastNavigationStatus="FAILSAFE RTL: "+reason
+            if (scanCoordinator.state === "SCANNING" || scanCoordinator.state === "PAUSED" || scanCoordinator.state === "RESUME_READY") scanCoordinator.rtl(reason)
+            root.rtlMission()
+        }
         onRecovered: function(subsystem, action) { root.lastNavigationStatus=subsystem+": "+action }
     }
     NavoSonarMapping {
