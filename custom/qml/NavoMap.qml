@@ -17,6 +17,7 @@ Item {
     property var fishModel
     property var fishingSpotsModel
     property var bathymetryCells: []
+    property bool bathymetryHDEnabled: false
     property var baitingController
     property var areaScanController
     property real savedDepthM: NaN
@@ -84,6 +85,7 @@ Item {
     NavoActualTrack { id: actualTrack; map: liveMap; vehicle: root.vehicle; taskActive: !!root.vehicle }
     NavoAreaScanOverlay { map: liveMap; areaScan: root.areaScanController }
     NavoFishOverlay { map: liveMap; fishModel: root.fishModel }
+    NavoBathymetryHDOverlay { map: liveMap; cells: root.bathymetryCells; enabled: root.bathymetryHDEnabled }
     NavoBathymetryOverlay {
         map: liveMap; bathymetryCells: root.bathymetryCells; fishingSpotsModel: root.fishingSpotsModel
         onNavigateSpotRequested: function(spot) { root.navigateRequested(QtPositioning.coordinate(Number(spot.lat),Number(spot.lon))) }
@@ -208,6 +210,12 @@ Item {
         anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 6
         spacing: 3
         property int controlSize: 34
+        Button {
+            text: "HD"; width: parent.controlSize; height: parent.controlSize; padding: 2
+            checkable: true; checked: root.bathymetryHDEnabled
+            ToolTip.visible:hovered; ToolTip.text:"Strat Batimetrie HD"
+            onToggled: root.bathymetryHDEnabled=checked
+        }
         Button { text: "+"; width: parent.controlSize; height: parent.controlSize; padding: 2; font.pixelSize: 16; onClicked: liveMap.zoomLevel = liveMap.zoomLevel + 1 }
         Button { text: "−"; width: parent.controlSize; height: parent.controlSize; padding: 2; font.pixelSize: 16; onClicked: liveMap.zoomLevel = liveMap.zoomLevel - 1 }
         Button {
