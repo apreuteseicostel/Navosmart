@@ -15,7 +15,8 @@ public:
 signals:
     void vehicleChanged();
     void uploadCompleted(bool success);
-    void missionError(const QString& message);\n    void missionCompleted();
+    void missionError(const QString& message);
+    void missionItemReached(int sequence);
 private:
     QPointer<Vehicle> _vehicle;
 };

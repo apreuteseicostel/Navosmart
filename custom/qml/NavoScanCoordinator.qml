@@ -92,18 +92,14 @@ QtObject {
         sonarMapping.startScan(); if(!sonarMapping.scanning) return false
         state="SCANNING"; missionCurrentIndex=-1; lastCompletedLaneFromMission=-1; lastCompletedRouteLaneFromMission=-1; checkpoint("start"); return true
     }
-    function missionCompleted() {
-        if(!areaScan || state!=="SCANNING") return false
-        // A real mission-complete signal is authoritative for the final lane.
-        var finalLane=missionLanes.length-1
-        if(finalLane>=0) {
-            var originalLane=missionLanes[finalLane]
-            if(areaScan.completedLanes.indexOf(originalLane)<0)
-                areaScan.markLaneCompleted(originalLane)
-        }
-        missionCurrentIndex=missionWaypointCount
-        checkpoint("mission-complete")
-        finish()
+    function missionItemReached(sequence) {
+        // ArduPilot Rover reserves item 0 for home. Each lane ends at an even
+        // sequence (2, 4, ...). Ignore messages outside this uploaded route.
+        if(!areaScan || state!=="SCANNING" || sequence < 2 ||
+           sequence > missionWaypointCount || sequence % 2 !== 0) return false
+        var routeLane=sequence / 2 - 1
+        if(routeLane >= missionLanes.length) return false
+        laneCompleted(missionLanes[routeLane])
         return true
     }
 
