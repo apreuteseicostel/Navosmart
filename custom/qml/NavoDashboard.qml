@@ -115,8 +115,8 @@ Item {
         waterTempC: root.waterTempC
         sonarConnected: root.sonarConnected
         externalSampleIngestion: true
-        bottomHardness: fullSonar ? fullSonar.bottomHardnessPercent : NaN
-        bottomEchoStrength: fullSonar ? fullSonar.bottomEchoStrength : NaN
+        bottomHardness: root.bottomHardnessPercent
+        bottomEchoStrength: root.bottomEchoStrength
         onCheckpointRequested: function(state) { scanCoordinator.checkpoint("sonar-mapping") }
     }
     NavoScanCoordinator {
@@ -180,6 +180,8 @@ Item {
     readonly property real depthM: sonar.depthM
     readonly property real waterTempC: sonar.waterTempC
     readonly property bool sonarConnected: sonar.connected && sonar.dataAlive
+    readonly property real bottomEchoStrength: root.computeBottomEchoStrength(sonar.echoSamples)
+    readonly property real bottomHardnessPercent: isNaN(root.bottomEchoStrength) ? NaN : Math.max(0, Math.min(100, root.bottomEchoStrength * 100))
     property alias fishDetections: fishStore.detections
     property string cameraStreamUrl: ""
     property string cameraProtocol: "auto"
@@ -235,6 +237,13 @@ Item {
     property color ok: "#47d16c"
     property color warn: "#ffc857"
     property color danger: "#ff5c5c"
+
+    function computeBottomEchoStrength(samples) {
+        if(!samples || samples.length<3) return NaN
+        var n=Math.max(3,Math.floor(samples.length*0.10)), sum=0, count=0
+        for(var i=Math.max(0,samples.length-n);i<samples.length;i++) { var v=Number(samples[i]); if(isFinite(v)){sum+=v;count++} }
+        return count ? sum/count : NaN
+    }
 
     function coordinatesFromSonarSamples(samples) {
         var out=[]
