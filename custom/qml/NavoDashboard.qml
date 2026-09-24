@@ -507,7 +507,7 @@ Item {
 
     Rectangle {
         id: sidebar
-        anchors.left: parent.left; anchors.top: header.bottom; anchors.bottom: statusStrip.top
+        anchors.left: parent.left; anchors.top: header.bottom; anchors.bottom: parent.bottom
         visible: !root.mapMaximized
         width: root.width < 1100 ? 150 : 190; color: root.panel; border.color: root.line
         Flickable {
@@ -540,7 +540,7 @@ Item {
 
     Rectangle {
         id: content
-        anchors.left: root.mapMaximized ? parent.left : sidebar.right; anchors.right: parent.right; anchors.top: header.bottom; anchors.bottom: statusStrip.top
+        anchors.left: root.mapMaximized ? parent.left : sidebar.right; anchors.right: parent.right; anchors.top: header.bottom; anchors.bottom: parent.bottom
         color: root.bg
         Loader {
             anchors.fill: parent; anchors.margins: 10
@@ -562,7 +562,7 @@ Item {
         z: 900
         visible: root.cameraPipEnabled && root.cameraStreamUrl.length>0 && !root.cameraFullscreen && root.activePage!==5
         anchors.right: parent.right
-        anchors.bottom: statusStrip.top
+        anchors.bottom: parent.bottom
         anchors.rightMargin: 16
         anchors.bottomMargin: 12
         width: Math.max(190,Math.min(260,root.width*0.19))
@@ -574,35 +574,6 @@ Item {
         onFullscreenRequested: root.cameraFullscreen=true
     }
 
-    Rectangle {
-        id: statusStrip
-        anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: footer.top
-        height: 52; color: root.panel; border.color: root.line
-        Flickable {
-            anchors.fill: parent
-            clip: true
-            contentWidth: Math.max(width, statusItems.implicitWidth + 20)
-            contentHeight: height
-            boundsBehavior: Flickable.StopAtBounds
-        RowLayout {
-            id: statusItems
-            x: 10; height: parent.height; spacing: 8
-            StatusPill { title: "LAN"; value: sonar.transport && sonar.transport.connected ? "ONLINE" : "OFFLINE"; good: sonar.transport && sonar.transport.connected }
-            StatusPill { title: "SONAR"; value: root.sonarConnected ? "LIVE" : "OFFLINE"; good: root.sonarConnected }
-            StatusPill { title: "NANO"; value: nanoTelemetry.connected ? "ONLINE" : "OFFLINE"; good: nanoTelemetry.connected }
-            StatusPill { title: "CAM"; value: root.cameraConnected ? "LIVE" : "OFFLINE"; good: root.cameraConnected }
-            StatusPill { title: "ACASĂ"; value: Number(root.distanceToHome).toFixed(0) + " m"; good: !!vehicle }
-            StatusPill { title: "ȚINTĂ"; value: root.distanceToTarget > 0 ? Number(root.distanceToTarget).toFixed(0) + " m" : "--"; good: root.distanceToTarget > 0 }
-            Item { Layout.fillWidth: true }
-            Label {
-                Layout.maximumWidth: Math.max(120, root.width * 0.20)
-                elide: Text.ElideRight
-                text: root.lastNavigationStatus
-                color: root.muted; font.pixelSize: 10
-            }
-        }
-        }
-    }
 
     Component {
         id: mapPage
@@ -611,7 +582,8 @@ Item {
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             NavoMap {
                 id: navoMap
-                anchors.fill: parent; anchors.margins: 8
+                anchors.fill: parent
+                anchors.leftMargin: 8; anchors.topMargin: 8; anchors.bottomMargin: 8; anchors.rightMargin: 72
                 Component.onCompleted: {
                     root.mapController = navoMap
                     if (root.pendingAreaDrawMode === "rectangle") navoMap.beginAreaRectangle()
@@ -632,6 +604,27 @@ Item {
                 savedWaterTempC: root.waterTempC
                 maximized: root.mapMaximized
                 onMaximizeRequested: root.mapMaximized = !root.mapMaximized
+            }
+            Column {
+                anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom
+                anchors.topMargin: 8; anchors.rightMargin: 8; anchors.bottomMargin: 8
+                width: 58; spacing: 5
+                component MiniStatus: Rectangle {
+                    property string title:""; property string value:""; property bool good:false
+                    width:58; height:52; radius:7; color:"#101822"; border.color:good?root.ok:root.line
+                    Column { anchors.centerIn:parent; spacing:0
+                        Label { anchors.horizontalCenter:parent.horizontalCenter; text:title; color:"#c9d4df"; font.pixelSize:8; font.bold:true }
+                        Label { anchors.horizontalCenter:parent.horizontalCenter; text:value; color:good?root.ok:"#f2f5f8"; font.pixelSize:9; font.bold:true }
+                    }
+                }
+                MiniStatus { title:"AP"; value:vehicle?"ON":"OFF"; good:!!vehicle }
+                MiniStatus { title:"LAN"; value:sonar.transport&&sonar.transport.connected?"ON":"OFF"; good:sonar.transport&&sonar.transport.connected }
+                MiniStatus { title:"SONAR"; value:root.sonarConnected?"ON":"OFF"; good:root.sonarConnected }
+                MiniStatus { title:"NANO"; value:nanoTelemetry.connected?"ON":"OFF"; good:nanoTelemetry.connected }
+                MiniStatus { title:"CAM"; value:root.cameraConnected?"ON":"OFF"; good:root.cameraConnected }
+                MiniStatus { title:"HOME"; value:Number(root.distanceToHome).toFixed(0)+"m"; good:!!vehicle }
+                MiniStatus { title:"ȚINTĂ"; value:root.distanceToTarget>0?Number(root.distanceToTarget).toFixed(0)+"m":"--"; good:root.distanceToTarget>0 }
+            }
                 onNavigateRequested: function(coordinate) { root.navigateToCoordinate(coordinate) }
                 onBaitingWaypointSelected: function(waypoint) {
                     root.lastNavigationStatus="Punct selectat: " + (waypoint.sequenceNumber !== undefined ? "WP" + waypoint.sequenceNumber : "waypoint") + " • poți deschide NĂDIRE când dorești"
@@ -1284,17 +1277,6 @@ Item {
         }
     }
 
-    Rectangle {
-        id: footer
-        anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-        height: 34; color: "#0d141d"; border.color: root.line
-        RowLayout {
-            anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
-            Label { text: vehicle ? "MAVLink conectat" : "Astept conexiunea ArduPilot"; color: vehicle ? root.ok : root.warn }
-            Item { Layout.fillWidth: true }
-            Label { text: "NAVO SMART"; color: root.muted }
-        }
-    }
 
     component StatusPill: Rectangle {
         property string title: ""
