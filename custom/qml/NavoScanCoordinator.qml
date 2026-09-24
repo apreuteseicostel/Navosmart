@@ -60,23 +60,8 @@ QtObject {
     function missionIndexChanged(index) {
         if(!areaScan || state !== "SCANNING" || index === undefined || index === null || index < 0) return
         missionCurrentIndex=index
-        // QGC mission index 0 is MissionSettings/Home; Area Scan WP start at 1.
-        // A lane has two WP. Entering the first WP of the next lane confirms
-        // the previous lane was completed by the autopilot.
-        var missionWp=Math.max(0,index-1)
-        var completedThrough=Math.floor(missionWp/2)-1
-        // Do not infer completion of the final lane from an out-of-range
-        // mission index. QGC/ArduPilot index semantics can vary with the
-        // MissionSettings/Home item. Final completion is handled explicitly.
-
-        completedThrough=Math.min(completedThrough,missionLanes.length-1)
-        for(var routeLane=lastCompletedRouteLaneFromMission+1;routeLane<=completedThrough;routeLane++) {
-            var lane=missionLanes[routeLane]
-            if (lane === undefined) break
-            laneCompleted(lane)
-            lastCompletedLaneFromMission=lane
-            lastCompletedRouteLaneFromMission=routeLane
-        }
+        // MISSION_CURRENT identifies the current target, not proof of arrival.
+        // Completion is recorded only from MISSION_ITEM_REACHED.
         status("Area Scan • WP "+index+" • "+areaScan.progressPercent()+"%")
         if(missionWaypointCount>0 && index >= missionWaypointCount + 1 && areaScan.completedLanes.length>=areaScan.laneCount() && state==="SCANNING") finish()
     }

@@ -22,7 +22,8 @@ local function publish(f)
     -- Standard MAVLink NAMED_VALUE_FLOAT messages. Names <= 10 chars.
     gcs:send_named_float("NVBATV", tonumber(f[4]) / 1000.0)
     local tc10=tonumber(f[5])
-    if tc10 ~= -32768 then gcs:send_named_float("NVBATTEMP", tc10 / 10.0) end
+    -- Publish invalidity too: otherwise the app keeps the last good temperature.
+    gcs:send_named_float("NVBATTEMP", tc10 == -32768 and -32768 or tc10 / 10.0)
     gcs:send_named_float("NVWATER", tonumber(f[6]))
     gcs:send_named_float("NVWFAULT", tonumber(f[7]))
     gcs:send_named_float("NVHEAD", tonumber(f[8]))

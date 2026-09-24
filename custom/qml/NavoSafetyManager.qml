@@ -4,6 +4,8 @@ QtObject {
     id: root
     property var vehicle
     property bool enabled: true
+    property bool telemetryLive: false
+    property bool waterSensorFault: false
     property bool waterDetected: false
     property real batteryTempC: NaN
     property real warningTempC: 45
@@ -11,7 +13,7 @@ QtObject {
     property int waterConfirmMs: 4000
     property bool waterConfirmed: false
     property bool criticalLatched: false
-    property string state: "NORMAL"
+    property string state: "UNKNOWN"
     property string reason: ""
     signal warning(string reason)
     signal holdRequested(string reason)
@@ -31,6 +33,10 @@ QtObject {
     }
     function evaluate() {
         if (!enabled) return
+        if(!waterConfirmed && (!telemetryLive || waterSensorFault || !isFinite(batteryTempC))) {
+            setState("UNKNOWN", !telemetryLive ? "Telemetrie Nano indisponibilă" : "Senzor apă/temperatură invalid")
+            warning(reason); return
+        }
         var hot = (!isNaN(batteryTempC) && batteryTempC >= criticalTempC)
         var warm = (!isNaN(batteryTempC) && batteryTempC >= warningTempC)
 
@@ -56,6 +62,8 @@ QtObject {
         else { waterTimer.stop(); waterConfirmed=false; evaluate() }
     }
     onBatteryTempCChanged: evaluate()
+    onTelemetryLiveChanged: evaluate()
+    onWaterSensorFaultChanged: evaluate()
 
     property Timer waterTimer: Timer {
         interval: root.waterConfirmMs; repeat:false

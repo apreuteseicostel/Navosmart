@@ -1,5 +1,6 @@
 #pragma once
 #include <QObject>
+#include <QPointer>
 #include "QGCMAVLink.h"
 class Vehicle;
 class NavoNanoTelemetry : public QObject {
@@ -25,5 +26,5 @@ public:
 signals:void telemetryChanged();void vehicleChanged();
 private slots:void _mavlink(const mavlink_message_t&);void _timeout();
 private:void _set(const char*,float);
- Vehicle* _vehicle=nullptr; qint64 _lastMs=0; double _batteryV=0,_tempC=qQNaN(); bool _water=false,_waterFault=false,_head=false,_pos=false; int _hl=0,_hr=0,_rud=0,_alarm=0;
+ QPointer<Vehicle> _vehicle; qint64 _lastMs=0; double _batteryV=0,_tempC=qQNaN(); bool _water=false,_waterFault=false,_head=false,_pos=false; int _hl=0,_hr=0,_rud=0,_alarm=0;
 };

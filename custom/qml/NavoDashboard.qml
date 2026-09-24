@@ -316,6 +316,8 @@ Item {
     NavoSafetyManager {
         id: safetyManager
         vehicle: root.vehicle
+        telemetryLive: nanoTelemetry.connected
+        waterSensorFault: nanoTelemetry.waterSensorFault
         waterDetected: nanoTelemetry.waterDetected
         batteryTempC: nanoTelemetry.batteryTempC
         onWarning: function(reason) { root.lastNavigationStatus = "AVERTISMENT: " + reason }
@@ -369,6 +371,7 @@ Item {
             return false
         }
         if (root.awaitingMissionStart) return false
+        if(root.vehicle.flightMode===root.vehicle.missionFlightMode) {root.lastNavigationStatus="Treci în HOLD înainte de pornirea unei misiuni noi";return false}
         if(!missionUploader.uploadVerified || (scanCoordinator.state!=="READY" && scanCoordinator.state!=="RESUME_READY")) { root.lastNavigationStatus="Pregătește și încarcă misiunea înainte de START"; return false }
         if(!scanCoordinator.lakeId.length) { root.lastNavigationStatus="Selectează o baltă pentru salvarea scanării"; return false }
         if (!root.vehicle.coordinate || !root.vehicle.coordinate.isValid || !root.vehicle.gps || root.vehicle.gps.lock.rawValue<3) {
