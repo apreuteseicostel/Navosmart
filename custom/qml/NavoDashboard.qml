@@ -201,6 +201,8 @@ Item {
     property bool silentModeActive: false
     property bool cameraConnected: false
     property bool cameraFullscreen: false
+    property bool cameraPipEnabled: true
+    readonly property bool boatActive: !!vehicle && ((vehicle.groundSpeed && Number(vehicle.groundSpeed.rawValue)>0.25) || scanCoordinator.state==="SCANNING" || baitingController.enabled || root.awaitingMissionStart)
     property bool awaitingMissionStart: false
     property string areaScanFinishAction: "HOLD"
     onVehicleChanged: { awaitingMissionStart=false; if(baitingController && baitingController.enabled) baitingController.abortCycle("Autopilot schimbat"); if(scanCoordinator && scanCoordinator.state==="SCANNING") scanCoordinator.pause("Autopilot schimbat") }
@@ -547,6 +549,24 @@ Item {
                              root.activePage === 8 ? baitingPage :
                              root.activePage === 9 ? failsafePage : settingsPage
         }
+    }
+
+    NavoCameraPip {
+        id: persistentCameraPip
+        parent: root
+        z: 900
+        visible: root.cameraPipEnabled && root.cameraStreamUrl.length>0 && !root.cameraFullscreen && root.activePage!==5
+        anchors.right: parent.right
+        anchors.bottom: statusStrip.top
+        anchors.rightMargin: 16
+        anchors.bottomMargin: 12
+        width: Math.max(190,Math.min(260,root.width*0.19))
+        height: Math.round(width*0.62)
+        connected: root.cameraStreamUrl.length>0
+        streamUrl: root.cameraStreamUrl
+        protocol: root.cameraProtocol
+        onLiveChanged: root.cameraConnected=live
+        onFullscreenRequested: root.cameraFullscreen=true
     }
 
     Rectangle {
