@@ -15,8 +15,10 @@ Rectangle {
     signal chooseOnMapRequested()
     signal spotChosen(var spot)
     color: "#0b1c2eee"; border.color: "#21b7ff"; radius: 10
-    width: Math.min(370, parent ? parent.width - 20 : 370)
-    implicitHeight: summary.implicitHeight + 28
+    width: Math.min(340, parent ? parent.width - 24 : 340)
+    implicitHeight: summary.implicitHeight + 20
+    scale: parent ? Math.min(1.0, Math.max(0.72, Math.min((parent.width - 16) / width, (parent.height - 16) / implicitHeight))) : 1.0
+    transformOrigin: Item.Center
 
     Settings {
         id: saved
@@ -50,8 +52,8 @@ Rectangle {
     ColumnLayout {
         id: summary
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
-        anchors.margins: 14; spacing: 10
-        Label { text: "NĂDIRE AUTOMATĂ"; color: "white"; font.bold: true; font.pixelSize: 17 }
+        anchors.margins: 10; spacing: 7
+        Label { text: "NĂDIRE AUTOMATĂ"; color: "white"; font.bold: true; font.pixelSize: 16 }
         Label { Layout.fillWidth: true; text: "Punct: " + root.waypointName; color: "#21b7ff"; font.bold: true; wrapMode: Text.WordWrap }
         Label {
             Layout.fillWidth: true
