@@ -10,6 +10,7 @@ Popup {
     property var selectedLake: null
     property string saveStatus: ""
     property var editLake: null
+    component LakeIconButton: Button { width:42; height:38; padding:0; property string hint:""; ToolTip.visible:hovered; ToolTip.text:hint; background:Rectangle{radius:7;color:parent.down?"#18354a":"#101b25";border.color:parent.enabled?"#31506a":"#26313a"} }
 
     modal: true
     focus: true
@@ -112,7 +113,7 @@ Popup {
             Layout.fillWidth: true
             Label { text: "BĂLȚILE MELE"; color: "#21b7ff"; font.bold: true; font.pixelSize: 20 }
             Item { Layout.fillWidth: true }
-            Button { text: "ÎNCHIDE"; onClicked: root.close() }
+            LakeIconButton { hint:"Închide"; contentItem:Label{text:"X";color:"#f2f7fb";font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter}; onClicked:root.close() }
         }
 
         RowLayout {
@@ -123,7 +124,7 @@ Popup {
                 placeholderText: "Nume baltă / lac"
                 onAccepted: root.addLake()
             }
-            Button { text: "+ ADAUGĂ"; enabled: newLakeName.text.trim().length>0; onClicked: root.addLake() }
+            LakeIconButton { hint:"Adaugă baltă"; enabled:newLakeName.text.trim().length>0; contentItem:Label{text:"+";color:"#21b7ff";font.pixelSize:28;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter}; onClicked:root.addLake() }
         }
 
         Label {
@@ -211,8 +212,8 @@ Popup {
                         font.pixelSize: 18
                         elide: Text.ElideRight
                     }
-                    Button { visible: !!root.selectedLake; text: "REDENUMIRE"; onClicked: root.beginRename(root.selectedLake) }
-                    Button { visible: !!root.selectedLake; text: "ȘTERGE"; onClicked: root.beginDelete(root.selectedLake) }
+                    LakeIconButton { visible:!!root.selectedLake; hint:"Redenumește balta"; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.beginPath();p.moveTo(11,29);p.lineTo(14,21);p.lineTo(28,7);p.lineTo(34,13);p.lineTo(20,27);p.closePath();p.stroke()}};onClicked:root.beginRename(root.selectedLake) }
+                    LakeIconButton { visible:!!root.selectedLake; hint:"Șterge balta"; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#ff6b6b";p.lineWidth=2;p.beginPath();p.moveTo(10,11);p.lineTo(32,11);p.moveTo(15,8);p.lineTo(27,8);p.moveTo(13,14);p.lineTo(15,32);p.lineTo(27,32);p.lineTo(29,14);p.stroke()}};onClicked:root.beginDelete(root.selectedLake) }
                 }
                 Label {
                     visible: !!root.selectedLake
@@ -236,7 +237,7 @@ Popup {
                     columns: root.width < 560 ? 2 : 3
                     columnSpacing: 6; rowSpacing: 6
                     Button {
-                        text: "DESCHIDE HARTA"; Layout.fillWidth: true
+                        text: "HARTĂ"; ToolTip.visible:hovered; ToolTip.text:"Deschide harta"; Layout.fillWidth:true
                         onClicked: {
                             if(root.scanCoordinator && root.scanCoordinator.restoreLake(root.selectedLakeId)) {
                                 root.lakeRestored(root.selectedLakeId); root.openLakeMap(root.selectedLakeId); root.close()
@@ -244,7 +245,7 @@ Popup {
                         }
                     }
                     Button {
-                        text: "HARTĂ 3D"; Layout.fillWidth: true
+                        text: "3D"; ToolTip.visible:hovered; ToolTip.text:"Deschide harta 3D"; Layout.fillWidth:true
                         onClicked: {
                             if(root.scanCoordinator && root.scanCoordinator.restoreLake(root.selectedLakeId)) {
                                 root.lakeRestored(root.selectedLakeId); root.openLakeBathymetry(root.selectedLakeId); root.close()
@@ -252,7 +253,7 @@ Popup {
                         }
                     }
                     Button {
-                        text: "PUNCTE"; Layout.fillWidth: true
+                        text: "PIN"; ToolTip.visible:hovered; ToolTip.text:"Puncte de pescuit"; Layout.fillWidth:true
                         onClicked: {
                             if(root.scanCoordinator && root.scanCoordinator.restoreLake(root.selectedLakeId)) {
                                 root.lakeRestored(root.selectedLakeId); root.openLakeFishingSpots(root.selectedLakeId); root.close()
@@ -260,7 +261,7 @@ Popup {
                         }
                     }
                     Button {
-                        text: "CONTINUĂ SCANAREA"; Layout.fillWidth: true
+                        text: "SCAN"; ToolTip.visible:hovered; ToolTip.text:"Continuă Area Scan"; Layout.fillWidth:true
                         enabled: {
                             if(!root.persistence || !root.selectedLake) return false
                             var st=root.persistence.lakeState(root.selectedLakeId)||({})
@@ -299,25 +300,16 @@ Popup {
                             anchors.right: parent.right
                             anchors.rightMargin: 8
                             anchors.verticalCenter: parent.verticalCenter
-                            text: "HARTĂ"
-                            onClicked: root.openSession(modelData)
+                            text:"3D"; width:42; ToolTip.visible:hovered; ToolTip.text:"Deschide scanarea 3D"
+                            onClicked:root.openSession(modelData)
                         }
                     }
                 }
                 RowLayout {
-                    Layout.fillWidth: true
-                    visible: !!root.selectedLake
-                    Button {
-                        text: "ÎNCARCĂ / RESUME"
-                        onClicked: {
-                            if(root.scanCoordinator && root.scanCoordinator.restoreLake(root.selectedLakeId)) {
-                                root.lakeRestored(root.selectedLakeId)
-                                root.close()
-                            }
-                        }
-                    }
-                    Item { Layout.fillWidth: true }
-                    Label { text: "Sonar • puncte • Area Scan"; color: "#31d67b" }
+                    Layout.fillWidth:true; visible:!!root.selectedLake
+                    LakeIconButton { hint:"Încarcă toate datele salvate"; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#31d67b";p.lineWidth=2;p.beginPath();p.moveTo(21,7);p.lineTo(21,27);p.moveTo(13,20);p.lineTo(21,28);p.lineTo(29,20);p.moveTo(10,33);p.lineTo(32,33);p.stroke()}};onClicked:{if(root.scanCoordinator&&root.scanCoordinator.restoreLake(root.selectedLakeId)){root.lakeRestored(root.selectedLakeId);root.close()}} }
+                    Item { Layout.fillWidth:true }
+                    Label { text:"Sonar • puncte • Area Scan"; color:"#31d67b" }
                 }
             }
         }
