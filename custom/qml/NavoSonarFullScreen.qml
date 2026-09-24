@@ -24,6 +24,7 @@ Popup {
  property bool noiseFilter:true
  property bool paused:false
  property bool recording:false
+ component SonarIconButton: Button { width:42; height:38; padding:0; property string hint:""; ToolTip.visible:hovered; ToolTip.text:hint; background:Rectangle{radius:7;color:parent.checked?"#123d50":"#101b25";border.color:parent.checked?"#21b7ff":"#31404d"} }
  property var bottomStrengthHistory:[]
  property var bottomDepthHistory:[]
  readonly property real bottomEchoStrength: bottomStrengthHistory.length?Number(bottomStrengthHistory[bottomStrengthHistory.length-1]):NaN
@@ -55,7 +56,7 @@ Popup {
    Label{text:Math.round(root.gain*100)+"%";color:"white"}
    Button{text:root.noiseFilter?"FILTRU ZGOMOT ON":"FILTRU ZGOMOT OFF";checkable:true;checked:root.noiseFilter;onClicked:root.noiseFilter=checked}
    Slider{id:noiseSlider;from:0;to:.35;value:root.noiseFloor;stepSize:.01;width:130;enabled:root.noiseFilter;onMoved:root.noiseFloor=value}
-   Button{text:root.fishIcons?"🐟 PEȘTI ON":"PEȘTI OFF";checkable:true;checked:root.fishIcons;onClicked:root.fishIcons=checked}
+   SonarIconButton{hint:"Afișare pești";checkable:true;checked:root.fishIcons;contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle=parent.checked?"#21b7ff":"#d9edf7";p.lineWidth=2;p.beginPath();p.ellipse(10,13,18,12);p.moveTo(28,19);p.lineTo(35,13);p.lineTo(35,25);p.closePath();p.stroke();p.beginPath();p.arc(15,18,1.3,0,Math.PI*2);p.fillStyle=p.strokeStyle;p.fill()}};onClicked:root.fishIcons=checked}
    Button{text:root.showRawTrace?"ECOU BRUT ON":"ECOU BRUT";checkable:true;checked:root.showRawTrace;onClicked:root.showRawTrace=checked}
    ComboBox{model:["NAVO","DAY"];currentIndex:root.paletteMode==="NAVO"?0:1;onActivated:root.paletteMode=currentText}
   }
@@ -68,7 +69,7 @@ Popup {
      ctx.strokeStyle="#18364a";ctx.lineWidth=1;for(var g=1;g<5;g++){var gy=g*height/5;ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(width,gy);ctx.stroke()}
      if(root.history&&root.history.length){var cw=width/root.historyColumns;for(var hx=0;hx<root.history.length;hx++){var entry=root.history[hx],col=entry.samples||entry,historyDepth=entry.depth,px=width-(root.history.length-hx)*cw;for(var hy=0;hy<col.length;hy++){var d=!isNaN(historyDepth)?hy*historyDepth/col.length:0;if(d<root.surfaceBlankM)continue;var v=Math.max(0,Math.min(1,(Number(col[hy])-(root.noiseFilter?root.noiseFloor:0))*root.gain));if(v<=0)continue;ctx.fillStyle=root.palette(v);ctx.fillRect(px,hy*height/col.length,Math.max(1,cw+0.5),Math.max(1,height/col.length+0.7))}}}
      if(root.showRawTrace&&root.echoSamples&&root.echoSamples.length>1){ctx.strokeStyle="#f2f7fb";ctx.lineWidth=1;ctx.beginPath();for(var i=0;i<root.echoSamples.length;i++){var x=i*width/(root.echoSamples.length-1),y=height-Math.max(0,Math.min(1,root.echoSamples[i]))*height;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}ctx.stroke()}
-     if(root.fishIcons&&root.fishHotspots){ctx.font="bold 18px sans-serif";ctx.fillStyle="#f2f7fb";for(var f=0;f<root.fishHotspots.length;f++){var h=root.fishHotspots[f];if(!isNaN(root.depthM)&&root.depthM>0){var fy=Math.max(18,Math.min(height-8,h.minTargetDepth/root.depthM*height));ctx.fillText("🐟"+(h.count>1?h.count:""),width-70,fy)}}}
+     if(root.fishIcons&&root.fishHotspots){ctx.font="bold 18px sans-serif";ctx.fillStyle="#f2f7fb";for(var f=0;f<root.fishHotspots.length;f++){var h=root.fishHotspots[f];if(!isNaN(root.depthM)&&root.depthM>0){var fy=Math.max(18,Math.min(height-8,h.minTargetDepth/root.depthM*height));ctx.fillText("F"+(h.count>1?h.count:""),width-70,fy)}}}
      if(root.bottomDepthHistory.length){var bcw=width/root.historyColumns,maxD=0;for(var md=0;md<root.bottomDepthHistory.length;md++)if(isFinite(root.bottomDepthHistory[md]))maxD=Math.max(maxD,root.bottomDepthHistory[md]);if(maxD>0){ctx.beginPath();for(var bx=0;bx<root.bottomDepthHistory.length;bx++){var dep=Number(root.bottomDepthHistory[bx]);if(!isFinite(dep))continue;var bpx=width-(root.bottomDepthHistory.length-bx)*bcw,by=Math.min(height-1,(dep/maxD)*height);if(bx===0)ctx.moveTo(bpx,by);else ctx.lineTo(bpx,by)}ctx.lineTo(width,height);ctx.lineTo(Math.max(0,width-root.bottomDepthHistory.length*bcw),height);ctx.closePath();var bv=root.bottomEchoStrength;ctx.fillStyle=root.bottomColor(isNaN(bv)?0:bv);ctx.globalAlpha=.72;ctx.fill();ctx.globalAlpha=1}}}
     }
     Connections{target:root;function onEchoSamplesChanged(){root.pushHistory();echogram.requestPaint()}function onNoiseFilterChanged(){echogram.requestPaint()}function onGainChanged(){echogram.requestPaint()}function onNoiseFloorChanged(){echogram.requestPaint()}function onFishIconsChanged(){echogram.requestPaint()}function onShowRawTraceChanged(){echogram.requestPaint()}function onPaletteModeChanged(){echogram.requestPaint()}}
@@ -102,13 +103,13 @@ Popup {
    }
   }
   Flow{Layout.fillWidth:true;Layout.leftMargin:10;Layout.rightMargin:10;Layout.bottomMargin:10;spacing:6
-   Button{text:root.recording?"OPREȘTE ÎNREGISTRAREA":"ÎNREGISTREAZĂ";checkable:true;checked:root.recording;onClicked:{root.recording=checked;root.recordingRequested(root.recording)}}
-   Button{text:root.paused?"▶ REDĂ":"Ⅱ PAUZĂ";onClicked:root.paused=!root.paused}
+   SonarIconButton{hint:root.recording?"Oprește înregistrarea":"Înregistrează sonar";checkable:true;checked:root.recording;contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.fillStyle=parent.checked?"#ff5c5c":"#f2f7fb";p.beginPath();p.arc(width/2,height/2,7,0,Math.PI*2);p.fill()}};onClicked:{root.recording=checked;root.recordingRequested(root.recording)}}
+   SonarIconButton{hint:root.paused?"Redă":"Pauză";contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.fillStyle="#f2f7fb";if(root.paused){p.beginPath();p.moveTo(15,10);p.lineTo(30,19);p.lineTo(15,28);p.closePath();p.fill()}else{p.fillRect(13,10,5,18);p.fillRect(25,10,5,18)}}};onClicked:root.paused=!root.paused}
    Label{text:"Viteză: "+(isNaN(root.speedMps)?"--":(root.speedMps*3.6).toFixed(1)+" km/h");color:"#9db2c5";height:40;verticalAlignment:Text.AlignVCenter}
    Label{text:"GPS: "+(isNaN(root.latitude)?"--":root.latitude.toFixed(6)+", "+root.longitude.toFixed(6));color:"#9db2c5";height:40;verticalAlignment:Text.AlignVCenter;visible:root.width>=760}
    Label{text:"FUND: "+(isNaN(root.bottomHardnessPercent)?"--":Math.round(root.bottomHardnessPercent)+"%");color:root.bottomColor(isNaN(root.bottomEchoStrength)?0:root.bottomEchoStrength);font.bold:true;height:40;verticalAlignment:Text.AlignVCenter}
    Label{visible:root.transport&&root.width>=900;text:root.transport?(root.transport.status+" • RX "+root.transport.rxBytes+" B / "+root.transport.rxChunks):"";color:root.transport&&root.transport.connected?"#31d67b":"#9db2c5";height:40;verticalAlignment:Text.AlignVCenter}
    Button{visible:root.transport;text:root.transport&&root.transport.connected?"DECONECTEAZĂ":"CONECTEAZĂ KOGGER";onClicked:{if(root.transport.connected)root.transport.disconnectFromSonar();else root.transport.connectToSonar()}}
-   Button{text:"SALVEAZĂ PUNCT";enabled:root.connected&&!isNaN(root.latitude)&&!isNaN(root.longitude)&&!isNaN(root.depthM);onClicked:root.saveWaypointRequested(root.latitude,root.longitude,root.depthM,root.waterTempC)}
+   SonarIconButton{hint:"Salvează punct";enabled:root.connected&&!isNaN(root.latitude)&&!isNaN(root.longitude)&&!isNaN(root.depthM);contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.fillStyle="#21b7ff";p.lineWidth=2;p.beginPath();p.arc(width/2,15,6,0,Math.PI*2);p.stroke();p.beginPath();p.moveTo(width/2,31);p.lineTo(14,17);p.lineTo(28,17);p.closePath();p.stroke();p.beginPath();p.arc(width/2,15,2,0,Math.PI*2);p.fill()}};onClicked:root.saveWaypointRequested(root.latitude,root.longitude,root.depthM,root.waterTempC)}
   } }
 }
