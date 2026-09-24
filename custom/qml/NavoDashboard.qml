@@ -682,8 +682,7 @@ Item {
                         enabled: scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
                         onClicked: {
                             root.pendingAreaDrawMode="rectangle"
-                            root.activePage=0
-                            Qt.callLater(function(){ if(root.mapController){ root.mapController.beginAreaRectangle(); root.pendingAreaDrawMode="none" } })
+                            Qt.callLater(function(){ if(areaScanMap){ areaScanMap.beginAreaRectangle(); root.pendingAreaDrawMode="none" } })
                             root.lastNavigationStatus="Atinge două colțuri pe hartă pentru dreptunghi"
                         }
                     }
@@ -692,8 +691,7 @@ Item {
                         enabled: scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
                         onClicked: {
                             root.pendingAreaDrawMode="polygon"
-                            root.activePage=0
-                            Qt.callLater(function(){ if(root.mapController){ root.mapController.beginAreaPolygon(); root.pendingAreaDrawMode="none" } })
+                            Qt.callLater(function(){ if(areaScanMap){ areaScanMap.beginAreaPolygon(); root.pendingAreaDrawMode="none" } })
                             root.lastNavigationStatus="Atinge cel puțin trei puncte și apoi TERMINĂ"
                         }
                     }
@@ -733,13 +731,49 @@ Item {
                 }
                 Rectangle {
                     Layout.fillWidth: true; Layout.fillHeight: true
-                    radius: 8; color: root.bg; border.color: root.line
-                    Column {
-                        anchors.centerIn: parent; spacing: 8
-                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Traseu Area Scan"; color: root.text; font.pixelSize: 18; font.bold: true }
-                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: areaScanController.generatedPoints.length + " waypoint-uri"; color: root.muted }
-                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Culoar activ: " + (areaScanController.activeLaneIndex >= 0 ? (areaScanController.activeLaneIndex + 1) : "--"); color: root.muted }
-                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Zona se definește din hartă; aici se controlează misiunea autopilotului."; color: root.muted }
+                    radius: 8; color: root.bg; border.color: root.line; clip: true
+                    NavoMap {
+                        id: areaScanMap
+                        anchors.fill: parent; anchors.margins: 2
+                        vehicle: root.vehicle
+                        planController: root.planController
+                        waypointNames: root.waypointNames
+                        fishModel: fishStore
+                        fishingSpotsModel: fishingSpots
+                        bathymetryCells: scanCoordinator.bathymetryCells
+                        baitingController: baitingController
+                        areaScanController: areaScanController
+                        savedDepthM: root.depthM
+                        savedWaterTempC: root.waterTempC
+                        maximized: root.mapMaximized
+                        onMaximizeRequested: root.mapMaximized = !root.mapMaximized
+                        onAreaRectangleRequested: function(cornerA, cornerB) {
+                            missionUploader.invalidate()
+                            var pts=scanCoordinator.prepareRectangle(cornerA,cornerB)
+                            root.lastNavigationStatus=pts.length ? "Area Scan dreptunghi • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP" : areaScanController.lastError
+                            root.pendingAreaDrawMode="none"
+                        }
+                        onAreaPolygonRequested: function(polygon) {
+                            missionUploader.invalidate()
+                            var pts=scanCoordinator.preparePolygon(polygon)
+                            root.lastNavigationStatus=pts.length ? "Area Scan poligon • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP" : areaScanController.lastError
+                            root.pendingAreaDrawMode="none"
+                        }
+                        onSavePointRequested: function(coordinate) {
+                            if(!scanCoordinator.lakeId.length){root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
+                            var spot=fishingSpots.saveSpot(coordinate,root.depthM,root.waterTempC,"","",null)
+                            if(spot) scanCoordinator.checkpoint("fishing-spot")
+                        }
+                    }
+                    Rectangle {
+                        anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 8
+                        width: areaInfo.implicitWidth+18; height: areaInfo.implicitHeight+10
+                        radius: 6; color: "#071827dd"; border.color: root.line
+                        Label {
+                            id: areaInfo; anchors.centerIn: parent
+                            text: areaScanController.generatedPoints.length+" WP • culoar "+(areaScanController.activeLaneIndex>=0 ? areaScanController.activeLaneIndex+1 : "--")
+                            color: root.text; font.pixelSize: 11
+                        }
                     }
                 }
             }
