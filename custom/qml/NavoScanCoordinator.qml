@@ -27,6 +27,7 @@ QtObject {
     signal status(string text)
     signal missionPrepared(var missionPoints)
     signal lakeActivated(string id)
+    signal scanFinished(bool bathymetrySaved, int sampleCount)
 
     function activateLake(id, name) {
         if(!persistence || !sonarMapping || !areaScan || !id.length) return false
@@ -114,8 +115,10 @@ QtObject {
         if(!areaScan || state!=="SCANNING" || sequence < 2 ||
            sequence > missionWaypointCount || sequence % 2 !== 0) return false
         var routeLane=sequence / 2 - 1
-        if(routeLane >= missionLanes.length) return false
-        laneCompleted(missionLanes[routeLane])
+        if(routeLane >= missionLanes.length || routeLane <= lastCompletedRouteLaneFromMission) return false
+        lastCompletedRouteLaneFromMission=routeLane
+        lastCompletedLaneFromMission=missionLanes[routeLane]
+        laneCompleted(lastCompletedLaneFromMission)
         return true
     }
 
@@ -126,6 +129,7 @@ QtObject {
     }
     function pause(reason) {if(!areaScan||!sonarMapping)return;var boat=vehicle&&vehicle.coordinate?vehicle.coordinate:null;areaScan.hold(reason||"Pauză scanare",boat);sonarMapping.pauseScan();state="PAUSED";checkpoint("pause")}
     function resume() {
+        if(state!=="PAUSED" && state!=="RTL"){status("Resume disponibil numai după HOLD/STOP/RTL");return []}
         if(!areaScan || !sonarMapping){status("Resume indisponibil: controlere neinițializate");return []}
         if(!areaScan.generatedPoints || !areaScan.generatedPoints.length){status("Resume indisponibil: traseul Area Scan lipsește");return []}
         var mission=prepareMission(true)
@@ -140,15 +144,28 @@ QtObject {
     }
     function rtl(reason) {if(!areaScan||!sonarMapping)return;areaScan.rtl(reason||"RTL scanare");sonarMapping.pauseScan();state="RTL";checkpoint("rtl")}
     function finish() {
-        if(!sonarMapping)return
+        if(!sonarMapping || state==="COMPLETE" || state==="FINISHING") return false
+        state="FINISHING"
         sonarMapping.finishAndBuild()
-        if(bathymetry && bathymetry.rebuild) {
+        var bathyOk=false
+        if(sonarMapping.rawSamples.length>=3 && bathymetry && bathymetry.rebuild) {
             var rebuilt=bathymetry.rebuild(sonarMapping.rawSamples)
-            if(rebuilt!==undefined && rebuilt!==null) bathymetryCells=rebuilt
+            if(rebuilt!==undefined && rebuilt!==null) {
+                bathymetryCells=rebuilt
+                bathyOk=true
+            }
         }
+        sonarMapping.markBathymetrySaved(bathyOk)
         state="COMPLETE"
-        checkpoint("complete")
-        status("Scanare terminată • "+sonarMapping.rawSamples.length+" măsurători sonar salvate")
+        areaScan.activeLaneIndex=-1
+        areaScan.paused=false
+        sonarMapping.setLaneProgress(-1,areaScan.laneCount(),areaScan.laneCount())
+        var saved=checkpoint("complete")
+        status(saved
+               ? "Area Scan 100% • "+sonarMapping.rawSamples.length+" măsurători salvate"+(bathyOk?" • batimetrie generată":" • batimetrie indisponibilă")
+               : "Area Scan 100% • EROARE la salvarea finală")
+        scanFinished(bathyOk && saved, sonarMapping.rawSamples.length)
+        return saved
     }
 
     function jsonCoordinates(points) {
