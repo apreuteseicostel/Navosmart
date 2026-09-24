@@ -653,10 +653,17 @@ Item {
                     Button {
                         text: "PREGĂTEȘTE MISIUNEA"
                         enabled: areaScanController.generatedPoints.length > 0 && !missionUploader.uploadInProgress
-                        onClicked: scanCoordinator.prepareMission(false)
+                        onClicked: {
+                            missionUploader.invalidate()
+                            var prepared=scanCoordinator.prepareMission(false)
+                            if(prepared && prepared.length)
+                                root.lastNavigationStatus="Misiune pregătită • "+prepared.length+" WP • următorul pas: UPLOAD"
+                            else if(!root.lastNavigationStatus.length)
+                                root.lastNavigationStatus="Pregătirea misiunii a eșuat"
+                        }
                     }
                     Button {
-                        text: missionUploader.uploadVerified ? "START AUTOPILOT" : "UPLOAD"
+                        text: missionUploader.uploadInProgress ? "UPLOAD…" : (missionUploader.uploadVerified ? "START AUTOPILOT" : "UPLOAD")
                         enabled: missionUploader.preparedCount > 0 && !missionUploader.uploadInProgress
                         onClicked: root.startMission()
                     }
