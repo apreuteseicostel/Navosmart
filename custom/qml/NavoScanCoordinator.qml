@@ -112,7 +112,17 @@ QtObject {
         state="SCANNING";checkpoint("resume");return true
     }
     function rtl(reason) {if(!areaScan||!sonarMapping)return;areaScan.rtl(reason||"RTL scanare");sonarMapping.pauseScan();state="RTL";checkpoint("rtl")}
-    function finish() {if(!sonarMapping)return;sonarMapping.finishAndBuild();if(bathymetry)bathymetryCells=bathymetry.rebuild(sonarMapping.rawSamples);state="COMPLETE";checkpoint("complete");status("Scanare terminată • "+bathymetryCells.length+" celule batimetrice")}
+    function finish() {
+        if(!sonarMapping)return
+        sonarMapping.finishAndBuild()
+        if(bathymetry && bathymetry.rebuild) {
+            var rebuilt=bathymetry.rebuild(sonarMapping.rawSamples)
+            if(rebuilt!==undefined && rebuilt!==null) bathymetryCells=rebuilt
+        }
+        state="COMPLETE"
+        checkpoint("complete")
+        status("Scanare terminată • "+sonarMapping.rawSamples.length+" măsurători sonar salvate")
+    }
 
     function jsonCoordinates(points) {
         var out=[]
