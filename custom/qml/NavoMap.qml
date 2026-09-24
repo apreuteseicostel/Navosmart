@@ -270,9 +270,9 @@ Item {
     Row {
         anchors.left: parent.left; anchors.bottom: parent.bottom; anchors.margins: 10; spacing: 6
         visible: root.areaDrawMode!=="none"
-        Button { width: 72; height: 32; padding: 2; text: root.areaDrawMode==="rectangle" ? "▭ "+root.areaDraftPoints.length+"/2" : "⬡ "+root.areaDraftPoints.length; enabled:false }
-        Button { visible: root.areaDrawMode==="polygon"; width:72; height:32; padding:2; text:"✓ GATA"; enabled:root.areaDraftPoints.length>=3; onClicked:root.finishAreaDrawing() }
-        Button { width:42; height:32; padding:2; text:"×"; ToolTip.visible:hovered; ToolTip.text:"Anulează"; onClicked:root.cancelAreaDrawing() }
+        Button { width:72; height:32; padding:2; text:(root.areaDrawMode==="rectangle" ? "DREPT. " : "POLIG. ")+root.areaDraftPoints.length+(root.areaDrawMode==="rectangle"?"/2":""); enabled:false }
+        Button { visible:root.areaDrawMode==="polygon"; width:72; height:32; padding:2; text:"GATA"; enabled:root.areaDraftPoints.length>=3; onClicked:root.finishAreaDrawing() }
+        Button { width:42; height:32; padding:2; text:"X"; ToolTip.visible:hovered; ToolTip.text:"Anulează"; onClicked:root.cancelAreaDrawing() }
     }
     Column {
         id: mapControls
@@ -285,10 +285,10 @@ Item {
             background:Rectangle { radius:8;color:"#0d1722";border.color:"#27394b";border.width:1 }
             contentItem:Label { text:parent.text;color:"#f4f7fb";font.pixelSize:parent.font.pixelSize;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter }
         }
-        MapTool { text:"▲"; rotation:45; ToolTip.visible:hovered;ToolTip.text:"Centrează pe barcă";enabled:!!root.vehicle&&!!root.vehicle.coordinate&&root.vehicle.coordinate.isValid;onClicked:liveMap.center=root.vehicle.coordinate }
+        MapTool { text:"BOAT"; font.pixelSize:9; ToolTip.visible:hovered;ToolTip.text:"Centrează pe barcă";enabled:!!root.vehicle&&!!root.vehicle.coordinate&&root.vehicle.coordinate.isValid;onClicked:liveMap.center=root.vehicle.coordinate }
         MapTool { text:"+";onClicked:liveMap.zoomLevel=liveMap.zoomLevel+1 }
-        MapTool { text:"−";onClicked:liveMap.zoomLevel=liveMap.zoomLevel-1 }
-        MapTool { text:"◎";ToolTip.visible:hovered;ToolTip.text:"Centrare";enabled:!!root.vehicle&&!!root.vehicle.coordinate&&root.vehicle.coordinate.isValid;onClicked:liveMap.center=root.vehicle.coordinate }
+        MapTool { text:"-";onClicked:liveMap.zoomLevel=liveMap.zoomLevel-1 }
+        MapTool { text:"CTR";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:"Centrare";enabled:!!root.vehicle&&!!root.vehicle.coordinate&&root.vehicle.coordinate.isValid;onClicked:liveMap.center=root.vehicle.coordinate }
     }
     Column {
         anchors.right:parent.right;anchors.top:parent.top;anchors.margins:10;spacing:5;z:50
