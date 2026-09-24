@@ -104,7 +104,7 @@ Item {
             var expected = String(root.vehicle.missionFlightMode || "").toUpperCase()
             var actual = String(root.vehicle.flightMode || "").toUpperCase()
             if (expected.length && actual === expected)
-                root.lastNavigationStatus = "H743 confirmă " + root.vehicle.flightMode + " • misiune activă"
+                root.lastNavigationStatus = "Autopilot confirmă " + root.vehicle.flightMode + " • misiune activă"
             if (root.awaitingMissionStart && expected.length && actual === expected && scanCoordinator.state === "READY")
                 scanCoordinator.start()
             else if (root.awaitingMissionStart && expected.length && actual === expected && scanCoordinator.state === "RESUME_READY")
@@ -145,7 +145,7 @@ Item {
         repeat: false
         onTriggered: {
             root.awaitingMissionStart = false
-            root.lastNavigationStatus = "START AUTOPILOT trimis, dar modul AUTO nu a fost confirmat de H743"
+            root.lastNavigationStatus = "START AUTOPILOT trimis, dar modul AUTO nu a fost confirmat de autopilot"
         }
     }
     property string flightMode: vehicle ? vehicle.flightMode : ""
@@ -245,7 +245,7 @@ Item {
     }
     function startMission() {
         if (!root.vehicle) {
-            root.lastNavigationStatus = "START blocat: H743 neconectat"
+            root.lastNavigationStatus = "START blocat: autopilot neconectat"
             return false
         }
         if (missionUploader.uploadInProgress) {
@@ -261,12 +261,12 @@ Item {
     }
     function startUploadedMission() {
         if (!root.vehicle) {
-            root.lastNavigationStatus = "Upload confirmat, dar H743 nu mai este conectat"
+            root.lastNavigationStatus = "Upload confirmat, dar autopilotul nu mai este conectat"
             return false
         }
         if (root.awaitingMissionStart) return false
         if (!root.vehicle.coordinate || !root.vehicle.coordinate.isValid) {
-            root.lastNavigationStatus = "START blocat: GPS H743 indisponibil"
+            root.lastNavigationStatus = "START blocat: GPS autopilot indisponibil"
             return false
         }
         if ((scanCoordinator.state === "READY" || scanCoordinator.state === "RESUME_READY") && !root.sonarConnected) {
@@ -286,23 +286,23 @@ Item {
     }
     function holdMission() {
         root.awaitingMissionStart = false
-        if (!vehicle || !vehicle.pauseVehicle) { root.lastNavigationStatus = "HOLD indisponibil: H743 deconectat"; return false }
+        if (!vehicle || !vehicle.pauseVehicle) { root.lastNavigationStatus = "HOLD indisponibil: autopilot deconectat"; return false }
         vehicle.pauseVehicle()
-        root.lastNavigationStatus = "Comandă HOLD trimisă • aștept confirmarea H743"
+        root.lastNavigationStatus = "Comandă HOLD trimisă • aștept confirmarea autopilotului"
         return true
     }
     function rtlMission() {
         root.awaitingMissionStart = false
-        if (!vehicle || !vehicle.guidedModeRTL) { root.lastNavigationStatus = "RTL indisponibil: H743 deconectat"; return false }
+        if (!vehicle || !vehicle.guidedModeRTL) { root.lastNavigationStatus = "RTL indisponibil: autopilot deconectat"; return false }
         vehicle.guidedModeRTL(false)
-        root.lastNavigationStatus = "Comandă RTL trimisă • aștept confirmarea H743"
+        root.lastNavigationStatus = "Comandă RTL trimisă • aștept confirmarea autopilotului"
         return true
     }
     function stopMission() {
         root.awaitingMissionStart = false
-        if (!vehicle || !vehicle.pauseVehicle) { root.lastNavigationStatus = "STOP indisponibil: H743 deconectat"; return false }
+        if (!vehicle || !vehicle.pauseVehicle) { root.lastNavigationStatus = "STOP indisponibil: autopilot deconectat"; return false }
         vehicle.pauseVehicle()
-        root.lastNavigationStatus = "Comandă STOP/HOLD trimisă • aștept confirmarea H743"
+        root.lastNavigationStatus = "Comandă STOP/HOLD trimisă • aștept confirmarea autopilotului"
         return true
     }
     function navigateToCoordinate(c) {
@@ -583,7 +583,7 @@ Item {
                 Label {
                     Layout.fillWidth: true
                     text: areaScanController.laneCount() ?
-                          (areaScanController.completedLanes.length + " / " + areaScanController.laneCount() + " culoare • WP H743 " + scanCoordinator.missionCurrentIndex) :
+                          (areaScanController.completedLanes.length + " / " + areaScanController.laneCount() + " culoare • WP autopilot " + scanCoordinator.missionCurrentIndex) :
                           "Definește zona de scanare pe hartă."
                     color: root.muted
                 }
@@ -640,7 +640,7 @@ Item {
                         Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Traseu Area Scan"; color: root.text; font.pixelSize: 18; font.bold: true }
                         Label { anchors.horizontalCenter: parent.horizontalCenter; text: areaScanController.generatedPoints.length + " waypoint-uri"; color: root.muted }
                         Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Culoar activ: " + (areaScanController.activeLaneIndex >= 0 ? (areaScanController.activeLaneIndex + 1) : "--"); color: root.muted }
-                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Zona se definește din hartă; aici se controlează misiunea H743."; color: root.muted }
+                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Zona se definește din hartă; aici se controlează misiunea autopilotului."; color: root.muted }
                     }
                 }
             }
