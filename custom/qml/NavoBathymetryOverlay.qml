@@ -8,6 +8,7 @@ Item {
     id: root
     required property var map
     property var bathymetryCells: []
+    property bool showBathymetryCells: true
     property var fishingSpotsModel
     property var selectedCell: null
     property var selectedSpot: null
@@ -26,7 +27,7 @@ Item {
     }
 
     Repeater {
-        model: root.bathymetryCells
+        model: root.showBathymetryCells ? root.bathymetryCells : []
         delegate: MapQuickItem {
             required property var modelData
             Component.onCompleted: { parent = root.map; root.map.addMapItem(this) }
