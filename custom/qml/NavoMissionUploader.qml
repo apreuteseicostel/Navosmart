@@ -43,7 +43,8 @@ QtObject {
     property string lastError: ""
     property int uploadTimeoutMs: 15000
     signal status(string text)
-    signal uploadFinished(bool success, string message)\n    signal missionCompleted()
+    signal uploadFinished(bool success, string message)
+    signal missionCompleted()
 
     function invalidate() {
         uploadTimeout.stop()
