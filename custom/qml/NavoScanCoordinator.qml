@@ -113,8 +113,12 @@ QtObject {
         if(!areaScan || state!=="SCANNING" || sequence < 2 ||
            sequence > missionWaypointCount || sequence % 2 !== 0) return false
         var routeLane=sequence / 2 - 1
-        if(routeLane >= missionLanes.length) return false
-        laneCompleted(missionLanes[routeLane])
+        if(routeLane >= missionLanes.length || routeLane <= lastCompletedRouteLaneFromMission) return false
+        // Accept each uploaded lane exactly once. Resume missions remap their
+        // route-lane index back to the original Area Scan lane.
+        lastCompletedRouteLaneFromMission=routeLane
+        lastCompletedLaneFromMission=missionLanes[routeLane]
+        laneCompleted(lastCompletedLaneFromMission)
         return true
     }
 
@@ -125,6 +129,7 @@ QtObject {
     }
     function pause(reason) {if(!areaScan||!sonarMapping)return;var boat=vehicle&&vehicle.coordinate?vehicle.coordinate:null;areaScan.hold(reason||"Pauză scanare",boat);sonarMapping.pauseScan();state="PAUSED";checkpoint("pause")}
     function resume() {
+        if(state!=="PAUSED" && state!=="RTL"){status("Resume disponibil numai după HOLD/STOP/RTL");return []}
         if(!areaScan || !sonarMapping){status("Resume indisponibil: controlere neinițializate");return []}
         if(!areaScan.generatedPoints || !areaScan.generatedPoints.length){status("Resume indisponibil: traseul Area Scan lipsește");return []}
         var mission=prepareMission(true)
