@@ -215,36 +215,43 @@ Item {
         Button { width:42; height:32; padding:2; text:"×"; ToolTip.visible:hovered; ToolTip.text:"Anulează"; onClicked:root.cancelAreaDrawing() }
     }
     Column {
-        anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 6
-        spacing: 3
-        property int controlSize: 34
+        id: mapControls
+        // Keep controls inside the map on phones/tablets and above any bottom overlays.
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.rightMargin: Math.max(8, Math.round(root.width * 0.008))
+        anchors.topMargin: 8
+        spacing: 4
+        z: 50
+        property int controlSize: Math.max(38, Math.min(46, Math.round(root.width * 0.042)))
+        property int iconSize: Math.max(18, Math.round(controlSize * 0.48))
         Button {
-            text: "HD"; width: parent.controlSize; height: parent.controlSize; padding: 2
+            text: "HD"; width: parent.controlSize; height: parent.controlSize; padding: 2; font.pixelSize: Math.max(14,mapControls.iconSize-2)
             checkable: true; checked: root.bathymetryHDEnabled
             ToolTip.visible: hovered; ToolTip.text: "Strat Batimetrie HD"
             onToggled: root.bathymetryHDEnabled = checked
         }
-        Button { text: "+"; width: parent.controlSize; height: parent.controlSize; padding: 2; font.pixelSize: 16; onClicked: liveMap.zoomLevel = liveMap.zoomLevel + 1 }
-        Button { text: "−"; width: parent.controlSize; height: parent.controlSize; padding: 2; font.pixelSize: 16; onClicked: liveMap.zoomLevel = liveMap.zoomLevel - 1 }
+        Button { text: "+"; width: parent.controlSize; height: parent.controlSize; padding: 2; font.pixelSize: mapControls.iconSize; onClicked: liveMap.zoomLevel = liveMap.zoomLevel + 1 }
+        Button { text: "−"; width: parent.controlSize; height: parent.controlSize; padding: 2; font.pixelSize: mapControls.iconSize; onClicked: liveMap.zoomLevel = liveMap.zoomLevel - 1 }
         Button {
-            text: "⌖"; width: parent.controlSize; height: parent.controlSize; padding: 2
+            text: "⌖"; width: parent.controlSize; height: parent.controlSize; padding: 2; font.pixelSize: mapControls.iconSize
             ToolTip.visible: hovered; ToolTip.text: "Centrează pe barcă"
             enabled: !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
             onClicked: liveMap.center = root.vehicle.coordinate
         }
         Button {
-            text: "⌂"; width: parent.controlSize; height: parent.controlSize; padding: 2
+            text: "⌂"; width: parent.controlSize; height: parent.controlSize; padding: 2; font.pixelSize: mapControls.iconSize
             ToolTip.visible: hovered; ToolTip.text: "Acasă"
             enabled: !!root.vehicle && !!root.vehicle.homePosition && root.vehicle.homePosition.isValid
             onClicked: liveMap.center = root.vehicle.homePosition
         }
         Button {
-            text: root.maximized ? "↙" : "⛶"; width: parent.controlSize; height: parent.controlSize; padding: 2
+            text: root.maximized ? "↙" : "⛶"; width: parent.controlSize; height: parent.controlSize; padding: 2; font.pixelSize: mapControls.iconSize
             ToolTip.visible: hovered; ToolTip.text: root.maximized ? "Micșorează harta" : "Maximizează harta"
             onClicked: root.maximizeRequested()
         }
         Button {
-            text: "＋"; width: parent.controlSize; height: parent.controlSize; padding: 2
+            text: "＋"; width: parent.controlSize; height: parent.controlSize; padding: 2; font.pixelSize: mapControls.iconSize
             ToolTip.visible: hovered; ToolTip.text: "Salvează punct"
             enabled: !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
             onClicked: root.savePointRequested(root.vehicle.coordinate)
