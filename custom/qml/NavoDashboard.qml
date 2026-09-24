@@ -185,7 +185,9 @@ Item {
     property color accent: "#26c6da"
     property color ok: "#47d16c"
     property color warn: "#ffc857"
-    property color danger: "#ff5c5c"\n\n    function coordinatesFromSonarSamples(samples) {
+    property color danger: "#ff5c5c"
+
+    function coordinatesFromSonarSamples(samples) {
         var out=[]
         if(!samples) return out
         for(var i=0;i<samples.length;i++) {
