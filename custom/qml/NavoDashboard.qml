@@ -135,6 +135,17 @@ Item {
         }
         onStatus: function(message) { root.lastNavigationStatus = message }
         onLakeActivated: function(id) { sessionSettings.activeLakeId=id; missionUploader.invalidate(); baitingController.targetWaypoint=null }
+        onScanFinished: function(bathymetrySaved, sampleCount) {
+            missionUploader.invalidate()
+            root.awaitingMissionStart=false
+            if(root.areaScanFinishAction==="RTL") {
+                root.lastNavigationStatus="Area Scan 100% • "+sampleCount+" măsurători • RTL"
+                if(root.vehicle && root.vehicle.guidedModeRTL) root.vehicle.guidedModeRTL(false)
+            } else {
+                root.lastNavigationStatus="Area Scan 100% • "+sampleCount+" măsurători • HOLD"
+                if(root.vehicle && root.vehicle.pauseVehicle) root.vehicle.pauseVehicle()
+            }
+        }
     }
     property alias areaCoordinator: scanCoordinator
     Connections {
@@ -187,6 +198,7 @@ Item {
     property bool cameraConnected: false
     property bool cameraFullscreen: false
     property bool awaitingMissionStart: false
+    property string areaScanFinishAction: "HOLD"
     onVehicleChanged: { awaitingMissionStart=false; if(baitingController && baitingController.enabled) baitingController.abortCycle("Autopilot schimbat"); if(scanCoordinator && scanCoordinator.state==="SCANNING") scanCoordinator.pause("Autopilot schimbat") }
     property string pendingMode: ""
     property string pendingModeLabel: ""
@@ -732,7 +744,14 @@ Item {
                     Button { text: "RTL"; enabled: scanCoordinator.state==="SCANNING" || scanCoordinator.state==="PAUSED" || scanCoordinator.state==="RESUME_READY"; onClicked: root.rtlMission() }
                     Button { text: "STOP"; enabled: scanCoordinator.state==="SCANNING" || scanCoordinator.state==="PAUSED" || scanCoordinator.state==="READY" || scanCoordinator.state==="RESUME_READY" || root.awaitingMissionStart; onClicked: root.stopMission() }
                     Item { Layout.fillWidth: true }
-                    Label { text: scanCoordinator.state; color: root.modeColor(); font.bold: true }
+                    ComboBox {
+                        id: finishAction
+                        model: ["FINAL: HOLD","FINAL: RTL"]
+                        currentIndex: root.areaScanFinishAction==="RTL" ? 1 : 0
+                        onActivated: root.areaScanFinishAction=currentIndex===1 ? "RTL" : "HOLD"
+                        ToolTip.visible: hovered; ToolTip.text: "Acțiunea bărcii după ultimul culoar"
+                    }
+                    Label { text: scanCoordinator.state==="COMPLETE" ? "FINISHED" : scanCoordinator.state; color: root.modeColor(); font.bold: true }
                 }
                 Rectangle {
                     Layout.fillWidth: true; Layout.fillHeight: true
