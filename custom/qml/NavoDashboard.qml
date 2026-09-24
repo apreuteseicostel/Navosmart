@@ -1050,7 +1050,7 @@ Item {
                     root.lastNavigationStatus = "Balta încărcată • hartă, sonar, puncte și Area Scan restaurate"
                 }
                 onOpenLakeBathymetry: function(lakeId) {
-                    root.activePage = 6
+                    root.activePage = 7
                     root.lastNavigationStatus = "Balta încărcată • hartă batimetrică restaurată"
                 }
                 onOpenLakeFishingSpots: function(lakeId) {
