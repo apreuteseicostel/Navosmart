@@ -163,8 +163,38 @@ Popup {
                             flat: true
                             onClicked: root.selectLake(modelData)
                         }
-                        Button { text: "NUME"; Layout.preferredWidth: 38; onClicked: root.beginRename(modelData); ToolTip.visible: hovered; ToolTip.text: "Redenumește" }
-                        Button { text: "ȘTERGE"; Layout.preferredWidth: 38; onClicked: root.beginDelete(modelData); ToolTip.visible: hovered; ToolTip.text: "Șterge" }
+                        Button {
+                            Layout.preferredWidth: 38; Layout.preferredHeight: 38
+                            text: ""
+                            ToolTip.visible: hovered; ToolTip.text: "Redenumește"
+                            contentItem: Item {
+                                Canvas {
+                                    anchors.centerIn: parent; width: 20; height: 20
+                                    onPaint: {
+                                        var p=getContext("2d"); p.reset(); p.strokeStyle="#f2f7fb"; p.fillStyle="#f2f7fb"; p.lineWidth=2.2; p.lineCap="round"; p.lineJoin="round"
+                                        p.beginPath(); p.moveTo(4,15); p.lineTo(5.5,11); p.lineTo(13.5,3); p.lineTo(17,6.5); p.lineTo(9,14.5); p.closePath(); p.stroke()
+                                        p.beginPath(); p.moveTo(4,16.5); p.lineTo(9,15); p.stroke()
+                                    }
+                                }
+                            }
+                            onClicked: root.beginRename(modelData)
+                        }
+                        Button {
+                            Layout.preferredWidth: 38; Layout.preferredHeight: 38
+                            text: ""
+                            ToolTip.visible: hovered; ToolTip.text: "Șterge"
+                            contentItem: Item {
+                                Canvas {
+                                    anchors.centerIn: parent; width: 20; height: 20
+                                    onPaint: {
+                                        var p=getContext("2d"); p.reset(); p.strokeStyle="#ff6b6b"; p.lineWidth=2; p.lineCap="round"; p.lineJoin="round"
+                                        p.beginPath(); p.moveTo(4,6); p.lineTo(16,6); p.moveTo(8,3.5); p.lineTo(12,3.5); p.lineTo(13,6); p.moveTo(6,7); p.lineTo(7,17); p.lineTo(13,17); p.lineTo(14,7); p.stroke()
+                                        p.beginPath(); p.moveTo(9,9); p.lineTo(9,14); p.moveTo(12,9); p.lineTo(12,14); p.stroke()
+                                    }
+                                }
+                            }
+                            onClicked: root.beginDelete(modelData)
+                        }
                     }
                 }
             }
@@ -181,7 +211,7 @@ Popup {
                         font.pixelSize: 18
                         elide: Text.ElideRight
                     }
-                    Button { visible: !!root.selectedLake; text: "NUME"; onClicked: root.beginRename(root.selectedLake) }
+                    Button { visible: !!root.selectedLake; text: "REDENUMIRE"; onClicked: root.beginRename(root.selectedLake) }
                     Button { visible: !!root.selectedLake; text: "ȘTERGE"; onClicked: root.beginDelete(root.selectedLake) }
                 }
                 Label {
