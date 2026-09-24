@@ -109,6 +109,27 @@ Item {
         onAccepted: if(sequence>0 && waypointName.text.trim().length) root.waypointNameChanged(sequence,waypointName.text.trim())
     }
 
+    MapPolyline {
+        id: areaDraftOutline
+        parent: liveMap
+        line.width: 3
+        line.color: "#21b7ff"
+        path: {
+            var pts = root.areaDraftPoints ? root.areaDraftPoints.slice(0) : []
+            if (root.areaDrawMode === "rectangle" && pts.length === 2) {
+                var a=pts[0], b=pts[1]
+                return [a, QtPositioning.coordinate(a.latitude,b.longitude), b, QtPositioning.coordinate(b.latitude,a.longitude), a]
+            }
+            if (root.areaDrawMode === "polygon" && pts.length > 1) {
+                if (pts.length >= 3) pts.push(pts[0])
+                return pts
+            }
+            return pts
+        }
+        Component.onCompleted: liveMap.addMapItem(this)
+        Component.onDestruction: liveMap.removeMapItem(this)
+    }
+
     Repeater {
         model: root.areaDraftPoints
         delegate: MapQuickItem {
@@ -140,9 +161,9 @@ Item {
     Row {
         anchors.left: parent.left; anchors.bottom: parent.bottom; anchors.margins: 10; spacing: 6
         visible: root.areaDrawMode!=="none"
-        Button { text: root.areaDrawMode==="rectangle" ? "DREPTUNGHI: "+root.areaDraftPoints.length+"/2 COLȚURI" : "POLIGON: "+root.areaDraftPoints.length+" PUNCTE"; enabled:false }
-        Button { visible: root.areaDrawMode==="polygon"; text:"TERMINĂ"; enabled:root.areaDraftPoints.length>=3; onClicked:root.finishAreaDrawing() }
-        Button { text:"ANULEAZĂ"; onClicked:root.cancelAreaDrawing() }
+        Button { width: 72; height: 32; padding: 2; text: root.areaDrawMode==="rectangle" ? "▭ "+root.areaDraftPoints.length+"/2" : "⬡ "+root.areaDraftPoints.length; enabled:false }
+        Button { visible: root.areaDrawMode==="polygon"; width:72; height:32; padding:2; text:"✓ GATA"; enabled:root.areaDraftPoints.length>=3; onClicked:root.finishAreaDrawing() }
+        Button { width:42; height:32; padding:2; text:"×"; ToolTip.visible:hovered; ToolTip.text:"Anulează"; onClicked:root.cancelAreaDrawing() }
     }
     Column {
         anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 6
