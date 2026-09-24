@@ -7,7 +7,7 @@ Item {
     required property var map
     property var areaScan
     property int lineWidth: 4
-    property color pendingColor: "#9db2c5"
+    property color pendingColor: "#6f8799"
     property color activeColor: "#ffcc33"
     property color completedColor: "#31d67b"
     anchors.fill: parent
@@ -18,7 +18,7 @@ Item {
             required property int index
             Component.onCompleted: { parent = root.map; root.map.addMapItem(this) }
             Component.onDestruction: root.map.removeMapItem(this)
-            line.width: root.lineWidth
+            line.width: root.areaScan && root.areaScan.activeLaneIndex===index ? root.lineWidth+2 : root.lineWidth
             line.color: root.areaScan && root.areaScan.completedLanes.indexOf(index)>=0
                         ? root.completedColor
                         : (root.areaScan && root.areaScan.activeLaneIndex===index ? root.activeColor : root.pendingColor)
@@ -37,7 +37,7 @@ Item {
             sourceItem: Rectangle {
                 id: badge; width: 54; height: 28; radius: 14
                 color:"#071827ee"; border.color:root.activeColor; border.width:2
-                Text { anchors.centerIn:parent; color:"white"; font.bold:true; text:"SCAN "+(root.areaScan.activeLaneIndex+1) }
+                Text { anchors.centerIn:parent; color:"white"; font.bold:true; text:"▶ "+(root.areaScan.activeLaneIndex+1)+"/"+root.areaScan.laneCount() }
             }
         }
     }
