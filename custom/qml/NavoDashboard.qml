@@ -465,8 +465,12 @@ Item {
             root.lastNavigationStatus = "Navigatie indisponibila"
             return
         }
-        if (vehicle.guidedModeGotoLocation) vehicle.guidedModeGotoLocation(c)
-        root.lastNavigationStatus = "Navighez la punct"
+        if (!vehicle.guidedModeGotoLocation) {
+            root.lastNavigationStatus = "Navigație indisponibilă: comanda GUIDED nu este expusă de autopilot"
+            return
+        }
+        vehicle.guidedModeGotoLocation(c)
+        root.lastNavigationStatus = "Comandă GUIDED trimisă către punct"
     }
 
 
@@ -701,6 +705,34 @@ Item {
                         if(!scanCoordinator.lakeId.length) {root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
                         var spot=fishingSpots.saveSpot(QtPositioning.coordinate(latitude,longitude),depth,temp,"","",null)
                         if(spot){scanCoordinator.checkpoint("sonar-fishing-spot");root.lastNavigationStatus="Punct sonar salvat: "+spot.name}
+                    }
+                    onRecordingRequested: function(start) {
+                        if(start) {
+                            if(!scanCoordinator.lakeId.length) {
+                                fullSonar.recording=false
+                                root.lastNavigationStatus="Înregistrare sonar blocată: selectează o baltă"
+                                return
+                            }
+                            if(scanCoordinator.state==="SCANNING") {
+                                fullSonar.recording=false
+                                root.lastNavigationStatus="Area Scan înregistrează deja datele sonar"
+                                return
+                            }
+                            sonarMapping.startScan()
+                            if(!sonarMapping.scanning) fullSonar.recording=false
+                            else {
+                                scanCoordinator.state="MANUAL_SONAR"
+                                scanCoordinator.checkpoint("manual-sonar-start")
+                                root.lastNavigationStatus="Înregistrare sonar pornită • GPS + adâncime + temperatură"
+                            }
+                        } else {
+                            if(scanCoordinator.state==="MANUAL_SONAR" && sonarMapping.scanning) {
+                                sonarMapping.finishAndBuild()
+                                scanCoordinator.state="IDLE"
+                                scanCoordinator.checkpoint("manual-sonar-stop")
+                                root.lastNavigationStatus="Înregistrare sonar oprită • datele au fost salvate"
+                            }
+                        }
                     }
                 }
         }
