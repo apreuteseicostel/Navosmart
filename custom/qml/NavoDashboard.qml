@@ -79,6 +79,7 @@ Item {
         areaScan: areaScanController
         persistence: persistence
         fishingSpots: fishingSpots
+        fishStore: fishStore
         sonarMapping: sonarMapping
         vehicle: root.vehicle
         onMissionPrepared: function(points) {
@@ -509,11 +510,7 @@ Item {
                 }
                 onAreaPolygonRequested: function(polygon) {
                     missionUploader.invalidate()
-                    var boat=root.vehicle&&root.vehicle.coordinate&&root.vehicle.coordinate.isValid?root.vehicle.coordinate:null
-                    var pts=areaScanController.generatePolygon(polygon)
-                    scanCoordinator.areaPoints=pts
-                    scanCoordinator.state=pts.length ? "AREA_DEFINED" : "IDLE"
-                    scanCoordinator.checkpoint("area-polygon")
+                    var pts=scanCoordinator.preparePolygon(polygon)
                     root.lastNavigationStatus="Area Scan poligon • "+pts.length+" WP generate"
                     root.activePage=2
                 }
