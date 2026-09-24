@@ -1,4 +1,5 @@
 import QtQuick
+// NAVO build validation trigger after QML syntax repairs
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtPositioning
