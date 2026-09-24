@@ -115,6 +115,8 @@ Item {
         waterTempC: root.waterTempC
         sonarConnected: root.sonarConnected
         externalSampleIngestion: true
+        bottomHardness: fullSonar ? fullSonar.bottomHardnessPercent : NaN
+        bottomEchoStrength: fullSonar ? fullSonar.bottomEchoStrength : NaN
         onCheckpointRequested: function(state) { scanCoordinator.checkpoint("sonar-mapping") }
     }
     NavoScanCoordinator {
@@ -288,6 +290,7 @@ Item {
         onTargetDetected: function(targetDepthM, strength) {
             if (!root.vehicle || !root.vehicle.coordinate || !root.vehicle.coordinate.isValid) return
             fishStore.addDetection(root.vehicle.coordinate, targetDepthM, sonar.depthM, strength, Date.now())
+            scanCoordinator.checkpoint("fish-detection")
             // NavoFishDetections owns bounded history and hotspot rebuilding.
         }
     }
