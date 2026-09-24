@@ -119,8 +119,10 @@ test('Saved lakes expose persistent rename and confirmed delete controls',()=>{
   const coordinator=fs.readFileSync(path.join(dir,'NavoScanCoordinator.qml'),'utf8');
   for(const token of ['beginRename','beginDelete','renameCurrentLake','deleteCurrentLake','🗑 ȘTERGE'])
     assert(ui.includes(token),token);
-  assert(dash.includes('✏ NUME'));
-  assert(dash.includes('🗑 ȘTERGE'));
+  // Rename/delete controls live in NavoMyLakes; dashboard only opens/selects the persistent lake UI.
+  assert(dash.includes('id: myLakesPopup'));
+  assert(dash.includes('myLakesPopup.beginRename(modelData)'));
+  assert(dash.includes('myLakesPopup.beginDelete(modelData)'));
   assert(coordinator.includes('function renameLake(id, name)'));
   assert(coordinator.includes('function deleteLake(id)'));
   assert(coordinator.includes('function clearActiveLake()'));
