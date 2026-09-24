@@ -178,6 +178,7 @@ QtObject {
             areaPoints:jsonCoordinates(areaPoints), sonarSamples:sonarMapping.rawSamples,
             fishingSpots:fishingSpots ? fishingSpots.fishingSpots : [],
             fishDetections:fishStore ? fishStore.detections : [],
+            waypointNames:persistence.waypointNames || ({}),
             bathymetryCells:bathymetryCells,
             currentLane:areaScan.activeLaneIndex, completedLanes:areaScan.completedLanes,
             lastBoatCoordinate:(areaScan.lastBoatCoordinate && areaScan.lastBoatCoordinate.isValid) ? {latitude:areaScan.lastBoatCoordinate.latitude,longitude:areaScan.lastBoatCoordinate.longitude} : null,
@@ -200,6 +201,7 @@ QtObject {
         sonarMapping.trackCoordinates=[]
         if(fishingSpots) fishingSpots.fishingSpots=(p.fishingSpots||[]).slice(0)
         if(fishStore){fishStore.detections=(p.fishDetections||[]).slice(0);fishStore.rebuildHotspots()}
+        if(persistence.replaceWaypointNames) persistence.replaceWaypointNames(p.waypointNames||({}))
         // A restored session cannot be considered live until the mission is
         // uploaded again and the autopilot confirms AUTO for this connection.
         state=(p.state==="COMPLETE" ? "COMPLETE" : "PAUSED"); bathymetryCells=p.bathymetryCells||[]
