@@ -145,7 +145,7 @@ Item {
         repeat: false
         onTriggered: {
             root.awaitingMissionStart = false
-            root.lastNavigationStatus = "START trimis, dar modul AUTO nu a fost confirmat de H743"
+            root.lastNavigationStatus = "START AUTOPILOT trimis, dar modul AUTO nu a fost confirmat de H743"
         }
     }
     property string flightMode: vehicle ? vehicle.flightMode : ""
@@ -278,7 +278,7 @@ Item {
         if (root.vehicle.startMission) {
             root.awaitingMissionStart = true
             root.vehicle.startMission()
-            root.lastNavigationStatus = "Upload confirmat • comandă START trimisă H743"
+            root.lastNavigationStatus = "Upload confirmat • comandă START AUTOPILOT trimisă"
             return true
         }
         root.lastNavigationStatus = "Upload confirmat • START indisponibil în Vehicle API"
@@ -443,7 +443,7 @@ Item {
             Label { text: "CONTROL MISIUNE"; color: root.muted; font.bold: true }
             RowLayout {
                 Layout.fillWidth: true
-                Button { Layout.fillWidth: true; text: missionUploader.uploadVerified ? "START H743" : "UPLOAD"; onClicked: root.startMission() }
+                Button { Layout.fillWidth: true; text: missionUploader.uploadVerified ? "START AUTOPILOT" : "UPLOAD"; onClicked: root.startMission() }
                 Button { Layout.fillWidth: true; text: "HOLD"; onClicked: root.holdMission() }
             }
             RowLayout {
@@ -611,7 +611,7 @@ Item {
                         onClicked: scanCoordinator.prepareMission(false)
                     }
                     Button {
-                        text: missionUploader.uploadVerified ? "START H743" : "UPLOAD"
+                        text: missionUploader.uploadVerified ? "START AUTOPILOT" : "UPLOAD"
                         enabled: missionUploader.preparedCount > 0 && !missionUploader.uploadInProgress
                         onClicked: root.startMission()
                     }
@@ -620,7 +620,7 @@ Item {
                         enabled: areaScanController.generatedPoints.length > 0 && areaScanController.completedLanes.length < areaScanController.laneCount()
                         onClicked: {
                             var mission = scanCoordinator.resume()
-                            if (mission.length) root.lastNavigationStatus = "Resume pregătit • apasă UPLOAD și apoi START H743"
+                            if (mission.length) root.lastNavigationStatus = "Resume pregătit • apasă UPLOAD și apoi START AUTOPILOT"
                         }
                     }
                 }
