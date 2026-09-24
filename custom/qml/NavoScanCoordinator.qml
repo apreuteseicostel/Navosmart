@@ -167,9 +167,9 @@ QtObject {
         if(!persistence || !id.length) return false
         var p=persistence.lakeState(id); if(!p || Object.keys(p).length===0){status("Balta nu are încă stare salvată");return false}
         lakeId=id; lakeName=p.lakeName||lakeName; areaPoints=geoCoordinates(p.areaPoints||[])
-        sonarMapping.lakeId=id; sonarMapping.rawSamples=p.sonarSamples||[]
-        if(fishingSpots) fishingSpots.fishingSpots=p.fishingSpots||[]
-        if(fishStore){fishStore.detections=p.fishDetections||[];fishStore.rebuildHotspots()}
+        sonarMapping.lakeId=id; sonarMapping.rawSamples=(p.sonarSamples||[]).slice(0)
+        if(fishingSpots) fishingSpots.fishingSpots=(p.fishingSpots||[]).slice(0)
+        if(fishStore){fishStore.detections=(p.fishDetections||[]).slice(0);fishStore.rebuildHotspots()}
         // A restored session cannot be considered live until the mission is
         // uploaded again and the autopilot confirms AUTO for this connection.
         state=(p.state==="COMPLETE" ? "COMPLETE" : "PAUSED"); bathymetryCells=p.bathymetryCells||[]
