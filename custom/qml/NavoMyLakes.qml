@@ -98,6 +98,10 @@ Popup {
 
     signal openSession(var session)
     signal lakeRestored(string lakeId)
+    signal openLakeMap(string lakeId)
+    signal openLakeBathymetry(string lakeId)
+    signal openLakeFishingSpots(string lakeId)
+    signal resumeLakeScan(string lakeId)
 
     ColumnLayout {
         anchors.fill: parent
@@ -182,8 +186,62 @@ Popup {
                 }
                 Label {
                     visible: !!root.selectedLake
-                    text: root.selectedLake ? root.sessionsForLake(root.selectedLakeId).length+" scanări batimetrice salvate" : ""
+                    text: {
+                        if(!root.selectedLake || !root.persistence) return ""
+                        var st=root.persistence.lakeState(root.selectedLakeId)||({})
+                        var samples=(st.sonarSamples||[]).length
+                        var spots=(st.fishingSpots||[]).length
+                        var fish=(st.fishDetections||[]).length
+                        var done=(st.completedLanes||[]).length
+                        var total=Number(st.totalLanes||0)
+                        var pct=total>0 ? Math.round(done*100/total) : 0
+                        return samples+" sonar • "+spots+" puncte pescuit • "+fish+" pești • Area Scan "+pct+"%"
+                    }
                     color: "#9db2c5"
+                    wrapMode: Text.WordWrap
+                }
+                GridLayout {
+                    Layout.fillWidth: true
+                    visible: !!root.selectedLake
+                    columns: root.width < 560 ? 2 : 3
+                    columnSpacing: 6; rowSpacing: 6
+                    Button {
+                        text: "DESCHIDE HARTA"; Layout.fillWidth: true
+                        onClicked: {
+                            if(root.scanCoordinator && root.scanCoordinator.restoreLake(root.selectedLakeId)) {
+                                root.lakeRestored(root.selectedLakeId); root.openLakeMap(root.selectedLakeId); root.close()
+                            }
+                        }
+                    }
+                    Button {
+                        text: "HARTĂ 3D"; Layout.fillWidth: true
+                        onClicked: {
+                            if(root.scanCoordinator && root.scanCoordinator.restoreLake(root.selectedLakeId)) {
+                                root.lakeRestored(root.selectedLakeId); root.openLakeBathymetry(root.selectedLakeId); root.close()
+                            }
+                        }
+                    }
+                    Button {
+                        text: "PUNCTE"; Layout.fillWidth: true
+                        onClicked: {
+                            if(root.scanCoordinator && root.scanCoordinator.restoreLake(root.selectedLakeId)) {
+                                root.lakeRestored(root.selectedLakeId); root.openLakeFishingSpots(root.selectedLakeId); root.close()
+                            }
+                        }
+                    }
+                    Button {
+                        text: "CONTINUĂ SCANAREA"; Layout.fillWidth: true
+                        enabled: {
+                            if(!root.persistence || !root.selectedLake) return false
+                            var st=root.persistence.lakeState(root.selectedLakeId)||({})
+                            return Number(st.totalLanes||0)>0 && (st.completedLanes||[]).length<Number(st.totalLanes||0)
+                        }
+                        onClicked: {
+                            if(root.scanCoordinator && root.scanCoordinator.restoreLake(root.selectedLakeId)) {
+                                root.lakeRestored(root.selectedLakeId); root.resumeLakeScan(root.selectedLakeId); root.close()
+                            }
+                        }
+                    }
                 }
                 ListView {
                     Layout.fillWidth: true
