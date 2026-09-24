@@ -45,6 +45,13 @@ QtObject {
         status("Area Scan • WP "+index+" • "+areaScan.progressPercent()+"%")
     }
 
+    function preparePolygon(polygon) {
+        if(!areaScan) return []
+        var pts=areaScan.generatePolygon(polygon); areaPoints=pts
+        state=pts.length ? "AREA_DEFINED" : "IDLE"
+        if(sonarMapping){sonarMapping.lakeId=lakeId; sonarMapping.totalLanes=areaScan.laneCount()}
+        checkpoint("area-polygon"); status("Area Scan poligon pregătit • "+areaScan.laneCount()+" culoare"); return pts
+    }
     function prepareRectangle(cornerA, cornerB) {
         if(!areaScan) return []
         var boat=vehicle && vehicle.coordinate && vehicle.coordinate.isValid ? vehicle.coordinate : null
