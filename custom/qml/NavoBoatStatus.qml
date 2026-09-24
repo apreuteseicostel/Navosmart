@@ -17,7 +17,7 @@ Item {
     property string rightStateText: rightHopperCommandOpen ? "COMANDATĂ DESCHISĂ" : "COMANDATĂ ÎNCHISĂ"
 
     implicitWidth: compact ? 150 : 320
-    implicitHeight: compact ? 105 : 220
+    implicitHeight: compact ? 170 : 220
 
     Rectangle { anchors.fill: parent; radius: 12; color: "#101820"; border.color: root.waterDetected ? "#ff4d4d" : "#314252" }
     Text { text: "BOAT STATUS"; color: "white"; font.bold: true; anchors.horizontalCenter: parent.horizontalCenter; y: 8 }
@@ -27,6 +27,7 @@ Item {
         width: 170; height: 150
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top; anchors.topMargin: 34
+        transform: Scale { origin.x: boat.width / 2; origin.y: 0; xScale: root.compact ? 0.62 : 1; yScale: root.compact ? 0.62 : 1 }
 
         Rectangle {
             anchors.centerIn: parent; width: 142; height: 138; radius: 50
@@ -58,10 +59,11 @@ Item {
 
     Column {
         anchors.left:parent.left; anchors.leftMargin:10; anchors.bottom:parent.bottom; anchors.bottomMargin:8; spacing:2
-        Text { text:"L: "+root.leftStateText; color:"#dce7ee"; font.pixelSize:root.compact ? 7 : 10 }
-        Text { text:"R: "+root.rightStateText; color:"#dce7ee"; font.pixelSize:root.compact ? 7 : 10 }
+        Text { text:"L: "+root.leftStateText; color:"#dce7ee"; font.pixelSize:root.compact ? 9 : 10 }
+        Text { text:"R: "+root.rightStateText; color:"#dce7ee"; font.pixelSize:root.compact ? 9 : 10 }
     }
     Column {
+        visible: !root.compact
         anchors.right:parent.right; anchors.rightMargin:10; anchors.bottom:parent.bottom; anchors.bottomMargin:8; spacing:2
         Text { text:"🌡 "+(isNaN(root.batteryTempC) ? "--" : root.batteryTempC.toFixed(1))+" °C"; color:"#dce7ee"; font.pixelSize:10 }
         Text { text:root.waterDetected ? "💧 APĂ DETECTATĂ" : "💧 CORP USCAT"; color:root.waterDetected ? "#ff6666" : "#80e29a"; font.bold:root.waterDetected; font.pixelSize:10 }

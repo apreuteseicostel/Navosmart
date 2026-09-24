@@ -4,549 +4,893 @@ import QtQuick.Layouts
 import QtPositioning
 
 import QGroundControl
+import QGroundControl.Controllers
 import QGroundControl.Controls
-import QGroundControl.FlyView
+import QGroundControl.FlightDisplay
 import QGroundControl.FlightMap
-import QGroundControl.PlanView
+import NavoSmart 1.0
+import NavoSmart.Backend 1.0
 
 Item {
     id: root
     implicitWidth: 1280
     implicitHeight: 720
 
+    // Compatibility with QGroundControl v5.0.7 MainWindow, which binds this
+    // property on the FlyView root. NAVO does not currently use UTM/SP.
+    property bool utmspSendActTrigger: false
+
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
+    property var planController: _planController
+
+    PlanMasterController {
+        id: _planController
+        flyView: true
+        Component.onCompleted: start()
+    }
+
+    NavoPersistence { id: persistence }
+    property alias lakePersistence: persistence
+    NavoFishingSpots { id: fishingSpots }
+    NavoFishDetections { id: fishStore }
+    NavoAreaScan { id: areaScanController }
+    NavoBaitingController {
+        id: baitingController
+        vehicle: root.vehicle
+        onGotoRequested: function(coordinate, reason) { if(root.vehicle && root.vehicle.guidedModeGotoLocation) root.vehicle.guidedModeGotoLocation(coordinate) }
+        onSpeedRequested: function(metersPerSecond) {
+            if(root.vehicle && root.vehicle.guidedModeChangeGroundSpeedMetersSecond)
+                root.vehicle.guidedModeChangeGroundSpeedMetersSecond(metersPerSecond)
+        }
+        onStopRequested: function(reason) { root.holdMission(); root.lastNavigationStatus="Nădire: "+reason }
+        onHopperReleaseRequested: function(hopper) {
+            if(!hopperBridge.release(hopper))
+                baitingController.abortCycle("Cuva nu a putut fi comandată")
+        }
+        onRtlRequested: root.rtlMission()
+        onStateChangedDetailed: function(state, text) { root.lastNavigationStatus="Nădire: "+text }
+        onCycleFinished: function(success, message) { root.lastNavigationStatus=message }
+    }
+    NavoDigitalAnchor {
+        id: digitalAnchor
+        vehicle: root.vehicle
+        onStatus: function(text) { root.lastNavigationStatus=text }
+    }
+    NavoEnergyGuard { id: energyGuard }
+    NavoFailsafeController {
+        id: failsafeController
+        vehicle: root.vehicle
+        onHoldRequested: function(reason) { root.lastNavigationStatus="FAILSAFE HOLD: "+reason; root.holdMission() }
+        onRtlRequested: function(reason) { root.lastNavigationStatus="FAILSAFE RTL: "+reason; root.rtlMission() }
+        onRecovered: function(subsystem, action) { root.lastNavigationStatus=subsystem+": "+action }
+    }
+    NavoSonarMapping {
+        id: sonarMapping
+        visible: false
+        vehicle: root.vehicle
+        depthM: root.depthM
+        waterTempC: root.waterTempC
+        sonarConnected: root.sonarConnected
+        externalSampleIngestion: true
+        onCheckpointRequested: function(state) { scanCoordinator.checkpoint("sonar-mapping") }
+    }
+    NavoScanCoordinator {
+        id: scanCoordinator
+        areaScan: areaScanController
+        persistence: persistence
+        fishingSpots: fishingSpots
+        sonarMapping: sonarMapping
+        vehicle: root.vehicle
+        onMissionPrepared: function(points) {
+            if (!missionUploader.prepare(points)) {
+                scanCoordinator.state = "ERROR"
+                root.lastNavigationStatus = "Pregătire misiune eșuată: " + missionUploader.lastError
+            }
+        }
+        onStatus: function(message) { root.lastNavigationStatus = message }
+    }
+    property alias areaCoordinator: scanCoordinator
+    Connections {
+        target: root.planController ? root.planController.missionController : null
+        function onCurrentMissionIndexChanged(currentMissionIndex) {
+            scanCoordinator.missionIndexChanged(currentMissionIndex)
+        }
+    }
+    Connections {
+        target: root.vehicle
+        function onFlightModeChanged() {
+            if (!root.vehicle) return
+            var expected = String(root.vehicle.missionFlightMode || "").toUpperCase()
+            var actual = String(root.vehicle.flightMode || "").toUpperCase()
+            if (expected.length && actual === expected)
+                root.lastNavigationStatus = "H743 confirmă " + root.vehicle.flightMode + " • misiune activă"
+            if (root.awaitingMissionStart && expected.length && actual === expected && scanCoordinator.state === "READY")
+                scanCoordinator.start()
+            else if (root.awaitingMissionStart && expected.length && actual === expected && scanCoordinator.state === "RESUME_READY")
+                scanCoordinator.activateResume()
+            if (root.awaitingMissionStart && expected.length && actual === expected)
+                root.awaitingMissionStart = false
+        }
+    }
+
+    NavoMissionUploader {
+        id: missionUploader
+        planController: root.planController
+        vehicle: root.vehicle
+        onStatus: function(message) { root.lastNavigationStatus = message }
+        onUploadFinished: function(success, message) {
+            root.lastNavigationStatus = message
+            if (!success) root.awaitingMissionStart = false
+            // Upload confirmation is not permission to start motors. Require a second press.
+        }
+    }
     property var battery: vehicle && vehicle.batteries.count > 0 ? vehicle.batteries.get(0) : null
-    property var waypointNames: ({})
-    property real depthM: NaN
-    property real waterTempC: NaN
-    property bool sonarConnected: false
+    property var waypointNames: persistence.waypointNames
+    readonly property real depthM: sonar.depthM
+    readonly property real waterTempC: sonar.waterTempC
+    readonly property bool sonarConnected: sonar.connected && sonar.dataAlive
+    property alias fishDetections: fishStore.detections
+    property string cameraStreamUrl: ""
+    property string cameraProtocol: "auto"
     property string lastNavigationStatus: ""
     property bool silentModeActive: false
     property bool cameraConnected: false
-    property string cameraStreamUrl: ""
-    property bool waterAlarm: false
-    property real escTempC: NaN
-    property real batteryCurrentA: NaN
+    property bool cameraFullscreen: false
+    property bool awaitingMissionStart: false
+    onVehicleChanged: awaitingMissionStart = false
+    Timer {
+        interval: 10000
+        running: root.awaitingMissionStart
+        repeat: false
+        onTriggered: {
+            root.awaitingMissionStart = false
+            root.lastNavigationStatus = "START trimis, dar modul AUTO nu a fost confirmat de H743"
+        }
+    }
+    property string flightMode: vehicle ? vehicle.flightMode : ""
+    property real distanceToHome: vehicle && vehicle.distanceToHome ? vehicle.distanceToHome.rawValue : 0
+    property real distanceToTarget: vehicle && vehicle.distanceToGoal ? vehicle.distanceToGoal.rawValue : 0
     property string boatId: "NAV0001"
     property int activePage: 0
     property bool hopperStatusExpanded: false
     property bool mapFullscreen: false
+    property var mapController: null
+    property string pendingAreaDrawMode: "none"
+    property string lakeSaveStatus: ""
     property string selectedHopper: "none"
     property int manualHopperHoldMs: 1500
     readonly property bool manualMode: root.flightMode.toUpperCase() === "MANUAL"
-    readonly property bool autoMode: root.flightMode.toUpperCase() === "AUTO"
-    readonly property bool autoHopperWindow: root.autoMode && baitingController.enabled && baitingController.distanceToTarget() <= baitingController.finalRadiusM
-    readonly property bool hopperReleaseSafe: root.manualMode || (root.autoHopperWindow && !isNaN(root.speedMps) && root.speedMps <= baitingController.releaseMaxSpeedMps)
+    readonly property bool nearBaitingPoint: root.distanceToTarget > 0 && root.distanceToTarget <= 8
+    readonly property bool hopperControlsEnabled: root.manualMode || root.nearBaitingPoint
+    property color bg: "#0b1016"
+    property color panel: "#121a24"
+    property color line: "#273342"
+    property color text: "#eaf2f8"
+    property color muted: "#91a3b5"
+    property color accent: "#26c6da"
+    property color ok: "#47d16c"
+    property color warn: "#ffc857"
+    property color danger: "#ff5c5c"
 
-    readonly property bool vehicleConnected: vehicle !== null
-    readonly property real batteryPercent: battery && !isNaN(battery.percentRemaining.rawValue) ? battery.percentRemaining.rawValue : NaN
-    readonly property real batteryVoltage: battery && !isNaN(battery.voltage.rawValue) ? battery.voltage.rawValue : NaN
-    readonly property real speedMps: vehicle && !isNaN(vehicle.groundSpeed.rawValue) ? vehicle.groundSpeed.rawValue : NaN
-    readonly property real distanceHomeM: vehicle && !isNaN(vehicle.distanceToHome.rawValue) ? vehicle.distanceToHome.rawValue : NaN
-    readonly property int satellites: vehicle && vehicle.gps ? vehicle.gps.count.rawValue : -1
-    readonly property real headingDeg: vehicle && !isNaN(vehicle.heading.rawValue) ? vehicle.heading.rawValue : NaN
-    readonly property string flightMode: vehicle ? vehicle.flightMode : "NECONECTAT"
-    readonly property int gpsFix: vehicle && vehicle.gps ? vehicle.gps.lock.rawValue : 0
-    readonly property bool gpsRtk: gpsFix >= 5
-    readonly property real hdop: vehicle && vehicle.gps && !isNaN(vehicle.gps.hdop.rawValue) ? vehicle.gps.hdop.rawValue : NaN
-
-    readonly property color bg: "#06111f"
-    readonly property color panel: "#0b1c2e"
-    readonly property color panel2: "#10273d"
-    readonly property color line: "#1c4262"
-    readonly property color cyan: "#21b7ff"
-    readonly property color green: "#31d67b"
-    readonly property color textMain: "#f2f7fb"
-    readonly property color textDim: "#9db2c5"
-    readonly property color danger: "#ff3e55"
-
-    function num(v, decimals, suffix) { return isNaN(v) ? "--" : Number(v).toFixed(decimals) + suffix }
-    function setMode(mode) { if (!root.vehicle) return; if (baitingController.enabled && mode.toUpperCase() === "MANUAL") baitingController.abortCycle("AUTO întrerupt: control manual"); root.vehicle.flightMode = mode; root.lastNavigationStatus = "Mod solicitat: " + mode }
-    function holdBoat() { if (!root.vehicle) return; if (baitingController.enabled) baitingController.abortCycle("HOLD manual"); else root.vehicle.pauseVehicle(); root.lastNavigationStatus = "HOLD/STOP solicitat" }
-    function rtlBoat() { if (!root.vehicle) return; if (baitingController.enabled) baitingController.abortCycle("RTL manual"); root.vehicle.guidedModeRTL(false); root.lastNavigationStatus = "RTL solicitat" }
-
-    NavoDigitalAnchor { id: digitalAnchor; vehicle: root.vehicle; onStatus: function(text) { root.lastNavigationStatus = text } }
-    NavoActionSequence { id: actionSequence; vehicle: root.vehicle; hopperBridge: hopperBridge; onStatus: function(text) { root.lastNavigationStatus = text } }
-
-    NavoFailsafeController {
-        id: failsafeController
+    NavoSonarEthernet {
+        id: sonar
         vehicle: root.vehicle
-        linkGraceSeconds: 30
-        gpsRecoverySeconds: 60
-        gpsReturnHomeSeconds: 120
-        onHoldRequested: function(reason) {
-            if (baitingController.enabled) baitingController.abortCycle(reason)
-            else if (root.vehicle) root.vehicle.pauseVehicle()
-            root.lastNavigationStatus = "FAILSAFE HOLD: " + reason
-        }
-        onRtlRequested: function(reason) {
-            if (root.vehicle) root.vehicle.guidedModeRTL(false)
-            root.lastNavigationStatus = "FAILSAFE RTL: " + reason
-        }
-        onRecovered: function(subsystem, action) {
-            root.lastNavigationStatus = subsystem + " RESTABILIT: " + action
+        onGeoSample: function(sample) {
+            persistence.addSonarSample(sample)
+            sonarMapping.ingestSample(sample)
         }
     }
+    NavoFishDetector {
+        id: fishDetector
+        onTargetDetected: function(targetDepthM, strength) {
+            if (!root.vehicle || !root.vehicle.coordinate || !root.vehicle.coordinate.isValid) return
+            fishStore.addDetection(root.vehicle.coordinate, targetDepthM, sonar.depthM, strength, Date.now())
+            // NavoFishDetections owns bounded history and hotspot rebuilding.
+        }
+    }
+    Connections {
+        target: sonar.decoder
+        function onEchoSamplesChanged() { fishDetector.analyze(sonar.echoSamples, sonar.depthM) }
+    }
 
+    NavoNanoTelemetry {
+        id: nanoTelemetry
+        vehicle: root.vehicle
+    }
     NavoHopperBridge {
         id: hopperBridge
         vehicle: root.vehicle
-        // Intentionally false until the real H743 output numbers and PWM end-points
-        // are measured on the assembled boat.
-        calibrated: false
-        onCommandSent: function(text) { root.lastNavigationStatus = text }
+        calibrated: nanoTelemetry.connected && nanoTelemetry.hopperLeftUs > 0 && nanoTelemetry.hopperRightUs > 0
+        onCommandSent: function(message) { root.lastNavigationStatus = message }
+        onCommandRejected: function(reason) { root.lastNavigationStatus = "Cuve: " + reason }
     }
-
-    NavoBaitingController {
-        id: baitingController
+    NavoSafetyManager {
+        id: safetyManager
         vehicle: root.vehicle
-        silentMode: root.silentModeActive
-
-        onGotoRequested: function(coordinate, reason) {
-            if (!root.vehicle || !coordinate || !coordinate.isValid) {
-                abortCycle("Coordonată de navigare invalidă")
-                return
-            }
-            var accepted = root.vehicle.guidedModeGotoLocation(coordinate)
-            if (!accepted) abortCycle("ArduPilot a refuzat comanda Guided GoTo")
+        waterDetected: nanoTelemetry.waterDetected
+        batteryTempC: nanoTelemetry.batteryTempC
+        onWarning: function(reason) { root.lastNavigationStatus = "AVERTISMENT: " + reason }
+        onHoldRequested: function(reason) {
+            root.lastNavigationStatus = "SIGURANTA HOLD: " + reason
+            root.holdMission()
         }
-
-        // QGC exposes this Vehicle API and routes it through the firmware plugin.
-        // Actual low-speed behaviour still requires Rover/H743 bench + water validation.
-        onSpeedRequested: function(metersPerSecond) {
-            if (!root.vehicle || metersPerSecond <= 0.05) return
-            root.vehicle.guidedModeChangeGroundSpeedMetersSecond(metersPerSecond)
-        }
-
-        onStopRequested: function(reason) {
-            if (!root.vehicle) return
-            root.vehicle.pauseVehicle()
-            root.lastNavigationStatus = "STOP/HOLD: " + reason
-        }
-
-        onSilentModeChangedDetailed: function(active) {
-            root.silentModeActive = active
-            root.lastNavigationStatus = active ? "🔇 Mod SILENȚIOS activ" : "Mod silențios dezactivat"
-        }
-
-        onHopperReleaseRequested: function(hopper) {
-            root.hopperStatusExpanded = true
-            root.selectedHopper = hopper
-            if (!hopperBridge.release(hopper))
-                root.lastNavigationStatus = "Eliberare blocată: calibrează ieșirile H743 și PWM-urile cuvelor"
-        }
-
-        onRtlRequested: function() {
-            if (root.vehicle) root.vehicle.guidedModeRTL(false)
-        }
-
-        onStateChangedDetailed: function(state, text) {
-            root.lastNavigationStatus = "Nădire: " + text
-            if (state === baitingController.finalApproachState) root.hopperStatusExpanded = true
-        }
-
-        onCycleFinished: function(success, message) {
-            root.lastNavigationStatus = message
-            hopperPopupClose.restart()
+        onRtlRequested: function(reason) {
+            root.lastNavigationStatus = "SIGURANTA RTL: " + reason
+            root.rtlMission()
         }
     }
+
+    function modeColor() {
+        var m = root.flightMode.toUpperCase()
+        if (m === "AUTO" || m === "GUIDED") return root.ok
+        if (m === "RTL" || m === "HOLD") return root.warn
+        return root.accent
+    }
+    function openHopper(side) {
+        if (!root.hopperControlsEnabled) {
+            root.lastNavigationStatus = "Cuve blocate: mergi aproape de punct sau treci pe MANUAL"
+            return
+        }
+        var hopper = side === "stanga" ? 1 : side === "dreapta" ? 2 : 3
+        if (!hopperBridge.release(hopper)) return
+        root.selectedHopper = side
+    }
+    function closeHoppers() {
+        root.selectedHopper = "none"
+    }
+    function startMission() {
+        if (!root.vehicle) {
+            root.lastNavigationStatus = "START blocat: H743 neconectat"
+            return false
+        }
+        if (missionUploader.uploadInProgress) {
+            root.lastNavigationStatus = "Upload misiune deja în curs"
+            return false
+        }
+        if (missionUploader.uploadVerified) return root.startUploadedMission()
+        if (missionUploader.preparedCount < 1) {
+            root.lastNavigationStatus = "START blocat: nu există misiune pregătită"
+            return false
+        }
+        return missionUploader.uploadPrepared()
+    }
+    function startUploadedMission() {
+        if (!root.vehicle) {
+            root.lastNavigationStatus = "Upload confirmat, dar H743 nu mai este conectat"
+            return false
+        }
+        if (root.awaitingMissionStart) return false
+        if (!root.vehicle.coordinate || !root.vehicle.coordinate.isValid) {
+            root.lastNavigationStatus = "START blocat: GPS H743 indisponibil"
+            return false
+        }
+        if ((scanCoordinator.state === "READY" || scanCoordinator.state === "RESUME_READY") && !root.sonarConnected) {
+            root.lastNavigationStatus = "START Area Scan blocat: sonar fără date live"
+            return false
+        }
+        // QGC Vehicle::startMission() is the normal MAVLink mission-start path.
+        // Never report AUTO before the vehicle reports the resulting mode.
+        if (root.vehicle.startMission) {
+            root.awaitingMissionStart = true
+            root.vehicle.startMission()
+            root.lastNavigationStatus = "Upload confirmat • comandă START trimisă H743"
+            return true
+        }
+        root.lastNavigationStatus = "Upload confirmat • START indisponibil în Vehicle API"
+        return false
+    }
+    function holdMission() {
+        root.awaitingMissionStart = false
+        if (!vehicle || !vehicle.pauseVehicle) { root.lastNavigationStatus = "HOLD indisponibil: H743 deconectat"; return false }
+        vehicle.pauseVehicle()
+        root.lastNavigationStatus = "Comandă HOLD trimisă • aștept confirmarea H743"
+        return true
+    }
+    function rtlMission() {
+        root.awaitingMissionStart = false
+        if (!vehicle || !vehicle.guidedModeRTL) { root.lastNavigationStatus = "RTL indisponibil: H743 deconectat"; return false }
+        vehicle.guidedModeRTL(false)
+        root.lastNavigationStatus = "Comandă RTL trimisă • aștept confirmarea H743"
+        return true
+    }
+    function stopMission() {
+        root.awaitingMissionStart = false
+        if (!vehicle || !vehicle.pauseVehicle) { root.lastNavigationStatus = "STOP indisponibil: H743 deconectat"; return false }
+        vehicle.pauseVehicle()
+        root.lastNavigationStatus = "Comandă STOP/HOLD trimisă • aștept confirmarea H743"
+        return true
+    }
+    function navigateToCoordinate(c) {
+        if (!vehicle || !c || !c.isValid) {
+            root.lastNavigationStatus = "Navigatie indisponibila"
+            return
+        }
+        if (vehicle.guidedModeGotoLocation) vehicle.guidedModeGotoLocation(c)
+        root.lastNavigationStatus = "Navighez la punct"
+    }
+
 
     Rectangle { anchors.fill: parent; color: root.bg }
 
     Rectangle {
         id: header
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
-        height: 72; color: "#071827"; border.color: root.line
+        height: 64; color: "#101822"; border.color: root.line
+        Flickable {
+            anchors.fill: parent
+            clip: true
+            contentWidth: Math.max(width, headerItems.implicitWidth + 32)
+            contentHeight: height
+            boundsBehavior: Flickable.StopAtBounds
         RowLayout {
-            anchors.fill: parent; anchors.leftMargin: 20; anchors.rightMargin: 20; spacing: 14
-            ColumnLayout { spacing: 0
-                Label { text: "NAVO SMART"; color: root.cyan; font.pixelSize: 25; font.bold: true }
-                Label { text: "Pescarul lu peste"; color: root.textDim; font.pixelSize: 12 }
+            id: headerItems
+            x: 16; height: parent.height; spacing: 12
+            ColumnLayout {
+                Layout.preferredWidth: 150
+                spacing: 0
+                Label { text: "NAVO SMART"; color: root.text; font.pixelSize: 22; font.bold: true }
+                Label { text: "Pescarul lu Peste"; color: root.muted; font.pixelSize: 11 }
             }
-            Item { Layout.fillWidth: true }
-            Button {
-                text: root.silentModeActive ? "🔇 SILENȚIOS" : "🔊 NORMAL"
-                checkable: true
-                checked: root.silentModeActive
-                enabled: root.vehicleConnected
-                onClicked: baitingController.toggleSilentMode()
-                background: Rectangle { radius: 7; color: parent.checked ? "#0e7048" : root.panel2; border.color: parent.checked ? root.green : root.line }
-                contentItem: Label { text: parent.text; color: parent.checked ? "white" : root.textMain; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; font.bold: true }
-            }
-            StatusPill { label: root.gpsRtk ? "GPS RTK" : "GPS"; value: root.satellites >= 0 ? root.satellites + " sat" : "--"; ok: root.gpsFix >= 3 }
-            StatusPill { label: "BATERIE"; value: root.num(root.batteryPercent,0,"%") + "  " + root.num(root.batteryVoltage,1,"V"); ok: !isNaN(root.batteryPercent) && root.batteryPercent > 25 }
-            StatusPill { label: "VITEZĂ"; value: root.num(root.speedMps,1," m/s"); ok: root.vehicleConnected }
-            StatusPill { label: "DIRECȚIE"; value: root.num(root.headingDeg,0,"°"); ok: root.vehicleConnected }
-            StatusPill { label: "MOD"; value: root.flightMode; ok: root.vehicleConnected }
+            StatusPill { title: "SATELIȚI"; value: vehicle && vehicle.gps ? String(vehicle.gps.count.rawValue) : "--"; good: vehicle && vehicle.gps }
+            StatusPill { title: "VITEZĂ"; value: vehicle && vehicle.groundSpeed ? Number(vehicle.groundSpeed.rawValue * 3.6).toFixed(1) + " km/h" : "--"; good: !!vehicle }
+            StatusPill { title: "BATERIE"; value: battery ? Number(battery.percentRemaining.rawValue).toFixed(0) + "%" : "--"; good: battery && battery.percentRemaining.rawValue > 20 }
+            StatusPill { title: "MOD"; value: root.flightMode.length ? root.flightMode : "OFFLINE"; good: vehicle !== null }
+            StatusPill { title: "SONAR"; value: root.sonarConnected ? "LIVE" : "OFFLINE"; good: root.sonarConnected }
+            StatusPill { title: "NANO"; value: nanoTelemetry.connected ? "ONLINE" : "OFFLINE"; good: nanoTelemetry.connected }
+        }
         }
     }
 
     Rectangle {
         id: sidebar
         anchors.left: parent.left; anchors.top: header.bottom; anchors.bottom: footer.top
-        width: 190; color: "#071522"; border.color: root.line
-        ColumnLayout { anchors.fill: parent; anchors.margins: 12; spacing: 8
-            NavButton { text: "Hartă"; active: true }
-            NavButton { text: "Sonar"; onClicked: sonarFull.open() }
-            NavButton { text: "Puncte" }
-            NavButton { text: "Mapare Sonar"; onClicked: sonarMappingPopup.open() }
-            NavButton { text: "Setări" }
-            Item { Layout.fillHeight: true }
-            Label { text: root.vehicle ? root.vehicle.vehicleTypeString : "ArduPilot Rover"; color: root.textDim; font.pixelSize: 11 }
-            Label { text: "Matek H743-WING V3"; color: root.textDim; font.pixelSize: 10 }
+        width: root.width < 1100 ? 150 : 190; color: root.panel; border.color: root.line
+        Flickable {
+            anchors.fill: parent
+            anchors.margins: 8
+            clip: true
+            contentWidth: width
+            contentHeight: navColumn.implicitHeight
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar { policy: navColumn.implicitHeight > sidebar.height - 16 ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
+            ColumnLayout {
+                id: navColumn
+                width: parent.width
+                spacing: Math.max(3, Math.min(8, (sidebar.height - 44 - 10 * 36) / 11))
+                Label { text: navColumn.implicitHeight > sidebar.height - 16 ? "NAVIGAȚIE ↓" : "NAVIGAȚIE"; color: root.muted; font.bold: true; font.pixelSize: 13 }
+                NavButton { text: "HARTA"; active: root.activePage === 0; onClicked: root.activePage = 0 }
+                NavButton { text: "SONAR"; active: root.activePage === 1; onClicked: root.activePage = 1 }
+                NavButton { text: "AREA SCAN"; active: root.activePage === 2; onClicked: root.activePage = 2 }
+                NavButton { text: "PUNCTE PESCUIT"; active: root.activePage === 3; onClicked: root.activePage = 3 }
+                NavButton { text: "BALȚILE MELE"; active: root.activePage === 4; onClicked: root.activePage = 4 }
+                NavButton { text: "CAMERA"; active: root.activePage === 5; onClicked: root.activePage = 5 }
+                NavButton { text: "3D"; active: root.activePage === 7; onClicked: root.activePage = 7 }
+                NavButton { text: "NĂDIRE"; active: root.activePage === 8; onClicked: root.activePage = 8 }
+                NavButton { text: "SIGURANȚĂ"; active: root.activePage === 9; onClicked: root.activePage = 9 }
+                NavButton { text: "SETARI"; active: root.activePage === 6; onClicked: root.activePage = 6 }
+                Label { text: "BARCA " + root.boatId; color: root.muted; font.pixelSize: 10; Layout.topMargin: 2 }
+            }
         }
     }
 
     Rectangle {
-        id: mapPanel
-        anchors.left: root.mapFullscreen ? parent.left : sidebar.right
-        anchors.right: root.mapFullscreen ? parent.right : rightPanel.left
-        anchors.top: root.mapFullscreen ? parent.top : header.bottom
-        anchors.bottom: root.mapFullscreen ? parent.bottom : footer.top
-        anchors.margins: root.mapFullscreen ? 0 : 10;
-        z: root.mapFullscreen ? 5000 : 0; radius: 10; color: root.panel; border.color: root.line; clip: true
-
-        FlyViewMap {
-            id: liveMap
-            anchors.fill: parent
-            planMasterController: planController
-            rightPanelWidth: 0
-            toolInsets: QtObject {
-                readonly property real leftEdgeTopInset: 0; readonly property real leftEdgeCenterInset: 0; readonly property real leftEdgeBottomInset: 0
-                readonly property real rightEdgeTopInset: 0; readonly property real rightEdgeCenterInset: 0; readonly property real rightEdgeBottomInset: 0
-                readonly property real topEdgeLeftInset: 0; readonly property real topEdgeCenterInset: 0; readonly property real topEdgeRightInset: 0
-                readonly property real bottomEdgeLeftInset: 0; readonly property real bottomEdgeCenterInset: 48; readonly property real bottomEdgeRightInset: 0
-            }
-        }
-
-        PlanMasterController { id: planController; Component.onCompleted: { start(); if (root.vehicleConnected) loadFromVehicle() } }
-
-        NavoActualTrack {
-            id: actualTrack
-            anchors.fill: liveMap
-            map: liveMap
-            vehicle: root.vehicle
-            taskActive: baitingController.enabled
-            keepCompletedTrack: true
-            z: 900
-            onTrackStarted: root.lastNavigationStatus = "Înregistrare traseu GPS real pornită"
-            onTrackCompleted: function(pointCount) { root.lastNavigationStatus = "Task finalizat • traseu GPS păstrat (" + pointCount + " puncte)" }
-        }
-
-        NavoWaypointMapOverlay {
-            id: waypointLayer
-            anchors.fill: liveMap
-            map: liveMap
-            missionController: planController.missionController
-            vehicle: root.vehicle
-            waypointNames: root.waypointNames
-            savedDepthM: root.sonarConnected ? root.depthM : NaN
-            savedWaterTempC: root.sonarConnected ? root.waterTempC : NaN
-            z: 1000
-            onNavigationCommandSent: function(wp, accepted) {
-                root.lastNavigationStatus = accepted ? "Navigare trimisă către " + waypointLayer.friendlyName(wp) : "Comanda de navigare a fost refuzată"
-            }
-        }
-
-        NavoBaitingPanel {
-            id: baitingPanel
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.margins: 12
-            z: 1100
-            visible: waypointLayer.selectedWaypoint !== null || baitingController.enabled
-            controller: baitingController
-            waypoint: waypointLayer.selectedWaypoint ? waypointLayer.selectedWaypoint : baitingController.targetWaypoint
-            waypointName: waypointLayer.selectedWaypoint ? waypointLayer.friendlyName(waypointLayer.selectedWaypoint) : baitingController.targetName
-            onStartConfirmed: function(wp, name, hopper) {
-                if (!root.vehicleConnected || root.gpsFix < 3) {
-                    root.lastNavigationStatus = "Nădire blocată: este necesar GPS 3D/RTK și conexiune MAVLink"
-                    return
-                }
-                if (baitingController.startCycle(wp, name, hopper)) waypointLayer.selectedWaypoint = null
-            }
-            onAbortRequested: baitingController.abortCycle("Oprit manual din NAVO SMART")
-        }
-
-        Connections {
-            target: QGroundControl.multiVehicleManager
-            function onActiveVehicleChanged(activeVehicle) {
-                if (baitingController.enabled) baitingController.abortCycle("Vehiculul activ s-a schimbat")
-                waypointLayer.selectedWaypoint = null
-                if (activeVehicle) { planController.loadFromVehicle(); liveMap.center = activeVehicle.coordinate }
-            }
-        }
-
-        NavoCameraPip {
-            id: cameraPip
-            anchors.left: parent.left
-            anchors.top: parent.top
-            anchors.leftMargin: 12
-            anchors.topMargin: 52
-            z: 1050
-            connected: root.cameraConnected
-            streamUrl: root.cameraStreamUrl
-            onFullscreenRequested: root.lastNavigationStatus = "Camera GR01: fullscreen va fi activat când conectăm fluxul real G20"
-        }
-
-
-        NavoBoatStatus {
-            id: boatStatusMini
-            compact: true
-            width: 150; height: 105
-            anchors.right: parent.right; anchors.bottom: parent.bottom
-            anchors.rightMargin: 12; anchors.bottomMargin: 54
-            z: 1200
-            leftHopperCommandOpen: hopperBridge.leftOpen
-            rightHopperCommandOpen: hopperBridge.rightOpen
-            waterDetected: root.waterAlarm
-            batteryTempC: NaN
-            visible: !root.hopperStatusExpanded
-            MouseArea { anchors.fill: parent; onClicked: root.hopperStatusExpanded = true }
-        }
-
-        Popup {
-            id: hopperStatusPopup
-            visible: root.hopperStatusExpanded
-            modal: false
-            focus: false
-            closePolicy: Popup.NoAutoClose
-            x: (mapPanel.width-width)/2; y: (mapPanel.height-height)/2
-            width: 430; height: 320
-            background: Rectangle { radius: 16; color: "#071827f2"; border.color: root.cyan; border.width: 2 }
-            contentItem: ColumnLayout {
-                anchors.fill: parent; anchors.margins: 14
-                Label { text: "DESCĂRCARE / STATUS BARCĂ"; color: root.cyan; font.bold: true; font.pixelSize: 18; Layout.alignment: Qt.AlignHCenter }
-                NavoBoatStatus {
-                    Layout.alignment: Qt.AlignHCenter; Layout.preferredWidth: 360; Layout.preferredHeight: 235
-                    compact: false
-                    leftHopperCommandOpen: hopperBridge.leftOpen
-                    rightHopperCommandOpen: hopperBridge.rightOpen
-                    waterDetected: root.waterAlarm
-                    batteryTempC: NaN
-                }
-                RowLayout {
-                    Layout.fillWidth: true
-                    HoldHopperButton { Layout.fillWidth: true; text: "ȚINE C1"; hopperId: 1 }
-                    HoldHopperButton { Layout.fillWidth: true; text: "ȚINE AMBELE"; hopperId: 3 }
-                    HoldHopperButton { Layout.fillWidth: true; text: "ȚINE C2"; hopperId: 2 }
-                }
-                Label {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: root.autoMode && !root.autoHopperWindow ? "Cuve blocate până la apropierea finală" :
-                          (root.autoMode && !root.hopperReleaseSafe ? "Aștept STOP pentru descărcare" : "Ține apăsat 1,5 s pentru deschidere")
-                    color: root.textDim; font.pixelSize: 11
-                }
-                Button { text: "Închide"; Layout.alignment: Qt.AlignHCenter; onClicked: root.hopperStatusExpanded=false }
-            }
-        }
-
-        Timer { id: hopperPopupClose; interval: 5000; repeat:false; onTriggered: root.hopperStatusExpanded=false }
-
-        Rectangle { anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 12; width: mapTitle.implicitWidth + 22; height: 32; radius: 6; color: "#071827dd"; Label { id: mapTitle; anchors.centerIn: parent; text: "HARTĂ LIVE • MAVLink"; color: root.textMain; font.bold: true } }
-        Button {
-            id: mapFullscreenButton
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.margins: 12
-            z: 2000
-            width: 48; height: 42
-            text: root.mapFullscreen ? "↙" : "⛶"
-            ToolTip.visible: hovered
-            ToolTip.text: root.mapFullscreen ? "Revino la dashboard" : "Mărește harta"
-            onClicked: {
-                root.mapFullscreen = !root.mapFullscreen
-                root.lastNavigationStatus = root.mapFullscreen ? "Hartă mărită • apasă ↙ pentru revenire" : "Hartă revenită la dashboard"
-            }
-        }
-        RowLayout {
-            anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; anchors.margins: 12; spacing: 8
-            Button { text: "Centrează barca"; enabled: root.vehicleConnected; onClicked: if (root.vehicle) liveMap.center = root.vehicle.coordinate }
-            Button { text: "HOME"; enabled: root.vehicleConnected && root.vehicle.homePosition.isValid; onClicked: if (root.vehicle && root.vehicle.homePosition.isValid) liveMap.center = root.vehicle.homePosition }
-            Button { text: "Potrivește traseul"; enabled: root.vehicleConnected; onClicked: liveMap.mapFitFunctions.fitMapViewportToMissionItems() }
-            Item { Layout.fillWidth: true }
-            Rectangle { width: 154; height: 34; radius: 6; color: "#071827dd"; Label { anchors.centerIn: parent; text: "Acasă: " + root.num(root.distanceHomeM,0," m"); color: root.textMain; font.bold: true } }
+        id: content
+        anchors.left: sidebar.right; anchors.right: rightPanel.left; anchors.top: header.bottom; anchors.bottom: footer.top
+        color: root.bg
+        Loader {
+            anchors.fill: parent; anchors.margins: 10
+            sourceComponent: root.activePage === 0 ? mapPage :
+                             root.activePage === 1 ? sonarPage :
+                             root.activePage === 2 ? areaPage :
+                             root.activePage === 3 ? fishingPage :
+                             root.activePage === 4 ? lakesPage :
+                             root.activePage === 5 ? cameraPage :
+                             root.activePage === 7 ? bathymetryPage :
+                             root.activePage === 8 ? baitingPage :
+                             root.activePage === 9 ? failsafePage : settingsPage
         }
     }
 
     Rectangle {
         id: rightPanel
         anchors.right: parent.right; anchors.top: header.bottom; anchors.bottom: footer.top
-        anchors.topMargin: 10; anchors.bottomMargin: 10; anchors.rightMargin: 10
-        width: 310; color: root.panel; radius: 10; border.color: root.line
-        ColumnLayout { anchors.fill: parent; anchors.margins: 14; spacing: 10
-            Label { text: "KOGGER 2D SONAR"; color: root.cyan; font.bold: true; font.pixelSize: 15 }
-            DataLine { name: "Distanță acasă"; value: root.num(root.distanceHomeM,0," m") }
-            DataLine { name: "GPS HDOP"; value: root.num(root.hdop,1,"") }
-            DataLine { name: "GPS fix"; value: root.gpsFix >= 6 ? "RTK FIXED" : (root.gpsFix === 5 ? "RTK FLOAT" : (root.gpsFix >= 3 ? "3D" : "Fără fix")) }
-            DataLine { name: "Sateliți"; value: root.satellites >= 0 ? root.satellites.toString() : "--" }
-            DataLine { name: "Nădire"; value: baitingController.stateText(baitingController.state) }
-            DataLine { name: "Silențios"; value: root.silentModeActive ? "ACTIV" : "Normal" }
-            DataLine { name: "Țintă viteză"; value: root.num(baitingController.targetSpeedMps,1," m/s") }
-            RowLayout { Layout.fillWidth: true; spacing: 7
-                ModeButton { text: "MANUAL"; selected: root.manualMode; enabled: root.vehicleConnected; onClicked: root.setMode("Manual") }
-                ModeButton { text: "AUTO"; selected: root.autoMode; enabled: root.vehicleConnected; onClicked: root.setMode("Auto") }
-                ModeButton { text: "HOLD"; selected: root.flightMode.toUpperCase().indexOf("HOLD") >= 0; enabled: root.vehicleConnected; onClicked: root.holdBoat() }
-                ModeButton { text: "RTL"; selected: root.flightMode.toUpperCase().indexOf("RTL") >= 0; enabled: root.vehicleConnected; onClicked: root.rtlBoat() }
+        width: root.width < 1100 ? 220 : 260; color: root.panel; border.color: root.line
+        Flickable {
+            anchors.fill: parent
+            clip: true
+            contentWidth: width
+            contentHeight: statusColumn.implicitHeight + 24
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        ColumnLayout {
+            id: statusColumn
+            x: 12; y: 12; width: parent.width - 24; spacing: 10
+            Label { text: "STATUS BARCA"; color: root.text; font.bold: true }
+            NavoEthernetIndicator {
+                Layout.fillWidth: true
+                sonarConnected: sonar.connected
+                sonarAlive: sonar.dataAlive
+                cameraConnected: root.cameraStreamUrl.length > 0
+                cameraAlive: root.cameraConnected
+                sonarStatus: sonar.status
+                cameraStatus: root.cameraConnected ? "Flux video LIVE" : (root.cameraStreamUrl.length ? "URL configurat; flux inactiv" : "OFFLINE")
             }
-            Button { Layout.fillWidth: true; text: "Reîncarcă misiunea"; enabled: root.vehicleConnected; onClicked: { planController.loadFromVehicle(); root.lastNavigationStatus="Misiune reîncărcată din H743" } }
-            Button { Layout.fillWidth: true; text: digitalAnchor.active ? "Eliberează ancora GPS" : "Ancoră GPS"; enabled: root.vehicleConnected && root.gpsFix >= 3; onClicked: { if (digitalAnchor.active) digitalAnchor.release(); else digitalAnchor.engage() } }
-            Label { text: "CAMERĂ BARCĂ"; color: root.cyan; font.bold: true }
-            NavoCameraPip {
-                Layout.fillWidth: true; Layout.preferredHeight: 125
-                connected: root.cameraConnected; streamUrl: root.cameraStreamUrl
-                onFullscreenRequested: root.lastNavigationStatus = "Cameră: fullscreen solicitat"
+            DataLine { name: "Conexiune"; value: vehicle ? "ONLINE" : "OFFLINE"; valueColor: vehicle ? root.ok : root.danger }
+            DataLine { name: "Mod"; value: root.flightMode.length ? root.flightMode : "--"; valueColor: root.modeColor() }
+            DataLine { name: "Acasa"; value: Number(root.distanceToHome).toFixed(0) + " m" }
+            DataLine { name: "Tinta"; value: root.distanceToTarget > 0 ? Number(root.distanceToTarget).toFixed(0) + " m" : "--" }
+            DataLine { name: "Nano"; value: nanoTelemetry.connected ? "ONLINE" : "OFFLINE"; valueColor: nanoTelemetry.connected ? root.ok : root.warn }
+            DataLine { name: "Temp baterie"; value: nanoTelemetry.connected && !isNaN(nanoTelemetry.batteryTempC) ? Number(nanoTelemetry.batteryTempC).toFixed(1) + " °C" : "--"; valueColor: safetyManager.state === "CRITICAL" ? root.danger : safetyManager.state === "WARNING" ? root.warn : root.text }
+            DataLine { name: "Apa"; value: nanoTelemetry.connected ? (nanoTelemetry.waterDetected ? "DETECTATA" : "OK") : "--"; valueColor: nanoTelemetry.waterDetected ? root.danger : root.text }
+            NavoBoatStatus {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 170
+                compact: true
+                waterDetected: nanoTelemetry.waterDetected
+                batteryTempC: nanoTelemetry.batteryTempC
+                headlightOn: nanoTelemetry.headlightOn
+                positionLightsOn: nanoTelemetry.positionLightsOn
+                rudderNormalized: nanoTelemetry.rudderUs > 0 ? Math.max(-1,Math.min(1,(nanoTelemetry.rudderUs-1500)/500.0)) : 0
+                leftHopperCommandOpen: hopperBridge.commandPending && (hopperBridge.pendingHopper===1||hopperBridge.pendingHopper===3)
+                rightHopperCommandOpen: hopperBridge.commandPending && (hopperBridge.pendingHopper===2||hopperBridge.pendingHopper===3)
             }
-            Label { text: "NĂDIRE"; color: root.cyan; font.bold: true }
-            Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: baitingController.enabled ? "Cuvele apar automat la apropierea finală." : "Cuve ascunse până la punctul de eliberare."; color: root.textDim; font.pixelSize: 11 }
             Rectangle { Layout.fillWidth: true; height: 1; color: root.line }
-            NavoSonarCard {
+            Label { text: "CONTROL MISIUNE"; color: root.muted; font.bold: true }
+            RowLayout {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 190
-                connected: root.sonarConnected
-                depthM: root.depthM
-                waterTempC: root.waterTempC
-                onOpenFullSonar: sonarFull.open()
+                Button { Layout.fillWidth: true; text: missionUploader.uploadVerified ? "START H743" : "UPLOAD"; onClicked: root.startMission() }
+                Button { Layout.fillWidth: true; text: "HOLD"; onClicked: root.holdMission() }
             }
-            NavoSafetyCard {
+            RowLayout {
                 Layout.fillWidth: true
-                waterAlarm: root.waterAlarm
+                Button { Layout.fillWidth: true; text: "RTL"; onClicked: root.rtlMission() }
+                Button { Layout.fillWidth: true; text: "STOP"; onClicked: root.stopMission() }
             }
-            NavoFailsafePanel {
+            RowLayout {
                 Layout.fillWidth: true
-                controller: failsafeController
+                Button { Layout.fillWidth: true; text: digitalAnchor.active ? "ANCORĂ ON" : "ANCORĂ GPS"; onClicked: digitalAnchor.active ? digitalAnchor.release() : digitalAnchor.engage() }
+                Label { text: energyGuard.message(root.distanceToHome, battery ? Number(battery.percentRemaining.rawValue) : NaN); color: battery && energyGuard.canStart(root.distanceToHome, Number(battery.percentRemaining.rawValue)) ? root.ok : root.warn; font.pixelSize: 9 }
+            }
+            Rectangle { Layout.fillWidth: true; height: 1; color: root.line }
+            Label { text: "CUVE"; color: root.muted; font.bold: true }
+            Label {
+                Layout.fillWidth: true; wrapMode: Text.WordWrap
+                text: root.hopperControlsEnabled ? "Control disponibil" : "Blocate pana aproape de punct"
+                color: root.hopperControlsEnabled ? root.ok : root.warn; font.pixelSize: 11
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Button { Layout.fillWidth: true; text: "STANGA"; enabled: root.hopperControlsEnabled; onClicked: root.openHopper("stanga") }
+                Button { Layout.fillWidth: true; text: "DREAPTA"; enabled: root.hopperControlsEnabled; onClicked: root.openHopper("dreapta") }
+            }
+            Button { Layout.fillWidth: true; text: "AMBELE"; enabled: root.hopperControlsEnabled; onClicked: root.openHopper("ambele") }
+            Item { Layout.fillHeight: true }
+            Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: root.lastNavigationStatus; color: root.muted; font.pixelSize: 11 }
+        }
+        }
+    }
+
+    Component {
+        id: mapPage
+        Item {
+            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
+            NavoMap {
+                id: navoMap
+                anchors.fill: parent; anchors.margins: 8
+                Component.onCompleted: {
+                    root.mapController = navoMap
+                    if (root.pendingAreaDrawMode === "rectangle") navoMap.beginAreaRectangle()
+                    else if (root.pendingAreaDrawMode === "polygon") navoMap.beginAreaPolygon()
+                    root.pendingAreaDrawMode = "none"
+                }
+                Component.onDestruction: if(root.mapController===navoMap) root.mapController=null
+                vehicle: root.vehicle
+                waypointNames: root.waypointNames
+                fishModel: fishStore
+                fishingSpotsModel: fishingSpots
+                bathymetryCells: scanCoordinator.bathymetryCells
+                baitingController: baitingController
+                areaScanController: areaScanController
+                savedDepthM: root.depthM
+                savedWaterTempC: root.waterTempC
+                onNavigateRequested: function(coordinate) { root.navigateToCoordinate(coordinate) }
+                onBaitingWaypointSelected: function(waypoint) {
+                    root.lastNavigationStatus="Punct selectat: " + (waypoint.sequenceNumber !== undefined ? "WP" + waypoint.sequenceNumber : "waypoint") + " • poți deschide NĂDIRE când dorești"
+                }
+                onAreaRectangleRequested: function(cornerA, cornerB) {
+                    missionUploader.invalidate()
+                    var pts=scanCoordinator.prepareRectangle(cornerA,cornerB)
+                    root.lastNavigationStatus="Area Scan dreptunghi • "+pts.length+" WP generate"
+                    root.activePage=2
+                }
+                onAreaPolygonRequested: function(polygon) {
+                    missionUploader.invalidate()
+                    var boat=root.vehicle&&root.vehicle.coordinate&&root.vehicle.coordinate.isValid?root.vehicle.coordinate:null
+                    var pts=areaScanController.generatePolygon(polygon)
+                    scanCoordinator.areaPoints=pts
+                    scanCoordinator.state=pts.length ? "AREA_DEFINED" : "IDLE"
+                    scanCoordinator.checkpoint("area-polygon")
+                    root.lastNavigationStatus="Area Scan poligon • "+pts.length+" WP generate"
+                    root.activePage=2
+                }
+                onSavePointRequested: function(coordinate) {
+                    var spot = fishingSpots.saveSpot(coordinate, root.depthM, root.waterTempC, "", "", null)
+                    if (spot) {
+                        scanCoordinator.checkpoint("fishing-spot")
+                        root.lastNavigationStatus = "Punct salvat: " + spot.name
+                    } else root.lastNavigationStatus = "Punct invalid: nu a fost salvat"
+                }
             }
         }
     }
 
-    Popup {
-        id: sonarMappingPopup
-        parent: Overlay.overlay
-        modal: true
-        focus: true
-        closePolicy: Popup.CloseOnEscape
-        anchors.centerIn: parent
-        width: Math.min(620, root.width - 40)
-        height: Math.min(360, root.height - 40)
-        background: Rectangle { radius: 12; color: root.bg; border.color: root.cyan }
-        contentItem: NavoSonarMapping {
+    Component {
+        id: sonarPage
+        Item {
+            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
+            ColumnLayout {
+                anchors.fill: parent; anchors.margins: 12; spacing: 8
+                Label { text: "KOGGER SONAR"; color: root.text; font.pixelSize: 18; font.bold: true }
+                NavoSonarCard {
+                    Layout.fillWidth: true; Layout.preferredHeight: 150
+                    connected: root.sonarConnected; depthM: root.depthM; waterTempC: root.waterTempC
+                    echoSamples: sonar.echoSamples
+                    onOpenFullSonar: fullSonar.open()
+                }
+                Label {
+                    Layout.fillWidth: true
+                    text: root.sonarConnected ? "Sonar conectat • atinge ⛶ pentru ecogramă" : "Kogger offline • atinge ⛶ pentru ecogramă și conexiune"
+                    color: root.muted
+                    wrapMode: Text.WordWrap
+                }
+                Item { Layout.fillHeight: true }
+            }
+            NavoSonarFullScreen {
+                    id: fullSonar
+                    parent: Overlay.overlay
+                    connected: root.sonarConnected; depthM: root.depthM; waterTempC: root.waterTempC
+                    echoSamples: sonar.echoSamples
+                    transport: sonar
+                    fishHotspots: root.fishDetections
+                    latitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.latitude : NaN
+                    longitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.longitude : NaN
+                    onSaveWaypointRequested: function(latitude, longitude, depth, temp) {
+                        var spot=fishingSpots.saveSpot(QtPositioning.coordinate(latitude,longitude),depth,temp,"","",null)
+                        if(spot){scanCoordinator.checkpoint("sonar-fishing-spot");root.lastNavigationStatus="Punct sonar salvat: "+spot.name}
+                    }
+                }
+        }
+    }
+
+    Component {
+        id: areaPage
+        Item {
+            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
+            ColumnLayout {
+                anchors.fill: parent; anchors.margins: 14; spacing: 10
+                RowLayout {
+                    Layout.fillWidth: true
+                    Label { text: "AREA SCAN"; color: root.text; font.pixelSize: 20; font.bold: true }
+                    Item { Layout.fillWidth: true }
+                    Label { text: areaScanController.progressPercent() + "%"; color: root.accent; font.bold: true }
+                }
+                ProgressBar {
+                    Layout.fillWidth: true
+                    from: 0; to: 100
+                    value: areaScanController.progressPercent()
+                }
+                Label {
+                    Layout.fillWidth: true
+                    text: areaScanController.laneCount() ?
+                          (areaScanController.completedLanes.length + " / " + areaScanController.laneCount() + " culoare • WP H743 " + scanCoordinator.missionCurrentIndex) :
+                          "Definește zona de scanare pe hartă."
+                    color: root.muted
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    Button {
+                        text: "DREPTUNGHI PE HARTĂ"
+                        onClicked: {
+                            root.pendingAreaDrawMode="rectangle"
+                            root.activePage=0
+                            root.lastNavigationStatus="Atinge două colțuri pe hartă pentru dreptunghi"
+                        }
+                    }
+                    Button {
+                        text: "POLIGON PE HARTĂ"
+                        onClicked: {
+                            root.pendingAreaDrawMode="polygon"
+                            root.activePage=0
+                            root.lastNavigationStatus="Atinge cel puțin trei puncte și apoi TERMINĂ"
+                        }
+                    }
+                    Button {
+                        text: "PREGĂTEȘTE MISIUNEA"
+                        enabled: areaScanController.generatedPoints.length > 0 && !missionUploader.uploadInProgress
+                        onClicked: scanCoordinator.prepareMission(false)
+                    }
+                    Button {
+                        text: missionUploader.uploadVerified ? "START H743" : "UPLOAD"
+                        enabled: missionUploader.preparedCount > 0 && !missionUploader.uploadInProgress
+                        onClicked: root.startMission()
+                    }
+                    Button {
+                        text: "RESUME"
+                        enabled: areaScanController.generatedPoints.length > 0 && areaScanController.completedLanes.length < areaScanController.laneCount()
+                        onClicked: {
+                            var mission = scanCoordinator.resume()
+                            if (mission.length) root.lastNavigationStatus = "Resume pregătit • apasă UPLOAD și apoi START H743"
+                        }
+                    }
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    Button { text: "HOLD"; onClicked: { scanCoordinator.pause("HOLD utilizator"); root.holdMission() } }
+                    Button { text: "RTL"; onClicked: { scanCoordinator.rtl("RTL utilizator"); root.rtlMission() } }
+                    Button { text: "STOP"; onClicked: { scanCoordinator.pause("STOP utilizator"); root.stopMission() } }
+                    Item { Layout.fillWidth: true }
+                    Label { text: scanCoordinator.state; color: root.modeColor(); font.bold: true }
+                }
+                Rectangle {
+                    Layout.fillWidth: true; Layout.fillHeight: true
+                    radius: 8; color: root.bg; border.color: root.line
+                    Column {
+                        anchors.centerIn: parent; spacing: 8
+                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Traseu Area Scan"; color: root.text; font.pixelSize: 18; font.bold: true }
+                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: areaScanController.generatedPoints.length + " waypoint-uri"; color: root.muted }
+                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Culoar activ: " + (areaScanController.activeLaneIndex >= 0 ? (areaScanController.activeLaneIndex + 1) : "--"); color: root.muted }
+                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Zona se definește din hartă; aici se controlează misiunea H743."; color: root.muted }
+                    }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: fishingPage
+        Item {
+            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
+            ColumnLayout {
+                anchors.fill: parent; anchors.margins: 16; spacing: 8
+                Label { text: "PUNCTE DE PESCUIT"; color: root.text; font.pixelSize: 20; font.bold: true }
+                Label { text: fishingSpots.fishingSpots.length + " puncte salvate"; color: root.muted }
+                ListView {
+                    Layout.fillWidth: true; Layout.fillHeight: true; clip: true
+                    model: fishingSpots.fishingSpots
+                    delegate: Rectangle {
+                        required property var modelData
+                        width: ListView.view.width; height: 76; radius: 7; color: root.bg; border.color: root.line
+                        Column {
+                            anchors.left: parent.left; anchors.leftMargin: 10; anchors.verticalCenter: parent.verticalCenter
+                            Label { text: modelData.name || "Loc pescuit"; color: root.text; font.bold: true }
+                            Label { text: Number(modelData.lat).toFixed(5) + ", " + Number(modelData.lon).toFixed(5); color: root.muted; font.pixelSize: 11 }
+                            Label { text: (modelData.depth === null ? "--" : Number(modelData.depth).toFixed(1) + " m") + " • " + (modelData.temp === null ? "--" : Number(modelData.temp).toFixed(1) + " °C"); color: root.muted; font.pixelSize: 11 }
+                        }
+                        Button { anchors.right: parent.right; anchors.rightMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: "ȘTERGE"; onClicked: { fishingSpots.removeSpot(modelData.id); scanCoordinator.checkpoint("fishing-spot-delete") } }
+                    }
+                }
+            }
+        }
+    }
+
+    Component {
+        id: waypointEditorPage
+        NavoWaypointEditor {
+            anchors.fill: parent
+            planController: root.planController
             vehicle: root.vehicle
-            depthM: root.depthM
-            waterTempC: root.waterTempC
-            sonarConnected: root.sonarConnected
-            onStatus: function(text) { root.lastNavigationStatus = text }
-            onBathymetryRequested: function(samples) {
-                root.lastNavigationStatus = "Batimetrie: " + samples.length + " puncte pregătite; rendererul urmează validarea."
+            waypointNames: root.waypointNames
+            onWaypointNameChanged: function(sequence, friendlyName) { persistence.setWaypointName(sequence, friendlyName) }
+        }
+    }
+
+    Component {
+        id: lakesPage
+        Item {
+            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
+            ColumnLayout {
+                anchors.fill: parent; anchors.margins: 16; spacing: 10
+                Label { text: "BALȚILE MELE"; color: root.text; font.pixelSize: 20; font.bold: true }
+                Label {
+                    Layout.fillWidth: true
+                    text: persistence.lakes.length + " bălți salvate • sonar + puncte + Area Scan + Resume"
+                    color: root.muted
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
+                    elide: Text.ElideRight
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    TextField { id: inlineLakeName; Layout.fillWidth: true; placeholderText: "Nume baltă nouă"; onAccepted: addLakeButton.clicked() }
+                    Button {
+                        id: addLakeButton
+                        text: "+ ADAUGĂ"
+                        enabled: inlineLakeName.text.trim().length > 0
+                        onClicked: {
+                            var name=inlineLakeName.text.trim()
+                            var id=persistence.saveLake({name:name})
+                            var found=false
+                            for (var i=0;i<persistence.lakes.length;i++)
+                                if (persistence.lakes[i].id===id) { found=true; break }
+                            if (found) {
+                                inlineLakeName.clear()
+                                root.lakeSaveStatus="Salvată: "+name
+                            } else root.lakeSaveStatus="Salvarea a eșuat • încearcă din nou"
+                        }
+                    }
+                }
+                Label { Layout.fillWidth: true; visible: root.lakeSaveStatus.length>0; text: root.lakeSaveStatus; color: root.accent }
+                ListView {
+                    Layout.fillWidth: true; Layout.fillHeight: true; clip: true
+                    model: persistence.lakes
+                    delegate: Button {
+                        required property var modelData
+                        width: ListView.view.width
+                        text: modelData.name || "Baltă"
+                        onClicked: {
+                            myLakesPopup.selectLake(modelData)
+                            myLakesPopup.open()
+                        }
+                    }
+                }
+                Button { text: "DESCHIDE BĂLȚILE MELE"; onClicked: myLakesPopup.open() }
+            }
+            NavoMyLakes {
+                id: myLakesPopup
+                persistence: root.lakePersistence
+                scanCoordinator: root.areaCoordinator
+                onLakeRestored: function(lakeId) {
+                    missionUploader.invalidate()
+                    root.activePage = 2
+                    root.lastNavigationStatus = "Balta restaurată • pregătită pentru Resume"
+                }
             }
         }
     }
 
-    NavoSonarFullScreen {
-        id: sonarFull
-        parent: Overlay.overlay
-        x: 0
-        y: 0
-        width: Overlay.overlay ? Overlay.overlay.width : root.width
-        height: Overlay.overlay ? Overlay.overlay.height : root.height
-        connected: root.sonarConnected
-        depthM: root.depthM
-        waterTempC: root.waterTempC
-        speedMps: root.speedMps
-        latitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.latitude : NaN
-        longitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.longitude : NaN
-        onSaveWaypointRequested: function(latitude, longitude, depth, temperature) {
-            root.lastNavigationStatus = "Punct sonar pregătit: " + depth.toFixed(1) + " m • " + latitude.toFixed(6) + ", " + longitude.toFixed(6)
+    Component {
+        id: baitingPage
+        Item {
+            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
+            NavoBaitingPanel {
+                anchors.centerIn: parent
+                controller: baitingController
+                waypoint: baitingController.targetWaypoint
+                availableSpots: fishingSpots.fishingSpots
+                onChooseOnMapRequested: {
+                    root.activePage = 0
+                    root.lastNavigationStatus = "Selectează un waypoint pe hartă sau salvează un loc de pescuit, apoi revino la NĂDIRE"
+                }
+                onSpotChosen: function(spot) {
+                    var coordinate = QtPositioning.coordinate(Number(spot.lat), Number(spot.lon))
+                    if (!coordinate.isValid) {
+                        root.lastNavigationStatus = "Locul salvat nu are coordonate valide"
+                        return
+                    }
+                    baitingController.targetWaypoint = {coordinate: coordinate, name: spot.name, sequenceNumber: 0}
+                    root.lastNavigationStatus = "Punct de nădire ales: " + spot.name
+                }
+                onStartConfirmed: function(waypoint, name, hopper) { baitingController.startCycle(waypoint,name,hopper) }
+                onAbortRequested: baitingController.abortCycle("Oprit de utilizator")
+            }
+        }
+    }
+
+    Component {
+        id: failsafePage
+        Item {
+            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
+            ColumnLayout {
+                anchors.fill: parent; anchors.margins: 16; spacing: 12
+                Label { text: "SIGURANȚĂ & FAILSAFE"; color: root.text; font.pixelSize: 20; font.bold: true }
+                NavoFailsafePanel { Layout.fillWidth: true; controller: failsafeController }
+                Item { Layout.fillHeight: true }
+            }
+        }
+    }
+
+    Component {
+        id: bathymetryPage
+        Item {
+            NavoBathymetry3D {
+                anchors.fill: parent
+                samples: persistence.sonarSamples
+                boatTrack: sonarMapping.trackCoordinates
+                fishingSpots: fishingSpots.fishingSpots
+                fishDetections: root.fishDetections
+                onOpenSonarRequested: root.activePage = 1
+            }
+        }
+    }
+
+    Component {
+        id: cameraPage
+        Item {
+            Rectangle { anchors.fill: parent; radius: 8; color: "#05080c"; border.color: root.line }
+            ColumnLayout {
+                anchors.fill: parent; anchors.margins: 12
+                Label { text: "CAMERA FAȚĂ"; color: root.text; font.pixelSize: 18; font.bold: true }
+                NavoCameraPip {
+                    Layout.fillWidth: true; Layout.fillHeight: true
+                    connected: root.cameraStreamUrl.length > 0
+                    streamUrl: root.cameraStreamUrl
+                    protocol: root.cameraProtocol
+                    onLiveChanged: root.cameraConnected = live
+                    Component.onDestruction: root.cameraConnected = false
+                    onFullscreenRequested: root.cameraFullscreen = true
+                }
+            }
+        }
+    }
+
+    Component {
+        id: settingsPage
+        Item {
+            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
+            NavoEthernetSettings {
+                id: ethernetSettings
+                anchors.fill: parent; anchors.margins: 12
+                sonar: sonar
+                onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
+                onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
+                onStatus: function(text) { root.lastNavigationStatus=text }
+            }
+        }
+    }
+
+    Loader {
+        anchors.fill: parent
+        z: 1000
+        active: root.cameraFullscreen
+        sourceComponent: Component {
+            NavoCameraFullScreen {
+                streamUrl: root.cameraStreamUrl
+                protocol: root.cameraProtocol
+                onClosed: root.cameraFullscreen = false
+            }
         }
     }
 
     Rectangle {
         id: footer
         anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
-        height: 38; color: "#071522"; border.color: root.line
-        RowLayout { anchors.fill: parent; anchors.leftMargin: 18; anchors.rightMargin: 18
-            Label { text: root.lastNavigationStatus.length ? root.lastNavigationStatus : (root.vehicleConnected ? "● MAVLink conectat • " + root.flightMode : "● Aștept conexiunea ArduPilot"); color: root.vehicleConnected ? root.green : root.danger }
+        height: 34; color: "#0d141d"; border.color: root.line
+        RowLayout {
+            anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
+            Label { text: vehicle ? "MAVLink conectat" : "Astept conexiunea ArduPilot"; color: vehicle ? root.ok : root.warn }
             Item { Layout.fillWidth: true }
-            Label { text: "NAVO SMART • Pescarul lu peste • V0.9 FAILSAFE RECOVERY"; color: root.textDim; font.pixelSize: 11 }
+            Label { text: "NAVO SMART"; color: root.muted }
         }
     }
 
     component StatusPill: Rectangle {
-        property string label: ""
-        property string value: ""
-        property bool ok: false
-        Layout.preferredWidth: 120
-        Layout.preferredHeight: 48
-        radius: 7
-        color: root.panel2
-        border.color: ok ? root.green : root.line
+        property string title: ""
+        property string value: "--"
+        property bool good: false
+        Layout.preferredWidth: 100; Layout.preferredHeight: 42; radius: 7
+        color: root.panel; border.color: good ? root.ok : root.line
         Column {
-            anchors.centerIn: parent
-            spacing: 1
-            Label { anchors.horizontalCenter: parent.horizontalCenter; text: label; color: root.textDim; font.pixelSize: 9 }
-            Label { anchors.horizontalCenter: parent.horizontalCenter; text: value; color: ok ? root.green : root.textMain; font.pixelSize: 13; font.bold: true }
+            anchors.centerIn: parent; spacing: 0
+            Label { anchors.horizontalCenter: parent.horizontalCenter; text: title; color: root.muted; font.pixelSize: 9 }
+            Label { anchors.horizontalCenter: parent.horizontalCenter; text: value; color: good ? root.ok : root.text; font.pixelSize: 12; font.bold: true }
         }
     }
+
     component NavButton: Button {
         property bool active: false
         Layout.fillWidth: true
-        Layout.preferredHeight: 44
-        background: Rectangle { radius: 7; color: parent.active ? "#123d58" : "transparent"; border.color: parent.active ? root.cyan : "transparent" }
-        contentItem: Label { text: parent.text; color: parent.active ? root.cyan : root.textMain; verticalAlignment: Text.AlignVCenter; leftPadding: 10; font.bold: parent.active }
+        Layout.preferredHeight: Math.max(32, Math.min(40, (sidebar.height - 70) / 9))
+        background: Rectangle { radius: 6; color: parent.active ? "#183248" : "transparent"; border.color: parent.active ? root.accent : "transparent" }
+        contentItem: Label { text: parent.text; color: parent.active ? root.accent : root.text; verticalAlignment: Text.AlignVCenter; leftPadding: 8; font.pixelSize: Math.max(11, Math.min(14, parent.height * 0.36)); font.bold: parent.active; elide: Text.ElideRight }
     }
-    component ModeButton: Button {
-        property bool selected: false
-        Layout.fillWidth: true
-        background: Rectangle { radius: 6; color: parent.selected ? "#0e7048" : root.panel2; border.color: parent.selected ? root.green : root.line }
-        contentItem: Label { text: parent.text; color: parent.selected ? "white" : root.textDim; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; font.bold: true; font.pixelSize: 11 }
-    }
-    component HoldHopperButton: Button {
-        property int hopperId: 0
-        property real holdProgress: 0
-        enabled: root.vehicleConnected && (root.manualMode || root.autoHopperWindow)
-        onPressed: { holdProgress = 0; hopperHoldTimer.restart() }
-        onReleased: { if (hopperHoldTimer.running) hopperHoldTimer.stop(); holdProgress = 0 }
-        onCanceled: { hopperHoldTimer.stop(); holdProgress = 0 }
-        Timer {
-            id: hopperHoldTimer
-            interval: 50
-            repeat: true
-            onTriggered: {
-                parent.holdProgress += interval / root.manualHopperHoldMs
-                if (parent.holdProgress >= 1) {
-                    stop()
-                    parent.holdProgress = 0
-                    if (!root.hopperReleaseSafe) {
-                        root.lastNavigationStatus = root.autoMode ? "Cuva blocată: aștept oprirea bărcii" : "Cuva blocată"
-                        return
-                    }
-                    root.hopperStatusExpanded = true
-                    root.selectedHopper = parent.hopperId
-                    if (!hopperBridge.release(parent.hopperId))
-                        root.lastNavigationStatus = "Deschidere blocată: cuvele trebuie calibrate pe H743"
-                }
-            }
-        }
-        background: Rectangle {
-            radius: 6
-            color: !parent.enabled ? "#26313a" : (parent.pressed ? "#0e7048" : root.panel2)
-            border.color: parent.enabled ? root.cyan : "#46515a"
-            Rectangle {
-                anchors.left: parent.left
-                anchors.bottom: parent.bottom
-                height: 4
-                width: parent.width * parent.parent.holdProgress
-                color: root.green
-                radius: 2
-            }
-        }
-        contentItem: Label { text: parent.text; color: parent.enabled ? root.textMain : "#78838c"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; font.bold: true }
-    }
+
     component DataLine: RowLayout {
         property string name: ""
         property string value: "--"
+        property color valueColor: root.text
         Layout.fillWidth: true
-        Label { text: parent.name; color: root.textDim }
+        Label { text: parent.name; color: root.muted }
         Item { Layout.fillWidth: true }
-        Label { text: parent.value; color: root.textMain; font.bold: true }
+        Label { text: parent.value; color: parent.valueColor; font.bold: true }
     }
 }

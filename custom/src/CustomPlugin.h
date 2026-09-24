@@ -20,6 +20,7 @@ class CustomPlugin: public QGCCorePlugin {
 public:
  explicit CustomPlugin(QObject* parent=nullptr);
  ~CustomPlugin();
+ static QGCCorePlugin* instance();
  QGCOptions* options() final { return _options; }
  QQmlApplicationEngine* createQmlApplicationEngine(QObject* parent) final;
  void cleanup() final;

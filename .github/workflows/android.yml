@@ -1,6 +1,8 @@
 name: Build NAVO SMART Android
 on:
   push:
+    branches: [main, feature/area-scan-bathymetry-resume, feature/unified-navosmart-integration, feature/bathymetry-3d, audit/full-integration-23-sep]
+  pull_request:
     branches: [main]
   workflow_dispatch:
 # build revision 3
@@ -17,7 +19,31 @@ jobs:
           git clone --depth 1 --branch v5.0.7 --recurse-submodules --shallow-submodules https://github.com/mavlink/qgroundcontrol.git qgc
           rm -rf qgc/custom
           cp -a custom qgc/custom
+          sed -i '/import NavoSmart.Backend 1.0/i import NavoSmart 1.0' qgc/custom/qml/NavoDashboard.qml
+          sed -i 's/QGroundControl\.FlyView/QGroundControl.FlightDisplay/g' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
+          sed -i '/QGroundControl\.PlanView/d' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
           sed -i 's/GIT_TAG main/GIT_TAG caf5158061bd10e79c9f042abb62c86bc6f3e7a7/' qgc/src/GPS/CMakeLists.txt
+          # NAVO replaces QGC FlyView through the custom URL interceptor.
+          # Do not patch upstream Viewer3D here: the old text patch was brittle and
+          # run #229 still loaded the upstream FlyView, masking NAVO QML errors.
+          grep -n "NavoDashboard.qml" qgc/custom/src/CustomPlugin.cc
+          # NAVO Android lifecycle guard. QGC v5.0.7 dereferences
+          # _mainRootWindow on QEvent::Quit even when it is still null. Current
+          # upstream QGC has this guard; apply the same minimal fix to v5.0.7.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("qgc/src/QGCApplication.cc")
+          src = p.read_text()
+          needle = '        const bool forceClose = _mainRootWindow->property("_forceClose").toBool();'
+          guard = '''        if (!_mainRootWindow) {
+              return QApplication::event(e);
+          }
+          const bool forceClose = _mainRootWindow->property("_forceClose").toBool();'''
+          if needle not in src:
+              raise SystemExit("QGCApplication forceClose line not found in pinned v5.0.7")
+          p.write_text(src.replace(needle, guard, 1))
+          PY
+          grep -n -A9 -B4 'if (!_mainRootWindow)' qgc/src/QGCApplication.cc
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -89,60 +115,129 @@ jobs:
       - name: Prepare x86_64 smoke-test APK
         run: |
           set -euo pipefail
-          APK="$(find build-x86 -type f -name '*.apk' | head -n 1)"; test -n "$APK"
+          APK="$(find build-x86/android-build/build/outputs/apk -type f -name '*-unsigned.apk' | head -n 1)"; test -n "$APK"
           APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"; ZIPALIGN="$ANDROID_HOME/build-tools/35.0.0/zipalign"; KS="$HOME/.android/debug.keystore"
-          if ! "$APKSIGNER" verify "$APK"; then
-            "$ZIPALIGN" -f -p 4 "$APK" build-x86/NAVO_SMART-x86-aligned.apk
-            "$APKSIGNER" sign --ks "$KS" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out build-x86/NAVO_SMART-x86.apk build-x86/NAVO_SMART-x86-aligned.apk
-          else cp "$APK" build-x86/NAVO_SMART-x86.apk; fi
+          test -f "$KS"
+          "$ZIPALIGN" -f -p 4 "$APK" build-x86/NAVO_SMART-x86-aligned.apk
+          "$APKSIGNER" sign --ks "$KS" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out build-x86/NAVO_SMART-x86.apk build-x86/NAVO_SMART-x86-aligned.apk
+          "$APKSIGNER" verify --verbose build-x86/NAVO_SMART-x86.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging build-x86/NAVO_SMART-x86.apk >/dev/null
       - name: Android emulator smoke test
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          arch: x86_64
-          profile: pixel_6
-          disable-animations: true
-          emulator-boot-timeout: 900
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -no-metrics
-          script: |
-            set -euo pipefail
-            export ADB_SERVER_SOCKET=tcp:localhost:5037
-            adb start-server
-            adb wait-for-device
-            for i in $(seq 1 120); do
-              BOOT="$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)"
-              [ "$BOOT" = "1" ] && break
-              sleep 5
-            done
-            test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1"
-            adb install -r build-x86/NAVO_SMART-x86.apk
-            adb logcat -c
-            adb shell am force-stop org.mavlink.qgroundcontrol || true
-            adb shell am start -W -n org.mavlink.qgroundcontrol/org.mavlink.qgroundcontrol.QGCActivity
-            PID=""
-            for i in $(seq 1 30); do
-              PID="$(adb shell pidof org.mavlink.qgroundcontrol 2>/dev/null | tr -d '\r' || true)"
-              [ -n "$PID" ] && break
+        shell: bash
+        env:
+          ANDROID_AVD_HOME: ${{ runner.temp }}/android-avd
+        run: |
+          set -euo pipefail
+          mkdir -p build/screenshots "$ANDROID_AVD_HOME"
+          sudo chmod 666 /dev/kvm || true
+
+          sdkmanager "emulator" "system-images;android-34;default;x86_64"
+
+          # Create the AVD in an explicit directory. Previous runs could create it
+          # outside the directory searched by the emulator, producing
+          # "Unknown AVD name [navo-smoke]".
+          rm -rf "$ANDROID_AVD_HOME/navo-smoke.avd" "$ANDROID_AVD_HOME/navo-smoke.ini"
+          printf 'no\n' | avdmanager create avd --force \
+            --name navo-smoke \
+            --package "system-images;android-34;default;x86_64" \
+            --device "pixel_6"
+
+          echo "Available AVDs:"
+          "$ANDROID_HOME/emulator/emulator" -list-avds
+          test -f "$ANDROID_AVD_HOME/navo-smoke.ini"
+          test -d "$ANDROID_AVD_HOME/navo-smoke.avd"
+
+          "$ANDROID_HOME/emulator/emulator" @navo-smoke \
+            -port 5554 \
+            -no-window \
+            -gpu swiftshader_indirect \
+            -noaudio \
+            -no-boot-anim \
+            -no-snapshot \
+            -no-snapshot-save \
+            -camera-back none \
+            > build/emulator.log 2>&1 &
+          EMULATOR_PID=$!
+
+          cleanup() {
+            adb -s emulator-5554 emu kill >/dev/null 2>&1 || true
+            kill "$EMULATOR_PID" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          adb kill-server >/dev/null 2>&1 || true
+          adb start-server
+
+          # sys.boot_completed is the stable readiness signal. Do not make the
+          # flaky Android input service a prerequisite for the whole build.
+          if ! timeout 600 bash -c '
+            until adb -s emulator-5554 get-state 2>/dev/null | grep -q "^device$" &&
+                  [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = "1" ]; do
               sleep 2
             done
-            adb shell dumpsys window windows > build/window.txt || true
-            adb logcat -d > build/navo-logcat.txt || true
-            adb exec-out screencap -p > build/navo-screenshot.png || true
-            printf '%s\n' "$PID" | tee build/navo-pid.txt
-            test -n "$PID"
+          '; then
+            echo "Emulator boot timed out"
+            adb devices -l || true
+            tail -n 160 build/emulator.log || true
+            exit 1
+          fi
+
+          adb -s emulator-5554 wait-for-device
+          sleep 5
+
+          adb -s emulator-5554 shell input keyevent 82 || true
+          adb -s emulator-5554 shell settings put global window_animation_scale 0.0 || true
+          adb -s emulator-5554 shell settings put global transition_animation_scale 0.0 || true
+          adb -s emulator-5554 shell settings put global animator_duration_scale 0.0 || true
+
+          adb -s emulator-5554 install --no-streaming -r build-x86/NAVO_SMART-x86.apk
+
+          AAPT2="$ANDROID_HOME/build-tools/35.0.0/aapt2"
+          test -x "$AAPT2"
+          PACKAGE="$("$AAPT2" dump badging build-x86/NAVO_SMART-x86.apk | sed -n "s/package: name='\([^']*\)'.*/\1/p" | head -n1)"
+          ACTIVITY="$("$AAPT2" dump badging build-x86/NAVO_SMART-x86.apk | sed -n "s/launchable-activity: name='\([^']*\)'.*/\1/p" | head -n1)"
+          test -n "$PACKAGE"
+          test -n "$ACTIVITY"
+
+          "$AAPT2" dump badging build-x86/NAVO_SMART-x86.apk | grep -m1 '^package:'
+          "$AAPT2" dump badging build-x86/NAVO_SMART-x86.apk | grep -m1 '^launchable-activity:'
+
+          adb -s emulator-5554 logcat -c
+          adb -s emulator-5554 shell settings put system accelerometer_rotation 0 || true
+          adb -s emulator-5554 shell settings put system user_rotation 1 || true
+          adb -s emulator-5554 shell input keyevent KEYCODE_WAKEUP || true
+          adb -s emulator-5554 shell wm dismiss-keyguard || true
+          adb -s emulator-5554 shell am start -W -n "$PACKAGE/$ACTIVITY"
+
+          sleep 5
+          adb -s emulator-5554 exec-out screencap -p > build/screenshots/dashboard-05s.png || true
+          sleep 10
+          adb -s emulator-5554 exec-out screencap -p > build/screenshots/dashboard-15s.png || true
+          sleep 15
+          adb -s emulator-5554 exec-out screencap -p > build/screenshots/dashboard-30s.png || true
+          cp build/screenshots/dashboard-30s.png build/navo-screenshot.png 2>/dev/null || true
+
+          adb -s emulator-5554 shell dumpsys window windows > build/window.txt || true
+          adb -s emulator-5554 shell dumpsys activity activities > build/activity.txt || true
+          adb -s emulator-5554 logcat -d > build/navo-logcat.txt || true
+          adb -s emulator-5554 shell pidof "$PACKAGE" | tee build/navo-pid.txt
+          test -s build/navo-pid.txt
       - name: Upload Android smoke-test evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: NAVO-SMART-ANDROID-SMOKE-TEST
           path: |
+            build/emulator.log
             build/navo-pid.txt
             build/window.txt
+            build/activity.txt
             build/navo-logcat.txt
             build/navo-screenshot.png
+            build/screenshots/*.png
           if-no-files-found: warn
       - name: Upload installable APK
-        if: success()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: NAVO-SMART-INSTALLABLE-APK

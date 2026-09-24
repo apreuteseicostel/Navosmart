@@ -11,8 +11,16 @@ qt_add_qml_module(NavoSmartModule
     URI NavoSmart
     VERSION 1.0
     RESOURCE_PREFIX /qml
+    IMPORTS
+        QGroundControl
+        QGroundControl.Controllers
+        QGroundControl.Controls
+        QGroundControl.FlightDisplay
+        QGroundControl.FlightMap
+        QtQuick3D
     QML_FILES
         qml/NavoDashboard.qml
+        qml/NavoMap.qml
         qml/NavoTelemetryCard.qml
         qml/NavoModeButton.qml
         qml/NavoWaypointEditor.qml
@@ -32,6 +40,25 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoAreaScan.qml
         qml/NavoSonarRecorder.qml
         qml/NavoSonarMapping.qml
+        qml/NavoLakePersistence.qml
+        qml/NavoMyLakes.qml
+        qml/NavoSonarEthernet.qml
+        qml/NavoCameraEthernet.qml
+        qml/NavoEthernetSettings.qml
+        qml/NavoEthernetIndicator.qml
+        qml/NavoVideoPlayer.qml
+        qml/NavoCameraFullScreen.qml
+        qml/NavoBathymetryModel.qml
+        qml/NavoBathymetry3D.qml
+        qml/NavoScanCoordinator.qml
+        qml/NavoFishingSpots.qml
+        qml/NavoBathymetryOverlay.qml
+        qml/NavoAreaScanOverlay.qml
+        qml/NavoAreaDrawOverlay.qml
+        qml/NavoMissionUploader.qml
+        qml/NavoFishDetections.qml
+        qml/NavoFishOverlay.qml
+        qml/NavoFishDetector.qml
         qml/NavoEnergyGuard.qml
         qml/NavoActionSequence.qml
         qml/NavoSafetyManager.qml
@@ -44,7 +71,30 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerTcpClient.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerTcpClient.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoMissionBridge.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoMissionBridge.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoPersistence.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoPersistence.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoNanoTelemetry.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoNanoTelemetry.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoBathymetryMesh.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoBathymetryMesh.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoBathymetryGeometry.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoBathymetryGeometry.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoTrack3DGeometry.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoTrack3DGeometry.h
     CACHE INTERNAL "" FORCE
 )
-set(CUSTOM_LIBRARIES NavoSmartModule CACHE INTERNAL "" FORCE)
+# Link both the QML module target and its generated resource target into the
+# final QGC executable. Static-library linking alone can discard the raw QML
+# resource object because no C++ symbol references it.
+set(CUSTOM_LIBRARIES
+    NavoSmartModule
+    NavoSmartModule_resources_1
+    CACHE INTERNAL "" FORCE
+)
 set(CUSTOM_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/src CACHE INTERNAL "" FORCE)

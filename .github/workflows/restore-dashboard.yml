@@ -1,0 +1,45 @@
+name: Restore NAVO dashboard
+
+on:
+  push:
+    branches:
+      - feature/unified-navosmart-integration
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    if: github.event.head_commit.message == 'Restore dashboard and apply MyLakes API fix'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore known-good dashboard and apply minimal API fix
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout 7f8b5031717d1a884a3c018961439f448d0fe50f -- custom/qml/NavoDashboard.qml
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('custom/qml/NavoDashboard.qml')
+          s = p.read_text()
+          s = s.replace('        sonarMapping: scanSonarMapping\n        areaScanPlanner: areaScan\n', '        scanCoordinator: scanCoordinator\n')
+          start = s.find('        onContinueMapping: function(lakeId) {')
+          if start != -1:
+              end = s.find('        }\n', start)
+              if end == -1:
+                  raise SystemExit('Could not find onContinueMapping block end')
+              s = s[:start] + s[end+10:]
+          if 'onContinueMapping:' in s or 'sonarMapping: scanSonarMapping' in s or 'areaScanPlanner: areaScan' in s:
+              raise SystemExit('Obsolete NavoMyLakes API remains')
+          if 'scanCoordinator: scanCoordinator' not in s:
+              raise SystemExit('scanCoordinator binding missing')
+          p.write_text(s)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add custom/qml/NavoDashboard.qml
+          git commit -m 'Fix NavoMyLakes dashboard API mismatch'
+          git push
