@@ -38,7 +38,8 @@ void NavoKoggerDecoder::process(){
   else if(id==0x05&&version==0&&payload>=2){qint16 raw=qFromLittleEndian<qint16>(reinterpret_cast<const uchar*>(p));_waterTempC=double(raw)*0.01;emit temperatureChanged();}
   else if(id==0x03&&(version==0||version==1)&&payload>=6){
    quint16 seq=le16(p),res=le16(p+2),off=le16(p+4);QByteArray part(p+6,payload-6);
-   if(res==0||res>MaxChartBytes||off>MaxChartBytes){_chart.clear();emit frameRejected();continue;}\n   if(int(off)+int(res)>MaxChartBytes){_chart.clear();emit frameRejected();continue;}
+   if(res==0){_chart.clear();emit frameRejected();continue;}
+   if(int(off)+int(res)>MaxChartBytes){_chart.clear();emit frameRejected();continue;}
    if(seq==0||res!=_chartResolution||off!=_chartAbsoluteOffset){if(!_chart.isEmpty()){QVariantList out;int step=version==1?2:1;for(int i=0;i<_chart.size();i+=step)out.append(double(quint8(_chart[i]))/255.0);_echoSamples=out;emit echoSamplesChanged();}_chart.clear();_chartResolution=res;_chartAbsoluteOffset=off;}
    if(int(seq)+part.size()>int(res)||int(off)+int(seq)+part.size()>MaxChartBytes){_chart.clear();emit frameRejected();continue;}
    if(seq==_chart.size()) { _chart.append(part); }
