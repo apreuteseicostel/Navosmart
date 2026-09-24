@@ -28,6 +28,8 @@ private:
  bool validFrame(const QByteArray& frame) const;
  static quint16 le16(const char* p);
  static quint32 le32(const char* p);
+ static constexpr int MaxBufferBytes=256*1024;
+ static constexpr int MaxChartBytes=128*1024;
  QByteArray _buffer;
  QByteArray _chart;
  quint16 _chartResolution=0;

@@ -18,6 +18,7 @@ Item {
     property real savedWaterTempC: NaN
     property string waypointNote: ""
 
+    signal waypointSelected(var waypoint)
     signal editRequested(var waypoint)
     signal deleteRequested(var waypoint)
     signal navigationCommandSent(var waypoint, bool accepted)
@@ -33,13 +34,16 @@ Item {
     function selectWaypoint(wp) {
         selectedWaypoint = wp
         selectedScreenPoint = map.fromCoordinate(wp.coordinate, false)
+        waypointSelected(wp)
     }
 
-    MapItemView {
+    Repeater {
         model: root.missionController ? root.missionController.visualItems : null
         delegate: MapQuickItem {
             id: marker
             required property var object
+            Component.onCompleted: { parent = root.map; root.map.addMapItem(this) }
+            Component.onDestruction: root.map.removeMapItem(this)
             coordinate: object.coordinate
             visible: object && object.coordinate && object.coordinate.isValid && object.sequenceNumber > 0
             z: QGroundControl.zOrderTopMost

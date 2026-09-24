@@ -1,5 +1,7 @@
 import QtQuick
 import QtPositioning
+import QtLocation
+import QtQuick.Controls
 
 import QGroundControl
 import QGroundControl.Controllers
@@ -10,9 +12,35 @@ Item {
 
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
     property var waypointNames: ({})
+    property var fishModel
+    property var fishingSpotsModel
+    property var bathymetryCells: []
+    property var baitingController
+    property var areaScanController
+    property real savedDepthM: NaN
+    property real savedWaterTempC: NaN
 
     signal navigateRequested(var coordinate)
     signal savePointRequested(var coordinate)
+    signal areaRectangleRequested(var cornerA, var cornerB)
+    signal areaPolygonRequested(var polygon)
+    signal baitingWaypointSelected(var waypoint)
+
+    property string areaDrawMode: "none"
+    property var areaDraftPoints: []
+
+    function beginAreaRectangle() { areaDraftPoints=[]; areaDrawMode="rectangle" }
+    function beginAreaPolygon() { areaDraftPoints=[]; areaDrawMode="polygon" }
+    function cancelAreaDrawing() { areaDraftPoints=[]; areaDrawMode="none" }
+    function finishAreaDrawing() {
+        if(areaDrawMode==="rectangle" && areaDraftPoints.length===2)
+            areaRectangleRequested(areaDraftPoints[0],areaDraftPoints[1])
+        else if(areaDrawMode==="polygon" && areaDraftPoints.length>=3)
+            areaPolygonRequested(areaDraftPoints.slice(0))
+        else return false
+        areaDrawMode="none"
+        return true
+    }
 
     PlanMasterController {
         id: planController
@@ -42,6 +70,103 @@ Item {
             readonly property real bottomEdgeLeftInset: 0
             readonly property real bottomEdgeCenterInset: 0
             readonly property real bottomEdgeRightInset: 0
+        }
+    }
+
+    NavoActualTrack { id: actualTrack; map: liveMap; vehicle: root.vehicle; taskActive: !!root.vehicle }
+    NavoAreaScanOverlay { map: liveMap; areaScan: root.areaScanController }
+    NavoFishOverlay { map: liveMap; fishModel: root.fishModel }
+    NavoBathymetryOverlay { map: liveMap; bathymetryCells: root.bathymetryCells; fishingSpotsModel: root.fishingSpotsModel }
+
+    NavoWaypointMapOverlay {
+        map: liveMap
+        missionController: planController.missionController
+        vehicle: root.vehicle
+        waypointNames: root.waypointNames
+        savedDepthM: root.savedDepthM
+        savedWaterTempC: root.savedWaterTempC
+        onNavigationCommandSent: function(wp, accepted) {
+            if (accepted && root.baitingController) root.baitingController.targetWaypoint = wp
+        }
+        onWaypointSelected: function(wp) {
+            if(root.baitingController) root.baitingController.targetWaypoint=wp
+            root.baitingWaypointSelected(wp)
+        }
+        onEditRequested: function(wp) {
+            // Editing remains a distinct action; selection is used by automatic baiting.
+        }
+    }
+
+    Repeater {
+        model: root.areaDraftPoints
+        delegate: MapQuickItem {
+            required property var modelData
+            Component.onCompleted: { parent = liveMap; liveMap.addMapItem(this) }
+            Component.onDestruction: liveMap.removeMapItem(this)
+            coordinate: modelData
+            anchorPoint.x: 6; anchorPoint.y: 6
+            sourceItem: Rectangle { width: 12; height: 12; radius: 6; color: "#26c6da"; border.color: "white" }
+        }
+    }
+    MouseArea {
+        anchors.fill: parent
+        enabled: root.areaDrawMode !== "none"
+        onClicked: function(mouse) {
+            var c=liveMap.toCoordinate(Qt.point(mouse.x,mouse.y),false)
+            if(!c || !c.isValid)return
+            var pts=root.areaDraftPoints.slice(0)
+            if(root.areaDrawMode==="rectangle") {
+                if(pts.length>=2)pts=[]
+                pts.push(c)
+                root.areaDraftPoints=pts
+                if(pts.length===2)root.finishAreaDrawing()
+            } else {
+                pts.push(c);root.areaDraftPoints=pts
+            }
+        }
+    }
+    Row {
+        anchors.left: parent.left; anchors.bottom: parent.bottom; anchors.margins: 10; spacing: 6
+        visible: root.areaDrawMode!=="none"
+        Button { text: root.areaDrawMode==="rectangle" ? "DREPTUNGHI: "+root.areaDraftPoints.length+"/2 COLȚURI" : "POLIGON: "+root.areaDraftPoints.length+" PUNCTE"; enabled:false }
+        Button { visible: root.areaDrawMode==="polygon"; text:"TERMINĂ"; enabled:root.areaDraftPoints.length>=3; onClicked:root.finishAreaDrawing() }
+        Button { text:"ANULEAZĂ"; onClicked:root.cancelAreaDrawing() }
+    }
+    Column {
+        anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 10
+        spacing: 5
+        Button { text: "+"; width: 55; onClicked: liveMap.zoomLevel = liveMap.zoomLevel + 1 }
+        Button { text: "−"; width: 55; onClicked: liveMap.zoomLevel = liveMap.zoomLevel - 1 }
+        Button {
+            text: "BARCĂ"
+            enabled: !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
+            onClicked: liveMap.center = root.vehicle.coordinate
+        }
+        Button {
+            text: "ACASĂ"
+            enabled: !!root.vehicle && !!root.vehicle.homePosition && root.vehicle.homePosition.isValid
+            onClicked: liveMap.center = root.vehicle.homePosition
+        }
+        Button {
+            text: "SALVEAZĂ PUNCT"
+            enabled: !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
+            onClicked: root.savePointRequested(root.vehicle.coordinate)
+        }
+    }
+    Rectangle {
+        anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 10
+        width: Math.max(110, Math.min(parent.width - 180, mapHint.implicitWidth + 20))
+        height: mapHint.implicitHeight + 14; radius: 7; color: "#d9101c29"
+        Label {
+            id: mapHint; anchors.centerIn: parent
+            text: root.areaDrawMode === "rectangle" ? "Atinge două colțuri pe hartă" :
+                  root.areaDrawMode === "polygon" ? "Atinge punctele, apoi TERMINĂ" :
+                  (root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ?
+                   "Traseu: " + actualTrack.trackCoordinates.length + " poziții • " +
+                   (root.areaScanController ? root.areaScanController.laneCount() : 0) + " culoare scanate" :
+                   "Harta este disponibilă • aștept poziția bărcii")
+            color: "white"; font.pixelSize: 12; elide: Text.ElideRight
+            width: parent.width - 16
         }
     }
 

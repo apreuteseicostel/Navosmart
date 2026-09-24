@@ -22,6 +22,7 @@ Rectangle {
             Label { text: "KOGGER BASIC 2D+"; color: "white"; font.bold: true }
             Item { Layout.fillWidth: true }
             Label { text: root.connected ? "● LIVE" : "● OFFLINE"; color: root.connected ? "#31d67b" : "#9db2c5" }
+            Button { text: "⛶"; Accessible.name: "Mărește sonarul"; onClicked: root.openFullSonar() }
         }
         RowLayout {
             Layout.fillWidth: true
@@ -47,6 +48,5 @@ Rectangle {
             }
             Connections { target: root; function onEchoSamplesChanged(){ echogram.requestPaint() } }
         }
-        Button { Layout.alignment: Qt.AlignRight; text: "SONAR COMPLET"; onClicked: root.openFullSonar() }
     }
 }

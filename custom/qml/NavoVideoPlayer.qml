@@ -13,6 +13,7 @@ Item {
             ? (playing ? "LIVE" : (streamUrl.length ? "READY" : "NO URL"))
             : player.errorString)
     property bool autoReconnect: true
+    property bool desiredPlaying: false
     property int reconnectMs: 3000
 
     signal videoError(string message)
@@ -27,6 +28,7 @@ Item {
     }
 
     function start() {
+        desiredPlaying = true
         var u = normalizedUrl()
         if (!u.length)
             return
@@ -35,12 +37,13 @@ Item {
     }
 
     function stop() {
+        desiredPlaying = false
         retryTimer.stop()
         player.stop()
     }
 
     function scheduleReconnect() {
-        if (autoReconnect && streamUrl.length && !retryTimer.running)
+        if (desiredPlaying && autoReconnect && streamUrl.length && !retryTimer.running)
             retryTimer.start()
     }
 
@@ -67,7 +70,7 @@ Item {
         }
 
         onPlaybackStateChanged: {
-            if (playbackState === MediaPlayer.StoppedState && root.streamUrl.length)
+            if (playbackState === MediaPlayer.StoppedState && root.desiredPlaying && root.streamUrl.length)
                 root.scheduleReconnect()
         }
     }

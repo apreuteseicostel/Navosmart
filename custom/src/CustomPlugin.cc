@@ -2,6 +2,7 @@
 #include "NavoKoggerDecoder.h"
 #include "NavoKoggerTcpClient.h"
 #include "NavoPersistence.h"
+#include "NavoMissionBridge.h"
 #include "NavoEthernetTransport.h"
 #include "NavoNanoTelemetry.h"
 #include "NavoBathymetryMesh.h"
@@ -20,6 +21,7 @@ CustomPlugin::CustomPlugin(QObject* parent):QGCCorePlugin(parent),_options(new C
  qmlRegisterType<NavoKoggerDecoder>("NavoSmart.Backend",1,0,"NavoKoggerDecoder");
  qmlRegisterType<NavoKoggerTcpClient>("NavoSmart.Backend",1,0,"NavoKoggerTcpClient");
  qmlRegisterType<NavoPersistence>("NavoSmart.Backend",1,0,"NavoPersistence");
+ qmlRegisterType<NavoMissionBridge>("NavoSmart.Backend",1,0,"NavoMissionBridge");
  qmlRegisterType<NavoEthernetTransport>("NavoSmart.Backend",1,0,"NavoEthernetTransport");
  qmlRegisterType<NavoNanoTelemetry>("NavoSmart.Backend",1,0,"NavoNanoTelemetry");
  qmlRegisterType<NavoBathymetryMesh>("NavoSmart.Backend",1,0,"NavoBathymetryMesh");

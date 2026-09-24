@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import QtQuick3D
 import QtPositioning
 import NavoSmart.Backend 1.0
@@ -8,20 +9,30 @@ Item {
  property var samples:[]; property var boatTrack:[]; property var waypoints:[]; property var fishingSpots:[]; property var fishDetections:[]
  property real gridSizeM:2; property real maxGapM:6; property real verticalExaggeration:2; property real yaw:-35; property real pitch:-48; property real cameraDistance:180; property point panOffset:Qt.point(0,0)
  property var selectedPoint:null; property var selectedObject:null; property string selectedKind:""
+ signal openSonarRequested()
  property bool showTrack:true; property bool showWaypoints:true; property bool showSpots:true; property bool showFish:true; property int maxTrackPoints3D:1200; property int maxFish3D:500
  readonly property int lodLevel: cameraDistance>500?3:cameraDistance>250?2:cameraDistance>110?1:0
  readonly property int adaptiveTrackLimit: lodLevel===3?180:lodLevel===2?350:lodLevel===1?700:maxTrackPoints3D
  readonly property int adaptiveFishLimit: lodLevel===3?60:lodLevel===2?140:lodLevel===1?280:maxFish3D
  property string meshCachePath:""
  property int cachedSampleCount:0
- function rebuild(){meshEngine.build(samples,gridSizeM,maxGapM,lodLevel);cachedSampleCount=samples.length;if(meshCachePath.length)meshEngine.saveCache(meshCachePath)}
+ property string cachedSampleSignature:""
+ function sampleSignature(){
+  if(!samples||!samples.length)return "0"
+  var h=2166136261
+  function mix(v){var s=String(v);for(var j=0;j<s.length;j++){h^=s.charCodeAt(j);h=Math.imul(h,16777619)}}
+  mix(samples.length);mix(gridSizeM);mix(maxGapM);mix(lodLevel)
+  for(var i=0;i<samples.length;i++){var s=samples[i];mix(s.lat);mix(s.lon);mix(s.depth);mix(s.time===undefined?s.timestamp:s.time);mix(s.confidence)}
+  return String(h>>>0)
+ }
+ function rebuild(){meshEngine.build(samples,gridSizeM,maxGapM,lodLevel);cachedSampleCount=samples.length;cachedSampleSignature=sampleSignature();if(meshCachePath.length)meshEngine.saveCache(meshCachePath)}
  function loadCached(){return meshCachePath.length?meshEngine.loadCache(meshCachePath):false}
- function refreshForSamples(){if(samples.length!==cachedSampleCount)rebuild()}
+ function refreshForSamples(){var sig=sampleSignature();if(sig!==cachedSampleSignature)rebuild()}
  function resetCamera(){yaw=-35;pitch=-48;cameraDistance=180;panOffset=Qt.point(0,0)} function topCamera(){yaw=0;pitch=-89;cameraDistance=180} function isoCamera(){yaw=-45;pitch=-42;cameraDistance=180}
  function localPoint(lat,lon,depth){var R=6378137,lat0=meshEngine.originLatitude*Math.PI/180,x=(lon-meshEngine.originLongitude)*Math.PI/180*Math.cos(lat0)*R,z=-(lat-meshEngine.originLatitude)*Math.PI/180*R,y=-(depth||0)*verticalExaggeration;return Qt.vector3d(x,y,z)}
  function bottomDepth(lat,lon){var best=null,bd=1e99,p=localPoint(lat,lon,0);for(var i=0;i<meshEngine.vertices.length;i++){var v=meshEngine.vertices[i],d=(v.x-p.x)*(v.x-p.x)+((-v.y)-p.z)*((-v.y)-p.z);if(d<bd){bd=d;best=v}}return best?best.depth:0}
  function decimate(a,max){if(!a||a.length<=max)return a||[];var out=[],step=(a.length-1)/(max-1);for(var i=0;i<max;i++)out.push(a[Math.round(i*step)]);return out}
- function trackLocal(){var a=decimate(boatTrack,adaptiveTrackLimit),o=[];for(var i=0;i<a.length;i++){var p=a[i],v=localPoint(p.latitude!==undefined?p.latitude:p.lat,p.longitude!==undefined?p.longitude:p.lon,0);o.push({x:v.x,y:v.y+.15,z:v.z})}return o}
+ function trackLocal(){var a=boatTrack||[],o=[];for(var i=0;i<a.length;i++){var p=a[i],v=localPoint(p.latitude!==undefined?p.latitude:p.lat,p.longitude!==undefined?p.longitude:p.lon,0);o.push({x:v.x,y:v.y+.15,z:v.z})}return o}
  function labelPoint(o,kind){if(kind==="waypoint")return localPoint(o.lat!==undefined?o.lat:o.coordinate.latitude,o.lon!==undefined?o.lon:o.coordinate.longitude,Math.max(0,bottomDepth(o.lat!==undefined?o.lat:o.coordinate.latitude,o.lon!==undefined?o.lon:o.coordinate.longitude)-.7));return localPoint(o.lat,o.lon,Math.max(0,(o.depth!==null&&o.depth!==undefined?o.depth:bottomDepth(o.lat,o.lon))-.8))}
  function select(kind,obj){selectedKind=kind;selectedObject=obj;selectedPoint=null}
  function fmtTime(v){if(!v)return "--";return new Date(v).toLocaleString(Qt.locale(),"dd MMM yyyy HH:mm:ss")}
@@ -40,8 +51,22 @@ Item {
  }
  TapHandler{onTapped:function(e){var p=view.pick(e.position.x,e.position.y);if(!p.objectHit){selectedObject=null;selectedPoint=null;return}if(p.objectHit.kind){root.select(p.objectHit.kind,p.objectHit.modelData);return}if(p.objectHit===terrain){var best=null,bd=1e99;for(var i=0;i<meshEngine.vertices.length;i++){var v=meshEngine.vertices[i],dx=v.x-p.scenePosition.x,dz=(-v.y)-p.scenePosition.z,d=dx*dx+dz*dz;if(d<bd){bd=d;best=v}}selectedPoint=best;selectedObject=null;selectedKind="bottom"}}}
  DragHandler{target:null;acceptedButtons:Qt.LeftButton;onTranslationChanged:{root.yaw+=translation.x*.18;root.pitch=Math.max(-82,Math.min(-8,root.pitch-translation.y*.14))}} PinchHandler{target:null;onScaleChanged:root.cameraDistance=Math.max(12,Math.min(1800,root.cameraDistance/scale))} WheelHandler{onWheel:root.cameraDistance=Math.max(12,Math.min(1800,root.cameraDistance*(wheel.angleDelta.y > 0 ? 0.9 : 1.1)))}
- Row{anchors{top:parent.top;left:parent.left;margins:12}spacing:5;Button{text:"Top";onClicked:root.topCamera()}Button{text:"ISO";onClicked:root.isoCamera()}Button{text:"Reset";onClicked:root.resetCamera()}Button{text:"1×";onClicked:root.verticalExaggeration=1}Button{text:"2×";onClicked:root.verticalExaggeration=2}Button{text:"3×";onClicked:root.verticalExaggeration=3}Button{text:"5×";onClicked:root.verticalExaggeration=5}}
- Row{anchors{top:parent.top;right:parent.right;margins:12}spacing:4;CheckBox{text:"Traseu";checked:root.showTrack;onToggled:root.showTrack=checked}CheckBox{text:"WP";checked:root.showWaypoints;onToggled:root.showWaypoints=checked}CheckBox{text:"Locuri";checked:root.showSpots;onToggled:root.showSpots=checked}CheckBox{text:"Pești";checked:root.showFish;onToggled:root.showFish=checked}}
+ ColumnLayout{anchors{top:parent.top;left:parent.left;right:parent.right;margins:12}spacing:2
+  Flow{Layout.fillWidth:true;spacing:5
+   Button{text:"Top";onClicked:root.topCamera()}Button{text:"ISO";onClicked:root.isoCamera()}Button{text:"Reset";onClicked:root.resetCamera()}
+   Button{text:"1×";onClicked:root.verticalExaggeration=1}Button{text:"2×";onClicked:root.verticalExaggeration=2}Button{text:"3×";onClicked:root.verticalExaggeration=3}Button{text:"5×";onClicked:root.verticalExaggeration=5}
+  }
+  Flow{Layout.fillWidth:true;spacing:4
+   CheckBox{text:"Traseu";checked:root.showTrack;onToggled:root.showTrack=checked}CheckBox{text:"WP";checked:root.showWaypoints;onToggled:root.showWaypoints=checked}CheckBox{text:"Locuri";checked:root.showSpots;onToggled:root.showSpots=checked}CheckBox{text:"Pești";checked:root.showFish;onToggled:root.showFish=checked}
+  }
+ }
+ Rectangle{visible:!root.samples||root.samples.length===0;anchors.centerIn:parent;width:Math.min(parent.width-24,430);height:empty3d.implicitHeight+32;radius:10;color:"#102232";border.color:"#315b75"
+  ColumnLayout{id:empty3d;anchors.centerIn:parent;width:parent.width-24;spacing:8
+   Label{Layout.fillWidth:true;text:"Nu există încă măsurători 3D";color:"white";font.bold:true;horizontalAlignment:Text.AlignHCenter}
+   Label{Layout.fillWidth:true;text:"Conectează Kogger și salvează probe sonar cu poziție GPS pentru a construi fundul bălții.";color:"#9db2c5";wrapMode:Text.WordWrap;horizontalAlignment:Text.AlignHCenter}
+   Button{Layout.alignment:Qt.AlignHCenter;text:"DESCHIDE SONAR";onClicked:root.openSonarRequested()}
+  }
+ }
  Rectangle{visible:root.selectedObject!==null||root.selectedPoint!==null;anchors{left:parent.left;bottom:parent.bottom;margins:12}width:310;height:details.implicitHeight+24;radius:8;color:"#d9101c29";border.color:"#45677e"
   Column{id:details;anchors{left:parent.left;right:parent.right;top:parent.top;margins:12}spacing:4
    Text{color:"white";font.bold:true;text:selectedKind==="waypoint"?"Waypoint: "+(selectedObject?(selectedObject.name||selectedObject.friendlyName||"WP"):""):selectedKind==="spot"?"Loc pescuit: "+(selectedObject?(selectedObject.name||""):""):selectedKind==="fish"?"Detecție pește":"Fund lac"}
@@ -53,7 +78,8 @@ Item {
   }}
  Column{anchors{right:parent.right;bottom:parent.bottom;margins:12}spacing:5;Rectangle{width:180;height:18;gradient:Gradient{orientation:Gradient.Horizontal;GradientStop{position:0;color:"#0db8c7"}GradientStop{position:.5;color:"#0a3d9e"}GradientStop{position:1;color:"#330a61"}}}Text{color:"white";text:Number(meshEngine.minDepthM).toFixed(1)+" m                         "+Number(meshEngine.maxDepthM).toFixed(1)+" m"}Text{color:"white";text:meshEngine.measuredVertexCount+" măsurate • "+meshEngine.interpolatedVertexCount+" interpolate • LOD "+root.lodLevel}}
  Timer{id:lodDebounce;interval:220;repeat:false;onTriggered:if(samples.length)root.rebuild()}
+ Timer{id:sampleDebounce;interval:650;repeat:false;onTriggered:if(samples.length)root.refreshForSamples()}
  onLodLevelChanged:if(samples.length)lodDebounce.restart()
- Component.onCompleted:{if(!loadCached()&&samples.length)rebuild();else cachedSampleCount=samples.length}
- onSamplesChanged:if(samples.length)refreshForSamples()
+ Component.onCompleted:{if(!loadCached()&&samples.length)rebuild();else{cachedSampleCount=samples.length;cachedSampleSignature=sampleSignature()}}
+ onSamplesChanged:if(samples.length)sampleDebounce.restart()
 }

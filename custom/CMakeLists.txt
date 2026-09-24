@@ -73,6 +73,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerTcpClient.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerTcpClient.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoMissionBridge.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoMissionBridge.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoPersistence.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoPersistence.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.cc

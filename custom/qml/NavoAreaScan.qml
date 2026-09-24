@@ -57,16 +57,21 @@ QtObject {
     function markLaneCompleted(index) {
         if(index<0 || index>=laneCount() || completedLanes.indexOf(index)>=0) return
         var done=completedLanes.slice(0); done.push(index); completedLanes=done
-        activeLaneIndex=done.length<laneCount()?done.length:-1
+        var next=-1
+        for(var i=0;i<laneCount();i++) if(done.indexOf(i)<0){next=i;break}
+        activeLaneIndex=next
         progressChanged(done.length,laneCount())
     }
     function progressPercent(){ return laneCount()?Math.round(100*completedLanes.length/laneCount()):0 }
     function hold(reason,boatCoordinate){ paused=true; if(boatCoordinate&&boatCoordinate.isValid)lastBoatCoordinate=boatCoordinate; safetyActionRequested("HOLD",reason||"Pauza scanare") }
     function rtl(reason){ paused=true; safetyActionRequested("RTL",reason||"Intoarcere la lansare") }
     function resumeRoute(boatCoordinate){
-        var first=completedLanes.length, count=laneCount(); if(first>=count)return []
+        var count=laneCount(), first=-1
+        for(var n=0;n<count;n++) if(completedLanes.indexOf(n)<0){first=n;break}
+        if(first<0)return []
         var out=[], from=(boatCoordinate&&boatCoordinate.isValid)?boatCoordinate:lastBoatCoordinate
         for(var i=first;i<count;i++){
+            if(completedLanes.indexOf(i)>=0)continue
             var a=generatedPoints[i*2], b=generatedPoints[i*2+1]
             if(i===first && from&&from.isValid && from.distanceTo(b)<from.distanceTo(a)){out.push(b);out.push(a)}else{out.push(a);out.push(b)}
         }

@@ -12,10 +12,12 @@ Item {
     property color completedColor: "#31d67b"
     anchors.fill: parent
 
-    MapItemView {
+    Repeater {
         model: root.areaScan ? root.areaScan.laneCount() : 0
         delegate: MapPolyline {
             required property int index
+            Component.onCompleted: { parent = root.map; root.map.addMapItem(this) }
+            Component.onDestruction: root.map.removeMapItem(this)
             line.width: root.lineWidth
             line.color: root.areaScan && root.areaScan.completedLanes.indexOf(index)>=0
                         ? root.completedColor
@@ -25,9 +27,11 @@ Item {
         }
     }
 
-    MapItemView {
+    Repeater {
         model: root.areaScan && root.areaScan.activeLaneIndex>=0 ? 1 : 0
         delegate: MapQuickItem {
+            Component.onCompleted: { parent = root.map; root.map.addMapItem(this) }
+            Component.onDestruction: root.map.removeMapItem(this)
             coordinate: root.areaScan.generatedPoints[root.areaScan.activeLaneIndex*2]
             anchorPoint.x: badge.width/2; anchorPoint.y: badge.height/2
             sourceItem: Rectangle {
