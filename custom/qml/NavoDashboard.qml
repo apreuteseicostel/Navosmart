@@ -759,6 +759,15 @@ Item {
                             if (found) {
                                 inlineLakeName.clear()
                                 root.lakeSaveStatus="Salvată: "+name
+                                // Make the new lake the active session immediately so
+                                // subsequent sonar/spots/Area Scan checkpoints belong to it.
+                                for (var j=0;j<persistence.lakes.length;j++) {
+                                    if (persistence.lakes[j].id===id) {
+                                        myLakesPopup.selectLake(persistence.lakes[j])
+                                        break
+                                    }
+                                }
+                                scanCoordinator.checkpoint("lake-created")
                             } else root.lakeSaveStatus="Salvarea a eșuat • încearcă din nou"
                         }
                     }
