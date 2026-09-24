@@ -733,7 +733,7 @@ Item {
         Item {
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             ColumnLayout {
-                anchors.fill: parent; anchors.margins: 10; spacing: 6
+                anchors.fill: parent; anchors.margins: root.responsiveMargin; spacing: root.responsiveGap
                 RowLayout {
                     Layout.fillWidth: true
                     Label { text: areaScanController.progressPercent() + "%"; color: root.accent; font.bold: true }
@@ -777,7 +777,8 @@ Item {
                         }
                     }
                     Flow {
-                    Layout.preferredWidth: Math.max(190,Math.min(260,parent.width*0.24))
+                    Layout.preferredWidth: root.compactUi ? 190 : Math.min(260,parent.width*0.22)
+                    Layout.minimumWidth: 180; Layout.maximumWidth: 260
                     Layout.fillHeight: true
                     spacing: 6
                     Button {
@@ -960,8 +961,8 @@ Item {
         Item {
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             ColumnLayout {
-                anchors.fill: parent; anchors.margins: 16; spacing: 10
-                Label { text: "BALȚILE MELE"; color: root.text; font.pixelSize: 20; font.bold: true }
+                anchors.fill: parent; anchors.margins: root.compactUi ? 8 : 16; spacing: root.responsiveGap
+                Label { text: "BALȚILE MELE"; color: root.text; font.pixelSize: root.compactUi ? 16 : 20; font.bold: true }
                 Label {
                     Layout.fillWidth: true
                     text: persistence.lakes.length + " bălți salvate • sonar + puncte + Area Scan + Resume"
@@ -1092,7 +1093,8 @@ Item {
                     }
                 }
                 Rectangle {
-                    Layout.preferredWidth: Math.max(250,Math.min(350,parent.width*0.31))
+                    Layout.preferredWidth: root.compactUi ? 245 : Math.min(340,parent.width*0.27)
+                    Layout.minimumWidth: 230; Layout.maximumWidth: 340
                     Layout.fillHeight: true
                     radius: 8; color: root.panel; border.color: root.line
                     NavoBaitingPanel {
@@ -1128,10 +1130,10 @@ Item {
         Item {
             Rectangle { anchors.fill:parent; radius:8; color:root.panel; border.color:root.line }
             RowLayout {
-                anchors.fill:parent; anchors.margins:12; spacing:12
+                anchors.fill:parent; anchors.margins:root.responsiveMargin; spacing:root.responsiveGap
                 ColumnLayout {
                     Layout.fillWidth:true; Layout.fillHeight:true; Layout.preferredWidth:1
-                    Label { text:"SIGURANȚĂ & FAILSAFE"; color:root.text; font.pixelSize:18; font.bold:true }
+                    Label { text:"SIGURANȚĂ & FAILSAFE"; color:root.text; font.pixelSize:root.compactUi ? 15 : 18; font.bold:true }
                     NavoFailsafePanel {
                         Layout.fillWidth:true
                         Layout.alignment:Qt.AlignTop
@@ -1219,7 +1221,7 @@ Item {
         Item {
             Rectangle { anchors.fill: parent; radius: 8; color: "#05080c"; border.color: root.line }
             ColumnLayout {
-                anchors.fill: parent; anchors.margins: 12
+                anchors.fill: parent; anchors.margins: root.responsiveMargin
                 Label { text: "CAMERA FAȚĂ"; color: root.text; font.pixelSize: 18; font.bold: true }
                 NavoCameraPip {
                     Layout.fillWidth: true; Layout.fillHeight: true
@@ -1239,10 +1241,10 @@ Item {
         Item {
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             ColumnLayout {
-                anchors.fill: parent; anchors.margins: 12; spacing: 8
+                anchors.fill: parent; anchors.margins: root.responsiveMargin; spacing: root.responsiveGap
                 RowLayout {
                     Layout.fillWidth: true
-                    Label { text: "SETĂRI NAVO SMART"; color: root.text; font.pixelSize: 16; font.bold: true }
+                    Label { text: "SETĂRI NAVO SMART"; color: root.text; font.pixelSize: root.compactUi ? 14 : 16; font.bold: true }
                     Item { Layout.fillWidth: true }
                     Button {
                         text: "UNITĂȚI"
