@@ -604,27 +604,6 @@ Item {
                 savedWaterTempC: root.waterTempC
                 maximized: root.mapMaximized
                 onMaximizeRequested: root.mapMaximized = !root.mapMaximized
-            }
-            Column {
-                anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom
-                anchors.topMargin: 8; anchors.rightMargin: 8; anchors.bottomMargin: 8
-                width: 58; spacing: 5
-                component MiniStatus: Rectangle {
-                    property string title:""; property string value:""; property bool good:false
-                    width:58; height:52; radius:7; color:"#101822"; border.color:good?root.ok:root.line
-                    Column { anchors.centerIn:parent; spacing:0
-                        Label { anchors.horizontalCenter:parent.horizontalCenter; text:title; color:"#c9d4df"; font.pixelSize:8; font.bold:true }
-                        Label { anchors.horizontalCenter:parent.horizontalCenter; text:value; color:good?root.ok:"#f2f5f8"; font.pixelSize:9; font.bold:true }
-                    }
-                }
-                MiniStatus { title:"AP"; value:vehicle?"ON":"OFF"; good:!!vehicle }
-                MiniStatus { title:"LAN"; value:sonar.transport&&sonar.transport.connected?"ON":"OFF"; good:sonar.transport&&sonar.transport.connected }
-                MiniStatus { title:"SONAR"; value:root.sonarConnected?"ON":"OFF"; good:root.sonarConnected }
-                MiniStatus { title:"NANO"; value:nanoTelemetry.connected?"ON":"OFF"; good:nanoTelemetry.connected }
-                MiniStatus { title:"CAM"; value:root.cameraConnected?"ON":"OFF"; good:root.cameraConnected }
-                MiniStatus { title:"HOME"; value:Number(root.distanceToHome).toFixed(0)+"m"; good:!!vehicle }
-                MiniStatus { title:"ȚINTĂ"; value:root.distanceToTarget>0?Number(root.distanceToTarget).toFixed(0)+"m":"--"; good:root.distanceToTarget>0 }
-            }
                 onNavigateRequested: function(coordinate) { root.navigateToCoordinate(coordinate) }
                 onBaitingWaypointSelected: function(waypoint) {
                     root.lastNavigationStatus="Punct selectat: " + (waypoint.sequenceNumber !== undefined ? "WP" + waypoint.sequenceNumber : "waypoint") + " • poți deschide NĂDIRE când dorești"
@@ -656,6 +635,27 @@ Item {
                         root.lastNavigationStatus = "Punct salvat: " + spot.name
                     } else root.lastNavigationStatus = "Punct invalid: nu a fost salvat"
                 }
+            }
+            Column {
+                anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom
+                anchors.topMargin: 8; anchors.rightMargin: 8; anchors.bottomMargin: 8
+                width: 58; spacing: 5
+                component MiniStatus: Rectangle {
+                    property string title:""; property string value:""; property bool good:false
+                    width:58; height:52; radius:7; color:"#101822"; border.color:good?root.ok:root.line
+                    Column { anchors.centerIn:parent; spacing:0
+                        Label { anchors.horizontalCenter:parent.horizontalCenter; text:title; color:"#c9d4df"; font.pixelSize:8; font.bold:true }
+                        Label { anchors.horizontalCenter:parent.horizontalCenter; text:value; color:good?root.ok:"#f2f5f8"; font.pixelSize:9; font.bold:true }
+                    }
+                }
+                MiniStatus { title:"AP"; value:vehicle?"ON":"OFF"; good:!!vehicle }
+                MiniStatus { title:"LAN"; value:sonar.transport&&sonar.transport.connected?"ON":"OFF"; good:sonar.transport&&sonar.transport.connected }
+                MiniStatus { title:"SONAR"; value:root.sonarConnected?"ON":"OFF"; good:root.sonarConnected }
+                MiniStatus { title:"NANO"; value:nanoTelemetry.connected?"ON":"OFF"; good:nanoTelemetry.connected }
+                MiniStatus { title:"CAM"; value:root.cameraConnected?"ON":"OFF"; good:root.cameraConnected }
+                MiniStatus { title:"HOME"; value:Number(root.distanceToHome).toFixed(0)+"m"; good:!!vehicle }
+                MiniStatus { title:"ȚINTĂ"; value:root.distanceToTarget>0?Number(root.distanceToTarget).toFixed(0)+"m":"--"; good:root.distanceToTarget>0 }
+            }
             }
         }
     }
