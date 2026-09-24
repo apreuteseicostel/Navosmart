@@ -23,6 +23,7 @@ QtObject {
     property int lastCompletedLaneFromMission: -1
     property int lastCompletedRouteLaneFromMission: -1
     property var missionLanes: []
+    property int missionWaypointCount: 0
     signal status(string text)
     signal missionPrepared(var missionPoints)
 
@@ -37,7 +38,7 @@ QtObject {
         // When ArduPilot advances beyond the final Area Scan waypoint, the
         // last lane is complete as well. Some firmwares expose this as an
         // index equal to the number of mission waypoints.
-        if(index >= missionLanes.length*2 + 1) completedThrough=missionLanes.length-1
+        if(missionWaypointCount>0 && index >= missionWaypointCount + 1) completedThrough=missionLanes.length-1
         completedThrough=Math.min(completedThrough,missionLanes.length-1)
         for(var routeLane=lastCompletedRouteLaneFromMission+1;routeLane<=completedThrough;routeLane++) {
             var lane=missionLanes[routeLane]
@@ -75,6 +76,8 @@ QtObject {
             for (var lane=0;lane<areaScan.laneCount();lane++)
                 if (!resumeOnly || areaScan.completedLanes.indexOf(lane)<0) mapped.push(lane)
             missionLanes=mapped
+            missionWaypointCount=mission.length
+            missionCurrentIndex=-1
             lastCompletedRouteLaneFromMission=-1
             state=resumeOnly ? "RESUME_READY" : "READY"
             checkpoint("mission-prepared")
@@ -145,7 +148,7 @@ QtObject {
             missionCurrentIndex:missionCurrentIndex,
             lastCompletedLaneFromMission:lastCompletedLaneFromMission,
             lastCompletedRouteLaneFromMission:lastCompletedRouteLaneFromMission,
-            missionLanes:missionLanes
+            missionLanes:missionLanes, missionWaypointCount:missionWaypointCount
         }
         return persistence.saveLakeState(lakeId,payload)
     }
@@ -166,6 +169,7 @@ QtObject {
         lastCompletedLaneFromMission=(p.lastCompletedLaneFromMission===undefined?-1:Number(p.lastCompletedLaneFromMission))
         lastCompletedRouteLaneFromMission=(p.lastCompletedRouteLaneFromMission===undefined?-1:Number(p.lastCompletedRouteLaneFromMission))
         missionLanes=p.missionLanes||[]
+        missionWaypointCount=(p.missionWaypointCount===undefined ? missionLanes.length*2 : Number(p.missionWaypointCount))
         // Recompute the active lane from completedLanes. This avoids resuming
         // from a stale currentLane if the app was killed between checkpoints.
         if(state!=="COMPLETE") {
