@@ -16,7 +16,7 @@ QtObject {
             if (root.uploadInProgress) {
                 uploadTimeout.stop()
                 root.uploadInProgress = false
-                root.lastError = "Conexiunea H743 s-a schimbat în timpul upload-ului"
+                root.lastError = "Conexiunea autopilot s-a schimbat în timpul upload-ului"
                 root.uploadFinished(false, root.lastError)
             }
         }
@@ -25,14 +25,14 @@ QtObject {
             uploadTimeout.stop()
             root.uploadInProgress = false
             root.uploadVerified = success
-            if (!success && !root.lastError.length) root.lastError = "H743 a respins upload-ul misiunii"
-            root.status(success ? "H743 confirmă misiunea încărcată" : root.lastError)
-            root.uploadFinished(success, success ? "Upload H743 confirmat; apasă START încă o dată pentru pornire" : root.lastError)
+            if (!success && !root.lastError.length) root.lastError = "autopilot a respins upload-ul misiunii"
+            root.status(success ? "autopilot confirmă misiunea încărcată" : root.lastError)
+            root.uploadFinished(success, success ? "Upload autopilot confirmat; apasă START încă o dată pentru pornire" : root.lastError)
         }
         onMissionError: function(message) {
             if (root.uploadInProgress) {
                 root.lastError = message
-                root.status("Upload H743: " + message)
+                root.status("Upload autopilot: " + message)
             }
         }
     }
@@ -51,7 +51,7 @@ QtObject {
 
     function canUpload() {
         if(!planController || !planController.missionController){lastError="MissionController indisponibil";return false}
-        if(!vehicle){lastError="H743/vehicul neconectat";return false}
+        if(!vehicle){lastError="autopilot/vehicul neconectat";return false}
         if(planController.offline){lastError="QGC este offline";return false}
         if(planController.syncInProgress || planController.missionController.syncInProgress){lastError="Sincronizare misiune deja în curs";return false}
         return true
@@ -80,7 +80,7 @@ QtObject {
         if(!canUpload() || preparedCount<1){if(!lastError.length)lastError="Nu există misiune pregătită";status(lastError);return false}
         uploadInProgress=true;uploadVerified=false;lastError=""
         uploadTimeout.restart()
-        status("Încarc "+preparedCount+" waypoint-uri în H743…")
+        status("Încarc "+preparedCount+" waypoint-uri în autopilot…")
         // Use QGC's normal PlanMasterController upload path. It converts VisualMissionItems
         // to MissionItems and MissionManager writes them over MAVLink.
         planController.sendToVehicle()
@@ -94,7 +94,7 @@ QtObject {
             if(!root.uploadInProgress)return
             root.uploadInProgress=false
             root.uploadVerified=false
-            root.lastError="Timeout upload H743: nu am primit confirmarea QGroundControl"
+            root.lastError="Timeout upload autopilot: nu am primit confirmarea QGroundControl"
             root.status(root.lastError)
             root.uploadFinished(false,root.lastError)
         }
