@@ -40,7 +40,6 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoAreaScan.qml
         qml/NavoSonarRecorder.qml
         qml/NavoSonarMapping.qml
-        qml/NavoLakePersistence.qml
         qml/NavoMyLakes.qml
         qml/NavoSonarEthernet.qml
         qml/NavoCameraEthernet.qml
