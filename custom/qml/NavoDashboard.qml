@@ -821,7 +821,7 @@ Item {
             planController: root.planController
             vehicle: root.vehicle
             waypointNames: root.waypointNames
-            onWaypointNameChanged: function(sequence, friendlyName) { persistence.setWaypointName(sequence, friendlyName) }
+            onWaypointNameChanged: function(sequence, friendlyName) { persistence.setWaypointName(sequence, friendlyName); scanCoordinator.checkpoint("waypoint-name") }
         }
     }
 
