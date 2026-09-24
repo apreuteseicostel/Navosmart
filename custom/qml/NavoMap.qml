@@ -22,6 +22,8 @@ Item {
     property real savedDepthM: NaN
     property real savedWaterTempC: NaN
     property bool maximized: false
+    property int lakeZoomLevel: 17
+    property bool initialCenterApplied: false
 
     signal navigateRequested(var coordinate)
     signal savePointRequested(var coordinate)
@@ -31,6 +33,7 @@ Item {
     signal areaPolygonRequested(var polygon)
     signal baitingWaypointSelected(var waypoint)
     signal maximizeRequested()
+    signal fishingSpotRenameRequested(var spot)
 
     property string areaDrawMode: "none"
     property var areaDraftPoints: []
@@ -81,7 +84,17 @@ Item {
     NavoActualTrack { id: actualTrack; map: liveMap; vehicle: root.vehicle; taskActive: !!root.vehicle }
     NavoAreaScanOverlay { map: liveMap; areaScan: root.areaScanController }
     NavoFishOverlay { map: liveMap; fishModel: root.fishModel }
-    NavoBathymetryOverlay { map: liveMap; bathymetryCells: root.bathymetryCells; fishingSpotsModel: root.fishingSpotsModel }
+    NavoBathymetryOverlay {
+        map: liveMap; bathymetryCells: root.bathymetryCells; fishingSpotsModel: root.fishingSpotsModel
+        onNavigateSpotRequested: function(spot) { root.navigateRequested(QtPositioning.coordinate(Number(spot.lat),Number(spot.lon))) }
+        onBaitSpotRequested: function(spot) {
+            var c=QtPositioning.coordinate(Number(spot.lat),Number(spot.lon))
+            var wp={coordinate:c,name:spot.name,sequenceNumber:0}
+            if(root.baitingController) root.baitingController.targetWaypoint=wp
+            root.baitingWaypointSelected(wp)
+        }
+        onRenameSpotRequested: function(spot) { root.fishingSpotRenameRequested(spot) }
+    }
 
     NavoWaypointMapOverlay {
         map: liveMap
@@ -238,12 +251,29 @@ Item {
         }
     }
 
+    function centerOnBoatOnce() {
+        if(initialCenterApplied)return
+        if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid) {
+            liveMap.center=vehicle.coordinate
+            liveMap.zoomLevel=Math.max(liveMap.zoomLevel,lakeZoomLevel)
+            initialCenterApplied=true
+        }
+    }
+    Component.onCompleted: centerOnBoatOnce()
+    onVehicleChanged: { initialCenterApplied=false; centerOnBoatOnce() }
+
+    Connections {
+        target: root.vehicle
+        function onCoordinateChanged() { root.centerOnBoatOnce() }
+    }
     Connections {
         target: QGroundControl.multiVehicleManager
         function onActiveVehicleChanged(activeVehicle) {
             if (activeVehicle) {
                 if (activeVehicle.coordinate && activeVehicle.coordinate.isValid) {
                     liveMap.center = activeVehicle.coordinate
+                    liveMap.zoomLevel = Math.max(liveMap.zoomLevel, root.lakeZoomLevel)
+                    root.initialCenterApplied = true
                 }
             }
         }
