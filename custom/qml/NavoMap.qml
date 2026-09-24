@@ -29,8 +29,16 @@ Item {
     property string areaDrawMode: "none"
     property var areaDraftPoints: []
 
-    function beginAreaRectangle() { areaDraftPoints=[]; areaDrawMode="rectangle" }
-    function beginAreaPolygon() { areaDraftPoints=[]; areaDrawMode="polygon" }
+    function beginAreaRectangle() {
+        areaDraftPoints=[]
+        areaDrawMode="rectangle"
+        if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid) liveMap.center=vehicle.coordinate
+    }
+    function beginAreaPolygon() {
+        areaDraftPoints=[]
+        areaDrawMode="polygon"
+        if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid) liveMap.center=vehicle.coordinate
+    }
     function cancelAreaDrawing() { areaDraftPoints=[]; areaDrawMode="none" }
     function finishAreaDrawing() {
         if(areaDrawMode==="rectangle" && areaDraftPoints.length===2)
@@ -39,6 +47,7 @@ Item {
             areaPolygonRequested(areaDraftPoints.slice(0))
         else return false
         areaDrawMode="none"
+        areaDraftPoints=[]
         return true
     }
 
