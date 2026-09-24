@@ -102,7 +102,7 @@ test('Recovered NAVO mobile UI remains reachable from the dashboard',()=>{
   for(const token of ['property bool mapMaximized: false','id: areaScanMap','id:fishingMap','FINAL: HOLD','onMaximizeRequested: root.mapMaximized = !root.mapMaximized'])
     assert(dash.includes(token),token);
   assert(!dash.includes('id: statusStrip'),'legacy bottom status strip must stay removed');
-  assert(area.includes('▶ "+(root.areaScan.activeLaneIndex+1)+"/"+root.areaScan.laneCount()'));
+  assert(area.includes('ACTIV "+(root.areaScan.activeLaneIndex+1)+"/"+root.areaScan.laneCount()'));
   assert(uploader.includes('property int verifiedCount: 0'));
 });
 test('NAVO starts as ArduPilot Rover Boat without vehicle-selection prompt',()=>{
