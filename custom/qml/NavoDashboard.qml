@@ -844,10 +844,13 @@ Item {
                 anchors.fill:parent; anchors.margins:8; spacing:8
                 Rectangle {
                     Layout.fillWidth:true; Layout.fillHeight:true
+                    Layout.minimumWidth: 320
                     radius:8; color:root.bg; border.color:root.line; clip:true
                     NavoMap {
                         id:fishingMap
                         anchors.fill:parent
+                        property real targetAspect: 16/9
+                        property real availableAspect: width / Math.max(1,height)
                         vehicle:root.vehicle; planController:root.planController; waypointNames:root.waypointNames
                         fishModel:fishStore; fishingSpotsModel:fishingSpots; bathymetryCells:scanCoordinator.bathymetryCells
                         baitingController:baitingController; areaScanController:areaScanController
@@ -873,7 +876,7 @@ Item {
                     }
                 }
                 Rectangle {
-                    Layout.preferredWidth:Math.max(260,Math.min(360,parent.width*0.31)); Layout.fillHeight:true
+                    Layout.preferredWidth: root.width < 1150 ? 270 : Math.min(330, parent.width*0.25); Layout.minimumWidth:240; Layout.maximumWidth:330; Layout.fillHeight:true
                     radius:8; color:root.panel; border.color:root.line
                     ColumnLayout {
                         anchors.fill:parent; anchors.margins:8; spacing:7
