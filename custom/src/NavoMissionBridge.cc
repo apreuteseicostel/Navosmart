@@ -17,6 +17,8 @@ void NavoMissionBridge::setVehicle(QObject* object) {
         if (auto* manager = next->missionManager()) {
             connect(manager, &MissionManager::sendComplete, this,
                     [this](bool error) { emit uploadCompleted(!error); });
+            connect(manager, &MissionManager::missionComplete, this,
+                    [this]() { emit missionCompleted(); });
             connect(manager, &MissionManager::error, this,
                     [this](int, const QString& message) { emit missionError(message); });
         }
