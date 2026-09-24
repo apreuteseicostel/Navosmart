@@ -34,6 +34,10 @@ QtObject {
         // the previous lane was completed by the autopilot.
         var missionWp=Math.max(0,index-1)
         var completedThrough=Math.floor(missionWp/2)-1
+        // When ArduPilot advances beyond the final Area Scan waypoint, the
+        // last lane is complete as well. Some firmwares expose this as an
+        // index equal to the number of mission waypoints.
+        if(index >= missionLanes.length*2 + 1) completedThrough=missionLanes.length-1
         completedThrough=Math.min(completedThrough,missionLanes.length-1)
         for(var routeLane=lastCompletedRouteLaneFromMission+1;routeLane<=completedThrough;routeLane++) {
             var lane=missionLanes[routeLane]
