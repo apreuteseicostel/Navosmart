@@ -25,6 +25,8 @@ Item {
 
     signal navigateRequested(var coordinate)
     signal savePointRequested(var coordinate)
+    signal saveNamedPointRequested(var coordinate, string name)
+    property var pendingFishingCoordinate: null
     signal areaRectangleRequested(var cornerA, var cornerB)
     signal areaPolygonRequested(var polygon)
     signal baitingWaypointSelected(var waypoint)
@@ -158,6 +160,30 @@ Item {
             }
         }
     }
+    MouseArea {
+        anchors.fill: parent
+        enabled: root.areaDrawMode === "none"
+        acceptedButtons: Qt.LeftButton
+        onPressAndHold: function(mouse) {
+            var c=liveMap.toCoordinate(Qt.point(mouse.x,mouse.y),false)
+            if(!c || !c.isValid)return
+            root.pendingFishingCoordinate=c
+            fishingName.text=""
+            fishingSaveDialog.open()
+        }
+    }
+    Dialog {
+        id: fishingSaveDialog; parent: Overlay.overlay; anchors.centerIn: parent; modal: true
+        title: "Salvează punct de pescuit"; standardButtons: Dialog.Save | Dialog.Cancel
+        Column {
+            spacing: 8
+            Label { text: "Nume punct (opțional)" }
+            TextField { id: fishingName; width: Math.min(300, root.width-40); placeholderText: "ex. Lanseta verde" }
+            Label { text: root.pendingFishingCoordinate && root.pendingFishingCoordinate.isValid ? Number(root.pendingFishingCoordinate.latitude).toFixed(5)+", "+Number(root.pendingFishingCoordinate.longitude).toFixed(5) : ""; font.pixelSize: 11 }
+        }
+        onAccepted: if(root.pendingFishingCoordinate && root.pendingFishingCoordinate.isValid) root.saveNamedPointRequested(root.pendingFishingCoordinate,fishingName.text.trim())
+    }
+
     Row {
         anchors.left: parent.left; anchors.bottom: parent.bottom; anchors.margins: 10; spacing: 6
         visible: root.areaDrawMode!=="none"
