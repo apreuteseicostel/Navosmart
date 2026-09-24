@@ -103,8 +103,8 @@ QtObject {
     }
     function activateResume() {
         if(state!=="RESUME_READY") return false
-        sonarMapping.resumeScan()
-        if(!sonarMapping.scanning){status("Misiunea rulează, dar sonarul nu a intrat în scanare");return false}
+        if(!sonarMapping.resumeScan()){status("Resume blocat: GPS și sonar trebuie să fie LIVE");return false}
+        if(!sonarMapping.scanning || sonarMapping.paused){status("Misiunea rulează, dar sonarul nu a intrat în scanare");return false}
         state="SCANNING";checkpoint("resume");return true
     }
     function rtl(reason) {if(!areaScan||!sonarMapping)return;areaScan.rtl(reason||"RTL scanare");sonarMapping.pauseScan();state="RTL";checkpoint("rtl")}
@@ -156,7 +156,7 @@ QtObject {
         if(fishingSpots) fishingSpots.fishingSpots=p.fishingSpots||[]
         if(fishStore){fishStore.detections=p.fishDetections||[];fishStore.rebuildHotspots()}
         // A restored session cannot be considered live until the mission is
-        // uploaded again and H743 confirms AUTO for this connection.
+        // uploaded again and the autopilot confirms AUTO for this connection.
         state=(p.state==="COMPLETE" ? "COMPLETE" : "PAUSED"); bathymetryCells=p.bathymetryCells||[]
         areaScan.generatedPoints=areaPoints; areaScan.completedLanes=p.completedLanes||[]
         areaScan.activeLaneIndex=(p.currentLane===undefined?-1:Number(p.currentLane))
