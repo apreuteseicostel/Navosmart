@@ -690,17 +690,12 @@ Item {
         Item {
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             ColumnLayout {
-                anchors.fill: parent; anchors.margins: 14; spacing: 10
+                anchors.fill: parent; anchors.margins: 10; spacing: 6
                 RowLayout {
                     Layout.fillWidth: true
-                    Label { text: "AREA SCAN"; color: root.text; font.pixelSize: 20; font.bold: true }
-                    Item { Layout.fillWidth: true }
                     Label { text: areaScanController.progressPercent() + "%"; color: root.accent; font.bold: true }
-                }
-                ProgressBar {
-                    Layout.fillWidth: true
-                    from: 0; to: 100
-                    value: areaScanController.progressPercent()
+                    ProgressBar { Layout.fillWidth: true; from: 0; to: 100; value: areaScanController.progressPercent() }
+                    Label { text: scanCoordinator.state==="COMPLETE" ? "FINISHED" : scanCoordinator.state; color: root.modeColor(); font.bold: true }
                 }
                 Label {
                     Layout.fillWidth: true
@@ -709,11 +704,39 @@ Item {
                           "Definește zona de scanare pe hartă."
                     color: root.muted
                 }
-                Flow {
+                RowLayout {
                     Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    spacing: 8
+                    Rectangle {
+                        Layout.fillWidth: true; Layout.fillHeight: true
+                        radius: 8; color: root.bg; border.color: root.line; clip: true
+                        NavoMap {
+                            id: areaScanMap
+                            anchors.fill: parent; anchors.margins: 2
+                            vehicle: root.vehicle
+                            planController: root.planController
+                            waypointNames: root.waypointNames
+                            fishModel: fishStore
+                            fishingSpotsModel: fishingSpots
+                            bathymetryCells: scanCoordinator.bathymetryCells
+                            baitingController: baitingController
+                            areaScanController: areaScanController
+                            savedDepthM: root.depthM
+                            savedWaterTempC: root.waterTempC
+                            maximized: root.mapMaximized
+                            onMaximizeRequested: root.mapMaximized = !root.mapMaximized
+                            onAreaRectangleRequested: function(cornerA, cornerB) { missionUploader.invalidate(); var pts=scanCoordinator.prepareRectangle(cornerA,cornerB); root.lastNavigationStatus=pts.length ? "Area Scan dreptunghi • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP" : areaScanController.lastError; root.pendingAreaDrawMode="none" }
+                            onAreaPolygonRequested: function(polygon) { missionUploader.invalidate(); var pts=scanCoordinator.preparePolygon(polygon); root.lastNavigationStatus=pts.length ? "Area Scan poligon • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP" : areaScanController.lastError; root.pendingAreaDrawMode="none" }
+                            onSavePointRequested: function(coordinate) { if(!scanCoordinator.lakeId.length){root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}; var spot=fishingSpots.saveSpot(coordinate,root.depthM,root.waterTempC,"","",null); if(spot) scanCoordinator.checkpoint("fishing-spot") }
+                        }
+                    }
+                    Flow {
+                    Layout.preferredWidth: Math.max(190,Math.min(260,parent.width*0.24))
+                    Layout.fillHeight: true
                     spacing: 6
                     Button {
-                        text: "▭ DREPT."
+                        text: "DREPT."
                         enabled: scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
                         onClicked: {
                             root.pendingAreaDrawMode="rectangle"
@@ -722,7 +745,7 @@ Item {
                         }
                     }
                     Button {
-                        text: "⬡ POLIGON"
+                        text: "POLIGON"
                         enabled: scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
                         onClicked: {
                             root.pendingAreaDrawMode="polygon"
@@ -756,71 +779,12 @@ Item {
                         }
                     }
                 }
-                RowLayout {
-                    Layout.fillWidth: true
                     Button { text: "HOLD"; enabled: scanCoordinator.state==="SCANNING" || root.awaitingMissionStart; onClicked: root.holdMission() }
                     Button { text: "RTL"; enabled: scanCoordinator.state==="SCANNING" || scanCoordinator.state==="PAUSED" || scanCoordinator.state==="RESUME_READY"; onClicked: root.rtlMission() }
                     Button { text: "STOP"; enabled: scanCoordinator.state==="SCANNING" || scanCoordinator.state==="PAUSED" || scanCoordinator.state==="READY" || scanCoordinator.state==="RESUME_READY" || root.awaitingMissionStart; onClicked: root.stopMission() }
-                    Item { Layout.fillWidth: true }
-                    ComboBox {
-                        id: finishAction
-                        model: ["FINAL: HOLD","FINAL: RTL"]
-                        currentIndex: root.areaScanFinishAction==="RTL" ? 1 : 0
-                        onActivated: root.areaScanFinishAction=currentIndex===1 ? "RTL" : "HOLD"
-                        ToolTip.visible: hovered; ToolTip.text: "Acțiunea bărcii după ultimul culoar"
-                    }
-                    Label { text: scanCoordinator.state==="COMPLETE" ? "FINISHED" : scanCoordinator.state; color: root.modeColor(); font.bold: true }
-                }
-                Rectangle {
-                    Layout.fillWidth: true; Layout.fillHeight: true
-                    radius: 8; color: root.bg; border.color: root.line; clip: true
-                    NavoMap {
-                        id: areaScanMap
-                        anchors.fill: parent; anchors.margins: 2
-                        vehicle: root.vehicle
-                        planController: root.planController
-                        waypointNames: root.waypointNames
-                        fishModel: fishStore
-                        fishingSpotsModel: fishingSpots
-                        bathymetryCells: scanCoordinator.bathymetryCells
-                        baitingController: baitingController
-                        areaScanController: areaScanController
-                        savedDepthM: root.depthM
-                        savedWaterTempC: root.waterTempC
-                        maximized: root.mapMaximized
-                        onMaximizeRequested: root.mapMaximized = !root.mapMaximized
-                        onAreaRectangleRequested: function(cornerA, cornerB) {
-                            missionUploader.invalidate()
-                            var pts=scanCoordinator.prepareRectangle(cornerA,cornerB)
-                            root.lastNavigationStatus=pts.length ? "Area Scan dreptunghi • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP" : areaScanController.lastError
-                            root.pendingAreaDrawMode="none"
-                        }
-                        onAreaPolygonRequested: function(polygon) {
-                            missionUploader.invalidate()
-                            var pts=scanCoordinator.preparePolygon(polygon)
-                            root.lastNavigationStatus=pts.length ? "Area Scan poligon • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP" : areaScanController.lastError
-                            root.pendingAreaDrawMode="none"
-                        }
-                        onSavePointRequested: function(coordinate) {
-                            if(!scanCoordinator.lakeId.length){root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
-                            var spot=fishingSpots.saveSpot(coordinate,root.depthM,root.waterTempC,"","",null)
-                            if(spot) scanCoordinator.checkpoint("fishing-spot")
-                        }
-                    }
-                    Rectangle {
-                        anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 8
-                        width: areaInfo.implicitWidth+18; height: areaInfo.implicitHeight+10
-                        radius: 6; color: "#071827dd"; border.color: root.line
-                        Label {
-                            id: areaInfo; anchors.centerIn: parent
-                            text: areaScanController.generatedPoints.length+" WP • culoar "+(areaScanController.activeLaneIndex>=0 ? areaScanController.activeLaneIndex+1 : "--")
-                            color: root.text; font.pixelSize: 11
-                        }
+                    ComboBox { width: 170; model: ["FINAL: HOLD","FINAL: RTL"]; currentIndex: root.areaScanFinishAction==="RTL" ? 1 : 0; onActivated: root.areaScanFinishAction=currentIndex===1 ? "RTL" : "HOLD" }
                     }
                 }
-            }
-        }
-    }
 
     Component {
         id: fishingPage
