@@ -237,6 +237,7 @@ Item {
     property bool mapFullscreen: false
     property var mapController: null
     property string pendingAreaDrawMode: "none"
+    property bool pendingBaitPointPick: false
     property string lakeSaveStatus: ""
     property string selectedHopper: "none"
     property int manualHopperHoldMs: 1500
@@ -745,6 +746,8 @@ Item {
                             savedDepthM: root.depthM
                             savedWaterTempC: root.waterTempC
                             maximized: root.mapMaximized
+                            baitPointPickMode: root.pendingBaitPointPick
+                            onBaitPointPicked: function(coordinate) { root.pendingBaitPointPick=false; baitingController.targetWaypoint={coordinate:coordinate,name:"Punct hartă",sequenceNumber:0}; root.lastNavigationStatus="Punct de nădire selectat pe hartă"; root.activePage=8 }
                             onMaximizeRequested: root.mapMaximized = !root.mapMaximized
                             onAreaRectangleRequested: function(cornerA, cornerB) { missionUploader.invalidate(); var pts=scanCoordinator.prepareRectangle(cornerA,cornerB); root.lastNavigationStatus=pts.length ? "Area Scan dreptunghi • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP" : areaScanController.lastError; root.pendingAreaDrawMode="none" }
                             onAreaPolygonRequested: function(polygon) { missionUploader.invalidate(); var pts=scanCoordinator.preparePolygon(polygon); root.lastNavigationStatus=pts.length ? "Area Scan poligon • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP" : areaScanController.lastError; root.pendingAreaDrawMode="none" }
@@ -985,8 +988,9 @@ Item {
                 waypoint: baitingController.targetWaypoint
                 availableSpots: fishingSpots.fishingSpots
                 onChooseOnMapRequested: {
+                    root.pendingBaitPointPick = true
                     root.activePage = 0
-                    root.lastNavigationStatus = "Selectează un waypoint pe hartă sau salvează un loc de pescuit, apoi revino la NĂDIRE"
+                    root.lastNavigationStatus = "Atinge o singură dată harta pentru punctul de nădire"
                 }
                 onSpotChosen: function(spot) {
                     var coordinate = QtPositioning.coordinate(Number(spot.lat), Number(spot.lon))
