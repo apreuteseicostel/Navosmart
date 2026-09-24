@@ -31,5 +31,6 @@ bool NavoPersistence::deleteBathymetrySession(const QString& id){for(int i=0;i<_
 void NavoPersistence::scheduleSonarSave(){if(!_sonarSaveTimer.isActive())_sonarSaveTimer.start();}
 void NavoPersistence::flushSonar(){QSettings s;s.setValue("navo/sonarSamples",jsonList(_sonarSamples));s.sync();}
 void NavoPersistence::setWaypointName(int seq,const QString& name){auto n=name.trimmed();_waypointNames[QString::number(seq)]=n.isEmpty()?QString("WP%1").arg(seq):n;saveWaypoints();emit waypointNamesChanged();}
+void NavoPersistence::replaceWaypointNames(const QVariantMap& names){if(_waypointNames==names)return;_waypointNames=names;saveWaypoints();emit waypointNamesChanged();}
 void NavoPersistence::addSonarSample(const QVariantMap& sample){if(!sample.contains("lat")||!sample.contains("lon")||!sample.contains("depth"))return;_sonarSamples.append(sample);while(_sonarSamples.size()>_maxSamples)_sonarSamples.removeFirst();scheduleSonarSave();emit sonarSamplesChanged();}
 void NavoPersistence::clearSonarSamples(){_sonarSamples.clear();_sonarSaveTimer.stop();flushSonar();emit sonarSamplesChanged();}
