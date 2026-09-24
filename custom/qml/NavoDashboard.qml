@@ -20,6 +20,7 @@ Item {
     // Compatibility with QGroundControl v5.0.7 MainWindow, which binds this
     // property on the FlyView root. NAVO does not currently use UTM/SP.
     property bool utmspSendActTrigger: false
+    property bool mapMaximized: false
 
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
     property var planController: _planController
@@ -136,6 +137,17 @@ Item {
         }
         onStatus: function(message) { root.lastNavigationStatus = message }
         onLakeActivated: function(id) { sessionSettings.activeLakeId=id; missionUploader.invalidate(); baitingController.targetWaypoint=null }
+        onScanFinished: function(bathymetrySaved, sampleCount) {
+            missionUploader.invalidate()
+            root.awaitingMissionStart=false
+            if(root.areaScanFinishAction==="RTL") {
+                root.lastNavigationStatus="Area Scan 100% • "+sampleCount+" măsurători • RTL"
+                if(root.vehicle && root.vehicle.guidedModeRTL) root.vehicle.guidedModeRTL(false)
+            } else {
+                root.lastNavigationStatus="Area Scan 100% • "+sampleCount+" măsurători • HOLD"
+                if(root.vehicle && root.vehicle.pauseVehicle) root.vehicle.pauseVehicle()
+            }
+        }
     }
     property alias areaCoordinator: scanCoordinator
     Connections {
@@ -190,6 +202,7 @@ Item {
     property bool cameraConnected: false
     property bool cameraFullscreen: false
     property bool awaitingMissionStart: false
+    property string areaScanFinishAction: "HOLD"
     onVehicleChanged: { awaitingMissionStart=false; if(baitingController && baitingController.enabled) baitingController.abortCycle("Autopilot schimbat"); if(scanCoordinator && scanCoordinator.state==="SCANNING") scanCoordinator.pause("Autopilot schimbat") }
     property string pendingMode: ""
     property string pendingModeLabel: ""
@@ -432,6 +445,11 @@ Item {
         if(baitingController.enabled) baitingController.abortCycle("STOP utilizator")
         digitalAnchor.release()
         if(scanCoordinator.state==="SCANNING") scanCoordinator.pause("STOP utilizator")
+        else if(scanCoordinator.state==="READY" || scanCoordinator.state==="RESUME_READY") {
+            areaScanController.hold("STOP înainte de START", root.vehicle && root.vehicle.coordinate ? root.vehicle.coordinate : null)
+            scanCoordinator.state="PAUSED"
+            scanCoordinator.checkpoint("stop-before-start")
+        }
         missionUploader.invalidate()
         if (!vehicle || !vehicle.pauseVehicle) { root.lastNavigationStatus = "STOP indisponibil: autopilot deconectat"; return false }
         vehicle.pauseVehicle()
@@ -482,7 +500,8 @@ Item {
 
     Rectangle {
         id: sidebar
-        anchors.left: parent.left; anchors.top: header.bottom; anchors.bottom: footer.top
+        anchors.left: parent.left; anchors.top: header.bottom; anchors.bottom: statusStrip.top
+        visible: !root.mapMaximized
         width: root.width < 1100 ? 150 : 190; color: root.panel; border.color: root.line
         Flickable {
             anchors.fill: parent
@@ -514,7 +533,7 @@ Item {
 
     Rectangle {
         id: content
-        anchors.left: sidebar.right; anchors.right: rightPanel.left; anchors.top: header.bottom; anchors.bottom: footer.top
+        anchors.left: root.mapMaximized ? parent.left : sidebar.right; anchors.right: parent.right; anchors.top: header.bottom; anchors.bottom: statusStrip.top
         color: root.bg
         Loader {
             anchors.fill: parent; anchors.margins: 10
@@ -531,80 +550,34 @@ Item {
     }
 
     Rectangle {
-        id: rightPanel
-        anchors.right: parent.right; anchors.top: header.bottom; anchors.bottom: footer.top
-        width: root.width < 1100 ? 220 : 260; color: root.panel; border.color: root.line
+        id: statusStrip
+        anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: footer.top
+        height: 52; color: root.panel; border.color: root.line
         Flickable {
             anchors.fill: parent
             clip: true
-            contentWidth: width
-            contentHeight: statusColumn.implicitHeight + 24
+            contentWidth: Math.max(width, statusItems.implicitWidth + 20)
+            contentHeight: height
             boundsBehavior: Flickable.StopAtBounds
-            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-        ColumnLayout {
-            id: statusColumn
-            x: 12; y: 12; width: parent.width - 24; spacing: 10
-            Label { text: "STATUS BARCA"; color: root.text; font.bold: true }
-            NavoEthernetIndicator {
-                Layout.fillWidth: true
-                sonarConnected: sonar.connected
-                sonarAlive: sonar.dataAlive
-                cameraConnected: root.cameraConnected
-                cameraAlive: root.cameraConnected
-                sonarStatus: sonar.status
-                cameraStatus: root.cameraConnected ? "Flux video LIVE" : (root.cameraStreamUrl.length ? "URL configurat; flux inactiv" : "OFFLINE")
-            }
-            DataLine { name: "Conexiune"; value: vehicle ? "ONLINE" : "OFFLINE"; valueColor: vehicle ? root.ok : root.danger }
-            DataLine { name: "Mod"; value: root.flightMode.length ? root.flightMode : "--"; valueColor: root.modeColor() }
-            DataLine { name: "Acasa"; value: Number(root.distanceToHome).toFixed(0) + " m" }
-            DataLine { name: "Tinta"; value: root.distanceToTarget > 0 ? Number(root.distanceToTarget).toFixed(0) + " m" : "--" }
-            DataLine { name: "Nano"; value: nanoTelemetry.connected ? "ONLINE" : "OFFLINE"; valueColor: nanoTelemetry.connected ? root.ok : root.warn }
-            DataLine { name: "Temp baterie"; value: nanoTelemetry.connected && !isNaN(nanoTelemetry.batteryTempC) ? Number(nanoTelemetry.batteryTempC).toFixed(1) + " °C" : "--"; valueColor: safetyManager.state === "CRITICAL" ? root.danger : safetyManager.state === "WARNING" ? root.warn : root.text }
-            DataLine { name: "Apa"; value: nanoTelemetry.connected ? (nanoTelemetry.waterDetected ? "DETECTATA" : "OK") : "--"; valueColor: nanoTelemetry.waterDetected ? root.danger : root.text }
-            NavoBoatStatus {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 170
-                compact: true
-                waterDetected: nanoTelemetry.waterDetected
-                batteryTempC: nanoTelemetry.batteryTempC
-                headlightOn: nanoTelemetry.headlightOn
-                positionLightsOn: nanoTelemetry.positionLightsOn
-                rudderNormalized: nanoTelemetry.rudderUs > 0 ? Math.max(-1,Math.min(1,(nanoTelemetry.rudderUs-1500)/500.0)) : 0
-                leftHopperCommandOpen: hopperBridge.commandPending && (hopperBridge.pendingHopper===1||hopperBridge.pendingHopper===3)
-                rightHopperCommandOpen: hopperBridge.commandPending && (hopperBridge.pendingHopper===2||hopperBridge.pendingHopper===3)
-            }
-            Rectangle { Layout.fillWidth: true; height: 1; color: root.line }
-            Label { text: "CONTROL MISIUNE"; color: root.muted; font.bold: true }
-            RowLayout {
-                Layout.fillWidth: true
-                Button { Layout.fillWidth: true; text: missionUploader.uploadVerified ? "START AUTOPILOT" : "UPLOAD"; onClicked: root.startMission() }
-                Button { Layout.fillWidth: true; text: "HOLD"; onClicked: root.holdMission() }
-            }
-            RowLayout {
-                Layout.fillWidth: true
-                Button { Layout.fillWidth: true; text: "RTL"; onClicked: root.rtlMission() }
-                Button { Layout.fillWidth: true; text: "STOP"; onClicked: root.stopMission() }
-            }
-            RowLayout {
-                Layout.fillWidth: true
-                Button { Layout.fillWidth: true; text: digitalAnchor.active ? "ANCORĂ ON" : "ANCORĂ GPS"; onClicked: digitalAnchor.active ? digitalAnchor.release() : digitalAnchor.engage() }
-                Label { text: energyGuard.message(root.distanceToHome, battery ? Number(battery.percentRemaining.rawValue) : NaN); color: battery && energyGuard.canStart(root.distanceToHome, Number(battery.percentRemaining.rawValue)) ? root.ok : root.warn; font.pixelSize: 9 }
-            }
-            Rectangle { Layout.fillWidth: true; height: 1; color: root.line }
-            Label { text: "CUVE"; color: root.muted; font.bold: true }
+        RowLayout {
+            id: statusItems
+            x: 10; height: parent.height; spacing: 8
+            Label { text: "BARCĂ"; color: root.muted; font.bold: true; font.pixelSize: 11 }
+            StatusPill { title: "LINK"; value: vehicle ? "ONLINE" : "OFFLINE"; good: vehicle !== null }
+            StatusPill { title: "LAN"; value: sonar.transport && sonar.transport.connected ? "ONLINE" : "OFFLINE"; good: sonar.transport && sonar.transport.connected }
+            StatusPill { title: "SONAR"; value: root.sonarConnected ? "LIVE" : "OFFLINE"; good: root.sonarConnected }
+            StatusPill { title: "CAM"; value: root.cameraConnected ? "LIVE" : "OFFLINE"; good: root.cameraConnected }
+            StatusPill { title: "ACASĂ"; value: Number(root.distanceToHome).toFixed(0) + " m"; good: !!vehicle }
+            StatusPill { title: "ȚINTĂ"; value: root.distanceToTarget > 0 ? Number(root.distanceToTarget).toFixed(0) + " m" : "--"; good: root.distanceToTarget > 0 }
+            StatusPill { title: "NANO"; value: nanoTelemetry.connected ? "ONLINE" : "OFFLINE"; good: nanoTelemetry.connected }
+            StatusPill { title: "TEMP"; value: nanoTelemetry.connected && !isNaN(nanoTelemetry.batteryTempC) ? Number(nanoTelemetry.batteryTempC).toFixed(1) + "°" : "--"; good: nanoTelemetry.connected && safetyManager.state !== "CRITICAL" }
+            Item { Layout.fillWidth: true }
             Label {
-                Layout.fillWidth: true; wrapMode: Text.WordWrap
-                text: root.hopperControlsEnabled ? "Control disponibil" : "Blocate pana aproape de punct"
-                color: root.hopperControlsEnabled ? root.ok : root.warn; font.pixelSize: 11
+                Layout.maximumWidth: Math.max(120, root.width * 0.20)
+                elide: Text.ElideRight
+                text: root.lastNavigationStatus
+                color: root.muted; font.pixelSize: 10
             }
-            RowLayout {
-                Layout.fillWidth: true
-                Button { Layout.fillWidth: true; text: "STANGA"; enabled: root.hopperControlsEnabled; onClicked: root.openHopper("stanga") }
-                Button { Layout.fillWidth: true; text: "DREAPTA"; enabled: root.hopperControlsEnabled; onClicked: root.openHopper("dreapta") }
-            }
-            Button { Layout.fillWidth: true; text: "AMBELE"; enabled: root.hopperControlsEnabled; onClicked: root.openHopper("ambele") }
-            Item { Layout.fillHeight: true }
-            Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: root.lastNavigationStatus; color: root.muted; font.pixelSize: 11 }
         }
         }
     }
@@ -612,6 +585,7 @@ Item {
     Component {
         id: mapPage
         Item {
+            id: fishingPageRoot
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             NavoMap {
                 id: navoMap
@@ -634,6 +608,8 @@ Item {
                 areaScanController: areaScanController
                 savedDepthM: root.depthM
                 savedWaterTempC: root.waterTempC
+                maximized: root.mapMaximized
+                onMaximizeRequested: root.mapMaximized = !root.mapMaximized
                 onNavigateRequested: function(coordinate) { root.navigateToCoordinate(coordinate) }
                 onBaitingWaypointSelected: function(waypoint) {
                     root.lastNavigationStatus="Punct selectat: " + (waypoint.sequenceNumber !== undefined ? "WP" + waypoint.sequenceNumber : "waypoint") + " • poți deschide NĂDIRE când dorești"
@@ -653,12 +629,9 @@ Item {
                     root.activePage=2
                 }
                 onSaveNamedPointRequested: function(coordinate,name) {
-                    if(!scanCoordinator.lakeId.length) {root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
-                    var namedSpot=fishingSpots.saveSpot(coordinate, NaN, NaN, name, "Punct ales pe hartă", null)
-                    if(namedSpot) {
-                        scanCoordinator.checkpoint("fishing-spot-map")
-                        root.lastNavigationStatus="Punct salvat: "+namedSpot.name
-                    }
+                    if(!scanCoordinator.lakeId.length){root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
+                    var spot=fishingSpots.saveSpot(coordinate,NaN,NaN,name,"Punct ales pe hartă",null)
+                    if(spot){scanCoordinator.checkpoint("fishing-spot-map");root.lastNavigationStatus="Punct salvat: "+spot.name}
                 }
                 onSavePointRequested: function(coordinate) {
                     if(!scanCoordinator.lakeId.length) {root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
@@ -740,20 +713,20 @@ Item {
                     Layout.fillWidth: true
                     spacing: 6
                     Button {
-                        text: "DREPTUNGHI PE HARTĂ"
+                        text: "▭ DREPT."
                         enabled: scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
                         onClicked: {
                             root.pendingAreaDrawMode="rectangle"
-                            root.activePage=0
+                            Qt.callLater(function(){ if(areaScanMap){ areaScanMap.beginAreaRectangle(); root.pendingAreaDrawMode="none" } })
                             root.lastNavigationStatus="Atinge două colțuri pe hartă pentru dreptunghi"
                         }
                     }
                     Button {
-                        text: "POLIGON PE HARTĂ"
+                        text: "⬡ POLIGON"
                         enabled: scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
                         onClicked: {
                             root.pendingAreaDrawMode="polygon"
-                            root.activePage=0
+                            Qt.callLater(function(){ if(areaScanMap){ areaScanMap.beginAreaPolygon(); root.pendingAreaDrawMode="none" } })
                             root.lastNavigationStatus="Atinge cel puțin trei puncte și apoi TERMINĂ"
                         }
                     }
@@ -776,7 +749,7 @@ Item {
                     }
                     Button {
                         text: "RESUME"
-                        enabled: scanCoordinator.state==="PAUSED" && !missionUploader.uploadInProgress && areaScanController.generatedPoints.length > 0 && areaScanController.completedLanes.length < areaScanController.laneCount()
+                        enabled: (scanCoordinator.state==="PAUSED" || scanCoordinator.state==="RTL") && !missionUploader.uploadInProgress && areaScanController.generatedPoints.length > 0 && areaScanController.completedLanes.length < areaScanController.laneCount()
                         onClicked: {
                             var mission = scanCoordinator.resume()
                             if (mission.length) root.lastNavigationStatus = "Resume pregătit • apasă UPLOAD și apoi START AUTOPILOT"
@@ -785,21 +758,64 @@ Item {
                 }
                 RowLayout {
                     Layout.fillWidth: true
-                    Button { text: "HOLD"; onClicked: { scanCoordinator.pause("HOLD utilizator"); root.holdMission() } }
-                    Button { text: "RTL"; onClicked: { scanCoordinator.rtl("RTL utilizator"); root.rtlMission() } }
-                    Button { text: "STOP"; onClicked: { scanCoordinator.pause("STOP utilizator"); root.stopMission() } }
+                    Button { text: "HOLD"; enabled: scanCoordinator.state==="SCANNING" || root.awaitingMissionStart; onClicked: root.holdMission() }
+                    Button { text: "RTL"; enabled: scanCoordinator.state==="SCANNING" || scanCoordinator.state==="PAUSED" || scanCoordinator.state==="RESUME_READY"; onClicked: root.rtlMission() }
+                    Button { text: "STOP"; enabled: scanCoordinator.state==="SCANNING" || scanCoordinator.state==="PAUSED" || scanCoordinator.state==="READY" || scanCoordinator.state==="RESUME_READY" || root.awaitingMissionStart; onClicked: root.stopMission() }
                     Item { Layout.fillWidth: true }
-                    Label { text: scanCoordinator.state; color: root.modeColor(); font.bold: true }
+                    ComboBox {
+                        id: finishAction
+                        model: ["FINAL: HOLD","FINAL: RTL"]
+                        currentIndex: root.areaScanFinishAction==="RTL" ? 1 : 0
+                        onActivated: root.areaScanFinishAction=currentIndex===1 ? "RTL" : "HOLD"
+                        ToolTip.visible: hovered; ToolTip.text: "Acțiunea bărcii după ultimul culoar"
+                    }
+                    Label { text: scanCoordinator.state==="COMPLETE" ? "FINISHED" : scanCoordinator.state; color: root.modeColor(); font.bold: true }
                 }
                 Rectangle {
                     Layout.fillWidth: true; Layout.fillHeight: true
-                    radius: 8; color: root.bg; border.color: root.line
-                    Column {
-                        anchors.centerIn: parent; spacing: 8
-                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Traseu Area Scan"; color: root.text; font.pixelSize: 18; font.bold: true }
-                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: areaScanController.generatedPoints.length + " waypoint-uri"; color: root.muted }
-                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Culoar activ: " + (areaScanController.activeLaneIndex >= 0 ? (areaScanController.activeLaneIndex + 1) : "--"); color: root.muted }
-                        Label { anchors.horizontalCenter: parent.horizontalCenter; text: "Zona se definește din hartă; aici se controlează misiunea autopilotului."; color: root.muted }
+                    radius: 8; color: root.bg; border.color: root.line; clip: true
+                    NavoMap {
+                        id: areaScanMap
+                        anchors.fill: parent; anchors.margins: 2
+                        vehicle: root.vehicle
+                        planController: root.planController
+                        waypointNames: root.waypointNames
+                        fishModel: fishStore
+                        fishingSpotsModel: fishingSpots
+                        bathymetryCells: scanCoordinator.bathymetryCells
+                        baitingController: baitingController
+                        areaScanController: areaScanController
+                        savedDepthM: root.depthM
+                        savedWaterTempC: root.waterTempC
+                        maximized: root.mapMaximized
+                        onMaximizeRequested: root.mapMaximized = !root.mapMaximized
+                        onAreaRectangleRequested: function(cornerA, cornerB) {
+                            missionUploader.invalidate()
+                            var pts=scanCoordinator.prepareRectangle(cornerA,cornerB)
+                            root.lastNavigationStatus=pts.length ? "Area Scan dreptunghi • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP" : areaScanController.lastError
+                            root.pendingAreaDrawMode="none"
+                        }
+                        onAreaPolygonRequested: function(polygon) {
+                            missionUploader.invalidate()
+                            var pts=scanCoordinator.preparePolygon(polygon)
+                            root.lastNavigationStatus=pts.length ? "Area Scan poligon • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP" : areaScanController.lastError
+                            root.pendingAreaDrawMode="none"
+                        }
+                        onSavePointRequested: function(coordinate) {
+                            if(!scanCoordinator.lakeId.length){root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
+                            var spot=fishingSpots.saveSpot(coordinate,root.depthM,root.waterTempC,"","",null)
+                            if(spot) scanCoordinator.checkpoint("fishing-spot")
+                        }
+                    }
+                    Rectangle {
+                        anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 8
+                        width: areaInfo.implicitWidth+18; height: areaInfo.implicitHeight+10
+                        radius: 6; color: "#071827dd"; border.color: root.line
+                        Label {
+                            id: areaInfo; anchors.centerIn: parent
+                            text: areaScanController.generatedPoints.length+" WP • culoar "+(areaScanController.activeLaneIndex>=0 ? areaScanController.activeLaneIndex+1 : "--")
+                            color: root.text; font.pixelSize: 11
+                        }
                     }
                 }
             }
@@ -811,24 +827,59 @@ Item {
         Item {
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             ColumnLayout {
-                anchors.fill: parent; anchors.margins: 16; spacing: 8
-                Label { text: "PUNCTE DE PESCUIT"; color: root.text; font.pixelSize: 20; font.bold: true }
-                Label { text: fishingSpots.fishingSpots.length + " puncte salvate"; color: root.muted }
+                anchors.fill: parent; anchors.margins: 10; spacing: 7
+                RowLayout {
+                    Layout.fillWidth: true
+                    Label { text: "PUNCTE DE PESCUIT"; color: root.text; font.pixelSize: 18; font.bold: true }
+                    Item { Layout.fillWidth: true }
+                    Label { text: fishingSpots.fishingSpots.length+" salvate"; color: root.muted }
+                }
+                Label { Layout.fillWidth: true; text: "Ține apăsat pe hartă pentru un punct nou. ＋ salvează poziția actuală a bărcii."; color: root.muted; font.pixelSize: 11; wrapMode: Text.WordWrap }
+                NavoMap {
+                    id: fishingMap
+                    Layout.fillWidth: true; Layout.preferredHeight: Math.max(180,parent.height*0.55)
+                    vehicle: root.vehicle; planController: root.planController; waypointNames: root.waypointNames
+                    fishModel: fishStore; fishingSpotsModel: fishingSpots; bathymetryCells: scanCoordinator.bathymetryCells
+                    baitingController: baitingController; areaScanController: areaScanController
+                    savedDepthM: root.depthM; savedWaterTempC: root.waterTempC
+                    onNavigateRequested: function(c){root.navigateToCoordinate(c)}
+                    onFishingSpotRenameRequested: function(spot){ spotRenameId=spot.id; spotRename.text=spot.name; spotRenameDialog.open() }
+                    onBaitingWaypointSelected: function(wp){ baitingController.targetWaypoint=wp; root.lastNavigationStatus="Punct de nădire ales: "+wp.name }
+                    onSaveNamedPointRequested: function(c,name){
+                        if(!scanCoordinator.lakeId.length){root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
+                        var s=fishingSpots.saveSpot(c,NaN,NaN,name,"Punct ales pe hartă",null)
+                        if(s){scanCoordinator.checkpoint("fishing-spot-map");root.lastNavigationStatus="Punct salvat: "+s.name}
+                    }
+                    onSavePointRequested: function(c){
+                        if(!scanCoordinator.lakeId.length){root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
+                        var s=fishingSpots.saveSpot(c,root.depthM,root.waterTempC,"","Poziția bărcii",null)
+                        if(s){scanCoordinator.checkpoint("fishing-spot-boat");root.lastNavigationStatus="Poziția bărcii salvată: "+s.name}
+                    }
+                }
                 ListView {
-                    Layout.fillWidth: true; Layout.fillHeight: true; clip: true
+                    Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 4
                     model: fishingSpots.fishingSpots
                     delegate: Rectangle {
                         required property var modelData
-                        width: ListView.view.width; height: 76; radius: 7; color: root.bg; border.color: root.line
-                        Column {
-                            anchors.left: parent.left; anchors.leftMargin: 10; anchors.verticalCenter: parent.verticalCenter
-                            Label { text: modelData.name || "Loc pescuit"; color: root.text; font.bold: true }
-                            Label { text: Number(modelData.lat).toFixed(5) + ", " + Number(modelData.lon).toFixed(5); color: root.muted; font.pixelSize: 11 }
-                            Label { text: (modelData.depth === null ? "--" : Number(modelData.depth).toFixed(1) + " m") + " • " + (modelData.temp === null ? "--" : Number(modelData.temp).toFixed(1) + " °C"); color: root.muted; font.pixelSize: 11 }
+                        width: ListView.view.width; height: 64; radius: 7; color: root.bg; border.color: root.line
+                        Column { anchors.left:parent.left;anchors.leftMargin:8;anchors.verticalCenter:parent.verticalCenter
+                            Label { text:modelData.name||"Loc pescuit";color:root.text;font.bold:true }
+                            Label { text:(modelData.depth===null?"--":Number(modelData.depth).toFixed(1)+" m")+" • "+Number(modelData.lat).toFixed(5)+", "+Number(modelData.lon).toFixed(5);color:root.muted;font.pixelSize:10 }
                         }
-                        Button { anchors.right: parent.right; anchors.rightMargin: 8; anchors.verticalCenter: parent.verticalCenter; text: "ȘTERGE"; onClicked: { fishingSpots.removeSpot(modelData.id); scanCoordinator.checkpoint("fishing-spot-delete") } }
+                        Row { anchors.right:parent.right;anchors.rightMargin:6;anchors.verticalCenter:parent.verticalCenter;spacing:3
+                            Button { text:"NAV"; width:48; onClicked:root.navigateToCoordinate(QtPositioning.coordinate(Number(modelData.lat),Number(modelData.lon))) }
+                            Button { text:"NUME"; width:58; onClicked:{spotRenameId=modelData.id;spotRename.text=modelData.name;spotRenameDialog.open()} }
+                            Button { text:"×"; width:36; onClicked:{fishingSpots.removeSpot(modelData.id);scanCoordinator.checkpoint("fishing-spot-delete")} }
+                        }
                     }
                 }
+            }
+            property string spotRenameId: ""
+            Dialog {
+                id: spotRenameDialog; parent: Overlay.overlay; anchors.centerIn: parent; modal:true
+                title:"Redenumește punct"; standardButtons:Dialog.Save|Dialog.Cancel
+                TextField { id:spotRename; width:Math.min(280,parent ? parent.width-40:280); placeholderText:"Lanseta verde" }
+                onAccepted: if(fishingSpots.renameSpot(fishingPageRoot.spotRenameId,spotRename.text)){scanCoordinator.checkpoint("fishing-spot-rename")}
             }
         }
     }
@@ -890,15 +941,37 @@ Item {
                 }
                 Label { Layout.fillWidth: true; visible: root.lakeSaveStatus.length>0; text: root.lakeSaveStatus; color: root.accent }
                 ListView {
-                    Layout.fillWidth: true; Layout.fillHeight: true; clip: true
+                    Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 5
                     model: persistence.lakes
-                    delegate: Button {
+                    delegate: Rectangle {
                         required property var modelData
-                        width: ListView.view.width
-                        text: modelData.name || "Baltă"
-                        onClicked: {
-                            myLakesPopup.selectLake(modelData)
-                            myLakesPopup.open()
+                        width: ListView.view.width; height: 48; radius: 7
+                        color: root.bg; border.color: root.line
+                        RowLayout {
+                            anchors.fill: parent; anchors.margins: 4; spacing: 4
+                            Button {
+                                Layout.fillWidth: true
+                                text: modelData.name || "Baltă"
+                                flat: true
+                                onClicked: {
+                                    myLakesPopup.selectLake(modelData)
+                                    myLakesPopup.open()
+                                }
+                            }
+                            Button {
+                                text: "✏ NUME"
+                                onClicked: {
+                                    myLakesPopup.open()
+                                    myLakesPopup.beginRename(modelData)
+                                }
+                            }
+                            Button {
+                                text: "🗑 ȘTERGE"
+                                onClicked: {
+                                    myLakesPopup.open()
+                                    myLakesPopup.beginDelete(modelData)
+                                }
+                            }
                         }
                     }
                 }
@@ -924,6 +997,7 @@ Item {
             NavoBaitingPanel {
                 anchors.centerIn: parent
                 controller: baitingController
+                hopperBridge: hopperBridge
                 waypoint: baitingController.targetWaypoint
                 availableSpots: fishingSpots.fishingSpots
                 onChooseOnMapRequested: {

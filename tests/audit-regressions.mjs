@@ -95,4 +95,61 @@ test('Malformed sonar samples cannot enter the active lake',()=>{
   for(const s of [{lat:52,lon:0,depth:null},{lat:52,lon:0,depth:-1},{lat:Infinity,lon:0,depth:2},{lat:52,lon:181,depth:2}])c.ingestSample(s);
   assert.equal(c.rawSamples.length,0);c.ingestSample({lat:52,lon:0,depth:2});assert.equal(c.rawSamples.length,1);
 });
+test('Recovered NAVO mobile UI remains reachable from the dashboard',()=>{
+  const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+  const area=fs.readFileSync(path.join(dir,'NavoAreaScanOverlay.qml'),'utf8');
+  const uploader=fs.readFileSync(path.join(dir,'NavoMissionUploader.qml'),'utf8');
+  for(const token of ['property bool mapMaximized: false','id: statusStrip','id: areaScanMap','id: fishingMap','FINAL: HOLD','onMaximizeRequested: root.mapMaximized = !root.mapMaximized'])
+    assert(dash.includes(token),token);
+  assert(area.includes('▶ "+(root.areaScan.activeLaneIndex+1)+"/"+root.areaScan.laneCount()'));
+  assert(uploader.includes('property int verifiedCount: 0'));
+});
+test('NAVO starts as ArduPilot Rover Boat without vehicle-selection prompt',()=>{
+  const srcDir=path.resolve(import.meta.dirname,'../custom/src');
+  const h=fs.readFileSync(path.join(srcDir,'CustomPlugin.h'),'utf8');
+  const cc=fs.readFileSync(path.join(srcDir,'CustomPlugin.cc'),'utf8');
+  assert(h.includes('firstRunPromptStdIds() final { return QList<int>({ kUnitsFirstRunPromptId }); }'));
+  assert(cc.includes('QGCMAVLink::FirmwareClassArduPilot'));
+  assert(cc.includes('QGCMAVLink::VehicleClassRoverBoat'));
+});
+test('Saved lakes expose persistent rename and confirmed delete controls',()=>{
+  const ui=fs.readFileSync(path.join(dir,'NavoMyLakes.qml'),'utf8');
+  const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+  const coordinator=fs.readFileSync(path.join(dir,'NavoScanCoordinator.qml'),'utf8');
+  for(const token of ['beginRename','beginDelete','renameCurrentLake','deleteCurrentLake','🗑 ȘTERGE'])
+    assert(ui.includes(token),token);
+  assert(dash.includes('✏ NUME'));
+  assert(dash.includes('🗑 ȘTERGE'));
+  assert(coordinator.includes('function renameLake(id, name)'));
+  assert(coordinator.includes('function deleteLake(id)'));
+  assert(coordinator.includes('function clearActiveLake()'));
+});
+test('Deleting the active lake clears restored session state instead of leaving stale data',()=>{
+  let deleted='';
+  const c=context('NavoScanCoordinator.qml',{
+    state:'PAUSED',lakeId:'lake-a',lakeName:'A',areaPoints:[1],bathymetryCells:[1],
+    persistence:{deleteLake(id){deleted=id;return true},replaceWaypointNames:noop},
+    sonarMapping:{scanning:false,paused:true,lakeId:'lake-a',rawSamples:[1],trackCoordinates:[1],currentLane:2,completedLanes:1,totalLanes:3},
+    areaScan:{generatedPoints:[1],completedLanes:[0],activeLaneIndex:1,paused:true,lastBoatCoordinate:{}},
+    fishingSpots:{fishingSpots:[1]},fishStore:{clear(){this.cleared=true}},
+    lakeActivated:noop,status:noop
+  });
+  assert.equal(c.deleteLake('lake-a'),true);
+  assert.equal(deleted,'lake-a');assert.equal(c.lakeId,'');assert.equal(c.state,'IDLE');
+  assert.equal(c.areaScan.generatedPoints.length,0);assert.equal(c.sonarMapping.rawSamples.length,0);assert.equal(c.fishingSpots.fishingSpots.length,0);
+});
+test('Baiting animation is bound to live hopper command state',()=>{
+  const panel=fs.readFileSync(path.join(dir,'NavoBaitingPanel.qml'),'utf8');
+  const bridge=fs.readFileSync(path.join(dir,'NavoHopperBridge.qml'),'utf8');
+  assert(panel.includes('property var hopperBridge'));
+  assert(panel.includes('root.hopperLeftOpen ? -52 : 0'));
+  assert(panel.includes('root.hopperRightOpen ? 52 : 0'));
+  assert(bridge.includes('if(hopper===1||hopper===3)leftOpen=true'));
+  assert(bridge.includes('if(hopper===2||hopper===3)rightOpen=true'));
+});
+test('Android workflow cancels superseded PR builds so UI fixes are tested in batches',()=>{
+  const workflow=fs.readFileSync(path.resolve(import.meta.dirname,'../.github/workflows/android.yml'),'utf8');
+  assert(workflow.includes('concurrency:'));
+  assert(workflow.includes('cancel-in-progress: true'));
+});
 console.log(`${passed} regression scenarios passed`);

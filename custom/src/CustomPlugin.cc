@@ -8,6 +8,9 @@
 #include "NavoBathymetryMesh.h"
 #include "NavoBathymetryGeometry.h"
 #include "NavoTrack3DGeometry.h"
+#include "AppSettings.h"
+#include "FactMetaData.h"
+#include "QGCMAVLink.h"
 #include <QtQml/qqml.h>
 #include <QtQml/QQmlApplicationEngine>
 #include <QtCore/QFile>
@@ -30,6 +33,14 @@ CustomPlugin::CustomPlugin(QObject* parent):QGCCorePlugin(parent),_options(new C
 }
 CustomPlugin::~CustomPlugin(){}
 QGCCorePlugin* CustomPlugin::instance(){ return _customPluginInstance(); }
+bool CustomPlugin::adjustSettingMetaData(const QString& settingsGroup, FactMetaData& metaData){
+ bool visible=QGCCorePlugin::adjustSettingMetaData(settingsGroup,metaData);
+ if(settingsGroup==AppSettings::settingsGroup){
+  if(metaData.name()==AppSettings::offlineEditingFirmwareClassName) metaData.setRawDefaultValue(QGCMAVLink::FirmwareClassArduPilot);
+  else if(metaData.name()==AppSettings::offlineEditingVehicleClassName) metaData.setRawDefaultValue(QGCMAVLink::VehicleClassRoverBoat);
+ }
+ return visible;
+}
 QQmlApplicationEngine* CustomPlugin::createQmlApplicationEngine(QObject* parent){
  _engine=QGCCorePlugin::createQmlApplicationEngine(parent);
  _engine->addImportPath("qrc:/qml");

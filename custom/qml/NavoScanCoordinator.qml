@@ -54,6 +54,53 @@ QtObject {
         lakeActivated(id); return true
     }
 
+    function clearActiveLake() {
+        if(!sonarMapping || !areaScan) return false
+        lakeId=""; lakeName=""; areaPoints=[]; bathymetryCells=[]
+        areaScan.generatedPoints=[]; areaScan.completedLanes=[]; areaScan.activeLaneIndex=-1
+        areaScan.paused=false; areaScan.lastBoatCoordinate=null
+        sonarMapping.scanning=false; sonarMapping.paused=false; sonarMapping.lakeId=""
+        sonarMapping.rawSamples=[]; sonarMapping.trackCoordinates=[]
+        sonarMapping.currentLane=0; sonarMapping.completedLanes=0; sonarMapping.totalLanes=0
+        if(fishingSpots) fishingSpots.fishingSpots=[]
+        if(fishStore) fishStore.clear()
+        if(persistence && persistence.replaceWaypointNames) persistence.replaceWaypointNames({})
+        state="IDLE"; missionLanes=[]; missionWaypointCount=0; missionCurrentIndex=-1
+        lastCompletedLaneFromMission=-1; lastCompletedRouteLaneFromMission=-1
+        lakeActivated("")
+        return true
+    }
+
+    function renameLake(id, name) {
+        if(!persistence || !id || !id.length) return false
+        var clean=String(name||"").trim()
+        if(!clean.length) { status("Numele bălții nu poate fi gol"); return false }
+        var savedId=persistence.saveLake({id:id,name:clean})
+        if(!savedId) { status("Redenumirea bălții a eșuat"); return false }
+        if(lakeId===id) {
+            lakeName=clean
+            if(!checkpoint("lake-renamed")) return false
+        }
+        status("Baltă redenumită: "+clean)
+        return true
+    }
+
+    function deleteLake(id) {
+        if(!persistence || !id || !id.length) return false
+        if(state==="SCANNING" || state==="READY" || state==="RESUME_READY") {
+            status("Oprește misiunea înainte de ștergerea bălții")
+            return false
+        }
+        var deletingActive=lakeId===id
+        if(!persistence.deleteLake(id)) {
+            status("Ștergerea bălții a eșuat")
+            return false
+        }
+        if(deletingActive) clearActiveLake()
+        status("Balta și datele asociate au fost șterse")
+        return true
+    }
+
     property Timer autosave: Timer {
         interval: 5000; repeat: true; running: root.lakeId.length>0
         onTriggered: root.checkpoint("autosave")

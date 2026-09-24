@@ -5,7 +5,14 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
-# build revision 3
+
+# Keep only the newest Android validation for the same PR/branch.
+# This prevents one small UI commit from consuming another full multi-hour build.
+concurrency:
+  group: navo-android-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# build revision 4
 jobs:
   android:
     runs-on: ubuntu-22.04

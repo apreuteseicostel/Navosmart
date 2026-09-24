@@ -37,6 +37,8 @@ QtObject {
   if(hopper===1||hopper===3)ok=setServo(leftServoOutput,leftOpenPwm)&&ok
   if(hopper===2||hopper===3)ok=setServo(rightServoOutput,rightOpenPwm)&&ok
   if(!ok)return false
+  if(hopper===1||hopper===3)leftOpen=true
+  if(hopper===2||hopper===3)rightOpen=true
   pendingHopper=hopper;closeTimer.restart()
   commandSent(hopper===3?"Comandă trimisă: deschide ambele cuve":(hopper===1?"Comandă trimisă: deschide cuva stânga":"Comandă trimisă: deschide cuva dreapta"))
   return true
