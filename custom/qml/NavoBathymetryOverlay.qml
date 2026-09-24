@@ -53,11 +53,14 @@ Item {
             Component.onDestruction: root.map.removeMapItem(this)
             coordinate: QtPositioning.coordinate(modelData.lat,modelData.lon)
             anchorPoint.x: pin.width/2; anchorPoint.y: pin.height
-            sourceItem: Rectangle {
+            sourceItem: Item {
                 id: pin
-                width: Math.max(72,pinText.implicitWidth+18); height:34; radius:17
-                color:"#071827ee"; border.color:"#31d67b"; border.width:2
-                Label { id:pinText; anchors.centerIn:parent; text:"🎣 "+modelData.name; color:"white"; font.bold:true; font.pixelSize:10 }
+                width: Math.max(88,pinText.implicitWidth+32); height:36
+                Rectangle {
+                    width:18; height:18; radius:9; anchors.left:parent.left; anchors.verticalCenter:parent.verticalCenter
+                    color:modelData.color||"#31d67b"; border.color:"white"; border.width:2
+                }
+                Label { id:pinText; anchors.left:parent.left; anchors.leftMargin:24; anchors.verticalCenter:parent.verticalCenter; text:modelData.name; color:"white"; font.bold:true; font.pixelSize:11 }
                 MouseArea { anchors.fill:parent; onClicked:{root.selectedSpot=modelData;root.selectedCell=null;spotDetails.open()} }
             }
         }
