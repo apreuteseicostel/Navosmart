@@ -140,6 +140,7 @@ QtObject {
             fishDetections:fishStore ? fishStore.detections : [],
             bathymetryCells:bathymetryCells,
             currentLane:areaScan.activeLaneIndex, completedLanes:areaScan.completedLanes,
+            lastBoatCoordinate:(areaScan.lastBoatCoordinate && areaScan.lastBoatCoordinate.isValid) ? {latitude:areaScan.lastBoatCoordinate.latitude,longitude:areaScan.lastBoatCoordinate.longitude} : null,
             totalLanes:areaScan.laneCount(),
             missionCurrentIndex:missionCurrentIndex,
             lastCompletedLaneFromMission:lastCompletedLaneFromMission,
@@ -160,10 +161,18 @@ QtObject {
         state=(p.state==="COMPLETE" ? "COMPLETE" : "PAUSED"); bathymetryCells=p.bathymetryCells||[]
         areaScan.generatedPoints=areaPoints; areaScan.completedLanes=p.completedLanes||[]
         areaScan.activeLaneIndex=(p.currentLane===undefined?-1:Number(p.currentLane))
+        areaScan.lastBoatCoordinate=(p.lastBoatCoordinate && p.lastBoatCoordinate.latitude!==undefined && p.lastBoatCoordinate.longitude!==undefined) ? QtPositioning.coordinate(Number(p.lastBoatCoordinate.latitude),Number(p.lastBoatCoordinate.longitude)) : null
         missionCurrentIndex=(p.missionCurrentIndex===undefined?-1:Number(p.missionCurrentIndex))
         lastCompletedLaneFromMission=(p.lastCompletedLaneFromMission===undefined?-1:Number(p.lastCompletedLaneFromMission))
         lastCompletedRouteLaneFromMission=(p.lastCompletedRouteLaneFromMission===undefined?-1:Number(p.lastCompletedRouteLaneFromMission))
         missionLanes=p.missionLanes||[]
+        // Recompute the active lane from completedLanes. This avoids resuming
+        // from a stale currentLane if the app was killed between checkpoints.
+        if(state!=="COMPLETE") {
+            var nextLane=-1
+            for(var li=0;li<areaScan.laneCount();li++) if(areaScan.completedLanes.indexOf(li)<0){nextLane=li;break}
+            areaScan.activeLaneIndex=nextLane
+        }
         if(lastCompletedLaneFromMission<0)
             for(var ci=0;ci<areaScan.completedLanes.length;ci++) lastCompletedLaneFromMission=Math.max(lastCompletedLaneFromMission,Number(areaScan.completedLanes[ci]))
         sonarMapping.restoreCheckpoint({lakeId:id,currentLane:areaScan.activeLaneIndex,completedLanes:areaScan.completedLanes.length,totalLanes:p.totalLanes||areaScan.laneCount(),sampleCount:sonarMapping.rawSamples.length,reason:"restart-restore",time:Date.now()})
