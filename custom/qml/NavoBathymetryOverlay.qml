@@ -12,6 +12,9 @@ Item {
     property var selectedCell: null
     property var selectedSpot: null
     signal status(string text)
+    signal navigateSpotRequested(var spot)
+    signal baitSpotRequested(var spot)
+    signal renameSpotRequested(var spot)
 
     anchors.fill: parent
 
@@ -87,6 +90,12 @@ Item {
             width:340
             Label { text: root.selectedSpot && root.selectedSpot.depth!==null ? "Adâncime salvată: "+Number(root.selectedSpot.depth).toFixed(2)+" m" : "Adâncime: --"; font.bold:true }
             Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.selectedSpot ? root.selectedSpot.note : "" }
+            RowLayout {
+                Layout.fillWidth:true
+                Button { text:"NAVIGHEAZĂ"; onClicked:{root.navigateSpotRequested(root.selectedSpot);spotDetails.close()} }
+                Button { text:"NĂDIRE"; onClicked:{root.baitSpotRequested(root.selectedSpot);spotDetails.close()} }
+                Button { text:"NUME"; onClicked:{root.renameSpotRequested(root.selectedSpot);spotDetails.close()} }
+            }
             Button { text:"ȘTERGE PUNCTUL"; enabled:root.selectedSpot!==null; onClicked:{if(root.fishingSpotsModel&&root.selectedSpot){root.fishingSpotsModel.removeSpot(root.selectedSpot.id);root.status("Punct șters");root.selectedSpot=null;spotDetails.close()}} }
         }
     }
