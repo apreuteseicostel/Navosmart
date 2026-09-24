@@ -172,6 +172,10 @@ Item {
     property color warn: "#ffc857"
     property color danger: "#ff5c5c"
 
+    NavoCameraEthernet {
+        id: cameraEthernet
+    }
+
     NavoSonarEthernet {
         id: sonar
         vehicle: root.vehicle
@@ -831,6 +835,7 @@ Item {
                 id: ethernetSettings
                 anchors.fill: parent; anchors.margins: 12
                 sonar: sonar
+                camera: cameraEthernet
                 onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
                 onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
                 onStatus: function(text) { root.lastNavigationStatus=text }
