@@ -975,6 +975,7 @@ Item {
             NavoBaitingPanel {
                 anchors.centerIn: parent
                 controller: baitingController
+                hopperBridge: hopperBridge
                 waypoint: baitingController.targetWaypoint
                 availableSpots: fishingSpots.fishingSpots
                 onChooseOnMapRequested: {
