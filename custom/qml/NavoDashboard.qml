@@ -179,7 +179,17 @@ Item {
     property color accent: "#26c6da"
     property color ok: "#47d16c"
     property color warn: "#ffc857"
-    property color danger: "#ff5c5c"
+    property color danger: "#ff5c5c"\n\n    function coordinatesFromSonarSamples(samples) {
+        var out=[]
+        if(!samples) return out
+        for(var i=0;i<samples.length;i++) {
+            var s=samples[i]
+            if(s && s.lat!==undefined && s.lon!==undefined)
+                out.push(QtPositioning.coordinate(Number(s.lat), Number(s.lon)))
+        }
+        return out
+    }
+
 
     NavoCameraEthernet {
         id: cameraEthernet
@@ -828,8 +838,10 @@ Item {
         Item {
             NavoBathymetry3D {
                 anchors.fill: parent
-                samples: persistence.sonarSamples
-                boatTrack: sonarMapping.trackCoordinates
+                // Use the active/restored lake session, not the global sonar history.
+                // restoreLake() repopulates rawSamples from the selected lake checkpoint.
+                samples: sonarMapping.rawSamples
+                boatTrack: sonarMapping.trackCoordinates.length ? sonarMapping.trackCoordinates : root.coordinatesFromSonarSamples(sonarMapping.rawSamples)
                 fishingSpots: fishingSpots.fishingSpots
                 fishDetections: root.fishDetections
                 onOpenSonarRequested: root.activePage = 1
