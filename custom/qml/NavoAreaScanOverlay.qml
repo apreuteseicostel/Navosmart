@@ -57,7 +57,7 @@ Item {
             sourceItem: Rectangle {
                 id: badge; width: 54; height: 28; radius: 14
                 color:"#071827ee"; border.color:root.activeColor; border.width:2
-                Text { anchors.centerIn:parent; color:"white"; font.bold:true; text:"▶ "+(root.areaScan.activeLaneIndex+1)+"/"+root.areaScan.laneCount() }
+                Text { anchors.centerIn:parent; color:"white"; font.bold:true; text:"ACTIV "+(root.areaScan.activeLaneIndex+1)+"/"+root.areaScan.laneCount() }
             }
         }
     }
