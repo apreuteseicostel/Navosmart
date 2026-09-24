@@ -776,58 +776,51 @@ Item {
                         }
                     }
                     Flow {
-                    Layout.preferredWidth: root.compactUi ? 190 : Math.min(260,parent.width*0.22)
-                    Layout.minimumWidth: 180; Layout.maximumWidth: 260
-                    Layout.fillHeight: true
-                    spacing: 6
-                    Button {
-                        text: "DREPT."
-                        enabled: scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
-                        onClicked: {
-                            root.pendingAreaDrawMode="rectangle"
-                            Qt.callLater(function(){ if(areaScanMap){ areaScanMap.beginAreaRectangle(); root.pendingAreaDrawMode="none" } })
-                            root.lastNavigationStatus="Atinge două colțuri pe hartă pentru dreptunghi"
+                        Layout.preferredWidth: root.compactUi ? 112 : 126
+                        Layout.minimumWidth: 106; Layout.maximumWidth: 132
+                        Layout.fillHeight: true
+                        spacing: 6
+                        component ScanIconButton: Button {
+                            width: 52; height: 46; padding: 0
+                            property string hint: ""
+                            ToolTip.visible: hovered
+                            ToolTip.text: hint
+                            background: Rectangle { radius: 8; color: parent.down ? "#18354a" : "#101b25"; border.color: parent.enabled ? "#31506a" : "#26313a" }
                         }
-                    }
-                    Button {
-                        text: "POLIGON"
-                        enabled: scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
-                        onClicked: {
-                            root.pendingAreaDrawMode="polygon"
-                            Qt.callLater(function(){ if(areaScanMap){ areaScanMap.beginAreaPolygon(); root.pendingAreaDrawMode="none" } })
-                            root.lastNavigationStatus="Atinge cel puțin trei puncte și apoi TERMINĂ"
+                        ScanIconButton {
+                            hint: "Desenează dreptunghi"
+                            enabled: scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
+                            contentItem: Canvas { anchors.fill: parent; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.strokeRect(12,11,28,24)} }
+                            onClicked: { root.pendingAreaDrawMode="rectangle"; Qt.callLater(function(){if(areaScanMap){areaScanMap.beginAreaRectangle();root.pendingAreaDrawMode="none"}}); root.lastNavigationStatus="Atinge două colțuri pe hartă pentru dreptunghi" }
                         }
-                    }
-                    Button {
-                        text: "PREGĂTEȘTE MISIUNEA"
-                        enabled: areaScanController.generatedPoints.length > 0 && scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
-                        onClicked: {
-                            missionUploader.invalidate()
-                            var prepared=scanCoordinator.prepareMission(false)
-                            if(prepared && prepared.length)
-                                root.lastNavigationStatus="Misiune pregătită • "+prepared.length+" WP • următorul pas: UPLOAD"
-                            else if(!root.lastNavigationStatus.length)
-                                root.lastNavigationStatus="Pregătirea misiunii a eșuat"
+                        ScanIconButton {
+                            hint: "Desenează poligon"
+                            enabled: scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
+                            contentItem: Canvas { anchors.fill: parent; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.beginPath();p.moveTo(12,31);p.lineTo(17,12);p.lineTo(38,9);p.lineTo(42,30);p.lineTo(27,37);p.closePath();p.stroke()} }
+                            onClicked: { root.pendingAreaDrawMode="polygon"; Qt.callLater(function(){if(areaScanMap){areaScanMap.beginAreaPolygon();root.pendingAreaDrawMode="none"}}); root.lastNavigationStatus="Atinge cel puțin trei puncte și apoi TERMINĂ" }
                         }
-                    }
-                    Button {
-                        text: missionUploader.uploadInProgress ? "UPLOAD…" : (missionUploader.uploadVerified ? "START AUTOPILOT" : "UPLOAD")
-                        enabled: missionUploader.preparedCount > 0 && !missionUploader.uploadInProgress
-                        onClicked: root.startMission()
-                    }
-                    Button {
-                        text: "RESUME"
-                        enabled: (scanCoordinator.state==="PAUSED" || scanCoordinator.state==="RTL") && !missionUploader.uploadInProgress && areaScanController.generatedPoints.length > 0 && areaScanController.completedLanes.length < areaScanController.laneCount()
-                        onClicked: {
-                            var mission = scanCoordinator.resume()
-                            if (mission.length) root.lastNavigationStatus = "Resume pregătit • apasă UPLOAD și apoi START AUTOPILOT"
+                        ScanIconButton {
+                            hint: "Pregătește misiunea"
+                            enabled: areaScanController.generatedPoints.length>0 && scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
+                            contentItem: Canvas { anchors.fill: parent; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#21b7ff";p.fillStyle="#21b7ff";p.lineWidth=2;p.beginPath();p.moveTo(11,34);p.lineTo(22,22);p.lineTo(31,29);p.lineTo(41,13);p.stroke();for(var i=0;i<4;i++){var a=[[11,34],[22,22],[31,29],[41,13]][i];p.beginPath();p.arc(a[0],a[1],2.5,0,Math.PI*2);p.fill()}} }
+                            onClicked: { missionUploader.invalidate(); var prepared=scanCoordinator.prepareMission(false); if(prepared&&prepared.length)root.lastNavigationStatus="Misiune pregătită • "+prepared.length+" WP • următorul pas: UPLOAD"; else if(!root.lastNavigationStatus.length)root.lastNavigationStatus="Pregătirea misiunii a eșuat" }
                         }
-                    }
-                }
-                    Button { text: "HOLD"; enabled: scanCoordinator.state==="SCANNING" || root.awaitingMissionStart; onClicked: root.holdMission() }
-                    Button { text: "RTL"; enabled: scanCoordinator.state==="SCANNING" || scanCoordinator.state==="PAUSED" || scanCoordinator.state==="RESUME_READY"; onClicked: root.rtlMission() }
-                    Button { text: "STOP"; enabled: scanCoordinator.state==="SCANNING" || scanCoordinator.state==="PAUSED" || scanCoordinator.state==="READY" || scanCoordinator.state==="RESUME_READY" || root.awaitingMissionStart; onClicked: root.stopMission() }
-                    ComboBox { width: 170; model: ["FINAL: HOLD","FINAL: RTL"]; currentIndex: root.areaScanFinishAction==="RTL" ? 1 : 0; onActivated: root.areaScanFinishAction=currentIndex===1 ? "RTL" : "HOLD" }
+                        ScanIconButton {
+                            hint: missionUploader.uploadVerified ? "Start autopilot" : "Upload misiune"
+                            enabled: missionUploader.preparedCount>0 && !missionUploader.uploadInProgress
+                            contentItem: Canvas { anchors.fill: parent; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#31d67b";p.fillStyle="#31d67b";p.lineWidth=2;if(missionUploader.uploadVerified){p.beginPath();p.moveTo(17,11);p.lineTo(38,23);p.lineTo(17,35);p.closePath();p.fill()}else{p.beginPath();p.moveTo(26,35);p.lineTo(26,12);p.moveTo(17,21);p.lineTo(26,12);p.lineTo(35,21);p.stroke()}} }
+                            onClicked: root.startMission()
+                        }
+                        ScanIconButton {
+                            hint: "Continuă scanarea"
+                            enabled: (scanCoordinator.state==="PAUSED"||scanCoordinator.state==="RTL") && !missionUploader.uploadInProgress && areaScanController.generatedPoints.length>0 && areaScanController.completedLanes.length<areaScanController.laneCount()
+                            contentItem: Canvas { anchors.fill: parent; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.beginPath();p.arc(26,23,12,.45,5.3);p.stroke();p.beginPath();p.moveTo(34,10);p.lineTo(39,17);p.lineTo(31,18);p.stroke()} }
+                            onClicked:{var mission=scanCoordinator.resume();if(mission.length)root.lastNavigationStatus="Resume pregătit • apasă UPLOAD și apoi START AUTOPILOT"}
+                        }
+                        ScanIconButton { hint:"HOLD"; enabled:scanCoordinator.state==="SCANNING"||root.awaitingMissionStart; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.fillStyle="#ffc857";p.fillRect(15,12,7,23);p.fillRect(30,12,7,23)}};onClicked:root.holdMission() }
+                        ScanIconButton { hint:"RTL / întoarcere acasă"; enabled:scanCoordinator.state==="SCANNING"||scanCoordinator.state==="PAUSED"||scanCoordinator.state==="RESUME_READY"; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#21b7ff";p.lineWidth=2;p.beginPath();p.moveTo(10,25);p.lineTo(26,11);p.lineTo(42,25);p.moveTo(16,22);p.lineTo(16,37);p.lineTo(36,37);p.lineTo(36,22);p.stroke()}};onClicked:root.rtlMission() }
+                        ScanIconButton { hint:"STOP"; enabled:scanCoordinator.state==="SCANNING"||scanCoordinator.state==="PAUSED"||scanCoordinator.state==="READY"||scanCoordinator.state==="RESUME_READY"||root.awaitingMissionStart; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.fillStyle="#ff5c5c";p.fillRect(15,12,23,23)}};onClicked:root.stopMission() }
+                        ComboBox { width:110; height:38; model:["HOLD","RTL"]; currentIndex:root.areaScanFinishAction==="RTL"?1:0; ToolTip.visible:hovered; ToolTip.text:"Acțiune la finalul scanării"; onActivated:root.areaScanFinishAction=currentIndex===1?"RTL":"HOLD" }
                     }
                 }
             }
