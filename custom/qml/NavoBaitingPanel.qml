@@ -20,10 +20,8 @@ Rectangle {
     signal chooseOnMapRequested()
     signal spotChosen(var spot)
     color: "#0b1c2eee"; border.color: "#21b7ff"; radius: 10
-    width: Math.min(340, parent ? parent.width - 24 : 340)
+    implicitWidth: 320
     implicitHeight: summary.implicitHeight + 20
-    scale: parent ? Math.min(1.0, Math.max(0.72, Math.min((parent.width - 16) / width, (parent.height - 16) / implicitHeight))) : 1.0
-    transformOrigin: Item.Center
 
     Settings {
         id: saved
@@ -84,12 +82,12 @@ Rectangle {
         id: summary
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
         anchors.margins: 10; spacing: 7
-        Label { text: "NĂDIRE AUTOMATĂ"; color: "white"; font.bold: true; font.pixelSize: 16 }
+        Label { text: "NĂDIRE"; color: "white"; font.bold: true; font.pixelSize: 15 }
         Label { Layout.fillWidth: true; text: "Punct: " + root.waypointName; color: "#21b7ff"; font.bold: true; wrapMode: Text.WordWrap }
         Label {
             Layout.fillWidth: true
             visible: !root.waypoint
-            text: "Alege un waypoint pe hartă sau un loc de pescuit salvat. Pornirea cere apoi GPS și H743 conectate."
+            text: "Alege ținta pe hartă sau din punctele salvate."
             color: root.secondaryTextColor; wrapMode: Text.WordWrap
         }
         ComboBox {
@@ -246,7 +244,7 @@ Rectangle {
                 }
             }
         }
-        Button { text: "⚙ SETĂRI NĂDIRE"; enabled: !root.controller || !root.controller.enabled; onClicked: settingsPopup.open() }
+        Button { text: "SETĂRI"; enabled: !root.controller || !root.controller.enabled; onClicked: settingsPopup.open() }
         Label { Layout.fillWidth: true; text: root.controller ? "Stare: " + root.controller.stateText(root.controller.state) : "Controler indisponibil"; color: root.controller && root.controller.enabled ? "#31d67b" : "#9db2c5"; wrapMode: Text.WordWrap }
     }
 
