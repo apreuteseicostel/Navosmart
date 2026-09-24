@@ -1099,27 +1099,73 @@ Item {
     Component {
         id: failsafePage
         Item {
-            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
-            ColumnLayout {
-                anchors.fill: parent; anchors.margins: 16; spacing: 12
-                Label { text: "SIGURANȚĂ & FAILSAFE"; color: root.text; font.pixelSize: 20; font.bold: true }
-                NavoFailsafePanel { Layout.fillWidth: true; controller: failsafeController }
-                Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; color:root.warn; text:"Cuve: confirmă ieșirile și PWM-urile pe banc înainte de activare. Telemetria PWM nu confirmă calibrarea mecanică." }
-                GridLayout {
-                    columns:3; Layout.fillWidth:true
-                    Label { text:"Cuva"; color:root.text } Label { text:"Stânga"; color:root.text } Label { text:"Dreapta"; color:root.text }
-                    Label { text:"Ieșire"; color:root.text }
-                    SpinBox { from:1; to:16; value:hopperSettings.leftOutput; onValueModified:{hopperSettings.confirmed=false;hopperSettings.leftOutput=value} }
-                    SpinBox { from:1; to:16; value:hopperSettings.rightOutput; onValueModified:{hopperSettings.confirmed=false;hopperSettings.rightOutput=value} }
-                    Label { text:"Închis µs"; color:root.text }
-                    SpinBox { from:900; to:2100; value:hopperSettings.leftClosed; onValueModified:{hopperSettings.confirmed=false;hopperSettings.leftClosed=value} }
-                    SpinBox { from:900; to:2100; value:hopperSettings.rightClosed; onValueModified:{hopperSettings.confirmed=false;hopperSettings.rightClosed=value} }
-                    Label { text:"Deschis µs"; color:root.text }
-                    SpinBox { from:900; to:2100; value:hopperSettings.leftOpen; onValueModified:{hopperSettings.confirmed=false;hopperSettings.leftOpen=value} }
-                    SpinBox { from:900; to:2100; value:hopperSettings.rightOpen; onValueModified:{hopperSettings.confirmed=false;hopperSettings.rightOpen=value} }
+            Rectangle { anchors.fill:parent; radius:8; color:root.panel; border.color:root.line }
+            RowLayout {
+                anchors.fill:parent; anchors.margins:12; spacing:12
+                ColumnLayout {
+                    Layout.fillWidth:true; Layout.fillHeight:true; Layout.preferredWidth:1
+                    Label { text:"SIGURANȚĂ & FAILSAFE"; color:root.text; font.pixelSize:18; font.bold:true }
+                    NavoFailsafePanel {
+                        Layout.fillWidth:true
+                        Layout.alignment:Qt.AlignTop
+                        controller:failsafeController
+                    }
+                    Label {
+                        Layout.fillWidth:true; wrapMode:Text.WordWrap; color:root.muted; font.pixelSize:11
+                        text:"Link G20: HOLD după timpul configurat. GPS: așteaptă recuperarea; HOME/RTL este cerut numai după revenirea unei poziții GPS valide."
+                    }
+                    Item { Layout.fillHeight:true }
                 }
-                CheckBox { text:"Am verificat mecanic calibrarea cuvelor"; checked:hopperSettings.confirmed; enabled:!baitingController.enabled && !hopperBridge.commandPending; onToggled:hopperSettings.confirmed=checked }
-                Item { Layout.fillHeight: true }
+                Rectangle {
+                    Layout.fillWidth:true; Layout.fillHeight:true; Layout.preferredWidth:1
+                    radius:8; color:root.bg; border.color:root.line
+                    ColumnLayout {
+                        anchors.fill:parent; anchors.margins:12; spacing:9
+                        Label { text:"CUVE & SIGURANȚĂ HARDWARE"; color:root.text; font.pixelSize:15; font.bold:true }
+                        Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; color:root.warn; font.pixelSize:10; text:"Confirmă ieșirile și PWM-urile pe banc înainte de activare. Telemetria PWM nu confirmă calibrarea mecanică." }
+                        GridLayout {
+                            columns:3; Layout.fillWidth:true; columnSpacing:8; rowSpacing:7
+                            Label { text:"Cuva"; color:root.text } Label { text:"Stânga"; color:root.text } Label { text:"Dreapta"; color:root.text }
+                            Label { text:"Ieșire"; color:root.muted }
+                            SpinBox { from:1;to:16;value:hopperSettings.leftOutput;onValueModified:{hopperSettings.confirmed=false;hopperSettings.leftOutput=value} }
+                            SpinBox { from:1;to:16;value:hopperSettings.rightOutput;onValueModified:{hopperSettings.confirmed=false;hopperSettings.rightOutput=value} }
+                            Label { text:"Închis µs"; color:root.muted }
+                            SpinBox { from:900;to:2100;value:hopperSettings.leftClosed;onValueModified:{hopperSettings.confirmed=false;hopperSettings.leftClosed=value} }
+                            SpinBox { from:900;to:2100;value:hopperSettings.rightClosed;onValueModified:{hopperSettings.confirmed=false;hopperSettings.rightClosed=value} }
+                            Label { text:"Deschis µs"; color:root.muted }
+                            SpinBox { from:900;to:2100;value:hopperSettings.leftOpen;onValueModified:{hopperSettings.confirmed=false;hopperSettings.leftOpen=value} }
+                            SpinBox { from:900;to:2100;value:hopperSettings.rightOpen;onValueModified:{hopperSettings.confirmed=false;hopperSettings.rightOpen=value} }
+                        }
+                        CheckBox {
+                            Layout.fillWidth:true
+                            text:"Am verificat mecanic calibrarea cuvelor"
+                            checked:hopperSettings.confirmed
+                            enabled:!baitingController.enabled && !hopperBridge.commandPending
+                            onToggled:hopperSettings.confirmed=checked
+                        }
+                        Rectangle {
+                            Layout.fillWidth:true; Layout.preferredHeight:72; radius:7
+                            color:root.panel; border.color:safetyManager.state==="CRITICAL"?root.danger:root.line
+                            RowLayout {
+                                anchors.fill:parent; anchors.margins:9
+                                ColumnLayout {
+                                    Label { text:"SENZORI"; color:root.muted; font.pixelSize:10 }
+                                    Label { text:nanoTelemetry.connected?"Nano ONLINE":"Nano OFFLINE"; color:nanoTelemetry.connected?root.ok:root.warn; font.bold:true }
+                                }
+                                Item { Layout.fillWidth:true }
+                                ColumnLayout {
+                                    Label { text:"TEMP BATERIE"; color:root.muted; font.pixelSize:10 }
+                                    Label { text:nanoTelemetry.connected&&!isNaN(nanoTelemetry.batteryTempC)?Number(nanoTelemetry.batteryTempC).toFixed(1)+" °C":"--"; color:root.text; font.bold:true }
+                                }
+                                ColumnLayout {
+                                    Label { text:"APĂ"; color:root.muted; font.pixelSize:10 }
+                                    Label { text:nanoTelemetry.waterDetected?"DETECTATĂ":"OK"; color:nanoTelemetry.waterDetected?root.danger:(nanoTelemetry.connected?root.ok:root.muted); font.bold:true }
+                                }
+                            }
+                        }
+                        Item { Layout.fillHeight:true }
+                    }
+                }
             }
         }
     }
