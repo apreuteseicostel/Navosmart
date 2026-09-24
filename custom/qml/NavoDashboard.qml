@@ -20,6 +20,7 @@ Item {
     // Compatibility with QGroundControl v5.0.7 MainWindow, which binds this
     // property on the FlyView root. NAVO does not currently use UTM/SP.
     property bool utmspSendActTrigger: false
+    property bool mapMaximized: false
 
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
     property var planController: _planController
@@ -470,7 +471,8 @@ Item {
 
     Rectangle {
         id: sidebar
-        anchors.left: parent.left; anchors.top: header.bottom; anchors.bottom: footer.top
+        anchors.left: parent.left; anchors.top: header.bottom; anchors.bottom: statusStrip.top
+        visible: !root.mapMaximized
         width: root.width < 1100 ? 150 : 190; color: root.panel; border.color: root.line
         Flickable {
             anchors.fill: parent
@@ -502,7 +504,7 @@ Item {
 
     Rectangle {
         id: content
-        anchors.left: sidebar.right; anchors.right: rightPanel.left; anchors.top: header.bottom; anchors.bottom: footer.top
+        anchors.left: root.mapMaximized ? parent.left : sidebar.right; anchors.right: parent.right; anchors.top: header.bottom; anchors.bottom: statusStrip.top
         color: root.bg
         Loader {
             anchors.fill: parent; anchors.margins: 10
@@ -519,81 +521,27 @@ Item {
     }
 
     Rectangle {
-        id: rightPanel
-        anchors.right: parent.right; anchors.top: header.bottom; anchors.bottom: footer.top
-        width: root.width < 1100 ? 220 : 260; color: root.panel; border.color: root.line
-        Flickable {
-            anchors.fill: parent
-            clip: true
-            contentWidth: width
-            contentHeight: statusColumn.implicitHeight + 24
-            boundsBehavior: Flickable.StopAtBounds
-            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-        ColumnLayout {
-            id: statusColumn
-            x: 12; y: 12; width: parent.width - 24; spacing: 10
-            Label { text: "STATUS BARCA"; color: root.text; font.bold: true }
-            NavoEthernetIndicator {
-                Layout.fillWidth: true
-                sonarConnected: sonar.connected
-                sonarAlive: sonar.dataAlive
-                cameraConnected: root.cameraConnected
-                cameraAlive: root.cameraConnected
-                sonarStatus: sonar.status
-                cameraStatus: root.cameraConnected ? "Flux video LIVE" : (root.cameraStreamUrl.length ? "URL configurat; flux inactiv" : "OFFLINE")
-            }
-            DataLine { name: "Conexiune"; value: vehicle ? "ONLINE" : "OFFLINE"; valueColor: vehicle ? root.ok : root.danger }
-            DataLine { name: "Mod"; value: root.flightMode.length ? root.flightMode : "--"; valueColor: root.modeColor() }
-            DataLine { name: "Acasa"; value: Number(root.distanceToHome).toFixed(0) + " m" }
-            DataLine { name: "Tinta"; value: root.distanceToTarget > 0 ? Number(root.distanceToTarget).toFixed(0) + " m" : "--" }
-            DataLine { name: "Nano"; value: nanoTelemetry.connected ? "ONLINE" : "OFFLINE"; valueColor: nanoTelemetry.connected ? root.ok : root.warn }
-            DataLine { name: "Temp baterie"; value: nanoTelemetry.connected && !isNaN(nanoTelemetry.batteryTempC) ? Number(nanoTelemetry.batteryTempC).toFixed(1) + " °C" : "--"; valueColor: safetyManager.state === "CRITICAL" ? root.danger : safetyManager.state === "WARNING" ? root.warn : root.text }
-            DataLine { name: "Apa"; value: nanoTelemetry.connected ? (nanoTelemetry.waterDetected ? "DETECTATA" : "OK") : "--"; valueColor: nanoTelemetry.waterDetected ? root.danger : root.text }
-            NavoBoatStatus {
-                Layout.fillWidth: true
-                Layout.preferredHeight: 170
-                compact: true
-                waterDetected: nanoTelemetry.waterDetected
-                batteryTempC: nanoTelemetry.batteryTempC
-                headlightOn: nanoTelemetry.headlightOn
-                positionLightsOn: nanoTelemetry.positionLightsOn
-                rudderNormalized: nanoTelemetry.rudderUs > 0 ? Math.max(-1,Math.min(1,(nanoTelemetry.rudderUs-1500)/500.0)) : 0
-                leftHopperCommandOpen: hopperBridge.commandPending && (hopperBridge.pendingHopper===1||hopperBridge.pendingHopper===3)
-                rightHopperCommandOpen: hopperBridge.commandPending && (hopperBridge.pendingHopper===2||hopperBridge.pendingHopper===3)
-            }
-            Rectangle { Layout.fillWidth: true; height: 1; color: root.line }
-            Label { text: "CONTROL MISIUNE"; color: root.muted; font.bold: true }
-            RowLayout {
-                Layout.fillWidth: true
-                Button { Layout.fillWidth: true; text: missionUploader.uploadVerified ? "START AUTOPILOT" : "UPLOAD"; onClicked: root.startMission() }
-                Button { Layout.fillWidth: true; text: "HOLD"; onClicked: root.holdMission() }
-            }
-            RowLayout {
-                Layout.fillWidth: true
-                Button { Layout.fillWidth: true; text: "RTL"; onClicked: root.rtlMission() }
-                Button { Layout.fillWidth: true; text: "STOP"; onClicked: root.stopMission() }
-            }
-            RowLayout {
-                Layout.fillWidth: true
-                Button { Layout.fillWidth: true; text: digitalAnchor.active ? "ANCORĂ ON" : "ANCORĂ GPS"; onClicked: digitalAnchor.active ? digitalAnchor.release() : digitalAnchor.engage() }
-                Label { text: energyGuard.message(root.distanceToHome, battery ? Number(battery.percentRemaining.rawValue) : NaN); color: battery && energyGuard.canStart(root.distanceToHome, Number(battery.percentRemaining.rawValue)) ? root.ok : root.warn; font.pixelSize: 9 }
-            }
-            Rectangle { Layout.fillWidth: true; height: 1; color: root.line }
-            Label { text: "CUVE"; color: root.muted; font.bold: true }
+        id: statusStrip
+        anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: footer.top
+        height: 52; color: root.panel; border.color: root.line
+        RowLayout {
+            anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10; spacing: 8
+            Label { text: "BARCĂ"; color: root.muted; font.bold: true; font.pixelSize: 11 }
+            StatusPill { title: "LINK"; value: vehicle ? "ONLINE" : "OFFLINE"; good: vehicle !== null }
+            StatusPill { title: "LAN"; value: sonar.transport && sonar.transport.connected ? "ONLINE" : "OFFLINE"; good: sonar.transport && sonar.transport.connected }
+            StatusPill { title: "SONAR"; value: root.sonarConnected ? "LIVE" : "OFFLINE"; good: root.sonarConnected }
+            StatusPill { title: "CAM"; value: root.cameraConnected ? "LIVE" : "OFFLINE"; good: root.cameraConnected }
+            StatusPill { title: "ACASĂ"; value: Number(root.distanceToHome).toFixed(0) + " m"; good: !!vehicle }
+            StatusPill { title: "ȚINTĂ"; value: root.distanceToTarget > 0 ? Number(root.distanceToTarget).toFixed(0) + " m" : "--"; good: root.distanceToTarget > 0 }
+            StatusPill { title: "NANO"; value: nanoTelemetry.connected ? "ONLINE" : "OFFLINE"; good: nanoTelemetry.connected }
+            StatusPill { title: "TEMP"; value: nanoTelemetry.connected && !isNaN(nanoTelemetry.batteryTempC) ? Number(nanoTelemetry.batteryTempC).toFixed(1) + "°" : "--"; good: nanoTelemetry.connected && safetyManager.state !== "CRITICAL" }
+            Item { Layout.fillWidth: true }
             Label {
-                Layout.fillWidth: true; wrapMode: Text.WordWrap
-                text: root.hopperControlsEnabled ? "Control disponibil" : "Blocate pana aproape de punct"
-                color: root.hopperControlsEnabled ? root.ok : root.warn; font.pixelSize: 11
+                Layout.maximumWidth: Math.max(120, root.width * 0.20)
+                elide: Text.ElideRight
+                text: root.lastNavigationStatus
+                color: root.muted; font.pixelSize: 10
             }
-            RowLayout {
-                Layout.fillWidth: true
-                Button { Layout.fillWidth: true; text: "STANGA"; enabled: root.hopperControlsEnabled; onClicked: root.openHopper("stanga") }
-                Button { Layout.fillWidth: true; text: "DREAPTA"; enabled: root.hopperControlsEnabled; onClicked: root.openHopper("dreapta") }
-            }
-            Button { Layout.fillWidth: true; text: "AMBELE"; enabled: root.hopperControlsEnabled; onClicked: root.openHopper("ambele") }
-            Item { Layout.fillHeight: true }
-            Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: root.lastNavigationStatus; color: root.muted; font.pixelSize: 11 }
-        }
         }
     }
 
@@ -622,6 +570,8 @@ Item {
                 areaScanController: areaScanController
                 savedDepthM: root.depthM
                 savedWaterTempC: root.waterTempC
+                maximized: root.mapMaximized
+                onMaximizeRequested: root.mapMaximized = !root.mapMaximized
                 onNavigateRequested: function(coordinate) { root.navigateToCoordinate(coordinate) }
                 onBaitingWaypointSelected: function(waypoint) {
                     root.lastNavigationStatus="Punct selectat: " + (waypoint.sequenceNumber !== undefined ? "WP" + waypoint.sequenceNumber : "waypoint") + " • poți deschide NĂDIRE când dorești"
