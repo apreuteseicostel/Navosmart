@@ -48,6 +48,7 @@ QtObject {
             lastCompletedRouteLaneFromMission=routeLane
         }
         status("Area Scan • WP "+index+" • "+areaScan.progressPercent()+"%")
+        if(missionWaypointCount>0 && index >= missionWaypointCount + 1 && areaScan.completedLanes.length>=areaScan.laneCount() && state==="SCANNING") finish()
     }
 
     function preparePolygon(polygon) {
