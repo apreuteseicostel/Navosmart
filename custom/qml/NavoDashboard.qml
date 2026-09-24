@@ -836,6 +836,8 @@ Item {
                     ComboBox { width: 170; model: ["FINAL: HOLD","FINAL: RTL"]; currentIndex: root.areaScanFinishAction==="RTL" ? 1 : 0; onActivated: root.areaScanFinishAction=currentIndex===1 ? "RTL" : "HOLD" }
                     }
                 }
+            }
+        }
 
     Component {
         id: fishingPage
