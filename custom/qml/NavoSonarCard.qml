@@ -25,7 +25,17 @@ Rectangle {
             Label { text: "KOGGER BASIC 2D+"; color: "white"; font.bold: true }
             Item { Layout.fillWidth: true }
             Label { text: root.connected ? "● LIVE" : "● OFFLINE"; color: root.connected ? "#31d67b" : "#9db2c5" }
-            Button { text: "⛶"; Accessible.name: "Mărește sonarul"; onClicked: root.openFullSonar() }
+            Button {
+                width: 30; height: 30; padding: 0; flat: true
+                Accessible.name: "Mărește sonarul"
+                ToolTip.visible: hovered; ToolTip.text: "Mărește sonarul"
+                contentItem: Label {
+                    text: "↗"; color: "#d7e3ee"; font.pixelSize: 20; font.bold: true
+                    horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle { color: "transparent"; border.color: "#31536c"; radius: 5 }
+                onClicked: root.openFullSonar()
+            }
         }
         RowLayout {
             Layout.fillWidth: true
