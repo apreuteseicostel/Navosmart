@@ -39,6 +39,7 @@ Item {
         id: sessionSettings
         category: "NavoSession"
         property string activeLakeId: ""
+        property string bathymetryCacheRoot: StandardPaths.writableLocation(StandardPaths.CacheLocation) + "/navosmart-bathymetry"
     }
     Settings {
         id: endpointSettings
@@ -967,6 +968,7 @@ Item {
                 boatTrack: sonarMapping.trackCoordinates.length ? sonarMapping.trackCoordinates : root.coordinatesFromSonarSamples(sonarMapping.rawSamples)
                 fishingSpots: fishingSpots.fishingSpots
                 fishDetections: root.fishDetections
+                meshCachePath: sessionSettings.activeLakeId.length ? sessionSettings.bathymetryCacheRoot + "/" + sessionSettings.activeLakeId + ".mesh" : ""
                 onOpenSonarRequested: root.activePage = 1
             }
         }
