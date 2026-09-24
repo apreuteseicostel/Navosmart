@@ -50,15 +50,14 @@ Popup {
    Label{text:isNaN(root.depthM)?"-- m":root.depthM.toFixed(1)+" m";color:"#21b7ff";font.pixelSize:28;font.bold:true}
    Label{text:isNaN(root.waterTempC)?"-- °C":root.waterTempC.toFixed(1)+" °C";color:"white";font.pixelSize:20;Layout.rightMargin:52}
   }
-  Flow{Layout.fillWidth:true;Layout.leftMargin:10;Layout.rightMargin:10;spacing:8
-   Label{text:"SENSIBILITATE";color:"#9db2c5"}
-   Slider{id:gainSlider;from:.5;to:2.2;value:root.gain;stepSize:.05;width:150;onMoved:root.gain=value}
-   Label{text:Math.round(root.gain*100)+"%";color:"white"}
-   Button{text:root.noiseFilter?"FILTRU ZGOMOT ON":"FILTRU ZGOMOT OFF";checkable:true;checked:root.noiseFilter;onClicked:root.noiseFilter=checked}
-   Slider{id:noiseSlider;from:0;to:.35;value:root.noiseFloor;stepSize:.01;width:130;enabled:root.noiseFilter;onMoved:root.noiseFloor=value}
+  Flow{Layout.fillWidth:true;Layout.leftMargin:10;Layout.rightMargin:10;spacing:7
+   SonarIconButton{hint:"Sensibilitate: "+Math.round(root.gain*100)+"%";contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;for(var i=0;i<3;i++){var y=11+i*8;p.beginPath();p.moveTo(8,y);p.lineTo(34,y);p.stroke();var x=[17,27,13][i];p.fillStyle="#21b7ff";p.beginPath();p.arc(x,y,3,0,Math.PI*2);p.fill()}}}}
+   Slider{id:gainSlider;from:.5;to:2.2;value:root.gain;stepSize:.05;width:Math.max(90,Math.min(130,root.width*.12));onMoved:root.gain=value;ToolTip.visible:hovered||pressed;ToolTip.text:"Sensibilitate "+Math.round(value*100)+"%"}
+   SonarIconButton{hint:root.noiseFilter?"Filtru zgomot: ON":"Filtru zgomot: OFF";checkable:true;checked:root.noiseFilter;contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle=parent.checked?"#21b7ff":"#d9edf7";p.lineWidth=2;p.beginPath();p.moveTo(7,12);p.lineTo(13,12);p.lineTo(17,7);p.lineTo(22,27);p.lineTo(27,14);p.lineTo(35,14);p.stroke()}};onClicked:root.noiseFilter=checked}
+   Slider{id:noiseSlider;from:0;to:.35;value:root.noiseFloor;stepSize:.01;width:Math.max(80,Math.min(115,root.width*.10));enabled:root.noiseFilter;onMoved:root.noiseFloor=value;ToolTip.visible:hovered||pressed;ToolTip.text:"Prag filtru "+Math.round(value*100)+"%"}
    SonarIconButton{hint:"Afișare pești";checkable:true;checked:root.fishIcons;contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle=parent.checked?"#21b7ff":"#d9edf7";p.lineWidth=2;p.beginPath();p.ellipse(10,13,18,12);p.moveTo(28,19);p.lineTo(35,13);p.lineTo(35,25);p.closePath();p.stroke();p.beginPath();p.arc(15,18,1.3,0,Math.PI*2);p.fillStyle=p.strokeStyle;p.fill()}};onClicked:root.fishIcons=checked}
-   Button{text:root.showRawTrace?"ECOU BRUT ON":"ECOU BRUT";checkable:true;checked:root.showRawTrace;onClicked:root.showRawTrace=checked}
-   ComboBox{model:["NAVO","DAY"];currentIndex:root.paletteMode==="NAVO"?0:1;onActivated:function(index){root.paletteMode=model[index]}}
+   SonarIconButton{hint:root.showRawTrace?"Ecou brut: ON":"Ecou brut: OFF";checkable:true;checked:root.showRawTrace;contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle=parent.checked?"#21b7ff":"#d9edf7";p.lineWidth=2;p.beginPath();for(var x=6;x<=36;x+=2){var y=19+Math.sin(x*.75)*7;p.lineTo(x,y)}p.stroke()}};onClicked:root.showRawTrace=checked}
+   ComboBox{width:86;model:["NAVO","DAY"];currentIndex:root.paletteMode==="NAVO"?0:1;ToolTip.visible:hovered;ToolTip.text:"Paletă ecogramă";onActivated:function(index){root.paletteMode=model[index]}}
   }
   RowLayout{Layout.fillWidth:true;Layout.fillHeight:true;spacing:8
   Rectangle{Layout.fillWidth:true;Layout.fillHeight:true;color:"#020b12"
