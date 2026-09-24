@@ -254,46 +254,32 @@ Item {
     }
     Column {
         id: mapControls
-        // Keep controls inside the map on phones/tablets and above any bottom overlays.
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.rightMargin: Math.max(8, Math.round(root.width * 0.008))
-        anchors.topMargin: 8
-        spacing: 4
-        z: 50
-        property int controlSize: Math.max(38, Math.min(46, Math.round(root.width * 0.042)))
-        property int iconSize: Math.max(18, Math.round(controlSize * 0.48))
-        Button {
-            text: "HD"; width: parent.controlSize; height: parent.controlSize; padding: 2; font.pixelSize: Math.max(14,mapControls.iconSize-2)
-            checkable: true; checked: root.bathymetryHDEnabled
-            ToolTip.visible: hovered; ToolTip.text: "Strat Batimetrie HD"
-            onToggled: root.bathymetryHDEnabled = checked
+        anchors.left:parent.left; anchors.top:parent.top; anchors.margins:10
+        spacing:5; z:50
+        property int controlSize:56
+        component MapTool: Button {
+            width:56;height:56;padding:0
+            font.pixelSize:26;font.bold:true
+            background:Rectangle { radius:8;color:"#0d1722";border.color:"#27394b";border.width:1 }
+            contentItem:Label { text:parent.text;color:"#f4f7fb";font.pixelSize:parent.font.pixelSize;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter }
         }
-        Button { text: "+"; width: parent.controlSize; height: parent.controlSize; padding: 2; font.pixelSize: mapControls.iconSize; onClicked: liveMap.zoomLevel = liveMap.zoomLevel + 1 }
-        Button { text: "−"; width: parent.controlSize; height: parent.controlSize; padding: 2; font.pixelSize: mapControls.iconSize; onClicked: liveMap.zoomLevel = liveMap.zoomLevel - 1 }
-        Button {
-            text: "⌖"; width: parent.controlSize; height: parent.controlSize; padding: 2; font.pixelSize: mapControls.iconSize
-            ToolTip.visible: hovered; ToolTip.text: "Centrează pe barcă"
-            enabled: !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
-            onClicked: liveMap.center = root.vehicle.coordinate
+        MapTool { text:"▲"; rotation:45; ToolTip.visible:hovered;ToolTip.text:"Centrează pe barcă";enabled:!!root.vehicle&&!!root.vehicle.coordinate&&root.vehicle.coordinate.isValid;onClicked:liveMap.center=root.vehicle.coordinate }
+        MapTool { text:"+";onClicked:liveMap.zoomLevel=liveMap.zoomLevel+1 }
+        MapTool { text:"−";onClicked:liveMap.zoomLevel=liveMap.zoomLevel-1 }
+        MapTool { text:"◎";ToolTip.visible:hovered;ToolTip.text:"Centrare";enabled:!!root.vehicle&&!!root.vehicle.coordinate&&root.vehicle.coordinate.isValid;onClicked:liveMap.center=root.vehicle.coordinate }
+    }
+    Column {
+        anchors.right:parent.right;anchors.top:parent.top;anchors.margins:10;spacing:5;z:50
+        property int controlSize:56
+        component RightTool: Button {
+            width:56;height:56;padding:0;font.pixelSize:22;font.bold:true
+            background:Rectangle { radius:8;color:"#0d1722";border.color:"#27394b" }
+            contentItem:Label { text:parent.text;color:"#f4f7fb";font.pixelSize:parent.font.pixelSize;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter }
         }
-        Button {
-            text: "⌂"; width: parent.controlSize; height: parent.controlSize; padding: 2; font.pixelSize: mapControls.iconSize
-            ToolTip.visible: hovered; ToolTip.text: "Acasă"
-            enabled: !!root.vehicle && !!root.vehicle.homePosition && root.vehicle.homePosition.isValid
-            onClicked: liveMap.center = root.vehicle.homePosition
-        }
-        Button {
-            text: root.maximized ? "↙" : "⛶"; width: parent.controlSize; height: parent.controlSize; padding: 2; font.pixelSize: mapControls.iconSize
-            ToolTip.visible: hovered; ToolTip.text: root.maximized ? "Micșorează harta" : "Maximizează harta"
-            onClicked: root.maximizeRequested()
-        }
-        Button {
-            text: "＋"; width: parent.controlSize; height: parent.controlSize; padding: 2; font.pixelSize: mapControls.iconSize
-            ToolTip.visible: hovered; ToolTip.text: "Salvează punct"
-            enabled: !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
-            onClicked: root.savePointRequested(root.vehicle.coordinate)
-        }
+        RightTool { text:"MAP";font.pixelSize:11;onClicked:root.bathymetryHDEnabled=false }
+        RightTool { text:"HD";font.pixelSize:14;checkable:true;checked:root.bathymetryHDEnabled;onToggled:root.bathymetryHDEnabled=checked }
+        RightTool { text:"RUL";font.pixelSize:11;ToolTip.visible:hovered;ToolTip.text:"Măsurare / instrumente hartă" }
+        RightTool { text:root.maximized?"MIN":"MAX";font.pixelSize:10;onClicked:root.maximizeRequested() }
     }
     Rectangle {
         anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 10
