@@ -656,7 +656,6 @@ Item {
                 MiniStatus { title:"HOME"; value:Number(root.distanceToHome).toFixed(0)+"m"; good:!!vehicle }
                 MiniStatus { title:"ȚINTĂ"; value:root.distanceToTarget>0?Number(root.distanceToTarget).toFixed(0)+"m":"--"; good:root.distanceToTarget>0 }
             }
-            }
         }
     }
 
