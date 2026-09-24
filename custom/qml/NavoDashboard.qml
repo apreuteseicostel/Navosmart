@@ -127,6 +127,12 @@ Item {
         planController: root.planController
         vehicle: root.vehicle
         onStatus: function(message) { root.lastNavigationStatus = message }
+        onMissionCompleted: {
+            if(scanCoordinator.state==="SCANNING") {
+                scanCoordinator.missionCompleted()
+                root.lastNavigationStatus="Area Scan terminat • autopilot confirmă finalul misiunii"
+            }
+        }
         onUploadFinished: function(success, message) {
             root.lastNavigationStatus = message
             if (!success) root.awaitingMissionStart = false
