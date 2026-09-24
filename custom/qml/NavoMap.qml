@@ -28,8 +28,9 @@ Item {
 
     signal navigateRequested(var coordinate)
     signal savePointRequested(var coordinate)
-    signal saveNamedPointRequested(var coordinate, string name)
+    signal saveNamedPointRequested(var coordinate, string name, string markerColor)
     property var pendingFishingCoordinate: null
+    property string pendingFishingColor: "#31d67b"
     signal areaRectangleRequested(var cornerA, var cornerB)
     signal areaPolygonRequested(var polygon)
     signal baitingWaypointSelected(var waypoint)
@@ -192,6 +193,7 @@ Item {
             if(!c || !c.isValid)return
             root.pendingFishingCoordinate=c
             fishingName.text=""
+            root.pendingFishingColor="#31d67b"
             fishingSaveDialog.open()
         }
     }
@@ -202,9 +204,23 @@ Item {
             spacing: 8
             Label { text: "Nume punct (opțional)" }
             TextField { id: fishingName; width: Math.min(300, root.width-40); placeholderText: "ex. Lanseta verde" }
+            Label { text: "Culoare marker"; font.pixelSize: 11 }
+            Row {
+                spacing: 8
+                Repeater {
+                    model: ["#31d67b","#ef4444","#3b82f6","#facc15","#a855f7","#f97316"]
+                    delegate: Rectangle {
+                        required property var modelData
+                        width:30; height:30; radius:15; color:modelData
+                        border.color: root.pendingFishingColor===modelData ? "white" : "#607080"
+                        border.width: root.pendingFishingColor===modelData ? 3 : 1
+                        MouseArea { anchors.fill:parent; onClicked:root.pendingFishingColor=modelData }
+                    }
+                }
+            }
             Label { text: root.pendingFishingCoordinate && root.pendingFishingCoordinate.isValid ? Number(root.pendingFishingCoordinate.latitude).toFixed(5)+", "+Number(root.pendingFishingCoordinate.longitude).toFixed(5) : ""; font.pixelSize: 11 }
         }
-        onAccepted: if(root.pendingFishingCoordinate && root.pendingFishingCoordinate.isValid) root.saveNamedPointRequested(root.pendingFishingCoordinate,fishingName.text.trim())
+        onAccepted: if(root.pendingFishingCoordinate && root.pendingFishingCoordinate.isValid) root.saveNamedPointRequested(root.pendingFishingCoordinate,fishingName.text.trim(),root.pendingFishingColor)
     }
 
     Row {
