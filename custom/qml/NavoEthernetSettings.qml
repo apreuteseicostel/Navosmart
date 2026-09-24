@@ -36,43 +36,57 @@ Rectangle {
  }
  Component.onCompleted:{loadEndpoints();root.cameraStreamUrl=cfg.cameraStreamUrl;root.cameraProtocol=cfg.cameraProtocol}
  ColumnLayout {
-  anchors.fill:parent;anchors.margins:14;spacing:10
+  anchors.fill:parent;anchors.margins:14;spacing:9
   Label{text:"REȚEA BARCĂ • ETHERNET";color:"#21b7ff";font.bold:true;font.pixelSize:16}
-  Label{Layout.fillWidth:true;wrapMode:Text.WordWrap;color:"#9db2c5";text:"IP-urile și porturile nu sunt presetate până la configurarea modulelor reale."}
-  GroupBox {
-   title:"Kogger Sonar";Layout.fillWidth:true
-   GridLayout {columns:2;anchors.fill:parent
-    Label{text:"IP / Host"}
-    TextField{id:sonarHost;Layout.fillWidth:true;text:cfg.sonarHost;placeholderText:"ex. 192.168.x.x"}
-    Label{text:"Port"}
-    TextField{id:sonarPort;Layout.fillWidth:true;text:cfg.sonarPort>0?cfg.sonarPort.toString():"";inputMethodHints:Qt.ImhDigitsOnly}
-    Label{text:"Transport"}
-    CheckBox{id:sonarUdp;text:checked?"UDP":"TCP";checked:cfg.sonarUdp}
+  Label{Layout.fillWidth:true;wrapMode:Text.WordWrap;color:"#9db2c5";font.pixelSize:11;text:"Configurează separat sonarul Kogger și camera față. Valorile se păstrează pe telefon."}
+  RowLayout {
+   Layout.fillWidth:true;Layout.fillHeight:true;spacing:12
+   GroupBox {
+    title:"KOGGER SONAR";Layout.fillWidth:true;Layout.fillHeight:true;Layout.preferredWidth:1
+    GridLayout {anchors.fill:parent;anchors.margins:8;columns:2;columnSpacing:8;rowSpacing:8
+     Label{text:"IP / Host"}
+     TextField{id:sonarHost;Layout.fillWidth:true;text:cfg.sonarHost;placeholderText:"ex. 192.168.x.x"}
+     Label{text:"Port"}
+     TextField{id:sonarPort;Layout.fillWidth:true;text:cfg.sonarPort>0?cfg.sonarPort.toString():"";inputMethodHints:Qt.ImhDigitsOnly}
+     Label{text:"Transport"}
+     CheckBox{id:sonarUdp;text:checked?"UDP":"TCP";checked:cfg.sonarUdp}
+     Item{Layout.columnSpan:2;Layout.fillHeight:true}
+     Label{Layout.columnSpan:2;Layout.fillWidth:true;wrapMode:Text.WordWrap;color:"#9db2c5";font.pixelSize:10;text:"Stare: "+(sonar?sonar.status:"--")}
+     Button{Layout.columnSpan:2;Layout.fillWidth:true;text:"CONECTEAZĂ SONAR";enabled:sonar&&sonarHost.text.trim().length>0&&(parseInt(sonarPort.text)||0)>0;onClicked:{root.saveEndpoints();sonar.connectSonar()}}
+    }
    }
-  }
-  GroupBox {
-   title:"Cameră față";Layout.fillWidth:true
-   GridLayout {columns:2;anchors.fill:parent
-    Label{text:"IP / Host"}
-    TextField{id:cameraHost;Layout.fillWidth:true;text:cfg.cameraHost;placeholderText:"ex. 192.168.x.x"}
-    Label{text:"Port"}
-    TextField{id:cameraPort;Layout.fillWidth:true;text:cfg.cameraPort>0?cfg.cameraPort.toString():"";inputMethodHints:Qt.ImhDigitsOnly}
-    Label{text:"Transport"}
-    CheckBox{id:cameraUdp;text:checked?"UDP":"TCP";checked:cfg.cameraUdp}
-    Label{text:"URL video"}
-    TextField{id:streamUrl;Layout.fillWidth:true;text:cfg.cameraStreamUrl;placeholderText:"rtsp://... sau http://..."}
-    Label{text:"Protocol video"}
-    ComboBox{id:protocol;Layout.fillWidth:true;textRole:"text";valueRole:"value";model:[{text:"AUTO",value:"auto"},{text:"RTSP",value:"rtsp"},{text:"MJPEG/HTTP",value:"mjpeg"}];Component.onCompleted:{var i=indexOfValue(cfg.cameraProtocol);if(i>=0)currentIndex=i}}
+   GroupBox {
+    title:"CAMERA FAȚĂ";Layout.fillWidth:true;Layout.fillHeight:true;Layout.preferredWidth:1
+    ColumnLayout {
+     anchors.fill:parent;anchors.margins:8;spacing:7
+     GridLayout {Layout.fillWidth:true;columns:2;columnSpacing:8;rowSpacing:7
+      Label{text:"IP / Host"}
+      TextField{id:cameraHost;Layout.fillWidth:true;text:cfg.cameraHost;placeholderText:"ex. 192.168.x.x"}
+      Label{text:"Port"}
+      TextField{id:cameraPort;Layout.fillWidth:true;text:cfg.cameraPort>0?cfg.cameraPort.toString():"";inputMethodHints:Qt.ImhDigitsOnly}
+      Label{text:"Transport"}
+      CheckBox{id:cameraUdp;text:checked?"UDP":"TCP";checked:cfg.cameraUdp}
+      Label{text:"URL video"}
+      TextField{id:streamUrl;Layout.fillWidth:true;text:cfg.cameraStreamUrl;placeholderText:"rtsp://... sau http://..."}
+      Label{text:"Protocol"}
+      ComboBox{id:protocol;Layout.fillWidth:true;textRole:"text";valueRole:"value";model:[{text:"AUTO",value:"auto"},{text:"RTSP",value:"rtsp"},{text:"MJPEG/HTTP",value:"mjpeg"}];Component.onCompleted:{var i=indexOfValue(cfg.cameraProtocol);if(i>=0)currentIndex=i}}
+     }
+     NavoVideoPlayer{id:videoTest;Layout.fillWidth:true;Layout.fillHeight:true;Layout.minimumHeight:90;streamUrl:streamUrl.text;protocol:protocol.currentValue;onVideoError:function(message){root.status("Video: "+message)}}
+     RowLayout {
+      Layout.fillWidth:true
+      Button{Layout.fillWidth:true;text:"TEST VIDEO";enabled:streamUrl.text.trim().length>0;onClicked:{root.saveEndpoints();videoTest.start()}}
+      Button{text:"STOP";onClicked:videoTest.stop()}
+     }
+     Label{Layout.fillWidth:true;elide:Text.ElideRight;color:"#9db2c5";font.pixelSize:10;text:"LAN: "+(camera?camera.status:"--")+" • Video: "+videoTest.status}
+    }
    }
   }
   RowLayout {
    Layout.fillWidth:true
-   Button{text:"SALVEAZĂ";onClicked:root.saveEndpoints()}
-   Button{text:"CONECTEAZĂ SONAR";enabled:sonar&&sonar.host.length>0&&sonar.port>0;onClicked:sonar.connectSonar()}
-   Button{text:"TEST VIDEO";enabled:streamUrl.text.trim().length>0;onClicked:{root.saveEndpoints();videoTest.start()}}
-   Button{text:"STOP VIDEO";onClicked:videoTest.stop()}
+   Button{text:"SALVEAZĂ TOATE SETĂRILE";onClicked:root.saveEndpoints()}
+   Item{Layout.fillWidth:true}
+   Label{color:"#9db2c5";font.pixelSize:10;text:"Setările Ethernet/video sunt persistente"}
   }
-  NavoVideoPlayer{id:videoTest;Layout.fillWidth:true;Layout.preferredHeight:140;streamUrl:streamUrl.text;protocol:protocol.currentValue;onVideoError:function(message){root.status("Video: "+message)}}
-  Label{color:"#9db2c5";text:"Sonar: "+(sonar?sonar.status:"--")+" • LAN cameră: "+(camera?camera.status:"--")+" • Video: "+videoTest.status}
  }
+}
 }
