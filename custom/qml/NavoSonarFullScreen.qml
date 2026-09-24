@@ -37,15 +37,16 @@ Popup {
  height: parent ? Math.max(320,parent.height-24) : 640
  anchors.centerIn: parent
  background:Rectangle{color:"#03101a";border.color:"#21b7ff"}
+ // Close control is anchored to the popup itself so it can never be pushed off-screen by header content.
+ Button{id:closeButton;z:100;anchors.top:parent.top;anchors.right:parent.right;anchors.topMargin:6;anchors.rightMargin:8;width:46;height:46;flat:true;ToolTip.visible:hovered;ToolTip.text:"Închide sonar";contentItem:Label{text:"×";color:"white";font.pixelSize:32;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter}onClicked:root.close()}
  contentItem:ColumnLayout{
   spacing:6
   RowLayout{Layout.fillWidth:true;Layout.margins:10
-   Label{text:"KOGGER BASIC 2D • SONAR LIVE";color:"white";font.pixelSize:20;font.bold:true}
+   Label{text:"KOGGER BASIC 2D • SONAR LIVE";color:"white";font.pixelSize:Math.max(14,Math.min(20,root.width/48));font.bold:true;Layout.maximumWidth:Math.max(180,root.width*0.48);elide:Text.ElideRight}
    Label{text:root.connected?"● LIVE":"● FĂRĂ DATE";color:root.connected?"#31d67b":"#9db2c5"}
    Item{Layout.fillWidth:true}
    Label{text:isNaN(root.depthM)?"-- m":root.depthM.toFixed(1)+" m";color:"#21b7ff";font.pixelSize:28;font.bold:true}
-   Label{text:isNaN(root.waterTempC)?"-- °C":root.waterTempC.toFixed(1)+" °C";color:"white";font.pixelSize:20}
-   Button{width:44;height:44;flat:true;ToolTip.visible:hovered;ToolTip.text:"Închide";contentItem:Label{text:"×";color:"white";font.pixelSize:30;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter} onClicked:root.close()}
+   Label{text:isNaN(root.waterTempC)?"-- °C":root.waterTempC.toFixed(1)+" °C";color:"white";font.pixelSize:20;Layout.rightMargin:52}
   }
   Flow{Layout.fillWidth:true;Layout.leftMargin:10;Layout.rightMargin:10;spacing:8
    Label{text:"SENSIBILITATE";color:"#9db2c5"}
@@ -73,7 +74,7 @@ Popup {
    }
    Label{anchors.centerIn:parent;visible:!root.connected;text:"Aștept date reale de la Kogger\nEcograma nu este simulată";horizontalAlignment:Text.AlignHCenter;color:"#9db2c5";font.pixelSize:18}
   }
-  Rectangle{Layout.preferredWidth:62;Layout.fillHeight:true;color:"#06131e";border.color:"#1c4262";radius:6
+  Rectangle{visible:root.width>=700;Layout.preferredWidth:visible?62:0;Layout.fillHeight:true;color:"#06131e";border.color:"#1c4262";radius:6
    Column{anchors.fill:parent;anchors.margins:6;spacing:4
     Label{text:"Putere";color:"#9db2c5";font.pixelSize:11;anchors.horizontalCenter:parent.horizontalCenter}
     Label{text:"ecou";color:"#9db2c5";font.pixelSize:11;anchors.horizontalCenter:parent.horizontalCenter}
@@ -83,7 +84,7 @@ Popup {
     Label{text:"Slab";color:"#9db2c5";font.pixelSize:10;anchors.horizontalCenter:parent.horizontalCenter}
    }
   }
-  Rectangle{Layout.preferredWidth:205;Layout.fillHeight:true;color:"#06131e";border.color:"#1c4262";radius:8
+  Rectangle{visible:root.width>=900;Layout.preferredWidth:visible?205:0;Layout.fillHeight:true;color:"#06131e";border.color:"#1c4262";radius:8
    ColumnLayout{anchors.fill:parent;anchors.margins:10;spacing:8
     Label{text:"ADÂNCIME";color:"#9db2c5"} Label{text:isNaN(root.depthM)?"-- m":root.depthM.toFixed(1)+" m";color:"#f2f7fb";font.pixelSize:30;font.bold:true}
     Rectangle{Layout.fillWidth:true;height:1;color:"#17364a"}
@@ -99,16 +100,14 @@ Popup {
     Button{Layout.fillWidth:true;visible:root.transport;text:root.transport&&root.transport.connected?"DECONECTEAZĂ":"CONECTEAZĂ";onClicked:{if(root.transport.connected)root.transport.disconnectFromSonar();else root.transport.connectToSonar()}}
    }
   }
-  RowLayout{Layout.fillWidth:true;Layout.margins:10
+  Flow{Layout.fillWidth:true;Layout.leftMargin:10;Layout.rightMargin:10;Layout.bottomMargin:10;spacing:6
    Button{text:root.recording?"■ OPREȘTE ÎNREGISTRAREA":"● ÎNREGISTREAZĂ";checkable:true;checked:root.recording;onClicked:root.recording=checked}
    Button{text:root.paused?"▶ REDĂ":"Ⅱ PAUZĂ";onClicked:root.paused=!root.paused}
-   Label{text:"Viteză: "+(isNaN(root.speedMps)?"--":(root.speedMps*3.6).toFixed(1)+" km/h");color:"#9db2c5"}
-   Label{text:"GPS: "+(isNaN(root.latitude)?"--":root.latitude.toFixed(6)+", "+root.longitude.toFixed(6));color:"#9db2c5"}
-   Label{text:"FUND: "+(isNaN(root.bottomHardnessPercent)?"--":Math.round(root.bottomHardnessPercent)+"%");color:root.bottomColor(isNaN(root.bottomEchoStrength)?0:root.bottomEchoStrength);font.bold:true}
-   Label{visible:root.transport;text:root.transport?(root.transport.status+" • RX "+root.transport.rxBytes+" B / "+root.transport.rxChunks):"";color:root.transport&&root.transport.connected?"#31d67b":"#9db2c5"}
-   Item{Layout.fillWidth:true}
+   Label{text:"Viteză: "+(isNaN(root.speedMps)?"--":(root.speedMps*3.6).toFixed(1)+" km/h");color:"#9db2c5";height:40;verticalAlignment:Text.AlignVCenter}
+   Label{text:"GPS: "+(isNaN(root.latitude)?"--":root.latitude.toFixed(6)+", "+root.longitude.toFixed(6));color:"#9db2c5";height:40;verticalAlignment:Text.AlignVCenter;visible:root.width>=760}
+   Label{text:"FUND: "+(isNaN(root.bottomHardnessPercent)?"--":Math.round(root.bottomHardnessPercent)+"%");color:root.bottomColor(isNaN(root.bottomEchoStrength)?0:root.bottomEchoStrength);font.bold:true;height:40;verticalAlignment:Text.AlignVCenter}
+   Label{visible:root.transport&&root.width>=900;text:root.transport?(root.transport.status+" • RX "+root.transport.rxBytes+" B / "+root.transport.rxChunks):"";color:root.transport&&root.transport.connected?"#31d67b":"#9db2c5";height:40;verticalAlignment:Text.AlignVCenter}
    Button{visible:root.transport;text:root.transport&&root.transport.connected?"DECONECTEAZĂ":"CONECTEAZĂ KOGGER";onClicked:{if(root.transport.connected)root.transport.disconnectFromSonar();else root.transport.connectToSonar()}}
    Button{text:"SALVEAZĂ PUNCT";enabled:root.connected&&!isNaN(root.latitude)&&!isNaN(root.longitude)&&!isNaN(root.depthM);onClicked:root.saveWaypointRequested(root.latitude,root.longitude,root.depthM,root.waterTempC)}
-  }
- }
+  } }
 }
