@@ -41,6 +41,7 @@ Item {
     property string areaDrawMode: "none"
     property bool baitPointPickMode: false
     property var areaDraftPoints: []
+    property var lastAreaOutline: []
 
     function beginAreaRectangle() {
         areaDraftPoints=[]
@@ -59,6 +60,16 @@ Item {
         else if(areaDrawMode==="polygon" && areaDraftPoints.length>=3)
             areaPolygonRequested(areaDraftPoints.slice(0))
         else return false
+        // Preserve the selected boundary as a preview after drawing ends.
+        // Generated scan lanes are rendered by NavoAreaScanOverlay.
+        var outline=areaDraftPoints.slice(0)
+        if(areaDrawMode==="rectangle" && outline.length===2) {
+            var a=outline[0], b=outline[1]
+            lastAreaOutline=[a,QtPositioning.coordinate(a.latitude,b.longitude),b,QtPositioning.coordinate(b.latitude,a.longitude),a]
+        } else if(areaDrawMode==="polygon" && outline.length>=3) {
+            lastAreaOutline=outline
+            lastAreaOutline.push(outline[0])
+        }
         areaDrawMode="none"
         areaDraftPoints=[]
         return true
@@ -135,6 +146,17 @@ Item {
         title: "Nume waypoint"; standardButtons: Dialog.Save | Dialog.Cancel
         TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff"; id: waypointName; width: Math.min(300, root.width); placeholderText: "Lanseta verde" }
         onAccepted: if(sequence>0 && waypointName.text.trim().length) root.waypointNameChanged(sequence,waypointName.text.trim())
+    }
+
+    MapPolyline {
+        id: areaCommittedOutline
+        parent: liveMap
+        line.width: 3
+        line.color: "#21d4ff"
+        path: root.lastAreaOutline
+        visible: root.lastAreaOutline.length > 1
+        Component.onCompleted: liveMap.addMapItem(this)
+        Component.onDestruction: liveMap.removeMapItem(this)
     }
 
     MapPolyline {
