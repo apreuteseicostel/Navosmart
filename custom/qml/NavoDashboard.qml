@@ -825,6 +825,7 @@ Item {
                 }
             }
         }
+    }
 
     Component {
         id: fishingPage
