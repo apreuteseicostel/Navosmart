@@ -652,6 +652,14 @@ Item {
                     root.pendingAreaDrawMode="none"
                     root.activePage=2
                 }
+                onSaveNamedPointRequested: function(coordinate,name) {
+                    if(!scanCoordinator.lakeId.length) {root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
+                    var namedSpot=fishingSpots.saveSpot(coordinate, NaN, NaN, name, "Punct ales pe hartă", null)
+                    if(namedSpot) {
+                        scanCoordinator.checkpoint("fishing-spot-map")
+                        root.lastNavigationStatus="Punct salvat: "+namedSpot.name
+                    }
+                }
                 onSavePointRequested: function(coordinate) {
                     if(!scanCoordinator.lakeId.length) {root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
                     var spot = fishingSpots.saveSpot(coordinate, root.depthM, root.waterTempC, "", "", null)
