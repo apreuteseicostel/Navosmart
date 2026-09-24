@@ -924,7 +924,7 @@ Item {
                 title:"Editează punct"; standardButtons:Dialog.Save|Dialog.Cancel
                 Column {
                     spacing:8
-                    TextField { id:spotName; width:280; placeholderText:"Lanseta verde" }
+                    TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff"; id:spotName; width:280; placeholderText:"Lanseta verde" }
                     Label { text:"Culoare marker" }
                     Row {
                         spacing:8
@@ -977,7 +977,7 @@ Item {
                 }
                 RowLayout {
                     Layout.fillWidth: true
-                    TextField { id: inlineLakeName; Layout.fillWidth: true; placeholderText: "Nume baltă nouă"; onAccepted: addLakeButton.clicked() }
+                    TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff"; id: inlineLakeName; Layout.fillWidth: true; placeholderText: "Nume baltă nouă"; onAccepted: addLakeButton.clicked() }
                     Button {
                         id: addLakeButton
                         text: "+ ADAUGĂ"
