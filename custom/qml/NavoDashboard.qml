@@ -193,6 +193,31 @@ Item {
             sonarMapping.ingestSample(sample)
         }
     }
+    property bool sonarLossHandled: false
+    Timer {
+        id: sonarSafetyTimer
+        interval: 1000
+        repeat: true
+        running: scanCoordinator.state === "SCANNING"
+        onTriggered: {
+            if (root.sonarConnected) {
+                root.sonarLossHandled = false
+                return
+            }
+            if (root.sonarLossHandled) return
+            root.sonarLossHandled = true
+            scanCoordinator.pause("Sonar Kogger fără date live")
+            root.holdMission()
+            root.lastNavigationStatus = "SONAR PIERDUT • Area Scan salvat • HOLD"
+        }
+    }
+    Connections {
+        target: scanCoordinator
+        function onStateChanged() {
+            if (scanCoordinator.state !== "SCANNING") root.sonarLossHandled = false
+        }
+    }
+
     NavoFishDetector {
         id: fishDetector
         onTargetDetected: function(targetDepthM, strength) {
