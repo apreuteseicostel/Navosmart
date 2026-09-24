@@ -8,6 +8,9 @@ Rectangle {
     property real depthM: NaN
     property real waterTempC: NaN
     property var echoSamples: []
+    property var history: []
+    property int historyColumns: 80
+    function pushHistory(){ if(!echoSamples||!echoSamples.length)return; var h=history.slice(0); h.push(echoSamples.slice(0)); while(h.length>historyColumns)h.shift(); history=h }
     signal openFullSonar()
 
     radius: 9
@@ -35,18 +38,9 @@ Rectangle {
             Layout.fillWidth: true; Layout.fillHeight: true
             onPaint: {
                 var ctx=getContext("2d"); ctx.reset(); ctx.fillStyle="#03101a"; ctx.fillRect(0,0,width,height)
-                ctx.strokeStyle="#21b7ff"; ctx.lineWidth=1
-                if (root.echoSamples && root.echoSamples.length>1) {
-                    ctx.beginPath()
-                    for (var i=0;i<root.echoSamples.length;i++) {
-                        var x=i*(width/(root.echoSamples.length-1))
-                        var y=height-Math.max(0,Math.min(1,root.echoSamples[i]))*height
-                        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y)
-                    }
-                    ctx.stroke()
-                }
+                if(root.history&&root.history.length){var cw=width/root.historyColumns;for(var hx=0;hx<root.history.length;hx++){var col=root.history[hx],px=width-(root.history.length-hx)*cw;for(var hy=0;hy<col.length;hy++){var v=Math.max(0,Math.min(1,Number(col[hy])));if(v<.08)continue;ctx.fillStyle=v>.72?"#f44b2e":v>.48?"#f6da46":v>.24?"#1ccde1":"#105caa";ctx.fillRect(px,hy*height/col.length,Math.max(1,cw+0.5),Math.max(1,height/col.length+0.5))}}}
             }
-            Connections { target: root; function onEchoSamplesChanged(){ echogram.requestPaint() } }
+            Connections { target: root; function onEchoSamplesChanged(){ root.pushHistory(); echogram.requestPaint() } }
         }
     }
 }
