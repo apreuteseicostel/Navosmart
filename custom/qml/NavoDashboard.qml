@@ -1044,8 +1044,25 @@ Item {
                 scanCoordinator: root.areaCoordinator
                 onLakeRestored: function(lakeId) {
                     missionUploader.invalidate()
+                    root.lastNavigationStatus = "Balta restaurată • datele salvate sunt active"
+                }
+                onOpenLakeMap: function(lakeId) {
+                    root.activePage = 0
+                    root.lastNavigationStatus = "Balta încărcată • hartă, sonar, puncte și Area Scan restaurate"
+                }
+                onOpenLakeBathymetry: function(lakeId) {
+                    root.activePage = 6
+                    root.lastNavigationStatus = "Balta încărcată • hartă batimetrică restaurată"
+                }
+                onOpenLakeFishingSpots: function(lakeId) {
+                    root.activePage = 3
+                    root.lastNavigationStatus = "Balta încărcată • punctele de pescuit restaurate"
+                }
+                onResumeLakeScan: function(lakeId) {
                     root.activePage = 2
-                    root.lastNavigationStatus = "Balta restaurată • pregătită pentru Resume"
+                    var mission=scanCoordinator.resume()
+                    if(mission && mission.length) root.lastNavigationStatus = "Resume pregătit • "+mission.length+" WP • verifică și încarcă misiunea"
+                    else root.lastNavigationStatus = "Resume indisponibil • "+areaScanController.lastError
                 }
             }
         }
