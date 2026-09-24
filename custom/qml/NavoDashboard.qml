@@ -678,20 +678,22 @@ Item {
                     Layout.fillWidth: true
                     spacing: 6
                     Button {
-                        text: "DREPTUNGHI PE HARTĂ"
+                        text: "▭ DREPT."
                         enabled: scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
                         onClicked: {
                             root.pendingAreaDrawMode="rectangle"
                             root.activePage=0
+                            Qt.callLater(function(){ if(root.mapController){ root.mapController.beginAreaRectangle(); root.pendingAreaDrawMode="none" } })
                             root.lastNavigationStatus="Atinge două colțuri pe hartă pentru dreptunghi"
                         }
                     }
                     Button {
-                        text: "POLIGON PE HARTĂ"
+                        text: "⬡ POLIGON"
                         enabled: scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
                         onClicked: {
                             root.pendingAreaDrawMode="polygon"
                             root.activePage=0
+                            Qt.callLater(function(){ if(root.mapController){ root.mapController.beginAreaPolygon(); root.pendingAreaDrawMode="none" } })
                             root.lastNavigationStatus="Atinge cel puțin trei puncte și apoi TERMINĂ"
                         }
                     }
