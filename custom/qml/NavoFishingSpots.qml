@@ -7,6 +7,7 @@ QtObject {
     property int nextSpotNumber: 1
     signal spotSaved(var spot)
     signal spotRemoved(string id)
+    signal spotUpdated(var spot)
 
     function _valid(c){ return c && c.isValid }
 
@@ -40,6 +41,16 @@ QtObject {
         if(!cell) return null
         var c=QtPositioning.coordinate(cell.lat,cell.lon)
         return saveSpot(c,cell.depth,NaN,name,note,{minDepth:cell.minDepth,maxDepth:cell.maxDepth,samples:cell.samples})
+    }
+
+    function renameSpot(id, name) {
+        var n=(name||"").trim()
+        if(!n.length)return false
+        var a=fishingSpots.slice(0)
+        for(var i=0;i<a.length;i++) if(a[i].id===id){
+            var s=Object.assign({},a[i]); s.name=n; a[i]=s; fishingSpots=a; spotUpdated(s); return true
+        }
+        return false
     }
 
     function removeSpot(id) {
