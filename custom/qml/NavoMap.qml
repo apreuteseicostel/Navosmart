@@ -85,9 +85,17 @@ Item {
     NavoActualTrack { id: actualTrack; map: liveMap; vehicle: root.vehicle; taskActive: !!root.vehicle }
     NavoAreaScanOverlay { map: liveMap; areaScan: root.areaScanController }
     NavoFishOverlay { map: liveMap; fishModel: root.fishModel }
-    NavoBathymetryHDOverlay { map: liveMap; cells: root.bathymetryCells; enabled: root.bathymetryHDEnabled }
+    NavoBathymetryHDOverlay {
+        map: liveMap
+        cells: root.bathymetryCells
+        enabled: root.bathymetryHDEnabled
+        resolution: root.maximized ? 34 : 28
+    }
     NavoBathymetryOverlay {
-        map: liveMap; bathymetryCells: root.bathymetryCells; fishingSpotsModel: root.fishingSpotsModel
+        map: liveMap
+        bathymetryCells: root.bathymetryCells
+        showBathymetryCells: !root.bathymetryHDEnabled
+        fishingSpotsModel: root.fishingSpotsModel
         onNavigateSpotRequested: function(spot) { root.navigateRequested(QtPositioning.coordinate(Number(spot.lat),Number(spot.lon))) }
         onBaitSpotRequested: function(spot) {
             var c=QtPositioning.coordinate(Number(spot.lat),Number(spot.lon))
