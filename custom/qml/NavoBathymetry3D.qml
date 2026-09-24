@@ -25,8 +25,7 @@ Item {
   for(var i=0;i<samples.length;i++){var s=samples[i];mix(s.lat);mix(s.lon);mix(s.depth);mix(s.time===undefined?s.timestamp:s.time);mix(s.confidence)}
   return String(h>>>0)
  }
- function rebuild(){meshEngine.buildCached(samples,gridSizeM,maxGapM,lodLevel);cachedSampleCount=samples.length;cachedSampleSignature=sampleSignature();if(meshCachePath.length)meshEngine.saveCache(meshCachePath)}
- function loadCached(){return meshCachePath.length?meshEngine.loadCache(meshCachePath):false}
+ function rebuild(){meshEngine.buildCached(samples,gridSizeM,maxGapM,lodLevel);cachedSampleCount=samples.length;cachedSampleSignature=sampleSignature()}
  function refreshForSamples(){var sig=sampleSignature();if(sig!==cachedSampleSignature)rebuild()}
  function resetCamera(){yaw=-35;pitch=-48;cameraDistance=180;panOffset=Qt.point(0,0)} function topCamera(){yaw=0;pitch=-89;cameraDistance=180} function isoCamera(){yaw=-45;pitch=-42;cameraDistance=180}
  function localPoint(lat,lon,depth){var R=6378137,lat0=meshEngine.originLatitude*Math.PI/180,x=(lon-meshEngine.originLongitude)*Math.PI/180*Math.cos(lat0)*R,z=-(lat-meshEngine.originLatitude)*Math.PI/180*R,y=-(depth||0)*verticalExaggeration;return Qt.vector3d(x,y,z)}
@@ -80,6 +79,6 @@ Item {
  Timer{id:lodDebounce;interval:220;repeat:false;onTriggered:if(samples.length)root.rebuild()}
  Timer{id:sampleDebounce;interval:650;repeat:false;onTriggered:if(samples.length)root.refreshForSamples()}
  onLodLevelChanged:if(samples.length)lodDebounce.restart()
- Component.onCompleted:{if(!loadCached()&&samples.length)rebuild();else{cachedSampleCount=samples.length;cachedSampleSignature=sampleSignature()}}
+ Component.onCompleted:{if(samples.length)rebuild()}
  onSamplesChanged:{if(samples.length)sampleDebounce.restart();else{sampleDebounce.stop();meshEngine.clear();cachedSampleSignature=""}}
 }
