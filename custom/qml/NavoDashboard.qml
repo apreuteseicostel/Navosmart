@@ -548,13 +548,15 @@ Item {
                 onAreaRectangleRequested: function(cornerA, cornerB) {
                     missionUploader.invalidate()
                     var pts=scanCoordinator.prepareRectangle(cornerA,cornerB)
-                    root.lastNavigationStatus="Area Scan dreptunghi • "+pts.length+" WP generate"
+                    root.lastNavigationStatus="Area Scan dreptunghi • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP generate"
+                    root.pendingAreaDrawMode="none"
                     root.activePage=2
                 }
                 onAreaPolygonRequested: function(polygon) {
                     missionUploader.invalidate()
                     var pts=scanCoordinator.preparePolygon(polygon)
-                    root.lastNavigationStatus="Area Scan poligon • "+pts.length+" WP generate"
+                    root.lastNavigationStatus="Area Scan poligon • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP generate"
+                    root.pendingAreaDrawMode="none"
                     root.activePage=2
                 }
                 onSavePointRequested: function(coordinate) {
