@@ -34,10 +34,12 @@ Item {
     signal areaRectangleRequested(var cornerA, var cornerB)
     signal areaPolygonRequested(var polygon)
     signal baitingWaypointSelected(var waypoint)
+    signal baitPointPicked(var coordinate)
     signal maximizeRequested()
     signal fishingSpotRenameRequested(var spot)
 
     property string areaDrawMode: "none"
+    property bool baitPointPickMode: false
     property var areaDraftPoints: []
 
     function beginAreaRectangle() {
@@ -186,7 +188,7 @@ Item {
     }
     MouseArea {
         anchors.fill: parent
-        enabled: root.areaDrawMode === "none"
+        enabled: root.areaDrawMode === "none" && !root.baitPointPickMode
         acceptedButtons: Qt.LeftButton
         onPressAndHold: function(mouse) {
             var c=liveMap.toCoordinate(Qt.point(mouse.x,mouse.y),false)
@@ -196,6 +198,26 @@ Item {
             root.pendingFishingColor="#31d67b"
             fishingSaveDialog.open()
         }
+    }
+    MouseArea {
+        anchors.fill: parent
+        z: 40
+        enabled: root.baitPointPickMode && root.areaDrawMode === "none"
+        acceptedButtons: Qt.LeftButton
+        onClicked: function(mouse) {
+            var c=liveMap.toCoordinate(Qt.point(mouse.x,mouse.y),false)
+            if(!c || !c.isValid)return
+            root.baitPointPickMode=false
+            root.baitPointPicked(c)
+        }
+    }
+    Rectangle {
+        visible: root.baitPointPickMode
+        z: 45
+        anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 10
+        width: pickLabel.implicitWidth+22; height: 36; radius: 7
+        color: "#071827dd"; border.color: "#26c6da"
+        Label { id:pickLabel; anchors.centerIn:parent; text:"ATINGE HARTA PENTRU PUNCTUL DE NĂDIRE"; color:"white"; font.bold:true; font.pixelSize:11 }
     }
     Dialog {
         id: fishingSaveDialog; parent: Overlay.overlay; anchors.centerIn: parent; modal: true
