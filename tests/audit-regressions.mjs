@@ -55,11 +55,11 @@ test('Resume retains only incomplete lanes, including non-contiguous gaps',()=>{
   const a=area(); a.generatedPoints=[0,1,2,3,4,5,6,7].map(x=>coord(52,x/10000));a.completedLanes=[0,2];
   const out=a.resumeRoute(null);assert.equal(out.length,4);assert.equal(out[0].longitude,.0002);assert.equal(out[2].longitude,.0006);
 });
-test('Reached-item evidence ignores odd, out-of-range and paused events',()=>{
-  const reached=[]; const c=context('NavoScanCoordinator.qml',{areaScan:{},state:'SCANNING',missionWaypointCount:6,missionLanes:[1,3,4]});
+test('Reached-item evidence ignores odd, duplicate, out-of-range and paused events',()=>{
+  const reached=[]; const c=context('NavoScanCoordinator.qml',{areaScan:{},state:'SCANNING',missionWaypointCount:6,missionLanes:[1,3,4],lastCompletedRouteLaneFromMission:-1,lastCompletedLaneFromMission:-1});
   c.laneCompleted=x=>reached.push(x);
   assert.equal(c.missionItemReached(1),false);assert.equal(c.missionItemReached(8),false);
-  c.missionItemReached(2);c.missionItemReached(6);assert.deepEqual(reached,[1,4]);
+  c.missionItemReached(2);assert.equal(c.missionItemReached(2),false);c.missionItemReached(6);assert.deepEqual(reached,[1,4]);
   c.state='PAUSED';assert.equal(c.missionItemReached(4),false);
 });
 test('Switching lakes saves old session before clearing all per-lake collections',()=>{
