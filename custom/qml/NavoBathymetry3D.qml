@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import QtQuick3D
 import QtPositioning
 import NavoSmart.Backend 1.0
