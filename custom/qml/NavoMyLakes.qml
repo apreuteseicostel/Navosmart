@@ -163,8 +163,8 @@ Popup {
                             flat: true
                             onClicked: root.selectLake(modelData)
                         }
-                        Button { text: "✏"; Layout.preferredWidth: 38; onClicked: root.beginRename(modelData); ToolTip.visible: hovered; ToolTip.text: "Redenumește" }
-                        Button { text: "🗑"; Layout.preferredWidth: 38; onClicked: root.beginDelete(modelData); ToolTip.visible: hovered; ToolTip.text: "Șterge" }
+                        Button { text: "NUME"; Layout.preferredWidth: 38; onClicked: root.beginRename(modelData); ToolTip.visible: hovered; ToolTip.text: "Redenumește" }
+                        Button { text: "ȘTERGE"; Layout.preferredWidth: 38; onClicked: root.beginDelete(modelData); ToolTip.visible: hovered; ToolTip.text: "Șterge" }
                     }
                 }
             }
@@ -181,8 +181,8 @@ Popup {
                         font.pixelSize: 18
                         elide: Text.ElideRight
                     }
-                    Button { visible: !!root.selectedLake; text: "✏ NUME"; onClicked: root.beginRename(root.selectedLake) }
-                    Button { visible: !!root.selectedLake; text: "🗑 ȘTERGE"; onClicked: root.beginDelete(root.selectedLake) }
+                    Button { visible: !!root.selectedLake; text: "NUME"; onClicked: root.beginRename(root.selectedLake) }
+                    Button { visible: !!root.selectedLake; text: "ȘTERGE"; onClicked: root.beginDelete(root.selectedLake) }
                 }
                 Label {
                     visible: !!root.selectedLake
