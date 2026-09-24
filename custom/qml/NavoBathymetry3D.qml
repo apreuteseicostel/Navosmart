@@ -14,7 +14,6 @@ Item {
  readonly property int lodLevel: cameraDistance>500?3:cameraDistance>250?2:cameraDistance>110?1:0
  readonly property int adaptiveTrackLimit: lodLevel===3?180:lodLevel===2?350:lodLevel===1?700:maxTrackPoints3D
  readonly property int adaptiveFishLimit: lodLevel===3?60:lodLevel===2?140:lodLevel===1?280:maxFish3D
- property string meshCachePath:""
  property int cachedSampleCount:0
  property string cachedSampleSignature:""
  function sampleSignature(){
