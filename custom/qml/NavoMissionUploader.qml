@@ -25,6 +25,7 @@ QtObject {
             uploadTimeout.stop()
             root.uploadInProgress = false
             root.uploadVerified = success
+            root.verifiedCount = success ? root.preparedCount : 0
             if (!success && !root.lastError.length) root.lastError = "autopilot a respins upload-ul misiunii"
             root.status(success ? "autopilot confirmă misiunea încărcată" : root.lastError)
             root.uploadFinished(success, success ? "Upload autopilot confirmat; apasă START încă o dată pentru pornire" : root.lastError)
@@ -40,6 +41,7 @@ QtObject {
         }
     }
     property int preparedCount: 0
+    property int verifiedCount: 0
     property string lastError: ""
     property int uploadTimeoutMs: 15000
     signal status(string text)
@@ -51,6 +53,7 @@ QtObject {
         uploadInProgress = false
         uploadVerified = false
         preparedCount = 0
+        verifiedCount = 0
     }
 
     function canUpload() {
@@ -82,7 +85,7 @@ QtObject {
 
     function uploadPrepared() {
         if(!canUpload() || preparedCount<1){if(!lastError.length)lastError="Nu există misiune pregătită";status(lastError);return false}
-        uploadInProgress=true;uploadVerified=false;lastError=""
+        uploadInProgress=true;uploadVerified=false;verifiedCount=0;lastError=""
         uploadTimeout.restart()
         status("Încarc "+preparedCount+" waypoint-uri în autopilot…")
         // Use QGC's normal PlanMasterController upload path. It converts VisualMissionItems
