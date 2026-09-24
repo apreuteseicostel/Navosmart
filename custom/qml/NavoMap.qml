@@ -21,12 +21,14 @@ Item {
     property var areaScanController
     property real savedDepthM: NaN
     property real savedWaterTempC: NaN
+    property bool maximized: false
 
     signal navigateRequested(var coordinate)
     signal savePointRequested(var coordinate)
     signal areaRectangleRequested(var cornerA, var cornerB)
     signal areaPolygonRequested(var polygon)
     signal baitingWaypointSelected(var waypoint)
+    signal maximizeRequested()
 
     property string areaDrawMode: "none"
     property var areaDraftPoints: []
@@ -143,22 +145,31 @@ Item {
         Button { text:"ANULEAZĂ"; onClicked:root.cancelAreaDrawing() }
     }
     Column {
-        anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 10
-        spacing: 5
-        Button { text: "+"; width: 55; onClicked: liveMap.zoomLevel = liveMap.zoomLevel + 1 }
-        Button { text: "−"; width: 55; onClicked: liveMap.zoomLevel = liveMap.zoomLevel - 1 }
+        anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 6
+        spacing: 3
+        property int controlSize: 34
+        Button { text: "+"; width: parent.controlSize; height: parent.controlSize; padding: 2; font.pixelSize: 16; onClicked: liveMap.zoomLevel = liveMap.zoomLevel + 1 }
+        Button { text: "−"; width: parent.controlSize; height: parent.controlSize; padding: 2; font.pixelSize: 16; onClicked: liveMap.zoomLevel = liveMap.zoomLevel - 1 }
         Button {
-            text: "BARCĂ"
+            text: "⌖"; width: parent.controlSize; height: parent.controlSize; padding: 2
+            ToolTip.visible: hovered; ToolTip.text: "Centrează pe barcă"
             enabled: !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
             onClicked: liveMap.center = root.vehicle.coordinate
         }
         Button {
-            text: "ACASĂ"
+            text: "⌂"; width: parent.controlSize; height: parent.controlSize; padding: 2
+            ToolTip.visible: hovered; ToolTip.text: "Acasă"
             enabled: !!root.vehicle && !!root.vehicle.homePosition && root.vehicle.homePosition.isValid
             onClicked: liveMap.center = root.vehicle.homePosition
         }
         Button {
-            text: "SALVEAZĂ PUNCT"
+            text: root.maximized ? "↙" : "⛶"; width: parent.controlSize; height: parent.controlSize; padding: 2
+            ToolTip.visible: hovered; ToolTip.text: root.maximized ? "Micșorează harta" : "Maximizează harta"
+            onClicked: root.maximizeRequested()
+        }
+        Button {
+            text: "＋"; width: parent.controlSize; height: parent.controlSize; padding: 2
+            ToolTip.visible: hovered; ToolTip.text: "Salvează punct"
             enabled: !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
             onClicked: root.savePointRequested(root.vehicle.coordinate)
         }
