@@ -1145,24 +1145,25 @@ Item {
                     radius:8; color:root.bg; border.color:root.line
                     ColumnLayout {
                         anchors.fill:parent; anchors.margins:12; spacing:9
-                        Label { text:"CUVE & SIGURANȚĂ HARDWARE"; color:root.text; font.pixelSize:15; font.bold:true }
-                        Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; color:root.warn; font.pixelSize:10; text:"Confirmă ieșirile și PWM-urile pe banc înainte de activare. Telemetria PWM nu confirmă calibrarea mecanică." }
+                        Label { text:"CUVE & SIGURANȚĂ HARDWARE"; color:"#f4f7fb"; font.pixelSize:15; font.bold:true }
+                        Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; color:"#ffd24a"; font.pixelSize:11; font.bold:true; text:"Confirmă ieșirile și PWM-urile pe banc înainte de activare. Telemetria PWM nu confirmă calibrarea mecanică." }
                         GridLayout {
                             columns:3; Layout.fillWidth:true; columnSpacing:8; rowSpacing:7
                             Label { text:"Cuva"; color:root.text } Label { text:"Stânga"; color:root.text } Label { text:"Dreapta"; color:root.text }
-                            Label { text:"Ieșire"; color:root.muted }
+                            Label { text:"Ieșire"; color:"#dbe5ee"; font.bold:true }
                             SpinBox { from:1;to:16;value:hopperSettings.leftOutput;onValueModified:{hopperSettings.confirmed=false;hopperSettings.leftOutput=value} }
                             SpinBox { from:1;to:16;value:hopperSettings.rightOutput;onValueModified:{hopperSettings.confirmed=false;hopperSettings.rightOutput=value} }
-                            Label { text:"Închis µs"; color:root.muted }
+                            Label { text:"Închis µs"; color:"#dbe5ee"; font.bold:true }
                             SpinBox { from:900;to:2100;value:hopperSettings.leftClosed;onValueModified:{hopperSettings.confirmed=false;hopperSettings.leftClosed=value} }
                             SpinBox { from:900;to:2100;value:hopperSettings.rightClosed;onValueModified:{hopperSettings.confirmed=false;hopperSettings.rightClosed=value} }
-                            Label { text:"Deschis µs"; color:root.muted }
+                            Label { text:"Deschis µs"; color:"#dbe5ee"; font.bold:true }
                             SpinBox { from:900;to:2100;value:hopperSettings.leftOpen;onValueModified:{hopperSettings.confirmed=false;hopperSettings.leftOpen=value} }
                             SpinBox { from:900;to:2100;value:hopperSettings.rightOpen;onValueModified:{hopperSettings.confirmed=false;hopperSettings.rightOpen=value} }
                         }
                         CheckBox {
                             Layout.fillWidth:true
                             text:"Am verificat mecanic calibrarea cuvelor"
+                            palette.text:"#f4f7fb"
                             checked:hopperSettings.confirmed
                             enabled:!baitingController.enabled && !hopperBridge.commandPending
                             onToggled:hopperSettings.confirmed=checked
