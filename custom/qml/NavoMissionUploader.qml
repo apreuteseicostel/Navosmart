@@ -29,6 +29,9 @@ QtObject {
             root.status(success ? "autopilot confirmă misiunea încărcată" : root.lastError)
             root.uploadFinished(success, success ? "Upload autopilot confirmat; apasă START încă o dată pentru pornire" : root.lastError)
         }
+        onMissionCompleted: {
+            root.missionCompleted()
+        }
         onMissionError: function(message) {
             if (root.uploadInProgress) {
                 root.lastError = message
@@ -40,7 +43,7 @@ QtObject {
     property string lastError: ""
     property int uploadTimeoutMs: 15000
     signal status(string text)
-    signal uploadFinished(bool success, string message)
+    signal uploadFinished(bool success, string message)\n    signal missionCompleted()
 
     function invalidate() {
         uploadTimeout.stop()
