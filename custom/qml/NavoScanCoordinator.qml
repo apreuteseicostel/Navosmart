@@ -26,6 +26,36 @@ QtObject {
     property int missionWaypointCount: 0
     signal status(string text)
     signal missionPrepared(var missionPoints)
+    signal lakeActivated(string id)
+
+    function activateLake(id, name) {
+        if(!persistence || !sonarMapping || !areaScan || !id.length) return false
+        if(state==="SCANNING" || state==="READY" || state==="RESUME_READY") {
+            status("Oprește misiunea înainte de schimbarea bălții"); return false
+        }
+        if(lakeId===id) return true
+        if(lakeId.length && !checkpoint("lake-switch")) return false
+        var saved=persistence.lakeState(id)
+        if(saved && Object.keys(saved).length) {
+            if(!restoreLake(id)) return false
+        } else {
+            lakeId=id; lakeName=name||"Baltă"; areaPoints=[]; bathymetryCells=[]
+            areaScan.generatedPoints=[]; areaScan.completedLanes=[]; areaScan.activeLaneIndex=-1; areaScan.paused=false; areaScan.lastBoatCoordinate=null
+            sonarMapping.scanning=false; sonarMapping.paused=false; sonarMapping.rawSamples=[]; sonarMapping.trackCoordinates=[]
+            sonarMapping.currentLane=0; sonarMapping.completedLanes=0; sonarMapping.totalLanes=0
+            if(fishingSpots) fishingSpots.fishingSpots=[]
+            if(fishStore) fishStore.clear()
+            state="IDLE"; missionLanes=[]; missionWaypointCount=0; missionCurrentIndex=-1
+            lastCompletedLaneFromMission=-1; lastCompletedRouteLaneFromMission=-1
+            if(!checkpoint("lake-created")) return false
+        }
+        lakeActivated(id); return true
+    }
+
+    property Timer autosave: Timer {
+        interval: 5000; repeat: true; running: root.lakeId.length>0
+        onTriggered: root.checkpoint("autosave")
+    }
 
     function missionIndexChanged(index) {
         if(!areaScan || state !== "SCANNING" || index === undefined || index === null || index < 0) return
@@ -52,14 +82,14 @@ QtObject {
     }
 
     function preparePolygon(polygon) {
-        if(!areaScan) return []
+        if(!areaScan || state==="SCANNING") return []
         var pts=areaScan.generatePolygon(polygon); areaPoints=pts
         state=pts.length ? "AREA_DEFINED" : "IDLE"
         if(sonarMapping){sonarMapping.lakeId=lakeId; sonarMapping.totalLanes=areaScan.laneCount()}
         checkpoint("area-polygon"); status("Area Scan poligon pregătit • "+areaScan.laneCount()+" culoare"); return pts
     }
     function prepareRectangle(cornerA, cornerB) {
-        if(!areaScan) return []
+        if(!areaScan || state==="SCANNING") return []
         var boat=vehicle && vehicle.coordinate && vehicle.coordinate.isValid ? vehicle.coordinate : null
         var pts=areaScan.generateRectangle(cornerA,cornerB,boat); areaPoints=pts
         state=pts.length ? "AREA_DEFINED" : "IDLE"
@@ -172,13 +202,17 @@ QtObject {
             lastCompletedRouteLaneFromMission:lastCompletedRouteLaneFromMission,
             missionLanes:missionLanes, missionWaypointCount:missionWaypointCount
         }
-        return persistence.saveLakeState(lakeId,payload)
+        var ok=persistence.saveLakeState(lakeId,payload)
+        if(!ok) status("Salvarea bălții a eșuat; datele nu sunt confirmate pe disc")
+        return ok
     }
     function restoreLake(id) {
-        if(!persistence || !id.length) return false
+        if(!persistence || !sonarMapping || !areaScan || !id.length || state==="SCANNING") return false
+        if(lakeId && lakeId!==id && !checkpoint("before-restore")) return false
         var p=persistence.lakeState(id); if(!p || Object.keys(p).length===0){status("Balta nu are încă stare salvată");return false}
         lakeId=id; lakeName=p.lakeName||lakeName; areaPoints=geoCoordinates(p.areaPoints||[])
         sonarMapping.lakeId=id; sonarMapping.rawSamples=(p.sonarSamples||[]).slice(0)
+        sonarMapping.trackCoordinates=[]
         if(fishingSpots) fishingSpots.fishingSpots=(p.fishingSpots||[]).slice(0)
         if(fishStore){fishStore.detections=(p.fishDetections||[]).slice(0);fishStore.rebuildHotspots()}
         // A restored session cannot be considered live until the mission is
@@ -202,6 +236,7 @@ QtObject {
         if(lastCompletedLaneFromMission<0)
             for(var ci=0;ci<areaScan.completedLanes.length;ci++) lastCompletedLaneFromMission=Math.max(lastCompletedLaneFromMission,Number(areaScan.completedLanes[ci]))
         sonarMapping.restoreCheckpoint({lakeId:id,currentLane:areaScan.activeLaneIndex,completedLanes:areaScan.completedLanes.length,totalLanes:p.totalLanes||areaScan.laneCount(),sampleCount:sonarMapping.rawSamples.length,reason:"restart-restore",time:Date.now()})
+        if(state==="COMPLETE") { sonarMapping.scanning=false; sonarMapping.paused=false }
         if(bathymetry && sonarMapping.rawSamples.length) bathymetryCells=bathymetry.rebuild(sonarMapping.rawSamples)
         status("Balta restaurată • sonar, puncte și Area Scan pregătite pentru Resume"); return true
     }

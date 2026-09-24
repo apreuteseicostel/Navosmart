@@ -24,6 +24,6 @@ public:
  Q_INVOKABLE bool assignSessionToLake(const QString& sessionId,const QString& lakeId);
 signals:void waypointNamesChanged();void sonarSamplesChanged();void bathymetrySessionsChanged();void lakesChanged();
 private slots:void flushSonar();
-private:void load();void saveWaypoints();void saveBathymetrySessions();void saveLakes();void scheduleSonarSave();void syncSettings();
+private:void load();void saveWaypoints();void saveBathymetrySessions();bool saveLakes();void scheduleSonarSave();void syncSettings();
  QVariantMap _waypointNames; QVariantList _sonarSamples; QVariantList _bathymetrySessions; QVariantList _lakes; int _maxSamples=50000; QTimer _sonarSaveTimer;
 };

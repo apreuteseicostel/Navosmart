@@ -25,14 +25,14 @@ Item {
   for(var i=0;i<samples.length;i++){var s=samples[i];mix(s.lat);mix(s.lon);mix(s.depth);mix(s.time===undefined?s.timestamp:s.time);mix(s.confidence)}
   return String(h>>>0)
  }
- function rebuild(){meshEngine.build(samples,gridSizeM,maxGapM,lodLevel);cachedSampleCount=samples.length;cachedSampleSignature=sampleSignature();if(meshCachePath.length)meshEngine.saveCache(meshCachePath)}
+ function rebuild(){meshEngine.buildCached(samples,gridSizeM,maxGapM,lodLevel);cachedSampleCount=samples.length;cachedSampleSignature=sampleSignature();if(meshCachePath.length)meshEngine.saveCache(meshCachePath)}
  function loadCached(){return meshCachePath.length?meshEngine.loadCache(meshCachePath):false}
  function refreshForSamples(){var sig=sampleSignature();if(sig!==cachedSampleSignature)rebuild()}
  function resetCamera(){yaw=-35;pitch=-48;cameraDistance=180;panOffset=Qt.point(0,0)} function topCamera(){yaw=0;pitch=-89;cameraDistance=180} function isoCamera(){yaw=-45;pitch=-42;cameraDistance=180}
  function localPoint(lat,lon,depth){var R=6378137,lat0=meshEngine.originLatitude*Math.PI/180,x=(lon-meshEngine.originLongitude)*Math.PI/180*Math.cos(lat0)*R,z=-(lat-meshEngine.originLatitude)*Math.PI/180*R,y=-(depth||0)*verticalExaggeration;return Qt.vector3d(x,y,z)}
  function bottomDepth(lat,lon){var best=null,bd=1e99,p=localPoint(lat,lon,0);for(var i=0;i<meshEngine.vertices.length;i++){var v=meshEngine.vertices[i],d=(v.x-p.x)*(v.x-p.x)+((-v.y)-p.z)*((-v.y)-p.z);if(d<bd){bd=d;best=v}}return best?best.depth:0}
  function decimate(a,max){if(!a||a.length<=max)return a||[];var out=[],step=(a.length-1)/(max-1);for(var i=0;i<max;i++)out.push(a[Math.round(i*step)]);return out}
- function trackLocal(){var a=boatTrack||[],o=[];for(var i=0;i<a.length;i++){var p=a[i],v=localPoint(p.latitude!==undefined?p.latitude:p.lat,p.longitude!==undefined?p.longitude:p.lon,0);o.push({x:v.x,y:v.y+.15,z:v.z})}return o}
+ function trackLocal(){var a=decimate(boatTrack||[],adaptiveTrackLimit),o=[];for(var i=0;i<a.length;i++){var p=a[i],v=localPoint(p.latitude!==undefined?p.latitude:p.lat,p.longitude!==undefined?p.longitude:p.lon,0);o.push({x:v.x,y:v.y+.15,z:v.z})}return o}
  function labelPoint(o,kind){if(kind==="waypoint")return localPoint(o.lat!==undefined?o.lat:o.coordinate.latitude,o.lon!==undefined?o.lon:o.coordinate.longitude,Math.max(0,bottomDepth(o.lat!==undefined?o.lat:o.coordinate.latitude,o.lon!==undefined?o.lon:o.coordinate.longitude)-.7));return localPoint(o.lat,o.lon,Math.max(0,(o.depth!==null&&o.depth!==undefined?o.depth:bottomDepth(o.lat,o.lon))-.8))}
  function select(kind,obj){selectedKind=kind;selectedObject=obj;selectedPoint=null}
  function fmtTime(v){if(!v)return "--";return new Date(v).toLocaleString(Qt.locale(),"dd MMM yyyy HH:mm:ss")}
@@ -81,5 +81,5 @@ Item {
  Timer{id:sampleDebounce;interval:650;repeat:false;onTriggered:if(samples.length)root.refreshForSamples()}
  onLodLevelChanged:if(samples.length)lodDebounce.restart()
  Component.onCompleted:{if(!loadCached()&&samples.length)rebuild();else{cachedSampleCount=samples.length;cachedSampleSignature=sampleSignature()}}
- onSamplesChanged:if(samples.length)sampleDebounce.restart()
+ onSamplesChanged:{if(samples.length)sampleDebounce.restart();else{sampleDebounce.stop();meshEngine.clear();cachedSampleSignature=""}}
 }

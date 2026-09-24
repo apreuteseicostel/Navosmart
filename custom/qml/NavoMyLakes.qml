@@ -12,7 +12,10 @@ Popup {
  modal:true;focus:true;width:Math.min(560,parent?parent.width-24:560);height:Math.min(620,parent?parent.height-24:620);anchors.centerIn:parent
  background:Rectangle{color:"#081522";border.color:"#1c4262";radius:12}
  function sessionsForLake(id){var out=[];if(!persistence)return out;for(var i=0;i<persistence.bathymetrySessions.length;i++){var s=persistence.bathymetrySessions[i];if(s.lakeId===id)out.push(s)}return out}
- function selectLake(lake){selectedLake=lake;selectedLakeId=lake?lake.id:"";if(scanCoordinator&&lake){scanCoordinator.lakeId=lake.id;scanCoordinator.lakeName=lake.name||"Baltă"}}
+ function selectLake(lake){
+  if(!lake || !scanCoordinator || !scanCoordinator.activateLake(lake.id,lake.name)) {saveStatus="Schimbarea bălții nu a fost permisă";return false}
+  selectedLake=lake;selectedLakeId=lake.id;return true
+ }
  function addLake(){
   var name=newLakeName.text.trim()
   if(!name.length || !persistence){saveStatus="Introdu numele bălții înainte de salvare";return}

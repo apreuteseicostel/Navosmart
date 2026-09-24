@@ -119,12 +119,15 @@ Item {
         }
 
         onAccepted: {
-            if (!root.selectedWaypoint || !root.vehicle || !root.selectedWaypoint.coordinate.isValid) return
+            if (!root.selectedWaypoint || !root.vehicle || !root.selectedWaypoint.coordinate.isValid ||
+                !root.vehicle.vehicleLinkManager || root.vehicle.vehicleLinkManager.communicationLost ||
+                !root.vehicle.coordinate.isValid || !root.vehicle.gps || root.vehicle.gps.lock.rawValue<3) return
             // QGroundControl Vehicle API performs the firmware-specific Guided/GoTo command.
             // No command is sent before this explicit confirmation.
-            var accepted = root.vehicle.guidedModeGotoLocation(root.selectedWaypoint.coordinate)
-            root.navigationCommandSent(root.selectedWaypoint, accepted)
-            if (accepted) root.selectedWaypoint = null
+            root.vehicle.guidedModeGotoLocation(root.selectedWaypoint.coordinate)
+            // This API returns void: true means dispatched, never ACK/executed.
+            root.navigationCommandSent(root.selectedWaypoint, true)
+            root.selectedWaypoint = null
         }
     }
 

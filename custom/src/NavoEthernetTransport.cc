@@ -6,7 +6,7 @@ NavoEthernetTransport::NavoEthernetTransport(QObject* p):QObject(p)
     connect(&_tcp,&QTcpSocket::connected,this,[this]{setConnected(true);setStatus(QStringLiteral("ONLINE"));});
     connect(&_tcp,&QTcpSocket::disconnected,this,[this]{setConnected(false);setDataAlive(false);setStatus(QStringLiteral("OFFLINE"));scheduleReconnect();});
     connect(&_tcp,&QTcpSocket::readyRead,this,&NavoEthernetTransport::readTcp);
-    connect(&_tcp,&QTcpSocket::errorOccurred,this,[this](QAbstractSocket::SocketError){setStatus(_tcp.errorString());});
+    connect(&_tcp,&QTcpSocket::errorOccurred,this,[this](QAbstractSocket::SocketError){setConnected(false);setDataAlive(false);setStatus(_tcp.errorString());scheduleReconnect();});
     connect(&_udpSocket,&QUdpSocket::readyRead,this,&NavoEthernetTransport::readUdp);
     connect(&_healthTimer,&QTimer::timeout,this,&NavoEthernetTransport::healthTick);
     connect(&_reconnectTimer,&QTimer::timeout,this,&NavoEthernetTransport::connectEndpoint);
@@ -21,6 +21,10 @@ void NavoEthernetTransport::setAutoReconnect(bool v){if(_autoReconnect==v)return
 
 void NavoEthernetTransport::connectEndpoint()
 {
+    if(!_port || (!_udp && _host.trimmed().isEmpty())) { setStatus(QStringLiteral("ENDPOINT INVALID")); return; }
+    _manualDisconnect=true;
+    _tcp.abort(); _udpSocket.close();
+    setConnected(false); setDataAlive(false);
     _manualDisconnect=false;
     _reconnectTimer.stop();
     if(_udp){

@@ -72,7 +72,6 @@ Rectangle {
             spacing: 7
             Button { Layout.fillWidth: true; text: "NAVIGHEAZĂ AICI"; enabled: root.vehiclePositionValid && root.coordinateValid; onClicked: root.navigateRequested(root.waypoint) }
             Button { text: "EDITEAZĂ"; onClicked: root.editRequested(root.waypoint) }
-            Button { text: "ȘTERGE"; onClicked: root.deleteRequested(root.waypoint) }
         }
     }
 

@@ -11,6 +11,8 @@ Item {
     id: root
 
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
+    property var planController
+    signal waypointNameChanged(int sequence, string name)
     property var waypointNames: ({})
     property var fishModel
     property var fishingSpotsModel
@@ -51,20 +53,10 @@ Item {
         return true
     }
 
-    PlanMasterController {
-        id: planController
-        Component.onCompleted: {
-            start()
-            if (root.vehicle) {
-                loadFromVehicle()
-            }
-        }
-    }
-
     FlyViewMap {
         id: liveMap
         anchors.fill: parent
-        planMasterController: planController
+        planMasterController: root.planController
         rightPanelWidth: 0
         toolInsets: QtObject {
             readonly property real leftEdgeTopInset: 0
@@ -89,7 +81,7 @@ Item {
 
     NavoWaypointMapOverlay {
         map: liveMap
-        missionController: planController.missionController
+        missionController: root.planController ? root.planController.missionController : null
         vehicle: root.vehicle
         waypointNames: root.waypointNames
         savedDepthM: root.savedDepthM
@@ -102,8 +94,17 @@ Item {
             root.baitingWaypointSelected(wp)
         }
         onEditRequested: function(wp) {
-            // Editing remains a distinct action; selection is used by automatic baiting.
+            renameDialog.sequence=wp.sequenceNumber
+            waypointName.text=root.waypointNames[String(wp.sequenceNumber)] || "WP"+wp.sequenceNumber
+            renameDialog.open()
         }
+    }
+    Dialog {
+        id: renameDialog; parent: Overlay.overlay; anchors.centerIn: parent; modal: true
+        property int sequence: -1
+        title: "Nume waypoint"; standardButtons: Dialog.Save | Dialog.Cancel
+        TextField { id: waypointName; width: Math.min(300, root.width); placeholderText: "Lanseta verde" }
+        onAccepted: if(sequence>0 && waypointName.text.trim().length) root.waypointNameChanged(sequence,waypointName.text.trim())
     }
 
     Repeater {
@@ -183,7 +184,6 @@ Item {
         target: QGroundControl.multiVehicleManager
         function onActiveVehicleChanged(activeVehicle) {
             if (activeVehicle) {
-                planController.loadFromVehicle()
                 if (activeVehicle.coordinate && activeVehicle.coordinate.isValid) {
                     liveMap.center = activeVehicle.coordinate
                 }

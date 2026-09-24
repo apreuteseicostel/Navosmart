@@ -31,7 +31,7 @@ QtObject {
     property real accelerationMps2: 0.35
     property real decelerationMps2: 0.45
     property int rampIntervalMs: 100
-    property int invalidGpsSinceMs: 0
+    property double invalidGpsSinceMs: 0
 
     readonly property int idleState:0
     readonly property int navigateState:1
@@ -65,7 +65,7 @@ QtObject {
     }
     function setState(s){ if(state===s)return; state=s; stateChangedDetailed(state,stateText(state)) }
     function validTarget(){ return targetWaypoint && targetWaypoint.coordinate && targetWaypoint.coordinate.isValid }
-    function vehicleCoordinateValid(){ return vehicle && vehicle.coordinate && vehicle.coordinate.isValid }
+    function vehicleCoordinateValid(){ return vehicle && vehicle.vehicleLinkManager && !vehicle.vehicleLinkManager.communicationLost && vehicle.coordinate && vehicle.coordinate.isValid && vehicle.gps && vehicle.gps.lock.rawValue >= 3 }
     function groundSpeed(){ return vehicle && vehicle.groundSpeed && !isNaN(vehicle.groundSpeed.rawValue) ? vehicle.groundSpeed.rawValue : NaN }
     function distanceToTarget(){ return vehicleCoordinateValid() && validTarget() ? vehicle.coordinate.distanceTo(targetWaypoint.coordinate) : NaN }
     function distanceToExit(){ return vehicleCoordinateValid() && exitCoordinate && exitCoordinate.isValid ? vehicle.coordinate.distanceTo(exitCoordinate) : NaN }
@@ -73,12 +73,13 @@ QtObject {
     function toggleSilentMode(){ silentMode=!silentMode; silentModeChangedDetailed(silentMode); if(!enabled)setTargetSpeed(silentMode?manualSilentSpeedMps:normalSpeedMps) }
 
     function startCycle(wp,name,selectedHopper){
+        if(enabled || selectedHopper < 0 || selectedHopper > 3) return false
         if(!vehicle || !wp || !wp.coordinate || !wp.coordinate.isValid || !vehicleCoordinateValid()){ cycleFinished(false,"Barca, GPS-ul sau waypoint-ul nu sunt disponibile"); return false }
         targetWaypoint=wp; targetName=name; hopper=selectedHopper; arrivalOrigin=vehicle.coordinate; enabled=true; invalidGpsSinceMs=0
         setState(navigateState); setTargetSpeed(silentMode?silentSpeedMps:normalSpeedMps); gotoRequested(targetWaypoint.coordinate,"bait-target"); monitorTimer.start(); return true
     }
     function abortCycle(reason){
-        enabled=false; monitorTimer.stop(); settleTimer.stop(); postDropTimer.stop(); setTargetSpeed(0); stopRequested(reason||"Oprire de siguranță")
+        enabled=false; monitorTimer.stop(); settleTimer.stop(); postDropTimer.stop(); rampTimer.stop(); targetSpeedMps=0; commandedSpeedMps=0; stopRequested(reason||"Oprire de siguranță")
         setState(abortedState); cycleFinished(false,reason||"Ciclul de nădire a fost oprit")
     }
     function makeExitCoordinate(){
@@ -88,6 +89,7 @@ QtObject {
     }
     function update(){
         if(!enabled)return
+        if(!vehicle || !vehicle.vehicleLinkManager || vehicle.vehicleLinkManager.communicationLost){abortCycle("Legătura autopilot a fost pierdută");return}
         if(!vehicleCoordinateValid()){
             if(invalidGpsSinceMs===0)invalidGpsSinceMs=Date.now()
             else if(Date.now()-invalidGpsSinceMs>=gpsLossGraceMs)abortCycle("GPS/poziție pierdută")
@@ -122,20 +124,29 @@ QtObject {
     property Timer settleTimer: Timer {
         interval:root.settleMs; repeat:false
         onTriggered:{
+            if(!root.enabled || root.state!==root.settleState) return
+            if(!root.vehicleCoordinateValid() || !root.validTarget()) { root.abortCycle("Eliberare blocată: GPS invalid"); return }
+            var distance=root.distanceToTarget()
+            if(!isFinite(distance) || distance>root.arrivalRadiusM) { root.abortCycle("Barca a ieșit din zona de eliberare"); return }
             var s=root.groundSpeed()
-            if(!isNaN(s)&&s>root.releaseMaxSpeedMps){root.stopRequested("Aștept oprirea completă");restart();return}
-            root.setState(root.releaseState); if(root.hopper!==0)root.hopperReleaseRequested(root.hopper); root.postDropTimer.restart()
+            if(!isFinite(s) || s<0){root.abortCycle("Eliberare blocată: viteza nu este validă");return}
+            if(s>root.releaseMaxSpeedMps){root.stopRequested("Aștept oprirea completă");restart();return}
+            root.setState(root.releaseState); if(root.hopper!==0)root.hopperReleaseRequested(root.hopper)
+            // The synchronous release handler may abort on rejection.
+            if(root.enabled && root.state===root.releaseState) root.postDropTimer.restart()
         }
     }
     property Timer postDropTimer: Timer {
         interval:root.postDropMs; repeat:false
         onTriggered:{
+            if(!root.enabled || root.state!==root.releaseState || !root.vehicleCoordinateValid()) return
             root.exitCoordinate=root.makeExitCoordinate()
             if(root.exitCoordinate&&root.exitCoordinate.isValid){root.setState(root.exitState);root.setTargetSpeed(root.silentSpeedMps);root.gotoRequested(root.exitCoordinate,"clear-bait-zone")}
             else root.finishExit()
         }
     }
     function finishExit(){
+        enabled=false;monitorTimer.stop()
         if(rtlAfterDrop){setState(returnHomeState);setTargetSpeed(silentMode?manualSilentSpeedMps:normalSpeedMps);rtlRequested()} else setState(completeState)
         enabled=false;monitorTimer.stop();cycleFinished(true,rtlAfterDrop?"Nada eliberată; RTL pornit":"Nada eliberată")
     }

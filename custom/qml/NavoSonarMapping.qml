@@ -47,9 +47,9 @@ Rectangle {
         paused=false; saveCheckpoint("resume"); status("Mapare sonar continuată"); return true
     }
     function ingestSample(sample) {
-        if(!scanning || paused || !sonarConnected || !sample || isNaN(Number(sample.depth))) return
+        if(!scanning || paused || !sonarConnected || !sample || sample.depth===null || !isFinite(Number(sample.depth)) || Number(sample.depth)<=0) return
         var lat=Number(sample.lat), lon=Number(sample.lon)
-        if(isNaN(lat)||isNaN(lon)) return
+        if(!isFinite(lat)||!isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180) return
         var s=rawSamples.slice(0)
         s.push({lat:lat,lon:lon,depth:Number(sample.depth),temp:sample.temp,hardness:sample.hardness===undefined?bottomHardness:sample.hardness,bottomEcho:sample.bottomEcho===undefined?bottomEchoStrength:sample.bottomEcho,time:sample.time||Date.now()})
         rawSamples=s

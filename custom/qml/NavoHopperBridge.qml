@@ -30,6 +30,8 @@ QtObject {
   return true
  }
  function release(hopper){
+  if(hopper!==1 && hopper!==2 && hopper!==3){commandRejected("Selecție cuvă invalidă");return false}
+  if(commandPending){commandRejected("Comandă cuvă deja în curs");return false}
   if(!calibrated){commandRejected("Cuve necalibrate - comanda blocată");return false}
   var ok=true
   if(hopper===1||hopper===3)ok=setServo(leftServoOutput,leftOpenPwm)&&ok

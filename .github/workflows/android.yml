@@ -14,6 +14,8 @@ jobs:
       QT_ANDROID_ABIS: arm64-v8a
     steps:
       - uses: actions/checkout@v4
+      - name: NAVO controller regression tests
+        run: node tests/audit-regressions.mjs
       - name: Clone pinned QGroundControl
         run: |
           git clone --depth 1 --branch v5.0.7 --recurse-submodules --shallow-submodules https://github.com/mavlink/qgroundcontrol.git qgc
@@ -76,6 +78,16 @@ jobs:
           modules: 'qtcharts qtlocation qtpositioning qtspeech qt5compat qtmultimedia qtserialport qtimageformats qtshadertools qtconnectivity qtquick3d qtsensors'
           setup-python: false
           cache: true
+      - name: Validate all NAVO QML syntax and QObject headers
+        run: |
+          set -euo pipefail
+          QT_HOST="${{ runner.temp }}/Qt/6.8.3/gcc_64"
+          for file in custom/qml/*.qml; do
+            "$QT_HOST/bin/qmlformat" "$file" > /dev/null
+          done
+          for file in custom/src/*.h; do
+            "$QT_HOST/libexec/moc" -I"$QT_HOST/include" -I"$QT_HOST/include/QtCore" "$file" -o /tmp/navo-moc-check.cpp
+          done
       - name: Install Qt Android ABIs
         run: |
           python3 -m pip install --user 'aqtinstall==3.1.*'

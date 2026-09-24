@@ -24,10 +24,13 @@ Item {
             return ""
         if (protocol === "rtsp" && u.indexOf("://") < 0)
             return "rtsp://" + u
+        if (protocol === "mjpeg" && u.indexOf("://") < 0)
+            return "http://" + u
         return u
     }
 
     function start() {
+        retryTimer.stop()
         desiredPlaying = true
         var u = normalizedUrl()
         if (!u.length)
@@ -35,6 +38,9 @@ Item {
         player.source = u
         player.play()
     }
+    onStreamUrlChanged: { if(desiredPlaying) { player.stop(); start() } }
+    onProtocolChanged: { if(desiredPlaying) { player.stop(); start() } }
+    Component.onDestruction: stop()
 
     function stop() {
         desiredPlaying = false

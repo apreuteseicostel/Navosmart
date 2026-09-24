@@ -61,13 +61,14 @@ Rectangle {
         }
         ComboBox {
             Layout.fillWidth: true
-            visible: !root.waypoint && root.availableSpots.length > 0
+            visible: root.availableSpots.length > 0
+            enabled: !root.controller || !root.controller.enabled
             model: root.availableSpots
             textRole: "name"
             displayText: "Alege un loc salvat"
             onActivated: function(index) { root.spotChosen(root.availableSpots[index]) }
         }
-        Button { visible: !root.waypoint; text: "ALEGE PUNCT PE HARTĂ"; onClicked: root.chooseOnMapRequested() }
+        Button { enabled: !root.controller || !root.controller.enabled; text: "ALEGE PUNCT PE HARTĂ"; onClicked: root.chooseOnMapRequested() }
         RowLayout {
             Layout.fillWidth: true
             Label { text: "Cuva"; color: "#9db2c5" }

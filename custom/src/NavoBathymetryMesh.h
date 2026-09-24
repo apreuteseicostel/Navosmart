@@ -18,6 +18,7 @@ class NavoBathymetryMesh : public QObject {
 public:
     explicit NavoBathymetryMesh(QObject* parent=nullptr);
     Q_INVOKABLE bool build(const QVariantList& samples, double gridSizeM=2.0, double maxGapM=6.0, int lodLevel=0);
+    Q_INVOKABLE bool buildCached(const QVariantList& samples, double gridSizeM=2.0, double maxGapM=6.0, int lodLevel=0);
     Q_INVOKABLE bool saveCache(const QString& path) const;
     Q_INVOKABLE bool loadCache(const QString& path, const QString& expectedKey=QString());
     Q_INVOKABLE void clear();

@@ -10,15 +10,15 @@ QtObject {
     property bool correctionActive: false
     signal status(string text)
     function engage() {
-        if (!vehicle || !vehicle.coordinate || !vehicle.coordinate.isValid) { status("Ancora GPS: poziție invalidă"); return false }
+        if (!vehicle || !vehicle.vehicleLinkManager || vehicle.vehicleLinkManager.communicationLost || !vehicle.coordinate || !vehicle.coordinate.isValid || !vehicle.gps || vehicle.gps.lock.rawValue<3) { status("Ancora GPS: poziție/legătură invalidă"); return false }
         anchorCoordinate = vehicle.coordinate
-        var ok = vehicle.guidedModeGotoLocation(anchorCoordinate)
-        if (ok) { active = true; status("Ancora GPS activă") }
-        else status("Ancora GPS refuzată de autopilot")
-        return ok
+        vehicle.guidedModeGotoLocation(anchorCoordinate)
+        active=true; status("Ancora GPS: comandă trimisă; verifică modul și poziția")
+        return true
     }
     function release() { active=false; correctionActive=false; status("Ancora GPS dezactivată") }
     function maintain() {
+        if(active && (!vehicle || !vehicle.vehicleLinkManager || vehicle.vehicleLinkManager.communicationLost || !vehicle.gps || vehicle.gps.lock.rawValue<3)) { release(); status("Ancora suspendată: GPS/legătură pierdută"); return }
         if (!active || !vehicle || !vehicle.coordinate || !vehicle.coordinate.isValid || !anchorCoordinate.isValid) return
         var drift=vehicle.coordinate.distanceTo(anchorCoordinate)
         if (drift > driftRadiusM) {
