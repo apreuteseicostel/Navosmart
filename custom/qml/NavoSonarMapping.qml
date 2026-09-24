@@ -40,7 +40,12 @@ Rectangle {
     function setLaneProgress(laneIndex, completed, total){ currentLane=laneIndex; completedLanes=completed; totalLanes=total; saveCheckpoint("lane") }
     function saveCheckpoint(reason){ resumeState={lakeId:lakeId,currentLane:currentLane,completedLanes:completedLanes,totalLanes:totalLanes,sampleCount:rawSamples.length,lastCoordinate:trackCoordinates.length?trackCoordinates[trackCoordinates.length-1]:null,reason:reason,time:Date.now()}; checkpointRequested(resumeState) }
     function restoreCheckpoint(state){ if(!state)return false; resumeState=state; lakeId=state.lakeId||""; currentLane=state.currentLane||0; completedLanes=state.completedLanes||0; totalLanes=state.totalLanes||0; paused=true; scanning=true; status("Scanare restaurată • continuă de la culoarul "+(currentLane+1)); return true }
-    function resumeScan() { if(scanning){paused=false; status("Mapare sonar continuată")} }
+    function resumeScan() {
+        if(!scanning) { status("Resume sonar indisponibil: nu există scanare restaurată"); return false }
+        if(!validPosition()) { paused=true; status("Resume blocat: GPS indisponibil"); return false }
+        if(!sonarConnected) { paused=true; status("Resume blocat: Kogger fără date live"); return false }
+        paused=false; saveCheckpoint("resume"); status("Mapare sonar continuată"); return true
+    }
     function ingestSample(sample) {
         if(!scanning || paused || !sonarConnected || !sample || isNaN(Number(sample.depth))) return
         var lat=Number(sample.lat), lon=Number(sample.lon)
