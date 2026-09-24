@@ -33,7 +33,7 @@ Item {
 
     NavoPersistence { id: persistence }
     property alias lakePersistence: persistence
-    NavoFishingSpots { id: fishingSpots; onSpotSaved: scanCoordinator.checkpoint("spot-save"); onSpotRemoved: scanCoordinator.checkpoint("spot-delete") }
+    NavoFishingSpots { id: fishingSpots; onSpotSaved: scanCoordinator.checkpoint("spot-save"); onSpotRemoved: scanCoordinator.checkpoint("spot-delete"); onSpotUpdated: scanCoordinator.checkpoint("spot-update") }
     NavoFishDetections { id: fishStore }
     NavoBathymetryModel { id: bathymetryModel }
     Settings {
@@ -628,9 +628,9 @@ Item {
                     root.pendingAreaDrawMode="none"
                     root.activePage=2
                 }
-                onSaveNamedPointRequested: function(coordinate,name) {
+                onSaveNamedPointRequested: function(coordinate,name,markerColor) {
                     if(!scanCoordinator.lakeId.length){root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
-                    var spot=fishingSpots.saveSpot(coordinate,NaN,NaN,name,"Punct ales pe hartă",null)
+                    var spot=fishingSpots.saveSpot(coordinate,NaN,NaN,name,"Punct ales pe hartă",null,markerColor)
                     if(spot){scanCoordinator.checkpoint("fishing-spot-map");root.lastNavigationStatus="Punct salvat: "+spot.name}
                 }
                 onSavePointRequested: function(coordinate) {
@@ -809,9 +809,9 @@ Item {
                     onNavigateRequested: function(c){root.navigateToCoordinate(c)}
                     onFishingSpotRenameRequested: function(spot){ spotRenameId=spot.id; spotRename.text=spot.name; spotRenameDialog.open() }
                     onBaitingWaypointSelected: function(wp){ baitingController.targetWaypoint=wp; root.lastNavigationStatus="Punct de nădire ales: "+wp.name }
-                    onSaveNamedPointRequested: function(c,name){
+                    onSaveNamedPointRequested: function(c,name,markerColor){
                         if(!scanCoordinator.lakeId.length){root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
-                        var s=fishingSpots.saveSpot(c,NaN,NaN,name,"Punct ales pe hartă",null)
+                        var s=fishingSpots.saveSpot(c,NaN,NaN,name,"Punct ales pe hartă",null,markerColor)
                         if(s){scanCoordinator.checkpoint("fishing-spot-map");root.lastNavigationStatus="Punct salvat: "+s.name}
                     }
                     onSavePointRequested: function(c){
@@ -923,14 +923,14 @@ Item {
                                 }
                             }
                             Button {
-                                text: "✏ NUME"
+                                text: "NUME"
                                 onClicked: {
                                     myLakesPopup.open()
                                     myLakesPopup.beginRename(modelData)
                                 }
                             }
                             Button {
-                                text: "🗑 ȘTERGE"
+                                text: "ȘTERGE"
                                 onClicked: {
                                     myLakesPopup.open()
                                     myLakesPopup.beginDelete(modelData)
