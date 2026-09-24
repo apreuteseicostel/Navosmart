@@ -524,8 +524,15 @@ Item {
         id: statusStrip
         anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: footer.top
         height: 52; color: root.panel; border.color: root.line
+        Flickable {
+            anchors.fill: parent
+            clip: true
+            contentWidth: Math.max(width, statusItems.implicitWidth + 20)
+            contentHeight: height
+            boundsBehavior: Flickable.StopAtBounds
         RowLayout {
-            anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10; spacing: 8
+            id: statusItems
+            x: 10; height: parent.height; spacing: 8
             Label { text: "BARCĂ"; color: root.muted; font.bold: true; font.pixelSize: 11 }
             StatusPill { title: "LINK"; value: vehicle ? "ONLINE" : "OFFLINE"; good: vehicle !== null }
             StatusPill { title: "LAN"; value: sonar.transport && sonar.transport.connected ? "ONLINE" : "OFFLINE"; good: sonar.transport && sonar.transport.connected }
@@ -542,6 +549,7 @@ Item {
                 text: root.lastNavigationStatus
                 color: root.muted; font.pixelSize: 10
             }
+        }
         }
     }
 
