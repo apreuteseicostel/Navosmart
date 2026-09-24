@@ -99,7 +99,6 @@ Popup {
     Button{Layout.fillWidth:true;visible:root.transport;text:root.transport&&root.transport.connected?"DECONECTEAZĂ":"CONECTEAZĂ";onClicked:{if(root.transport.connected)root.transport.disconnectFromSonar();else root.transport.connectToSonar()}}
    }
   }
- }
   RowLayout{Layout.fillWidth:true;Layout.margins:10
    Button{text:root.recording?"■ OPREȘTE ÎNREGISTRAREA":"● ÎNREGISTREAZĂ";checkable:true;checked:root.recording;onClicked:root.recording=checked}
    Button{text:root.paused?"▶ REDĂ":"Ⅱ PAUZĂ";onClicked:root.paused=!root.paused}
