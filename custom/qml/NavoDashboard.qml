@@ -422,6 +422,7 @@ Item {
         digitalAnchor.release()
         if(scanCoordinator.state==="SCANNING") scanCoordinator.pause("STOP utilizator")
         else if(scanCoordinator.state==="READY" || scanCoordinator.state==="RESUME_READY") {
+            areaScanController.hold("STOP înainte de START", root.vehicle && root.vehicle.coordinate ? root.vehicle.coordinate : null)
             scanCoordinator.state="PAUSED"
             scanCoordinator.checkpoint("stop-before-start")
         }
@@ -718,7 +719,7 @@ Item {
                     }
                     Button {
                         text: "RESUME"
-                        enabled: scanCoordinator.state==="PAUSED" && !missionUploader.uploadInProgress && areaScanController.generatedPoints.length > 0 && areaScanController.completedLanes.length < areaScanController.laneCount()
+                        enabled: (scanCoordinator.state==="PAUSED" || scanCoordinator.state==="RTL") && !missionUploader.uploadInProgress && areaScanController.generatedPoints.length > 0 && areaScanController.completedLanes.length < areaScanController.laneCount()
                         onClicked: {
                             var mission = scanCoordinator.resume()
                             if (mission.length) root.lastNavigationStatus = "Resume pregătit • apasă UPLOAD și apoi START AUTOPILOT"
