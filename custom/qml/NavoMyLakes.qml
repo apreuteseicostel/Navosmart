@@ -14,8 +14,8 @@ Popup {
 
     modal: true
     focus: true
-    width: Math.min(620, parent ? parent.width - 24 : 620)
-    height: Math.min(650, parent ? parent.height - 24 : 650)
+    width: Math.min(760, parent ? parent.width - 32 : 760)
+    height: Math.min(520, parent ? parent.height - 32 : 520)
     anchors.centerIn: parent
     background: Rectangle { color: "#081522"; border.color: "#1c4262"; radius: 12 }
 
@@ -142,7 +142,8 @@ Popup {
             handle: Rectangle { implicitWidth: 4; implicitHeight: 4; color: "#1c4262" }
 
             ListView {
-                SplitView.preferredWidth: Math.min(250, root.width*.42)
+                SplitView.preferredWidth: Math.min(280, root.width*.40)
+                SplitView.minimumWidth: 220
                 SplitView.preferredHeight: root.width<560 ? 180 : root.height-130
                 clip: true
                 spacing: 5
@@ -150,7 +151,7 @@ Popup {
                 delegate: Rectangle {
                     required property var modelData
                     width: ListView.view.width
-                    height: 46
+                    height: 50
                     radius: 7
                     color: root.selectedLakeId===modelData.id ? "#153552" : "#0d2235"
                     border.color: root.selectedLakeId===modelData.id ? "#21b7ff" : "#1c4262"
