@@ -37,14 +37,13 @@ Rectangle {
  }
  Component.onCompleted:{loadEndpoints();root.cameraStreamUrl=cfg.cameraStreamUrl;root.cameraProtocol=cfg.cameraProtocol}
  ColumnLayout {
-  anchors.fill:parent;anchors.margins:root.compact?7:14;spacing:root.compact?5:9
-  Label{text:"REȚEA BARCĂ • ETHERNET";color:"#21b7ff";font.bold:true;font.pixelSize:16}
-  Label{Layout.fillWidth:true;wrapMode:Text.WordWrap;color:"#9db2c5";font.pixelSize:11;text:"Configurează separat sonarul Kogger și camera față. Valorile se păstrează pe telefon."}
+  anchors.fill:parent;anchors.margins:root.compact?6:10;spacing:root.compact?3:5
+  Label{text:"REȚEA BARCĂ • ETHERNET";color:"#21b7ff";font.bold:true;font.pixelSize:root.compact?13:14;Layout.preferredHeight:root.compact?20:24;verticalAlignment:Text.AlignVCenter}
   RowLayout {
    Layout.fillWidth:true;Layout.fillHeight:true;spacing:root.compact?6:12
    GroupBox {
     title:"KOGGER SONAR"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:true;Layout.preferredWidth:1
-    GridLayout {anchors.fill:parent;anchors.margins:root.compact?4:8;columns:2;columnSpacing:8;rowSpacing:8
+    GridLayout {anchors.fill:parent;anchors.margins:root.compact?4:8;columns:2;columnSpacing:8;rowSpacing:root.compact?4:6
      Label{text:"IP / Host";color:"#d7e3ee"}
      TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:sonarHost;Layout.fillWidth:true;text:cfg.sonarHost;placeholderText:"ex. 192.168.x.x"}
      Label{text:"Port";color:"#d7e3ee"}
@@ -59,8 +58,8 @@ Rectangle {
    GroupBox {
     title:"CAMERA FAȚĂ"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:true;Layout.preferredWidth:1
     ColumnLayout {
-     anchors.fill:parent;anchors.margins:root.compact?4:8;spacing:7
-     GridLayout {Layout.fillWidth:true;columns:2;columnSpacing:8;rowSpacing:7
+     anchors.fill:parent;anchors.margins:root.compact?4:8;spacing:root.compact?4:6
+     GridLayout {Layout.fillWidth:true;columns:2;columnSpacing:8;rowSpacing:root.compact?4:6
       Label{text:"IP / Host";color:"#d7e3ee"}
       TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:cameraHost;Layout.fillWidth:true;text:cfg.cameraHost;placeholderText:"ex. 192.168.x.x"}
       Label{text:"Port";color:"#d7e3ee"}
@@ -86,7 +85,7 @@ Rectangle {
    Layout.fillWidth:true
    Button{text:"SALVEAZĂ TOATE SETĂRILE";onClicked:root.saveEndpoints()}
    Item{Layout.fillWidth:true}
-   Label{color:"#9db2c5";font.pixelSize:10;text:"Setările Ethernet/video sunt persistente"}
+   Label{visible:false;text:""}
   }
  }
 }

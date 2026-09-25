@@ -59,7 +59,7 @@ Popup {
    SonarIconButton{hint:root.showRawTrace?"Ecou brut: ON":"Ecou brut: OFF";checkable:true;checked:root.showRawTrace;contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle=parent.checked?"#21b7ff":"#d9edf7";p.lineWidth=2;p.beginPath();for(var x=6;x<=36;x+=2){var y=19+Math.sin(x*.75)*7;p.lineTo(x,y)}p.stroke()}} onClicked:root.showRawTrace=checked}
    ComboBox{width:86;model:["NAVO","DAY"];currentIndex:root.paletteMode==="NAVO"?0:1;ToolTip.visible:hovered;ToolTip.text:"Paletă ecogramă";onActivated:function(index){root.paletteMode=model[index]}}
   }
-  RowLayout{Layout.fillWidth:true;Layout.fillHeight:true;spacing:8
+  RowLayout{Layout.fillWidth:true;Layout.fillHeight:true;Layout.minimumHeight:180;spacing:4
   Rectangle{Layout.fillWidth:true;Layout.fillHeight:true;color:"#020b12"
    Repeater{model:5;Label{anchors.left:parent.left;anchors.leftMargin:8;y:index*(parent.height/4)-height/2;text:(index===0?"0.0":(!isNaN(root.depthM)?(root.depthM*index/4).toFixed(1):"--"))+" m";color:"#d9edf7";z:3}}
    Canvas{id:echogram;anchors.fill:parent
@@ -75,7 +75,7 @@ Popup {
    }
    Label{anchors.centerIn:parent;visible:!root.connected;text:"Aștept date reale de la Kogger\nEcograma nu este simulată";horizontalAlignment:Text.AlignHCenter;color:"#9db2c5";font.pixelSize:18}
   }
-  Rectangle{visible:root.width>=700;Layout.preferredWidth:visible?62:0;Layout.fillHeight:true;color:"#06131e";border.color:"#1c4262";radius:6
+  Rectangle{visible:root.width>=1100;Layout.preferredWidth:visible?50:0;Layout.fillHeight:true;color:"#06131e";border.color:"#1c4262";radius:6
    Column{anchors.fill:parent;anchors.margins:6;spacing:4
     Label{text:"Putere";color:"#9db2c5";font.pixelSize:11;anchors.horizontalCenter:parent.horizontalCenter}
     Label{text:"ecou";color:"#9db2c5";font.pixelSize:11;anchors.horizontalCenter:parent.horizontalCenter}
@@ -85,7 +85,7 @@ Popup {
     Label{text:"Slab";color:"#9db2c5";font.pixelSize:10;anchors.horizontalCenter:parent.horizontalCenter}
    }
   }
-  Rectangle{visible:root.width>=900;Layout.preferredWidth:visible?205:0;Layout.fillHeight:true;color:"#06131e";border.color:"#1c4262";radius:8
+  Rectangle{visible:root.width>=1350;Layout.preferredWidth:visible?180:0;Layout.fillHeight:true;color:"#06131e";border.color:"#1c4262";radius:8
    ColumnLayout{anchors.fill:parent;anchors.margins:10;spacing:8
     Label{text:"ADÂNCIME";color:"#9db2c5"} Label{text:isNaN(root.depthM)?"-- m":root.depthM.toFixed(1)+" m";color:"#f2f7fb";font.pixelSize:30;font.bold:true}
     Rectangle{Layout.fillWidth:true;height:1;color:"#17364a"}
@@ -101,7 +101,7 @@ Popup {
     Button{Layout.fillWidth:true;visible:root.transport;text:root.transport&&root.transport.connected?"DECONECTEAZĂ":"CONECTEAZĂ";onClicked:{if(root.transport.connected)root.transport.disconnectFromSonar();else root.transport.connectToSonar()}}
    }
   }
-  Flow{Layout.fillWidth:true;Layout.leftMargin:10;Layout.rightMargin:10;Layout.bottomMargin:10;spacing:6
+  Flow{Layout.fillWidth:true;Layout.leftMargin:8;Layout.rightMargin:8;Layout.bottomMargin:6;spacing:5
    SonarIconButton{hint:root.recording?"Oprește înregistrarea":"Înregistrează sonar";checkable:true;checked:root.recording;contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.fillStyle=parent.checked?"#ff5c5c":"#f2f7fb";p.beginPath();p.arc(width/2,height/2,7,0,Math.PI*2);p.fill()}} onClicked:{root.recording=checked;root.recordingRequested(root.recording)}}
    SonarIconButton{hint:root.paused?"Redă":"Pauză";contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.fillStyle="#f2f7fb";if(root.paused){p.beginPath();p.moveTo(15,10);p.lineTo(30,19);p.lineTo(15,28);p.closePath();p.fill()}else{p.fillRect(13,10,5,18);p.fillRect(25,10,5,18)}}} onClicked:root.paused=!root.paused}
    Label{text:"Viteză: "+(isNaN(root.speedMps)?"--":(root.speedMps*3.6).toFixed(1)+" km/h");color:"#9db2c5";height:40;verticalAlignment:Text.AlignVCenter}

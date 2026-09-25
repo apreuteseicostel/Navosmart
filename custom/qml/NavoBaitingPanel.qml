@@ -81,14 +81,11 @@ Rectangle {
     ColumnLayout {
         id: summary
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
-        anchors.margins: 10; spacing: 7
-        Label { text: "NĂDIRE"; color: "white"; font.bold: true; font.pixelSize: 15 }
-        Label { Layout.fillWidth: true; text: "Punct: " + root.waypointName; color: "#21b7ff"; font.bold: true; wrapMode: Text.WordWrap }
-        Label {
-            Layout.fillWidth: true
-            visible: !root.waypoint
-            text: "Alege ținta pe hartă sau din punctele salvate."
-            color: root.secondaryTextColor; wrapMode: Text.WordWrap
+        anchors.margins: 8; spacing: 5
+        RowLayout { Layout.fillWidth:true; spacing:6
+            Label { text:"NĂDIRE"; color:"white"; font.bold:true; font.pixelSize:15 }
+            Label { Layout.fillWidth:true; text:"ȚINTĂ: "+root.waypointName+"  •  CUVA: "+hopperBox.currentText; color:"#21b7ff"; font.bold:true; font.pixelSize:11; elide:Text.ElideRight; horizontalAlignment:Text.AlignRight }
+            ToolButton { text:"⚙"; font.pixelSize:18; enabled:!root.controller || !root.controller.enabled; onClicked:settingsPopup.open(); ToolTip.visible:hovered; ToolTip.text:"Setări nădire" }
         }
         ComboBox {
             Layout.fillWidth: true
@@ -244,8 +241,7 @@ Rectangle {
                 }
             }
         }
-        Button { text: "SETĂRI"; enabled: !root.controller || !root.controller.enabled; onClicked: settingsPopup.open() }
-        Label { Layout.fillWidth: true; text: root.controller ? "Stare: " + root.controller.stateText(root.controller.state) : "Controler indisponibil"; color: root.controller && root.controller.enabled ? "#31d67b" : "#9db2c5"; wrapMode: Text.WordWrap }
+                Label { Layout.fillWidth: true; text: root.controller ? "Stare: " + root.controller.stateText(root.controller.state) : "Controler indisponibil"; color: root.controller && root.controller.enabled ? "#31d67b" : "#9db2c5"; wrapMode: Text.WordWrap }
     }
 
     Popup {
@@ -298,10 +294,10 @@ Rectangle {
         focus: true
         anchors.centerIn: parent
         width: Math.min(500, parent ? parent.width - 32 : 500)
-        height: Math.min(300, parent ? parent.height - 32 : 300)
-        padding: 16
-        title: "Confirmă nădirea automată"
-        standardButtons: Dialog.Yes | Dialog.No
+        height: Math.min(180, parent ? parent.height - 24 : 180)
+        padding: 12
+        title: "Confirmă nădirea"
+        standardButtons: Dialog.Ok | Dialog.Cancel
         closePolicy: Popup.NoAutoClose
         background: Rectangle { color:"#0b1c2e"; border.color:"#21b7ff"; radius:10 }
         contentItem: Label {
@@ -309,8 +305,12 @@ Rectangle {
             color: "#f2f7fb"
             wrapMode: Text.WordWrap
             verticalAlignment: Text.AlignVCenter
-            text: "Pornești ciclul către «" + root.waypointName + "»?\n\nCuva: " + hopperBox.currentText +
-                  "\n\nApropierea, oprirea, eliberarea, ieșirea laterală și RTL vor fi executate automat. Eliberarea este permisă numai după oprirea bărcii."
+            text: root.waypointName + "  •  Cuva " + hopperBox.currentText.toLowerCase() +
+                  "\nBarca va naviga, opri, elibera nada și reveni automat."
+        }
+        Component.onCompleted: {
+            standardButton(Dialog.Ok).text = "PORNEȘTE"
+            standardButton(Dialog.Cancel).text = "ANULEAZĂ"
         }
         onAccepted: root.startConfirmed(root.waypoint, root.waypointName, root.selectedHopper)
     }

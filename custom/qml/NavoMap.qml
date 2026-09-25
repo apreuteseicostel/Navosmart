@@ -28,8 +28,11 @@ Item {
     property bool headingUp: false
     property bool rulerMode: false
     property bool mapLayerMenuOpen: false
+    property bool showStatusHint: true
     property var rulerPoints: []
     readonly property real boatHeadingDeg: vehicle && vehicle.heading && isFinite(Number(vehicle.heading.rawValue)) ? Number(vehicle.heading.rawValue) : NaN
+    property bool operatorLocationEnabled: true
+    readonly property bool operatorLocationValid: operatorPositionSource.position.coordinate.isValid
 
     signal navigateRequested(var coordinate)
     signal savePointRequested(var coordinate)
@@ -58,7 +61,9 @@ Item {
         areaDrawMode="polygon"
         if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid) liveMap.center=vehicle.coordinate
     }
-    function cancelAreaDrawing() { areaDraftPoints=[]; areaDrawMode="none" }
+    function undoAreaPoint() { if(areaDraftPoints.length===0)return; var pts=areaDraftPoints.slice(0); pts.pop(); areaDraftPoints=pts }
+    function clearAreaDrawing() { areaDraftPoints=[]; lastAreaOutline=[]; areaDrawMode="none" }
+    function cancelAreaDrawing() { clearAreaDrawing() }
     function resetView() {
         if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid) liveMap.center=vehicle.coordinate
         liveMap.zoomLevel=Math.max(liveMap.zoomLevel,lakeZoomLevel)
@@ -67,6 +72,11 @@ Item {
     }
     function toggleRuler() { rulerMode=!rulerMode; rulerPoints=[]; mapLayerMenuOpen=false }
     function toggleMapLayer() { bathymetryHDEnabled=!bathymetryHDEnabled; mapLayerMenuOpen=false }
+    function operatorBoatDistanceText() {
+        if(!operatorLocationValid || !vehicle || !vehicle.coordinate || !vehicle.coordinate.isValid) return "--"
+        var d=operatorPositionSource.position.coordinate.distanceTo(vehicle.coordinate)
+        return d>=1000 ? (d/1000).toFixed(2)+" km" : Math.round(d)+" m"
+    }
     function rulerDistanceText() {
         if(rulerPoints.length<2) return "Atinge două puncte"
         var d=rulerPoints[0].distanceTo(rulerPoints[1])
@@ -91,6 +101,12 @@ Item {
         areaDrawMode="none"
         areaDraftPoints=[]
         return true
+    }
+
+    PositionSource {
+        id: operatorPositionSource
+        active: root.operatorLocationEnabled
+        updateInterval: 2000
     }
 
     FlyViewMap {
@@ -118,14 +134,43 @@ Item {
 
 
     MapQuickItem {
+        id: operatorMarker
+        parent: liveMap
+        visible: root.operatorLocationEnabled && root.operatorLocationValid
+        coordinate: visible ? operatorPositionSource.position.coordinate : QtPositioning.coordinate()
+        anchorPoint.x: 18; anchorPoint.y: 18
+        z: 34
+        sourceItem: Item {
+            width:36; height:36
+            Rectangle {
+                anchors.fill:parent; radius:18; color:"#102b3aee"; border.color:"#26c6da"; border.width:2
+                Label { anchors.centerIn:parent; text:"🎮"; font.pixelSize:18 }
+            }
+        }
+        Component.onCompleted: liveMap.addMapItem(this)
+        Component.onDestruction: liveMap.removeMapItem(this)
+    }
+
+    MapPolyline {
+        id: operatorBoatLine
+        parent: liveMap
+        visible: operatorMarker.visible && navoBoatMarker.visible
+        path: visible ? [operatorPositionSource.position.coordinate, root.vehicle.coordinate] : []
+        line.width: 2
+        line.color: "#26c6da"
+        Component.onCompleted: liveMap.addMapItem(this)
+        Component.onDestruction: liveMap.removeMapItem(this)
+    }
+
+    MapQuickItem {
         id: navoBoatMarker
         parent: liveMap
         visible: !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
         coordinate: visible ? root.vehicle.coordinate : QtPositioning.coordinate()
-        anchorPoint.x: 18; anchorPoint.y: 32
-        z: 35
+        anchorPoint.x: 24; anchorPoint.y: 42
+        z: 100
         sourceItem: Item {
-            width:36; height:64
+            width:48; height:84
             rotation: isFinite(root.boatHeadingDeg) ? root.boatHeadingDeg - liveMap.bearing : 0
             Behavior on rotation { RotationAnimation { duration:240; direction:RotationAnimation.Shortest } }
             Canvas {
@@ -321,7 +366,8 @@ Item {
         visible: root.areaDrawMode!=="none"
         Button { width:72; height:32; padding:2; text:(root.areaDrawMode==="rectangle" ? "DREPT. " : "POLIG. ")+root.areaDraftPoints.length+(root.areaDrawMode==="rectangle"?"/2":""); enabled:false }
         Button { visible:root.areaDrawMode==="polygon"; width:72; height:32; padding:2; text:"GATA"; enabled:root.areaDraftPoints.length>=3; onClicked:root.finishAreaDrawing() }
-        Button { width:42; height:32; padding:2; text:"X"; ToolTip.visible:hovered; ToolTip.text:"Anulează"; onClicked:root.cancelAreaDrawing() }
+        Button { width:42; height:32; padding:2; text:"↶"; enabled:root.areaDraftPoints.length>0; ToolTip.visible:hovered; ToolTip.text:"Șterge ultimul punct / segment"; onClicked:root.undoAreaPoint() }
+        Button { width:42; height:32; padding:2; text:"DEL"; ToolTip.visible:hovered; ToolTip.text:"Șterge desenul Area Scan"; onClicked:root.clearAreaDrawing() }
     }
     Column {
         id: mapControls
@@ -353,19 +399,22 @@ Item {
         RightTool { text:root.maximized?"MIN":"MAX";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:root.maximized?"Revino la dashboard":"Hartă pe tot ecranul";onClicked:root.maximizeRequested() }
     }
     Rectangle {
-        anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 10
-        width: Math.max(110, Math.min(parent.width - 180, mapHint.implicitWidth + 20))
-        height: mapHint.implicitHeight + 14; radius: 7; color: "#d9101c29"
+        visible: root.showStatusHint
+        anchors.left: mapControls.right; anchors.top: parent.top
+        anchors.leftMargin: 8; anchors.topMargin: 10
+        width: Math.max(70, Math.min(parent.width - mapControls.width - 180, mapHint.implicitWidth + 18))
+        height: 30; radius: 7; color: "#d9101c29"
         Label {
             id: mapHint; anchors.centerIn: parent
             text: root.areaDrawMode === "rectangle" ? "Atinge două colțuri pe hartă" :
                   root.areaDrawMode === "polygon" ? "Atinge punctele, apoi TERMINĂ" :
-                  (root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ?
-                   "Traseu: " + actualTrack.trackCoordinates.length + " poziții • " +
-                   (root.areaScanController ? root.areaScanController.laneCount() : 0) + " culoare scanate" :
-                   (root.rulerMode ? "RUL • "+root.rulerDistanceText() : "Harta este disponibilă • aștept poziția bărcii"))
-            color: "white"; font.pixelSize: 12; elide: Text.ElideRight
-            width: parent.width - 16
+                  (root.rulerMode ? "RUL • "+root.rulerDistanceText() :
+                   (root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ?
+                    "Traseu: " + actualTrack.trackCoordinates.length + " • " +
+                    (root.areaScanController ? root.areaScanController.laneCount() : 0) + " culoare" :
+                    "GPS: AȘTEPTARE"))
+            color: "white"; font.pixelSize: 11; elide: Text.ElideRight
+            width: parent.width - 14
         }
     }
 

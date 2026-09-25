@@ -60,7 +60,9 @@ Item {
                     width:18; height:18; radius:9; anchors.left:parent.left; anchors.verticalCenter:parent.verticalCenter
                     color:modelData.color||"#31d67b"; border.color:"white"; border.width:2
                 }
-                Label { id:pinText; anchors.left:parent.left; anchors.leftMargin:24; anchors.verticalCenter:parent.verticalCenter; text:modelData.name; color:"white"; font.bold:true; font.pixelSize:11 }
+                Rectangle { anchors.left:parent.left; anchors.leftMargin:22; anchors.verticalCenter:parent.verticalCenter; width:pinText.implicitWidth+12; height:24; radius:6; color:"#071827d9"; border.color:"#20384a"
+                    Label { id:pinText; anchors.centerIn:parent; text:modelData.name; color:"white"; font.bold:true; font.pixelSize:11 }
+                }
                 MouseArea { anchors.fill:parent; onClicked:{root.selectedSpot=modelData;root.selectedCell=null;spotDetails.open()} }
             }
         }

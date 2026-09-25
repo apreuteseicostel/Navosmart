@@ -585,11 +585,11 @@ Item {
         z: 900
         visible: root.cameraPipEnabled && root.cameraStreamUrl.length>0 && !root.cameraFullscreen && root.activePage!==5
         anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.rightMargin: 16
-        anchors.bottomMargin: 12
-        width: Math.max(190,Math.min(260,root.width*0.19))
-        height: Math.round(width*0.62)
+        anchors.top: header.bottom
+        anchors.rightMargin: root.activePage===0 ? 88 : 16
+        anchors.topMargin: root.activePage===0 ? 20 : 12
+        width: root.activePage===0 ? Math.max(170,Math.min(210,root.width*0.15)) : Math.max(190,Math.min(260,root.width*0.19))
+        height: Math.round(width*0.58)
         connected: root.cameraStreamUrl.length>0
         streamUrl: root.cameraStreamUrl
         protocol: root.cameraProtocol
@@ -871,7 +871,7 @@ Item {
                         vehicle:root.vehicle; planController:root.planController; waypointNames:root.waypointNames
                         fishModel:fishStore; fishingSpotsModel:fishingSpots; bathymetryCells:scanCoordinator.bathymetryCells
                         baitingController:baitingController; areaScanController:areaScanController
-                        savedDepthM:root.depthM; savedWaterTempC:root.waterTempC
+                        savedDepthM:root.depthM; savedWaterTempC:root.waterTempC; showStatusHint:false
                         onNavigateRequested:function(c){root.navigateToCoordinate(c)}
                         onFishingSpotRenameRequested:function(spot){fishingPageRoot.openEdit(spot)}
                         onBaitingWaypointSelected:function(wp){baitingController.targetWaypoint=wp;root.lastNavigationStatus="Punct de nădire ales: "+wp.name}
@@ -887,8 +887,8 @@ Item {
                         }
                     }
                     Rectangle {
-                        anchors.left:parent.left; anchors.top:parent.top; anchors.margins:10
-                        width:hint.implicitWidth+20; height:34; radius:7; color:"#071827dd"; border.color:root.line
+                        anchors.left:parent.left; anchors.top:parent.top; anchors.leftMargin:76; anchors.topMargin:10
+                        width:hint.implicitWidth+20; height:30; radius:7; color:"#071827ee"; border.color:root.line
                         Label { id:hint; anchors.centerIn:parent; text:"ȚINE APĂSAT PE HARTĂ PENTRU PUNCT NOU"; color:root.text; font.pixelSize:10; font.bold:true }
                     }
                 }
@@ -989,7 +989,30 @@ Item {
                 }
                 RowLayout {
                     Layout.fillWidth: true
-                    TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff"; id: inlineLakeName; Layout.fillWidth: true; placeholderText: "Nume baltă nouă"; onAccepted: addLakeButton.clicked() }
+                    TextField {
+                        id: inlineLakeName
+                        Layout.fillWidth: true
+                        placeholderText: "Nume baltă nouă"
+                        color: "#0b1118"
+                        placeholderTextColor: "#5f6b76"
+                        selectionColor: "#21b7ff"
+                        selectedTextColor: "#ffffff"
+                        palette.text: "#0b1118"
+                        palette.base: "#ffffff"
+                        palette.placeholderText: "#5f6b76"
+                        palette.highlight: "#21b7ff"
+                        palette.highlightedText: "#ffffff"
+                        background: Rectangle {
+                            color: "#ffffff"
+                            border.color: inlineLakeName.activeFocus ? "#21b7ff" : "#c7d0d8"
+                            border.width: inlineLakeName.activeFocus ? 2 : 1
+                            radius: 2
+                        }
+                        onAccepted: {
+                            addLakeButton.clicked()
+                            focus = false
+                        }
+                    }
                     Button {
                         id: addLakeButton
                         text: "+ ADAUGĂ"
@@ -1182,11 +1205,11 @@ Item {
                     Layout.fillWidth:true; Layout.fillHeight:true; Layout.preferredWidth:1
                     radius:8; color:root.bg; border.color:root.line
                     ColumnLayout {
-                        anchors.fill:parent; anchors.margins:12; spacing:9
+                        anchors.fill:parent; anchors.margins:root.compactUi ? 7 : 9; spacing:root.compactUi ? 4 : 6
                         Label { text:"CUVE & SIGURANȚĂ HARDWARE"; color:"#f4f7fb"; font.pixelSize:15; font.bold:true }
                         Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; color:"#ffd24a"; font.pixelSize:11; font.bold:true; text:"Confirmă ieșirile și PWM-urile pe banc înainte de activare. Telemetria PWM nu confirmă calibrarea mecanică." }
                         GridLayout {
-                            columns:3; Layout.fillWidth:true; columnSpacing:8; rowSpacing:7
+                            columns:3; Layout.fillWidth:true; columnSpacing:root.compactUi ? 5 : 7; rowSpacing:root.compactUi ? 3 : 5
                             Label { text:"Cuva"; color:root.text } Label { text:"Stânga"; color:root.text } Label { text:"Dreapta"; color:root.text }
                             Label { text:"Ieșire"; color:"#dbe5ee"; font.bold:true }
                             SpinBox { Layout.fillWidth:true; Layout.minimumWidth:86; from:1;to:16;value:hopperSettings.leftOutput;onValueModified:{hopperSettings.confirmed=false;hopperSettings.leftOutput=value} }
@@ -1203,11 +1226,13 @@ Item {
                             text:"Am verificat mecanic calibrarea cuvelor"
                             palette.text:"#f4f7fb"
                             checked:hopperSettings.confirmed
-                            enabled:!baitingController.enabled && !hopperBridge.commandPending
+                            enabled: true
+                            ToolTip.visible: hovered
+                            ToolTip.text: "Confirmarea mecanică este disponibilă și cu Nano offline"
                             onToggled:hopperSettings.confirmed=checked
                         }
                         Rectangle {
-                            Layout.fillWidth:true; Layout.preferredHeight:72; radius:7
+                            Layout.fillWidth:true; Layout.preferredHeight:root.compactUi ? 58 : 64; radius:7
                             color:root.panel; border.color:safetyManager.state==="CRITICAL"?root.danger:root.line
                             RowLayout {
                                 anchors.fill:parent; anchors.margins:9
