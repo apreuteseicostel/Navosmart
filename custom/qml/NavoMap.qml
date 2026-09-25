@@ -58,7 +58,7 @@ Item {
         areaDrawMode="polygon"
         if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid) liveMap.center=vehicle.coordinate
     }
-    function cancelAreaDrawing() { areaDraftPoints=[]; areaDrawMode="none" }
+    function undoAreaPoint() { if(areaDraftPoints.length===0)return; var pts=areaDraftPoints.slice(0); pts.pop(); areaDraftPoints=pts }\n    function clearAreaDrawing() { areaDraftPoints=[]; lastAreaOutline=[]; areaDrawMode="none" }\n    function cancelAreaDrawing() { clearAreaDrawing() }
     function resetView() {
         if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid) liveMap.center=vehicle.coordinate
         liveMap.zoomLevel=Math.max(liveMap.zoomLevel,lakeZoomLevel)
@@ -321,7 +321,7 @@ Item {
         visible: root.areaDrawMode!=="none"
         Button { width:72; height:32; padding:2; text:(root.areaDrawMode==="rectangle" ? "DREPT. " : "POLIG. ")+root.areaDraftPoints.length+(root.areaDrawMode==="rectangle"?"/2":""); enabled:false }
         Button { visible:root.areaDrawMode==="polygon"; width:72; height:32; padding:2; text:"GATA"; enabled:root.areaDraftPoints.length>=3; onClicked:root.finishAreaDrawing() }
-        Button { width:42; height:32; padding:2; text:"X"; ToolTip.visible:hovered; ToolTip.text:"Anulează"; onClicked:root.cancelAreaDrawing() }
+        Button { width:42; height:32; padding:2; text:"↶"; enabled:root.areaDraftPoints.length>0; ToolTip.visible:hovered; ToolTip.text:"Șterge ultimul punct / segment"; onClicked:root.undoAreaPoint() }\n        Button { width:42; height:32; padding:2; text:"DEL"; ToolTip.visible:hovered; ToolTip.text:"Șterge desenul Area Scan"; onClicked:root.clearAreaDrawing() }
     }
     Column {
         id: mapControls
