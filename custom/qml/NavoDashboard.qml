@@ -254,6 +254,18 @@ Item {
     property color ok: "#47d16c"
     property color warn: "#ffc857"
     property color danger: "#ff5c5c"
+    readonly property real headingDeg: vehicle && vehicle.heading && isFinite(Number(vehicle.heading.rawValue)) ? Number(vehicle.heading.rawValue) : NaN
+    readonly property real rollDeg: vehicle && vehicle.roll && isFinite(Number(vehicle.roll.rawValue)) ? Number(vehicle.roll.rawValue) : NaN
+    readonly property real pitchDeg: vehicle && vehicle.pitch && isFinite(Number(vehicle.pitch.rawValue)) ? Number(vehicle.pitch.rawValue) : NaN
+    readonly property real waypointBearingDeg: {
+        if (vehicle && vehicle.headingToNextWP && isFinite(Number(vehicle.headingToNextWP.rawValue)))
+            return Number(vehicle.headingToNextWP.rawValue)
+        if (vehicle && vehicle.coordinate && vehicle.coordinate.isValid &&
+                baitingController.targetWaypoint && baitingController.targetWaypoint.coordinate &&
+                baitingController.targetWaypoint.coordinate.isValid)
+            return vehicle.coordinate.azimuthTo(baitingController.targetWaypoint.coordinate)
+        return NaN
+    }
 
     function computeBottomEchoStrength(samples) {
         if(!samples || samples.length<3) return NaN
@@ -501,6 +513,14 @@ Item {
             StatusPill { title: "BATERIE"; value: battery ? Number(battery.percentRemaining.rawValue).toFixed(0) + "%" : "--"; good: battery && battery.percentRemaining.rawValue > 20 }
             StatusPill { title: "MOD"; value: root.flightMode.length ? root.flightMode : "OFFLINE"; good: vehicle !== null }
             StatusPill { title: "TEMP"; value: nanoTelemetry.connected && !isNaN(nanoTelemetry.batteryTempC) ? Number(nanoTelemetry.batteryTempC).toFixed(1) + "°" : "--"; good: nanoTelemetry.connected && safetyManager.state !== "CRITICAL" }
+            NavoHeadingCompass {
+                Layout.preferredWidth: 58
+                Layout.preferredHeight: 58
+                headingDeg: root.headingDeg
+                waypointBearingDeg: root.waypointBearingDeg
+                rollDeg: root.rollDeg
+                pitchDeg: root.pitchDeg
+            }
         }
         }
     }
