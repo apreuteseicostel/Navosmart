@@ -290,10 +290,10 @@ Rectangle {
         focus: true
         anchors.centerIn: parent
         width: Math.min(500, parent ? parent.width - 32 : 500)
-        height: Math.min(300, parent ? parent.height - 32 : 300)
-        padding: 16
-        title: "Confirmă nădirea automată"
-        standardButtons: Dialog.Yes | Dialog.No
+        height: Math.min(180, parent ? parent.height - 24 : 180)
+        padding: 12
+        title: "Confirmă nădirea"
+        standardButtons: Dialog.Ok | Dialog.Cancel
         closePolicy: Popup.NoAutoClose
         background: Rectangle { color:"#0b1c2e"; border.color:"#21b7ff"; radius:10 }
         contentItem: Label {
@@ -301,8 +301,12 @@ Rectangle {
             color: "#f2f7fb"
             wrapMode: Text.WordWrap
             verticalAlignment: Text.AlignVCenter
-            text: "Pornești ciclul către «" + root.waypointName + "»?\n\nCuva: " + hopperBox.currentText +
-                  "\n\nApropierea, oprirea, eliberarea, ieșirea laterală și RTL vor fi executate automat. Eliberarea este permisă numai după oprirea bărcii."
+            text: root.waypointName + "  •  Cuva " + hopperBox.currentText.toLowerCase() +
+                  "\nBarca va naviga, opri, elibera nada și reveni automat."
+        }
+        Component.onCompleted: {
+            standardButton(Dialog.Ok).text = "PORNEȘTE"
+            standardButton(Dialog.Cancel).text = "ANULEAZĂ"
         }
         onAccepted: root.startConfirmed(root.waypoint, root.waypointName, root.selectedHopper)
     }
