@@ -114,10 +114,6 @@ Item {
         anchors.fill: parent
         planMasterController: root.planController
         rightPanelWidth: 0
-        // NAVO SMART renders its own boat marker below. Disable the stock
-        // QGroundControl vehicle marker so the purple Q/heading arrow is not
-        // drawn on top of the NAVO boat.
-        showVehicles: false
         toolInsets: QtObject {
             readonly property real leftEdgeTopInset: 0
             readonly property real leftEdgeCenterInset: 0
