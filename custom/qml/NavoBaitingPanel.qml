@@ -292,14 +292,25 @@ Rectangle {
         }
     }
     Dialog {
-        id: confirmDialog; modal: true; anchors.centerIn: Overlay.overlay
+        id: confirmDialog
+        parent: Overlay.overlay
+        modal: true
+        focus: true
+        anchors.centerIn: parent
+        width: Math.min(500, parent ? parent.width - 32 : 500)
+        height: Math.min(300, parent ? parent.height - 32 : 300)
+        padding: 16
         title: "Confirmă nădirea automată"
         standardButtons: Dialog.Yes | Dialog.No
         closePolicy: Popup.NoAutoClose
-        Label {
-            width: Math.min(400, root.width); wrapMode: Text.WordWrap
+        background: Rectangle { color:"#0b1c2e"; border.color:"#21b7ff"; radius:10 }
+        contentItem: Label {
+            width: confirmDialog.availableWidth
+            color: "#f2f7fb"
+            wrapMode: Text.WordWrap
+            verticalAlignment: Text.AlignVCenter
             text: "Pornești ciclul către «" + root.waypointName + "»?\n\nCuva: " + hopperBox.currentText +
-                  "\nApropierea, oprirea, eliberarea, ieșirea laterală și RTL vor fi executate automat. Eliberarea este permisă numai după oprirea bărcii."
+                  "\n\nApropierea, oprirea, eliberarea, ieșirea laterală și RTL vor fi executate automat. Eliberarea este permisă numai după oprirea bărcii."
         }
         onAccepted: root.startConfirmed(root.waypoint, root.waypointName, root.selectedHopper)
     }
