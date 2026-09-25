@@ -59,7 +59,9 @@ Item {
         areaDrawMode="polygon"
         if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid) liveMap.center=vehicle.coordinate
     }
-    function undoAreaPoint() { if(areaDraftPoints.length===0)return; var pts=areaDraftPoints.slice(0); pts.pop(); areaDraftPoints=pts }\n    function clearAreaDrawing() { areaDraftPoints=[]; lastAreaOutline=[]; areaDrawMode="none" }\n    function cancelAreaDrawing() { clearAreaDrawing() }
+    function undoAreaPoint() { if(areaDraftPoints.length===0)return; var pts=areaDraftPoints.slice(0); pts.pop(); areaDraftPoints=pts }
+    function clearAreaDrawing() { areaDraftPoints=[]; lastAreaOutline=[]; areaDrawMode="none" }
+    function cancelAreaDrawing() { clearAreaDrawing() }
     function resetView() {
         if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid) liveMap.center=vehicle.coordinate
         liveMap.zoomLevel=Math.max(liveMap.zoomLevel,lakeZoomLevel)
