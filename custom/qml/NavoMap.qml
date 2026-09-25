@@ -28,6 +28,7 @@ Item {
     property bool headingUp: false
     property bool rulerMode: false
     property bool mapLayerMenuOpen: false
+    property bool showStatusHint: true
     property var rulerPoints: []
     readonly property real boatHeadingDeg: vehicle && vehicle.heading && isFinite(Number(vehicle.heading.rawValue)) ? Number(vehicle.heading.rawValue) : NaN
 
@@ -321,7 +322,8 @@ Item {
         visible: root.areaDrawMode!=="none"
         Button { width:72; height:32; padding:2; text:(root.areaDrawMode==="rectangle" ? "DREPT. " : "POLIG. ")+root.areaDraftPoints.length+(root.areaDrawMode==="rectangle"?"/2":""); enabled:false }
         Button { visible:root.areaDrawMode==="polygon"; width:72; height:32; padding:2; text:"GATA"; enabled:root.areaDraftPoints.length>=3; onClicked:root.finishAreaDrawing() }
-        Button { width:42; height:32; padding:2; text:"↶"; enabled:root.areaDraftPoints.length>0; ToolTip.visible:hovered; ToolTip.text:"Șterge ultimul punct / segment"; onClicked:root.undoAreaPoint() }\n        Button { width:42; height:32; padding:2; text:"DEL"; ToolTip.visible:hovered; ToolTip.text:"Șterge desenul Area Scan"; onClicked:root.clearAreaDrawing() }
+        Button { width:42; height:32; padding:2; text:"↶"; enabled:root.areaDraftPoints.length>0; ToolTip.visible:hovered; ToolTip.text:"Șterge ultimul punct / segment"; onClicked:root.undoAreaPoint() }
+        Button { width:42; height:32; padding:2; text:"DEL"; ToolTip.visible:hovered; ToolTip.text:"Șterge desenul Area Scan"; onClicked:root.clearAreaDrawing() }
     }
     Column {
         id: mapControls
@@ -353,6 +355,7 @@ Item {
         RightTool { text:root.maximized?"MIN":"MAX";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:root.maximized?"Revino la dashboard":"Hartă pe tot ecranul";onClicked:root.maximizeRequested() }
     }
     Rectangle {
+        visible: root.showStatusHint
         anchors.left: mapControls.right; anchors.top: parent.top
         anchors.leftMargin: 8; anchors.topMargin: 10
         width: Math.max(70, Math.min(parent.width - mapControls.width - 180, mapHint.implicitWidth + 18))
