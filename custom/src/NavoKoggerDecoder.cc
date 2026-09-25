@@ -46,6 +46,7 @@ void NavoKoggerDecoder::process(){
    else if(seq>_chart.size() && seq-_chart.size()<=4096) { _chart.append(QByteArray(seq-_chart.size(), char(0))); _chart.append(part); }
    else if(seq<_chart.size() && _chart.size()-seq<=4096) { _chart.truncate(seq); _chart.append(part); }
    else { _chart.clear(); emit frameRejected(); }
+   if(_chart.size()==int(res)){QVariantList out;int step=version==1?2:1;for(int i=0;i<_chart.size();i+=step)out.append(double(quint8(_chart[i]))/255.0);_echoSamples=out;emit echoSamplesChanged();_chart.clear();}
   }
  }
 }
