@@ -113,7 +113,7 @@ Popup {
             Layout.fillWidth: true
             Label { text: "BĂLȚILE MELE"; color: "#21b7ff"; font.bold: true; font.pixelSize: 20 }
             Item { Layout.fillWidth: true }
-            LakeIconButton { hint:"Închide"; contentItem:Label{text:"X";color:"#f2f7fb";font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter}; onClicked:root.close() }
+            LakeIconButton { hint:"Închide"; contentItem:Label{text:"X";color:"#f2f7fb";font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter} onClicked:root.close() }
         }
 
         RowLayout {
@@ -124,7 +124,7 @@ Popup {
                 placeholderText: "Nume baltă / lac"
                 onAccepted: root.addLake()
             }
-            LakeIconButton { hint:"Adaugă baltă"; enabled:newLakeName.text.trim().length>0; contentItem:Label{text:"+";color:"#21b7ff";font.pixelSize:28;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter}; onClicked:root.addLake() }
+            LakeIconButton { hint:"Adaugă baltă"; enabled:newLakeName.text.trim().length>0; contentItem:Label{text:"+";color:"#21b7ff";font.pixelSize:28;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter} onClicked:root.addLake() }
         }
 
         Label {
@@ -212,8 +212,8 @@ Popup {
                         font.pixelSize: 18
                         elide: Text.ElideRight
                     }
-                    LakeIconButton { visible:!!root.selectedLake; hint:"Redenumește balta"; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.beginPath();p.moveTo(11,29);p.lineTo(14,21);p.lineTo(28,7);p.lineTo(34,13);p.lineTo(20,27);p.closePath();p.stroke()}};onClicked:root.beginRename(root.selectedLake) }
-                    LakeIconButton { visible:!!root.selectedLake; hint:"Șterge balta"; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#ff6b6b";p.lineWidth=2;p.beginPath();p.moveTo(10,11);p.lineTo(32,11);p.moveTo(15,8);p.lineTo(27,8);p.moveTo(13,14);p.lineTo(15,32);p.lineTo(27,32);p.lineTo(29,14);p.stroke()}};onClicked:root.beginDelete(root.selectedLake) }
+                    LakeIconButton { visible:!!root.selectedLake; hint:"Redenumește balta"; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.beginPath();p.moveTo(11,29);p.lineTo(14,21);p.lineTo(28,7);p.lineTo(34,13);p.lineTo(20,27);p.closePath();p.stroke()}} onClicked:root.beginRename(root.selectedLake) }
+                    LakeIconButton { visible:!!root.selectedLake; hint:"Șterge balta"; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#ff6b6b";p.lineWidth=2;p.beginPath();p.moveTo(10,11);p.lineTo(32,11);p.moveTo(15,8);p.lineTo(27,8);p.moveTo(13,14);p.lineTo(15,32);p.lineTo(27,32);p.lineTo(29,14);p.stroke()}} onClicked:root.beginDelete(root.selectedLake) }
                 }
                 Label {
                     visible: !!root.selectedLake
@@ -307,7 +307,7 @@ Popup {
                 }
                 RowLayout {
                     Layout.fillWidth:true; visible:!!root.selectedLake
-                    LakeIconButton { hint:"Încarcă toate datele salvate"; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#31d67b";p.lineWidth=2;p.beginPath();p.moveTo(21,7);p.lineTo(21,27);p.moveTo(13,20);p.lineTo(21,28);p.lineTo(29,20);p.moveTo(10,33);p.lineTo(32,33);p.stroke()}};onClicked:{if(root.scanCoordinator&&root.scanCoordinator.restoreLake(root.selectedLakeId)){root.lakeRestored(root.selectedLakeId);root.close()}} }
+                    LakeIconButton { hint:"Încarcă toate datele salvate"; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#31d67b";p.lineWidth=2;p.beginPath();p.moveTo(21,7);p.lineTo(21,27);p.moveTo(13,20);p.lineTo(21,28);p.lineTo(29,20);p.moveTo(10,33);p.lineTo(32,33);p.stroke()}} onClicked:{if(root.scanCoordinator&&root.scanCoordinator.restoreLake(root.selectedLakeId)){root.lakeRestored(root.selectedLakeId);root.close()}} }
                     Item { Layout.fillWidth:true }
                     Label { text:"Sonar • puncte • Area Scan"; color:"#31d67b" }
                 }
