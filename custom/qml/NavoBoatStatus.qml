@@ -22,39 +22,19 @@ Item {
     Rectangle { anchors.fill: parent; radius: 12; color: "#101820"; border.color: root.waterDetected ? "#ff4d4d" : "#314252" }
     Text { text: "BOAT STATUS"; color: "white"; font.bold: true; anchors.horizontalCenter: parent.horizontalCenter; y: 8 }
 
-    Item {
+    NavoBoatVisual {
         id: boat
-        width: 170; height: 150
+        width: root.compact ? 105 : 190
+        height: root.compact ? 118 : 165
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.top: parent.top; anchors.topMargin: 34
-        transform: Scale { origin.x: boat.width / 2; origin.y: 0; xScale: root.compact ? 0.62 : 1; yScale: root.compact ? 0.62 : 1 }
-
-        Rectangle {
-            anchors.centerIn: parent; width: 142; height: 138; radius: 50
-            color: "#253442"; border.color: "#73899c"; border.width: 2
-        }
-        Rectangle {
-            id:leftHopper; width:54; height:70; x:24; y:35; radius:7
-            color:"#17232d"; border.color:"#5d7283"
-            transform: Rotation { origin.x:0; origin.y:leftHopper.height; angle:root.leftHopperCommandOpen ? -32 : 0
-                Behavior on angle { NumberAnimation { duration:350; easing.type:Easing.InOutQuad } } }
-            Text { anchors.centerIn:parent; text:"L"; color:"white"; font.bold:true }
-        }
-        Rectangle {
-            id:rightHopper; width:54; height:70; x:92; y:35; radius:7
-            color:"#17232d"; border.color:"#5d7283"
-            transform: Rotation { origin.x:rightHopper.width; origin.y:rightHopper.height; angle:root.rightHopperCommandOpen ? 32 : 0
-                Behavior on angle { NumberAnimation { duration:350; easing.type:Easing.InOutQuad } } }
-            Text { anchors.centerIn:parent; text:"R"; color:"white"; font.bold:true }
-        }
-        Rectangle {
-            width:6;height:26;radius:3;x:82;y:122;color:"#9db0bd"
-            transform: Rotation { origin.x:3; origin.y:0; angle:Math.max(-1,Math.min(1,root.rudderNormalized))*35
-                Behavior on angle { NumberAnimation { duration:150 } } }
-        }
-        Rectangle { width:16;height:5;radius:2;x:77;y:3;color:root.headlightOn ? "#fff6a8" : "#52616c" }
-        Rectangle { width:7;height:7;radius:4;x:28;y:115;color:root.positionLightsOn ? "#e9f6ff" : "#52616c" }
-        Rectangle { width:7;height:7;radius:4;x:135;y:115;color:root.positionLightsOn ? "#e9f6ff" : "#52616c" }
+        anchors.top: parent.top
+        anchors.topMargin: root.compact ? 28 : 30
+        leftHopperOpen: root.leftHopperCommandOpen
+        rightHopperOpen: root.rightHopperCommandOpen
+        headlightOn: root.headlightOn
+        positionLightsOn: root.positionLightsOn
+        rudderNormalized: root.rudderNormalized
+        showLabel: !root.compact
     }
 
     Column {

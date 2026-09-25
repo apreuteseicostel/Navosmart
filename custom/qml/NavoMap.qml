@@ -167,16 +167,14 @@ Item {
         parent: liveMap
         visible: !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
         coordinate: visible ? root.vehicle.coordinate : QtPositioning.coordinate()
-        anchorPoint.x: 24; anchorPoint.y: 42
-        z: 100
-        sourceItem: Item {
-            width:48; height:84
+        anchorPoint.x: 30; anchorPoint.y: 52
+        z: 900
+        sourceItem: NavoBoatVisual {
+            width: 60
+            height: 104
+            showLabel: false
             rotation: isFinite(root.boatHeadingDeg) ? root.boatHeadingDeg - liveMap.bearing : 0
-            Behavior on rotation { RotationAnimation { duration:240; direction:RotationAnimation.Shortest } }
-            Canvas {
-                anchors.fill:parent
-                onPaint:{var p=getContext("2d");p.reset();p.fillStyle="#d9ff19";p.strokeStyle="#07131d";p.lineWidth=2;p.beginPath();p.moveTo(width/2,1);p.quadraticCurveTo(width-2,15,width-3,52);p.lineTo(width-8,height-3);p.lineTo(8,height-3);p.lineTo(3,52);p.quadraticCurveTo(2,15,width/2,1);p.closePath();p.fill();p.stroke();p.fillStyle="#101820";p.fillRect(7,34,9,22);p.fillRect(width-16,34,9,22);p.fillStyle="#18232d";p.fillRect(11,15,width-22,16)}
-            }
+            Behavior on rotation { RotationAnimation { duration: 240; direction: RotationAnimation.Shortest } }
         }
         Component.onCompleted: liveMap.addMapItem(this)
         Component.onDestruction: liveMap.removeMapItem(this)
@@ -385,18 +383,42 @@ Item {
         MapTool { text:"-";ToolTip.visible:hovered;ToolTip.text:"Micșorează harta";onClicked:liveMap.zoomLevel=liveMap.zoomLevel-1 }
         MapTool { text:"CTR";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:"Reîncadrează harta și revine la orientarea Nord sus";onClicked:root.resetView() }
     }
-    Column {
-        anchors.right:parent.right;anchors.top:parent.top;anchors.margins:10;spacing:5;z:200
-        property int controlSize:56
+    Row {
+        id: mapModeControls
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: 10
+        spacing: 5
+        z: 200
         component RightTool: Button {
-            width:56;height:56;padding:0;font.pixelSize:22;font.bold:true
-            background:Rectangle { radius:8;color:"#0d1722";border.color:"#27394b" }
-            contentItem:Label { text:parent.text;color:"#f4f7fb";font.pixelSize:parent.font.pixelSize;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter }
+            width: 44
+            height: 44
+            padding: 0
+            font.pixelSize: 18
+            font.bold: true
+            background: Rectangle { radius: 8; color: "#0d1722"; border.color: "#27394b" }
+            contentItem: Label { text: parent.text; color: "#f4f7fb"; font.pixelSize: parent.font.pixelSize; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
         }
-        RightTool { text:"MAP";font.pixelSize:11;checkable:true;checked:root.bathymetryHDEnabled;ToolTip.visible:hovered;ToolTip.text:root.bathymetryHDEnabled?"Ascunde batimetria HD":"Afișează batimetria HD";onClicked:root.toggleMapLayer() }
-        RightTool { text:"HD";font.pixelSize:14;checkable:true;checked:root.headingUp;ToolTip.visible:hovered;ToolTip.text:root.headingUp?"Heading Up activ • apasă pentru Nord sus":"Heading Up • rotește după barcă";onClicked:root.headingUp=!root.headingUp }
-        RightTool { text:"RUL";font.pixelSize:11;checkable:true;checked:root.rulerMode;ToolTip.visible:hovered;ToolTip.text:root.rulerMode?root.rulerDistanceText():"Măsoară distanța între două puncte";onClicked:root.toggleRuler() }
-        RightTool { text:root.maximized?"MIN":"MAX";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:root.maximized?"Revino la dashboard":"Hartă pe tot ecranul";onClicked:root.maximizeRequested() }
+        RightTool { text: "MAP"; font.pixelSize: 10; checkable: true; checked: root.bathymetryHDEnabled; ToolTip.visible: hovered; ToolTip.text: root.bathymetryHDEnabled ? "Ascunde batimetria HD" : "Afișează batimetria HD"; onClicked: root.toggleMapLayer() }
+        RightTool { text: "HD"; font.pixelSize: 12; checkable: true; checked: root.headingUp; ToolTip.visible: hovered; ToolTip.text: root.headingUp ? "Heading Up activ • apasă pentru Nord sus" : "Heading Up • rotește după barcă"; onClicked: root.headingUp = !root.headingUp }
+        RightTool { text: "RUL"; font.pixelSize: 10; checkable: true; checked: root.rulerMode; ToolTip.visible: hovered; ToolTip.text: root.rulerMode ? root.rulerDistanceText() : "Măsoară distanța între două puncte"; onClicked: root.toggleRuler() }
+    }
+    Button {
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 10
+        z: 200
+        width: 52
+        height: 44
+        padding: 0
+        text: root.maximized ? "MIN" : "MAX"
+        font.pixelSize: 10
+        font.bold: true
+        ToolTip.visible: hovered
+        ToolTip.text: root.maximized ? "Revino la dashboard" : "Hartă pe tot ecranul"
+        background: Rectangle { radius: 8; color: "#0d1722"; border.color: "#27394b" }
+        contentItem: Label { text: parent.text; color: "#f4f7fb"; font.pixelSize: 10; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+        onClicked: root.maximizeRequested()
     }
     Rectangle {
         visible: root.showStatusHint
