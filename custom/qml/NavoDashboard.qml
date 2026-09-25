@@ -1203,7 +1203,7 @@ Item {
                             text:"Am verificat mecanic calibrarea cuvelor"
                             palette.text:"#f4f7fb"
                             checked:hopperSettings.confirmed
-                            enabled:!baitingController.enabled && !hopperBridge.commandPending
+                            enabled:true\n                            ToolTip.visible:hovered\n                            ToolTip.text:"Confirmarea mecanică este disponibilă și cu Nano offline"
                             onToggled:hopperSettings.confirmed=checked
                         }
                         Rectangle {
