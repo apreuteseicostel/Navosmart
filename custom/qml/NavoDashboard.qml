@@ -585,11 +585,11 @@ Item {
         z: 900
         visible: root.cameraPipEnabled && root.cameraStreamUrl.length>0 && !root.cameraFullscreen && root.activePage!==5
         anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.rightMargin: 16
-        anchors.bottomMargin: 12
-        width: Math.max(190,Math.min(260,root.width*0.19))
-        height: Math.round(width*0.62)
+        anchors.top: header.bottom
+        anchors.rightMargin: root.activePage===0 ? 88 : 16
+        anchors.topMargin: root.activePage===0 ? 20 : 12
+        width: root.activePage===0 ? Math.max(170,Math.min(210,root.width*0.15)) : Math.max(190,Math.min(260,root.width*0.19))
+        height: Math.round(width*0.58)
         connected: root.cameraStreamUrl.length>0
         streamUrl: root.cameraStreamUrl
         protocol: root.cameraProtocol
@@ -1182,11 +1182,11 @@ Item {
                     Layout.fillWidth:true; Layout.fillHeight:true; Layout.preferredWidth:1
                     radius:8; color:root.bg; border.color:root.line
                     ColumnLayout {
-                        anchors.fill:parent; anchors.margins:12; spacing:9
+                        anchors.fill:parent; anchors.margins:root.compactUi ? 7 : 9; spacing:root.compactUi ? 4 : 6
                         Label { text:"CUVE & SIGURANȚĂ HARDWARE"; color:"#f4f7fb"; font.pixelSize:15; font.bold:true }
                         Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; color:"#ffd24a"; font.pixelSize:11; font.bold:true; text:"Confirmă ieșirile și PWM-urile pe banc înainte de activare. Telemetria PWM nu confirmă calibrarea mecanică." }
                         GridLayout {
-                            columns:3; Layout.fillWidth:true; columnSpacing:8; rowSpacing:7
+                            columns:3; Layout.fillWidth:true; columnSpacing:root.compactUi ? 5 : 7; rowSpacing:root.compactUi ? 3 : 5
                             Label { text:"Cuva"; color:root.text } Label { text:"Stânga"; color:root.text } Label { text:"Dreapta"; color:root.text }
                             Label { text:"Ieșire"; color:"#dbe5ee"; font.bold:true }
                             SpinBox { Layout.fillWidth:true; Layout.minimumWidth:86; from:1;to:16;value:hopperSettings.leftOutput;onValueModified:{hopperSettings.confirmed=false;hopperSettings.leftOutput=value} }
@@ -1207,7 +1207,7 @@ Item {
                             onToggled:hopperSettings.confirmed=checked
                         }
                         Rectangle {
-                            Layout.fillWidth:true; Layout.preferredHeight:72; radius:7
+                            Layout.fillWidth:true; Layout.preferredHeight:root.compactUi ? 58 : 64; radius:7
                             color:root.panel; border.color:safetyManager.state==="CRITICAL"?root.danger:root.line
                             RowLayout {
                                 anchors.fill:parent; anchors.margins:9
