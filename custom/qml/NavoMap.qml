@@ -27,6 +27,7 @@ Item {
     property bool initialCenterApplied: false
     property bool headingUp: false
     property bool rulerMode: false
+    property bool mapLayerMenuOpen: false
     property var rulerPoints: []
     readonly property real boatHeadingDeg: vehicle && vehicle.heading && isFinite(Number(vehicle.heading.rawValue)) ? Number(vehicle.heading.rawValue) : NaN
 
@@ -64,7 +65,8 @@ Item {
         headingUp=false
         rulerMode=false; rulerPoints=[]
     }
-    function toggleRuler() { rulerMode=!rulerMode; rulerPoints=[] }
+    function toggleRuler() { rulerMode=!rulerMode; rulerPoints=[]; mapLayerMenuOpen=false }
+    function toggleMapLayer() { bathymetryHDEnabled=!bathymetryHDEnabled; mapLayerMenuOpen=false }
     function rulerDistanceText() {
         if(rulerPoints.length<2) return "Atinge două puncte"
         var d=rulerPoints[0].distanceTo(rulerPoints[1])
@@ -265,7 +267,7 @@ Item {
         }
     }
     MouseArea {
-        anchors.fill:parent; z:41; enabled:root.rulerMode && root.areaDrawMode==="none" && !root.baitPointPickMode
+        anchors.fill:parent; z:20; enabled:root.rulerMode && root.areaDrawMode==="none" && !root.baitPointPickMode
         onClicked:function(mouse){var c=liveMap.toCoordinate(Qt.point(mouse.x,mouse.y),false);if(!c||!c.isValid)return;var p=root.rulerPoints.slice(0);if(p.length>=2)p=[];p.push(c);root.rulerPoints=p}
     }
     MouseArea {
@@ -324,7 +326,7 @@ Item {
     Column {
         id: mapControls
         anchors.left:parent.left; anchors.top:parent.top; anchors.margins:10
-        spacing:5; z:50
+        spacing:5; z:200
         property int controlSize:56
         component MapTool: Button {
             width:56;height:56;padding:0
@@ -338,16 +340,16 @@ Item {
         MapTool { text:"CTR";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:"Reîncadrează harta și revine la orientarea Nord sus";onClicked:root.resetView() }
     }
     Column {
-        anchors.right:parent.right;anchors.top:parent.top;anchors.margins:10;spacing:5;z:50
+        anchors.right:parent.right;anchors.top:parent.top;anchors.margins:10;spacing:5;z:200
         property int controlSize:56
         component RightTool: Button {
             width:56;height:56;padding:0;font.pixelSize:22;font.bold:true
             background:Rectangle { radius:8;color:"#0d1722";border.color:"#27394b" }
             contentItem:Label { text:parent.text;color:"#f4f7fb";font.pixelSize:parent.font.pixelSize;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter }
         }
-        RightTool { text:"MAP";font.pixelSize:11;ToolTip.visible:hovered;ToolTip.text:"Hartă normală / ascunde stratul batimetric HD";onClicked:root.bathymetryHDEnabled=false }
-        RightTool { text:"HD";font.pixelSize:14;checkable:true;checked:root.headingUp;ToolTip.visible:hovered;ToolTip.text:"Heading Up: rotește harta după direcția bărcii";onToggled:root.headingUp=checked }
-        RightTool { text:"RUL";font.pixelSize:11;checkable:true;checked:root.rulerMode;ToolTip.visible:hovered;ToolTip.text:root.rulerMode?root.rulerDistanceText():"Măsoară distanța între două puncte";onToggled:root.toggleRuler() }
+        RightTool { text:"MAP";font.pixelSize:11;checkable:true;checked:root.bathymetryHDEnabled;ToolTip.visible:hovered;ToolTip.text:root.bathymetryHDEnabled?"Ascunde batimetria HD":"Afișează batimetria HD";onClicked:root.toggleMapLayer() }
+        RightTool { text:"HD";font.pixelSize:14;checkable:true;checked:root.headingUp;ToolTip.visible:hovered;ToolTip.text:root.headingUp?"Heading Up activ • apasă pentru Nord sus":"Heading Up • rotește după barcă";onClicked:root.headingUp=!root.headingUp }
+        RightTool { text:"RUL";font.pixelSize:11;checkable:true;checked:root.rulerMode;ToolTip.visible:hovered;ToolTip.text:root.rulerMode?root.rulerDistanceText():"Măsoară distanța între două puncte";onClicked:root.toggleRuler() }
         RightTool { text:root.maximized?"MIN":"MAX";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:root.maximized?"Revino la dashboard":"Hartă pe tot ecranul";onClicked:root.maximizeRequested() }
     }
     Rectangle {
