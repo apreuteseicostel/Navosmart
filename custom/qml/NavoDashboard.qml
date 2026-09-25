@@ -989,7 +989,7 @@ Item {
                 }
                 RowLayout {
                     Layout.fillWidth: true
-                    TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff"; id: inlineLakeName; Layout.fillWidth: true; placeholderText: "Nume baltă nouă"; onAccepted: addLakeButton.clicked() }
+                    TextField { id:inlineLakeName; Layout.fillWidth:true; placeholderText:"Nume baltă nouă"; color:"#0b1118"; placeholderTextColor:"#5f6b76"; selectionColor:"#21b7ff"; selectedTextColor:"#ffffff"; palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff"; background:Rectangle{color:"#ffffff";border.color:inlineLakeName.activeFocus?"#21b7ff":"#c7d0d8";border.width:inlineLakeName.activeFocus?2:1;radius:2}; onAccepted:{addLakeButton.clicked();focus=false} }
                     Button {
                         id: addLakeButton
                         text: "+ ADAUGĂ"
