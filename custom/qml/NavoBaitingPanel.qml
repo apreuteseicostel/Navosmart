@@ -82,7 +82,11 @@ Rectangle {
         id: summary
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
         anchors.margins: 8; spacing: 5
-        RowLayout { Layout.fillWidth:true; spacing:6\n            Label { text:"NĂDIRE"; color:"white"; font.bold:true; font.pixelSize:15 }\n            Label { Layout.fillWidth:true; text:"ȚINTĂ: "+root.waypointName+"  •  CUVA: "+hopperBox.currentText; color:"#21b7ff"; font.bold:true; font.pixelSize:11; elide:Text.ElideRight; horizontalAlignment:Text.AlignRight }\n            ToolButton { text:"⚙"; font.pixelSize:18; enabled:!root.controller || !root.controller.enabled; onClicked:settingsPopup.open(); ToolTip.visible:hovered; ToolTip.text:"Setări nădire" }\n        }
+        RowLayout { Layout.fillWidth:true; spacing:6
+            Label { text:"NĂDIRE"; color:"white"; font.bold:true; font.pixelSize:15 }
+            Label { Layout.fillWidth:true; text:"ȚINTĂ: "+root.waypointName+"  •  CUVA: "+hopperBox.currentText; color:"#21b7ff"; font.bold:true; font.pixelSize:11; elide:Text.ElideRight; horizontalAlignment:Text.AlignRight }
+            ToolButton { text:"⚙"; font.pixelSize:18; enabled:!root.controller || !root.controller.enabled; onClicked:settingsPopup.open(); ToolTip.visible:hovered; ToolTip.text:"Setări nădire" }
+        }
         ComboBox {
             Layout.fillWidth: true
             visible: root.availableSpots.length > 0
