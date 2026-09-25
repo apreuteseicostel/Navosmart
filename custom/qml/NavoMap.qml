@@ -25,6 +25,10 @@ Item {
     property bool maximized: false
     property int lakeZoomLevel: 17
     property bool initialCenterApplied: false
+    property bool headingUp: false
+    property bool rulerMode: false
+    property var rulerPoints: []
+    readonly property real boatHeadingDeg: vehicle && vehicle.heading && isFinite(Number(vehicle.heading.rawValue)) ? Number(vehicle.heading.rawValue) : NaN
 
     signal navigateRequested(var coordinate)
     signal savePointRequested(var coordinate)
@@ -54,6 +58,18 @@ Item {
         if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid) liveMap.center=vehicle.coordinate
     }
     function cancelAreaDrawing() { areaDraftPoints=[]; areaDrawMode="none" }
+    function resetView() {
+        if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid) liveMap.center=vehicle.coordinate
+        liveMap.zoomLevel=Math.max(liveMap.zoomLevel,lakeZoomLevel)
+        headingUp=false
+        rulerMode=false; rulerPoints=[]
+    }
+    function toggleRuler() { rulerMode=!rulerMode; rulerPoints=[] }
+    function rulerDistanceText() {
+        if(rulerPoints.length<2) return "Atinge două puncte"
+        var d=rulerPoints[0].distanceTo(rulerPoints[1])
+        return d>=1000 ? (d/1000).toFixed(2)+" km" : Math.round(d)+" m"
+    }
     function finishAreaDrawing() {
         if(areaDrawMode==="rectangle" && areaDraftPoints.length===2)
             areaRectangleRequested(areaDraftPoints[0],areaDraftPoints[1])
@@ -94,8 +110,35 @@ Item {
             readonly property real bottomEdgeCenterInset: 0
             readonly property real bottomEdgeRightInset: 0
         }
+        bearing: root.headingUp && isFinite(root.boatHeadingDeg) ? root.boatHeadingDeg : 0
+        Behavior on bearing { NumberAnimation { duration: 250 } }
     }
 
+
+    MapQuickItem {
+        id: navoBoatMarker
+        parent: liveMap
+        visible: !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
+        coordinate: visible ? root.vehicle.coordinate : QtPositioning.coordinate()
+        anchorPoint.x: 18; anchorPoint.y: 32
+        z: 35
+        sourceItem: Item {
+            width:36; height:64
+            rotation: isFinite(root.boatHeadingDeg) ? root.boatHeadingDeg - liveMap.bearing : 0
+            Behavior on rotation { RotationAnimation { duration:240; direction:RotationAnimation.Shortest } }
+            Canvas {
+                anchors.fill:parent
+                onPaint:{var p=getContext("2d");p.reset();p.fillStyle="#d9ff19";p.strokeStyle="#07131d";p.lineWidth=2;p.beginPath();p.moveTo(width/2,1);p.quadraticCurveTo(width-2,15,width-3,52);p.lineTo(width-8,height-3);p.lineTo(8,height-3);p.lineTo(3,52);p.quadraticCurveTo(2,15,width/2,1);p.closePath();p.fill();p.stroke();p.fillStyle="#101820";p.fillRect(7,34,9,22);p.fillRect(width-16,34,9,22);p.fillStyle="#18232d";p.fillRect(11,15,width-22,16)}
+            }
+        }
+        Component.onCompleted: liveMap.addMapItem(this)
+        Component.onDestruction: liveMap.removeMapItem(this)
+    }
+
+    MapPolyline {
+        id:rulerLine; parent:liveMap; visible:root.rulerPoints.length>1; path:root.rulerPoints; line.width:3; line.color:"#ffc857"
+        Component.onCompleted:liveMap.addMapItem(this); Component.onDestruction:liveMap.removeMapItem(this)
+    }
     NavoActualTrack { id: actualTrack; map: liveMap; vehicle: root.vehicle; taskActive: !!root.vehicle }
     NavoAreaScanOverlay { map: liveMap; areaScan: root.areaScanController }
     NavoFishOverlay { map: liveMap; fishModel: root.fishModel }
@@ -210,7 +253,7 @@ Item {
     }
     MouseArea {
         anchors.fill: parent
-        enabled: root.areaDrawMode === "none" && !root.baitPointPickMode
+        enabled: root.areaDrawMode === "none" && !root.baitPointPickMode && !root.rulerMode
         acceptedButtons: Qt.LeftButton
         onPressAndHold: function(mouse) {
             var c=liveMap.toCoordinate(Qt.point(mouse.x,mouse.y),false)
@@ -220,6 +263,10 @@ Item {
             root.pendingFishingColor="#31d67b"
             fishingSaveDialog.open()
         }
+    }
+    MouseArea {
+        anchors.fill:parent; z:41; enabled:root.rulerMode && root.areaDrawMode==="none" && !root.baitPointPickMode
+        onClicked:function(mouse){var c=liveMap.toCoordinate(Qt.point(mouse.x,mouse.y),false);if(!c||!c.isValid)return;var p=root.rulerPoints.slice(0);if(p.length>=2)p=[];p.push(c);root.rulerPoints=p}
     }
     MouseArea {
         anchors.fill: parent
@@ -285,10 +332,10 @@ Item {
             background:Rectangle { radius:8;color:"#0d1722";border.color:"#27394b";border.width:1 }
             contentItem:Label { text:parent.text;color:"#f4f7fb";font.pixelSize:parent.font.pixelSize;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter }
         }
-        MapTool { text:"BOAT"; font.pixelSize:9; ToolTip.visible:hovered;ToolTip.text:"Centrează pe barcă";enabled:!!root.vehicle&&!!root.vehicle.coordinate&&root.vehicle.coordinate.isValid;onClicked:liveMap.center=root.vehicle.coordinate }
-        MapTool { text:"+";onClicked:liveMap.zoomLevel=liveMap.zoomLevel+1 }
-        MapTool { text:"-";onClicked:liveMap.zoomLevel=liveMap.zoomLevel-1 }
-        MapTool { text:"CTR";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:"Centrare";enabled:!!root.vehicle&&!!root.vehicle.coordinate&&root.vehicle.coordinate.isValid;onClicked:liveMap.center=root.vehicle.coordinate }
+        MapTool { text:"BOAT"; font.pixelSize:9; ToolTip.visible:hovered;ToolTip.text:"Centrează pe poziția actuală a bărcii";enabled:!!root.vehicle&&!!root.vehicle.coordinate&&root.vehicle.coordinate.isValid;onClicked:liveMap.center=root.vehicle.coordinate }
+        MapTool { text:"+";ToolTip.visible:hovered;ToolTip.text:"Mărește harta";onClicked:liveMap.zoomLevel=liveMap.zoomLevel+1 }
+        MapTool { text:"-";ToolTip.visible:hovered;ToolTip.text:"Micșorează harta";onClicked:liveMap.zoomLevel=liveMap.zoomLevel-1 }
+        MapTool { text:"CTR";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:"Reîncadrează harta și revine la orientarea Nord sus";onClicked:root.resetView() }
     }
     Column {
         anchors.right:parent.right;anchors.top:parent.top;anchors.margins:10;spacing:5;z:50
@@ -298,10 +345,10 @@ Item {
             background:Rectangle { radius:8;color:"#0d1722";border.color:"#27394b" }
             contentItem:Label { text:parent.text;color:"#f4f7fb";font.pixelSize:parent.font.pixelSize;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter }
         }
-        RightTool { text:"MAP";font.pixelSize:11;onClicked:root.bathymetryHDEnabled=false }
-        RightTool { text:"HD";font.pixelSize:14;checkable:true;checked:root.bathymetryHDEnabled;onToggled:root.bathymetryHDEnabled=checked }
-        RightTool { text:"RUL";font.pixelSize:11;ToolTip.visible:hovered;ToolTip.text:"Măsurare / instrumente hartă" }
-        RightTool { text:root.maximized?"MIN":"MAX";font.pixelSize:10;onClicked:root.maximizeRequested() }
+        RightTool { text:"MAP";font.pixelSize:11;ToolTip.visible:hovered;ToolTip.text:"Hartă normală / ascunde stratul batimetric HD";onClicked:root.bathymetryHDEnabled=false }
+        RightTool { text:"HD";font.pixelSize:14;checkable:true;checked:root.headingUp;ToolTip.visible:hovered;ToolTip.text:"Heading Up: rotește harta după direcția bărcii";onToggled:root.headingUp=checked }
+        RightTool { text:"RUL";font.pixelSize:11;checkable:true;checked:root.rulerMode;ToolTip.visible:hovered;ToolTip.text:root.rulerMode?root.rulerDistanceText():"Măsoară distanța între două puncte";onToggled:root.toggleRuler() }
+        RightTool { text:root.maximized?"MIN":"MAX";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:root.maximized?"Revino la dashboard":"Hartă pe tot ecranul";onClicked:root.maximizeRequested() }
     }
     Rectangle {
         anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 10
@@ -314,7 +361,7 @@ Item {
                   (root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ?
                    "Traseu: " + actualTrack.trackCoordinates.length + " poziții • " +
                    (root.areaScanController ? root.areaScanController.laneCount() : 0) + " culoare scanate" :
-                   "Harta este disponibilă • aștept poziția bărcii")
+                   (root.rulerMode ? "RUL • "+root.rulerDistanceText() : "Harta este disponibilă • aștept poziția bărcii"))
             color: "white"; font.pixelSize: 12; elide: Text.ElideRight
             width: parent.width - 16
         }
