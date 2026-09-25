@@ -81,15 +81,8 @@ Rectangle {
     ColumnLayout {
         id: summary
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
-        anchors.margins: 10; spacing: 7
-        Label { text: "NĂDIRE"; color: "white"; font.bold: true; font.pixelSize: 15 }
-        Label { Layout.fillWidth: true; text: "Punct: " + root.waypointName; color: "#21b7ff"; font.bold: true; wrapMode: Text.WordWrap }
-        Label {
-            Layout.fillWidth: true
-            visible: !root.waypoint
-            text: "Alege ținta pe hartă sau din punctele salvate."
-            color: root.secondaryTextColor; wrapMode: Text.WordWrap
-        }
+        anchors.margins: 8; spacing: 5
+        RowLayout { Layout.fillWidth:true; spacing:6\n            Label { text:"NĂDIRE"; color:"white"; font.bold:true; font.pixelSize:15 }\n            Label { Layout.fillWidth:true; text:"ȚINTĂ: "+root.waypointName+"  •  CUVA: "+hopperBox.currentText; color:"#21b7ff"; font.bold:true; font.pixelSize:11; elide:Text.ElideRight; horizontalAlignment:Text.AlignRight }\n            ToolButton { text:"⚙"; font.pixelSize:18; enabled:!root.controller || !root.controller.enabled; onClicked:settingsPopup.open(); ToolTip.visible:hovered; ToolTip.text:"Setări nădire" }\n        }
         ComboBox {
             Layout.fillWidth: true
             visible: root.availableSpots.length > 0
@@ -244,8 +237,7 @@ Rectangle {
                 }
             }
         }
-        Button { text: "SETĂRI"; enabled: !root.controller || !root.controller.enabled; onClicked: settingsPopup.open() }
-        Label { Layout.fillWidth: true; text: root.controller ? "Stare: " + root.controller.stateText(root.controller.state) : "Controler indisponibil"; color: root.controller && root.controller.enabled ? "#31d67b" : "#9db2c5"; wrapMode: Text.WordWrap }
+                Label { Layout.fillWidth: true; text: root.controller ? "Stare: " + root.controller.stateText(root.controller.state) : "Controler indisponibil"; color: root.controller && root.controller.enabled ? "#31d67b" : "#9db2c5"; wrapMode: Text.WordWrap }
     }
 
     Popup {
