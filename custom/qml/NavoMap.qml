@@ -122,10 +122,10 @@ Item {
         parent: liveMap
         visible: !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
         coordinate: visible ? root.vehicle.coordinate : QtPositioning.coordinate()
-        anchorPoint.x: 18; anchorPoint.y: 32
+        anchorPoint.x: 24; anchorPoint.y: 42
         z: 35
         sourceItem: Item {
-            width:36; height:64
+            width:48; height:84
             rotation: isFinite(root.boatHeadingDeg) ? root.boatHeadingDeg - liveMap.bearing : 0
             Behavior on rotation { RotationAnimation { duration:240; direction:RotationAnimation.Shortest } }
             Canvas {
@@ -353,19 +353,21 @@ Item {
         RightTool { text:root.maximized?"MIN":"MAX";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:root.maximized?"Revino la dashboard":"Hartă pe tot ecranul";onClicked:root.maximizeRequested() }
     }
     Rectangle {
-        anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 10
-        width: Math.max(110, Math.min(parent.width - 180, mapHint.implicitWidth + 20))
-        height: mapHint.implicitHeight + 14; radius: 7; color: "#d9101c29"
+        anchors.left: mapControls.right; anchors.top: parent.top
+        anchors.leftMargin: 8; anchors.topMargin: 10
+        width: Math.max(70, Math.min(parent.width - mapControls.width - 180, mapHint.implicitWidth + 18))
+        height: 30; radius: 7; color: "#d9101c29"
         Label {
             id: mapHint; anchors.centerIn: parent
             text: root.areaDrawMode === "rectangle" ? "Atinge două colțuri pe hartă" :
                   root.areaDrawMode === "polygon" ? "Atinge punctele, apoi TERMINĂ" :
-                  (root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ?
-                   "Traseu: " + actualTrack.trackCoordinates.length + " poziții • " +
-                   (root.areaScanController ? root.areaScanController.laneCount() : 0) + " culoare scanate" :
-                   (root.rulerMode ? "RUL • "+root.rulerDistanceText() : "Harta este disponibilă • aștept poziția bărcii"))
-            color: "white"; font.pixelSize: 12; elide: Text.ElideRight
-            width: parent.width - 16
+                  (root.rulerMode ? "RUL • "+root.rulerDistanceText() :
+                   (root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ?
+                    "Traseu: " + actualTrack.trackCoordinates.length + " • " +
+                    (root.areaScanController ? root.areaScanController.laneCount() : 0) + " culoare" :
+                    "GPS: AȘTEPTARE"))
+            color: "white"; font.pixelSize: 11; elide: Text.ElideRight
+            width: parent.width - 14
         }
     }
 
