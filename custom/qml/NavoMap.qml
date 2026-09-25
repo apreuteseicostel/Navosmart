@@ -31,6 +31,8 @@ Item {
     property bool showStatusHint: true
     property var rulerPoints: []
     readonly property real boatHeadingDeg: vehicle && vehicle.heading && isFinite(Number(vehicle.heading.rawValue)) ? Number(vehicle.heading.rawValue) : NaN
+    property bool operatorLocationEnabled: true
+    readonly property bool operatorLocationValid: operatorPositionSource.position.coordinate.isValid
 
     signal navigateRequested(var coordinate)
     signal savePointRequested(var coordinate)
@@ -70,6 +72,11 @@ Item {
     }
     function toggleRuler() { rulerMode=!rulerMode; rulerPoints=[]; mapLayerMenuOpen=false }
     function toggleMapLayer() { bathymetryHDEnabled=!bathymetryHDEnabled; mapLayerMenuOpen=false }
+    function operatorBoatDistanceText() {
+        if(!operatorLocationValid || !vehicle || !vehicle.coordinate || !vehicle.coordinate.isValid) return "--"
+        var d=operatorPositionSource.position.coordinate.distanceTo(vehicle.coordinate)
+        return d>=1000 ? (d/1000).toFixed(2)+" km" : Math.round(d)+" m"
+    }
     function rulerDistanceText() {
         if(rulerPoints.length<2) return "Atinge două puncte"
         var d=rulerPoints[0].distanceTo(rulerPoints[1])
@@ -96,6 +103,12 @@ Item {
         return true
     }
 
+    PositionSource {
+        id: operatorPositionSource
+        active: root.operatorLocationEnabled
+        updateInterval: 2000
+    }
+
     FlyViewMap {
         id: liveMap
         anchors.fill: parent
@@ -119,6 +132,35 @@ Item {
         Behavior on bearing { NumberAnimation { duration: 250 } }
     }
 
+
+    MapQuickItem {
+        id: operatorMarker
+        parent: liveMap
+        visible: root.operatorLocationEnabled && root.operatorLocationValid
+        coordinate: visible ? operatorPositionSource.position.coordinate : QtPositioning.coordinate()
+        anchorPoint.x: 18; anchorPoint.y: 18
+        z: 34
+        sourceItem: Item {
+            width:36; height:36
+            Rectangle {
+                anchors.fill:parent; radius:18; color:"#102b3aee"; border.color:"#26c6da"; border.width:2
+                Label { anchors.centerIn:parent; text:"🎮"; font.pixelSize:18 }
+            }
+        }
+        Component.onCompleted: liveMap.addMapItem(this)
+        Component.onDestruction: liveMap.removeMapItem(this)
+    }
+
+    MapPolyline {
+        id: operatorBoatLine
+        parent: liveMap
+        visible: operatorMarker.visible && navoBoatMarker.visible
+        path: visible ? [operatorPositionSource.position.coordinate, root.vehicle.coordinate] : []
+        line.width: 2
+        line.color: "#26c6da"
+        Component.onCompleted: liveMap.addMapItem(this)
+        Component.onDestruction: liveMap.removeMapItem(this)
+    }
 
     MapQuickItem {
         id: navoBoatMarker
