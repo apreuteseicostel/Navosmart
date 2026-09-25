@@ -495,7 +495,7 @@ Item {
     Rectangle {
         id: header
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
-        height: 64; color: "#101822"; border.color: root.line
+        height: root.compactUi ? 76 : 84; color: "#101822"; border.color: root.line
         Flickable {
             anchors.fill: parent
             clip: true
@@ -516,13 +516,17 @@ Item {
             StatusPill { title: "BATERIE"; value: battery ? Number(battery.percentRemaining.rawValue).toFixed(0) + "%" : "--"; good: battery && battery.percentRemaining.rawValue > 20 }
             StatusPill { title: "MOD"; value: root.flightMode.length ? root.flightMode : "OFFLINE"; good: vehicle !== null }
             StatusPill { title: "TEMP"; value: nanoTelemetry.connected && !isNaN(nanoTelemetry.batteryTempC) ? Number(nanoTelemetry.batteryTempC).toFixed(1) + "°" : "--"; good: nanoTelemetry.connected && safetyManager.state !== "CRITICAL" }
-            NavoHeadingCompass {
-                Layout.preferredWidth: 58
-                Layout.preferredHeight: 58
-                headingDeg: root.headingDeg
-                waypointBearingDeg: root.waypointBearingDeg
-                rollDeg: root.rollDeg
-                pitchDeg: root.pitchDeg
+            Item {
+                Layout.preferredWidth: root.compactUi ? 72 : 84
+                Layout.preferredHeight: root.compactUi ? 72 : 84
+                NavoHeadingCompass {
+                    anchors.fill: parent
+                    anchors.margins: 1
+                    headingDeg: root.headingDeg
+                    waypointBearingDeg: root.waypointBearingDeg
+                    rollDeg: root.rollDeg
+                    pitchDeg: root.pitchDeg
+                }
             }
         }
         }
