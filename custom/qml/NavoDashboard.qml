@@ -871,7 +871,7 @@ Item {
                         vehicle:root.vehicle; planController:root.planController; waypointNames:root.waypointNames
                         fishModel:fishStore; fishingSpotsModel:fishingSpots; bathymetryCells:scanCoordinator.bathymetryCells
                         baitingController:baitingController; areaScanController:areaScanController
-                        savedDepthM:root.depthM; savedWaterTempC:root.waterTempC
+                        savedDepthM:root.depthM; savedWaterTempC:root.waterTempC; showStatusHint:false
                         onNavigateRequested:function(c){root.navigateToCoordinate(c)}
                         onFishingSpotRenameRequested:function(spot){fishingPageRoot.openEdit(spot)}
                         onBaitingWaypointSelected:function(wp){baitingController.targetWaypoint=wp;root.lastNavigationStatus="Punct de nădire ales: "+wp.name}
@@ -887,8 +887,8 @@ Item {
                         }
                     }
                     Rectangle {
-                        anchors.left:parent.left; anchors.top:parent.top; anchors.margins:10
-                        width:hint.implicitWidth+20; height:34; radius:7; color:"#071827dd"; border.color:root.line
+                        anchors.left:parent.left; anchors.top:parent.top; anchors.leftMargin:76; anchors.topMargin:10
+                        width:hint.implicitWidth+20; height:30; radius:7; color:"#071827ee"; border.color:root.line
                         Label { id:hint; anchors.centerIn:parent; text:"ȚINE APĂSAT PE HARTĂ PENTRU PUNCT NOU"; color:root.text; font.pixelSize:10; font.bold:true }
                     }
                 }
