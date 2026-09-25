@@ -47,23 +47,16 @@ Item {
         Label { text:"E"; color:"#d8e2ea"; anchors.verticalCenter:parent.verticalCenter; anchors.right:parent.right; anchors.rightMargin:17 }
     }
 
-    Item {
+    NavoBoatVisual {
         id: boat
-        width: 46; height: 88; anchors.centerIn: parent
+        width: Math.min(root.width * 0.34, 62)
+        height: Math.min(root.height * 0.58, 102)
+        anchors.centerIn: parent
+        headlightOn: false
+        positionLightsOn: false
+        showLabel: false
         rotation: root.normalizedHeading
         Behavior on rotation { RotationAnimation { duration: 260; direction: RotationAnimation.Shortest } }
-        Canvas {
-            anchors.fill: parent
-            onPaint: {
-                var c=getContext("2d"); c.reset()
-                c.fillStyle="#d9ff19"; c.strokeStyle="#101820"; c.lineWidth=2
-                c.beginPath(); c.moveTo(width/2,1); c.quadraticCurveTo(width-2,20,width-4,74)
-                c.lineTo(width-9,height-3); c.lineTo(9,height-3); c.lineTo(4,74)
-                c.quadraticCurveTo(2,20,width/2,1); c.closePath(); c.fill(); c.stroke()
-                c.fillStyle="#101820"; c.fillRect(8,45,12,31); c.fillRect(width-20,45,12,31)
-                c.fillStyle="#18232d"; c.beginPath(); c.roundedRect(12,19,width-24,24,5,5); c.fill()
-            }
-        }
     }
 
     Rectangle {
