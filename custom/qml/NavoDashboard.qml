@@ -22,6 +22,9 @@ Item {
     // property on the FlyView root. NAVO does not currently use UTM/SP.
     property bool utmspSendActTrigger: false
     property bool mapMaximized: false
+    readonly property bool compactUi: width < 1180 || height < 700
+    readonly property int responsiveMargin: compactUi ? 7 : 12
+    readonly property int responsiveGap: compactUi ? 5 : 8
 
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
     property var planController: _planController
@@ -840,7 +843,7 @@ Item {
                         ScanIconButton { hint:"HOLD"; enabled:scanCoordinator.state==="SCANNING"||root.awaitingMissionStart; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.fillStyle="#ffc857";p.fillRect(15,12,7,23);p.fillRect(30,12,7,23)}} onClicked:root.holdMission() }
                         ScanIconButton { hint:"RTL / întoarcere acasă"; enabled:scanCoordinator.state==="SCANNING"||scanCoordinator.state==="PAUSED"||scanCoordinator.state==="RESUME_READY"; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#21b7ff";p.lineWidth=2;p.beginPath();p.moveTo(10,25);p.lineTo(26,11);p.lineTo(42,25);p.moveTo(16,22);p.lineTo(16,37);p.lineTo(36,37);p.lineTo(36,22);p.stroke()}} onClicked:root.rtlMission() }
                         ScanIconButton { hint:"STOP"; enabled:scanCoordinator.state==="SCANNING"||scanCoordinator.state==="PAUSED"||scanCoordinator.state==="READY"||scanCoordinator.state==="RESUME_READY"||root.awaitingMissionStart; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.fillStyle="#ff5c5c";p.fillRect(15,12,23,23)}} onClicked:root.stopMission() }
-                        ComboBox { width:110; height:38; model:["HOLD","RTL"]; currentIndex:root.areaScanFinishAction==="RTL"?1:0; ToolTip.visible:hovered; ToolTip.text:"Acțiune la finalul scanării"; onActivated:root.areaScanFinishAction=currentIndex===1?"RTL":"HOLD" }
+                        ComboBox { width:110; height:34; model:["HOLD","RTL"]; currentIndex:root.areaScanFinishAction==="RTL"?1:0; ToolTip.visible:hovered; ToolTip.text:"Acțiune la finalul scanării"; onActivated:root.areaScanFinishAction=currentIndex===1?"RTL":"HOLD" }
                     }
                 }
             }
@@ -1186,14 +1189,14 @@ Item {
                             columns:3; Layout.fillWidth:true; columnSpacing:8; rowSpacing:7
                             Label { text:"Cuva"; color:root.text } Label { text:"Stânga"; color:root.text } Label { text:"Dreapta"; color:root.text }
                             Label { text:"Ieșire"; color:"#dbe5ee"; font.bold:true }
-                            SpinBox { from:1;to:16;value:hopperSettings.leftOutput;onValueModified:{hopperSettings.confirmed=false;hopperSettings.leftOutput=value} }
-                            SpinBox { from:1;to:16;value:hopperSettings.rightOutput;onValueModified:{hopperSettings.confirmed=false;hopperSettings.rightOutput=value} }
+                            SpinBox { Layout.fillWidth:true; Layout.minimumWidth:86; from:1;to:16;value:hopperSettings.leftOutput;onValueModified:{hopperSettings.confirmed=false;hopperSettings.leftOutput=value} }
+                            SpinBox { Layout.fillWidth:true; Layout.minimumWidth:86; from:1;to:16;value:hopperSettings.rightOutput;onValueModified:{hopperSettings.confirmed=false;hopperSettings.rightOutput=value} }
                             Label { text:"Închis µs"; color:"#dbe5ee"; font.bold:true }
-                            SpinBox { from:900;to:2100;value:hopperSettings.leftClosed;onValueModified:{hopperSettings.confirmed=false;hopperSettings.leftClosed=value} }
-                            SpinBox { from:900;to:2100;value:hopperSettings.rightClosed;onValueModified:{hopperSettings.confirmed=false;hopperSettings.rightClosed=value} }
+                            SpinBox { Layout.fillWidth:true; Layout.minimumWidth:86; from:900;to:2100;value:hopperSettings.leftClosed;onValueModified:{hopperSettings.confirmed=false;hopperSettings.leftClosed=value} }
+                            SpinBox { Layout.fillWidth:true; Layout.minimumWidth:86; from:900;to:2100;value:hopperSettings.rightClosed;onValueModified:{hopperSettings.confirmed=false;hopperSettings.rightClosed=value} }
                             Label { text:"Deschis µs"; color:"#dbe5ee"; font.bold:true }
-                            SpinBox { from:900;to:2100;value:hopperSettings.leftOpen;onValueModified:{hopperSettings.confirmed=false;hopperSettings.leftOpen=value} }
-                            SpinBox { from:900;to:2100;value:hopperSettings.rightOpen;onValueModified:{hopperSettings.confirmed=false;hopperSettings.rightOpen=value} }
+                            SpinBox { Layout.fillWidth:true; Layout.minimumWidth:86; from:900;to:2100;value:hopperSettings.leftOpen;onValueModified:{hopperSettings.confirmed=false;hopperSettings.leftOpen=value} }
+                            SpinBox { Layout.fillWidth:true; Layout.minimumWidth:86; from:900;to:2100;value:hopperSettings.rightOpen;onValueModified:{hopperSettings.confirmed=false;hopperSettings.rightOpen=value} }
                         }
                         CheckBox {
                             Layout.fillWidth:true
