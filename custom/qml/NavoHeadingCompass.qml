@@ -8,6 +8,7 @@ Item {
     property real rollDeg: NaN
     property real pitchDeg: NaN
     property bool headingValid: isFinite(headingDeg)
+    property bool expanded: false
     property string cardinal: {
         if (!headingValid) return "--"
         var p=["N","NE","E","SE","S","SW","W","NW"]
@@ -19,7 +20,11 @@ Item {
         return ((waypointBearingDeg-normalizedHeading+540)%360)-180
     }
 
-    implicitWidth: 180; implicitHeight: 180
+    implicitWidth: expanded ? 260 : 180; implicitHeight: expanded ? 260 : 180
+    z: expanded ? 10000 : 0
+    scale: expanded ? 1.0 : 1.0
+    Behavior on implicitWidth { NumberAnimation { duration: 160 } }
+    Behavior on implicitHeight { NumberAnimation { duration: 160 } }
 
     Rectangle {
         anchors.fill: parent; radius: width/2
@@ -81,5 +86,5 @@ Item {
 
     ToolTip.visible: mouse.containsMouse
     ToolTip.text: root.headingValid ? "Direcție "+Math.round(root.normalizedHeading)+"° "+root.cardinal+(isFinite(root.courseError)?" • abatere "+Math.round(root.courseError)+"°":"") : "Heading indisponibil"
-    MouseArea { id:mouse; anchors.fill:parent; hoverEnabled:true }
+    MouseArea { id:mouse; anchors.fill:parent; hoverEnabled:true; onClicked: root.expanded = !root.expanded }
 }
