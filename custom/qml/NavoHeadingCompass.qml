@@ -20,11 +20,11 @@ Item {
         return ((waypointBearingDeg-normalizedHeading+540)%360)-180
     }
 
-    implicitWidth: expanded ? 260 : 180; implicitHeight: expanded ? 260 : 180
+    implicitWidth: 180; implicitHeight: 180
     z: expanded ? 10000 : 0
-    scale: expanded ? 1.0 : 1.0
-    Behavior on implicitWidth { NumberAnimation { duration: 160 } }
-    Behavior on implicitHeight { NumberAnimation { duration: 160 } }
+    scale: expanded ? 3.0 : 1.0
+    transformOrigin: Item.TopRight
+    Behavior on scale { NumberAnimation { duration: 160 } }
 
     Rectangle {
         anchors.fill: parent; radius: width/2
