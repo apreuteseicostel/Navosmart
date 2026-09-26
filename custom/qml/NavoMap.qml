@@ -386,7 +386,7 @@ Item {
         MapTool { text:"CTR"; iconSource:"qrc:/qml/NavoSmart/icons/center.svg";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:"Reîncadrează harta și revine la orientarea Nord sus";onClicked:root.resetView() }
     }
     Column {
-        anchors.right:parent.right;anchors.top:parent.top;anchors.rightMargin:10;anchors.topMargin:34;spacing:5;z:200
+        anchors.right:parent.right; anchors.top:parent.top; anchors.rightMargin:10; anchors.topMargin:10; spacing:5; z:200
         property int controlSize:44
         component RightTool: Button {
             property url iconSource: ""
