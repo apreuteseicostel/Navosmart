@@ -39,16 +39,23 @@ jobs:
           from pathlib import Path
           p = Path("qgc/src/FlightDisplay/FlyViewMap.qml")
           src = p.read_text()
-          prop_anchor = "    property bool   pipMode:                    false   // true: map is shown in a small pip mode\\n"
-          prop_line = prop_anchor + "    property bool   navosmartHideVehicleMarker: false\\n"
-          if prop_anchor not in src:
-              raise SystemExit("FlyViewMap property anchor not found in pinned v5.0.7")
-          src = src.replace(prop_anchor, prop_line, 1)
-          vehicle_anchor = "    MapItemView {\\n        model: QGroundControl.multiVehicleManager.vehicles\\n        delegate: VehicleMapItem {"
-          vehicle_patch = "    MapItemView {\\n        model: QGroundControl.multiVehicleManager.vehicles\\n        visible: !_root.navosmartHideVehicleMarker\\n        delegate: VehicleMapItem {"
-          if vehicle_anchor not in src:
+          lines = src.splitlines()
+
+          prop_index = next((i for i, line in enumerate(lines)
+                             if "property bool" in line and "pipMode:" in line), None)
+          if prop_index is None:
+              raise SystemExit("FlyViewMap pipMode property not found in pinned v5.0.7")
+          lines.insert(prop_index + 1, "    property bool   navosmartHideVehicleMarker: false")
+
+          vehicle_index = next((i for i in range(len(lines) - 2)
+                                if lines[i].strip() == "MapItemView {"
+                                and "QGroundControl.multiVehicleManager.vehicles" in lines[i + 1]
+                                and lines[i + 2].strip() == "delegate: VehicleMapItem {"), None)
+          if vehicle_index is None:
               raise SystemExit("FlyViewMap vehicle marker block not found in pinned v5.0.7")
-          p.write_text(src.replace(vehicle_anchor, vehicle_patch, 1))
+          lines.insert(vehicle_index + 2, "        visible: !_root.navosmartHideVehicleMarker")
+
+          p.write_text("\n".join(lines) + "\n")
           PY
           grep -n -A4 -B2 'navosmartHideVehicleMarker' qgc/src/FlightDisplay/FlyViewMap.qml
           # NAVO replaces QGC FlyView through the custom URL interceptor.
