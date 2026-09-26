@@ -62,7 +62,7 @@ Popup {
    SonarIconButton{hint:root.recording?"Oprește înregistrarea":"Înregistrează sonar";checkable:true;checked:root.recording;contentItem:Label{anchors.centerIn:parent;text:"●";color:parent.checked?"#ff5c5c":"#f2f7fb";font.pixelSize:22} onClicked:{root.recording=checked;root.recordingRequested(root.recording)}}
    SonarIconButton{hint:root.paused?"Redă":"Pauză";contentItem:Label{anchors.centerIn:parent;text:root.paused?"▶":"Ⅱ";color:"#f2f7fb";font.pixelSize:20;font.bold:true} onClicked:root.paused=!root.paused}
    SonarIconButton{hint:"Salvează punct";enabled:root.connected&&!isNaN(root.latitude)&&!isNaN(root.longitude)&&!isNaN(root.depthM);contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/target.svg"} onClicked:root.saveWaypointRequested(root.latitude,root.longitude,root.depthM,root.waterTempC)}
-   Button{width:42;height:38;visible:root.transport;ToolTip.visible:hovered;ToolTip.text:root.transport&&root.transport.connected?"Deconectează Kogger":"Conectează Kogger";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/sonar.svg"};onClicked:{if(root.transport.connected)root.transport.disconnectFromSonar();else root.transport.connectToSonar()}}
+   Button{width:42;height:38;visible:root.transport;ToolTip.visible:hovered;ToolTip.text:root.transport&&root.transport.connected?"Deconectează Kogger":"Conectează Kogger";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/sonar.svg"} onClicked:{if(root.transport.connected)root.transport.disconnectFromSonar();else root.transport.connectToSonar()}}
   }
   RowLayout{Layout.fillWidth:true;Layout.fillHeight:true;Layout.minimumHeight:180;spacing:4
   Rectangle{Layout.fillWidth:true;Layout.fillHeight:true;color:"#020b12"
@@ -80,7 +80,11 @@ Popup {
    }
    Label{anchors.centerIn:parent;visible:!root.connected;text:"Aștept date reale de la Kogger\nEcograma nu este simulată";horizontalAlignment:Text.AlignHCenter;color:"#9db2c5";font.pixelSize:18}
   }
-  Rectangle{Layout.preferredWidth:22;Layout.fillHeight:true;color:"#06131e";border.color:"#1c4262";radius:3;ToolTip.visible:legendMouse.containsMouse;ToolTip.text:"Putere ecou: puternic → slab"\n   Rectangle{anchors.fill:parent;anchors.margins:3;gradient:Gradient{GradientStop{position:0;color:"#f44b2e"}GradientStop{position:.28;color:"#f6da46"}GradientStop{position:.52;color:"#32d26f"}GradientStop{position:.75;color:"#1ccde1"}GradientStop{position:1;color:"#105caa"}}}\n   MouseArea{id:legendMouse;anchors.fill:parent;hoverEnabled:true}\n  }\n
+  Rectangle{Layout.preferredWidth:22;Layout.fillHeight:true;color:"#06131e";border.color:"#1c4262";radius:3;ToolTip.visible:legendMouse.containsMouse;ToolTip.text:"Putere ecou: puternic → slab"
+   Rectangle{anchors.fill:parent;anchors.margins:3;gradient:Gradient{GradientStop{position:0;color:"#f44b2e"}GradientStop{position:.28;color:"#f6da46"}GradientStop{position:.52;color:"#32d26f"}GradientStop{position:.75;color:"#1ccde1"}GradientStop{position:1;color:"#105caa"}}}
+   MouseArea{id:legendMouse;anchors.fill:parent;hoverEnabled:true}
+  }
+
   Rectangle{visible:root.width>=1350;Layout.preferredWidth:visible?180:0;Layout.fillHeight:true;color:"#06131e";border.color:"#1c4262";radius:8
    ColumnLayout{anchors.fill:parent;anchors.margins:10;spacing:8
     Label{text:"ADÂNCIME";color:"#9db2c5"} Label{text:isNaN(root.depthM)?"-- m":root.depthM.toFixed(1)+" m";color:"#f2f7fb";font.pixelSize:30;font.bold:true}
