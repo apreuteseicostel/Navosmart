@@ -377,7 +377,7 @@ Item {
         component MapTool: Button {
             width:56;height:56;padding:0
             font.pixelSize:26;font.bold:true
-            background:Rectangle { radius:8;color:"#0d1722";border.color:"#27394b";border.width:1 }
+            background:Rectangle { radius:8;color:"#800d1722";border.color:"#8027394b";border.width:1 }
             contentItem:Label { text:parent.text;color:"#f4f7fb";font.pixelSize:parent.font.pixelSize;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter }
         }
         MapTool { text:"BOAT"; font.pixelSize:9; ToolTip.visible:hovered;ToolTip.text:"Centrează pe poziția actuală a bărcii";enabled:!!root.vehicle&&!!root.vehicle.coordinate&&root.vehicle.coordinate.isValid;onClicked:liveMap.center=root.vehicle.coordinate }
@@ -390,7 +390,7 @@ Item {
         property int controlSize:56
         component RightTool: Button {
             width:56;height:56;padding:0;font.pixelSize:22;font.bold:true
-            background:Rectangle { radius:8;color:"#0d1722";border.color:"#27394b" }
+            background:Rectangle { radius:8;color:"#800d1722";border.color:"#8027394b" }
             contentItem:Label { text:parent.text;color:"#f4f7fb";font.pixelSize:parent.font.pixelSize;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter }
         }
         RightTool { text:"MAP";font.pixelSize:11;checkable:true;checked:root.bathymetryHDEnabled;ToolTip.visible:hovered;ToolTip.text:root.bathymetryHDEnabled?"Ascunde batimetria HD":"Afișează batimetria HD";onClicked:root.toggleMapLayer() }
