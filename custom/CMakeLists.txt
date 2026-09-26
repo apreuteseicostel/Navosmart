@@ -101,6 +101,10 @@ qt_add_qml_module(NavoSmartModule
         icons/stop.svg
         icons/close.svg
         icons/add.svg
+        icons/done.svg
+        icons/undo.svg
+        icons/polygon.svg
+        icons/rectangle.svg
     NO_PLUGIN
 )
 
