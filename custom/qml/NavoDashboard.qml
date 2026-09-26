@@ -666,19 +666,20 @@ Item {
                 anchors.topMargin: 8; anchors.rightMargin: 8; anchors.bottomMargin: 8
                 width: 58; spacing: 5
                 component MiniStatus: Rectangle {
-                    property string title:""; property string value:""; property bool good:false
-                    width:58; height:52; radius:7; color:"#101822"; border.color:good?root.ok:root.line
+                    property string title:""; property string value:""; property bool good:false; property url iconSource:""
+                    width:58; height:58; radius:7; color:"#101822"; border.color:good?root.ok:root.line
                     Column { anchors.centerIn:parent; spacing:0
-                        Label { anchors.horizontalCenter:parent.horizontalCenter; text:title; color:"#c9d4df"; font.pixelSize:8; font.bold:true }
-                        Label { anchors.horizontalCenter:parent.horizontalCenter; text:value; color:good?root.ok:"#f2f5f8"; font.pixelSize:9; font.bold:true }
+                        Image { anchors.horizontalCenter:parent.horizontalCenter;width:22;height:22;source:iconSource;fillMode:Image.PreserveAspectFit }
+                        Label { anchors.horizontalCenter:parent.horizontalCenter; text:title; color:"#c9d4df"; font.pixelSize:7; font.bold:true }
+                        Label { anchors.horizontalCenter:parent.horizontalCenter; text:value; color:good?root.ok:"#ff6575"; font.pixelSize:9; font.bold:true }
                     }
                 }
-                MiniStatus { title:"AP"; value:vehicle?"ON":"OFF"; good:!!vehicle }
-                MiniStatus { title:"LAN"; value:sonar.transport&&sonar.transport.connected?"ON":"OFF"; good:sonar.transport&&sonar.transport.connected }
-                MiniStatus { title:"SONAR"; value:root.sonarConnected?"ON":"OFF"; good:root.sonarConnected }
-                MiniStatus { title:"NANO"; value:nanoTelemetry.connected?"ON":"OFF"; good:nanoTelemetry.connected }
-                MiniStatus { title:"CAM"; value:root.cameraConnected?"ON":"OFF"; good:root.cameraConnected }
-                MiniStatus { title:"ȚINTĂ"; value:root.distanceToTarget>0?Number(root.distanceToTarget).toFixed(0)+"m":"--"; good:root.distanceToTarget>0 }
+                MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/autopilot.svg"; title:"AP"; value:vehicle?"ON":"OFF"; good:!!vehicle }
+                MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/lan.svg"; title:"LAN"; value:sonar.transport&&sonar.transport.connected?"ON":"OFF"; good:sonar.transport&&sonar.transport.connected }
+                MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/sonar.svg"; title:"SONAR"; value:root.sonarConnected?"ON":"OFF"; good:root.sonarConnected }
+                MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/nano.svg"; title:"NANO"; value:nanoTelemetry.connected?"ON":"OFF"; good:nanoTelemetry.connected }
+                MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/camera.svg"; title:"CAM"; value:root.cameraConnected?"ON":"OFF"; good:root.cameraConnected }
+                MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/target.svg"; title:"ȚINTĂ"; value:root.distanceToTarget>0?Number(root.distanceToTarget).toFixed(0)+"m":"--"; good:root.distanceToTarget>0 }
             }
         }
     }
