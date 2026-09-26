@@ -511,12 +511,12 @@ Item {
                 Label { text: "NAVO SMART"; color: root.text; font.pixelSize: 22; font.bold: true }
                 Label { text: "Pescarul lu Peste"; color: root.muted; font.pixelSize: 11 }
             }
-            StatusPill { title: "SATELIȚI"; value: vehicle && vehicle.gps ? String(vehicle.gps.count.rawValue) : "--"; good: vehicle && vehicle.gps }
-            StatusPill { title: "HOME"; value: Number(root.distanceToHome).toFixed(0) + " m"; good: !!vehicle }
-            StatusPill { title: "VITEZĂ"; value: vehicle && vehicle.groundSpeed ? Number(vehicle.groundSpeed.rawValue * 3.6).toFixed(1) + " km/h" : "--"; good: !!vehicle }
-            StatusPill { title: "BATERIE"; value: battery ? Number(battery.percentRemaining.rawValue).toFixed(0) + "%" : "--"; good: battery && battery.percentRemaining.rawValue > 20 }
-            StatusPill { title: "TEMP"; value: nanoTelemetry.connected && !isNaN(nanoTelemetry.batteryTempC) ? Number(nanoTelemetry.batteryTempC).toFixed(1) + "°" : "--"; good: nanoTelemetry.connected && safetyManager.state !== "CRITICAL" }
-            StatusPill { title: "MOD"; value: root.flightMode.length ? root.flightMode : "OFFLINE"; good: vehicle !== null }
+            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/satellite.svg"; title: "SATELIȚI"; value: vehicle && vehicle.gps ? String(vehicle.gps.count.rawValue) : "--"; good: vehicle && vehicle.gps }
+            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/home.svg"; title: "HOME"; value: Number(root.distanceToHome).toFixed(0) + " m"; good: !!vehicle }
+            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/speed.svg"; title: "VITEZĂ"; value: vehicle && vehicle.groundSpeed ? Number(vehicle.groundSpeed.rawValue * 3.6).toFixed(1) + " km/h" : "--"; good: !!vehicle }
+            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/battery.svg"; title: "BATERIE"; value: battery ? Number(battery.percentRemaining.rawValue).toFixed(0) + "%" : "--"; good: battery && battery.percentRemaining.rawValue > 20 }
+            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/temp.svg"; title: "TEMP"; value: nanoTelemetry.connected && !isNaN(nanoTelemetry.batteryTempC) ? Number(nanoTelemetry.batteryTempC).toFixed(1) + "°" : "--"; good: nanoTelemetry.connected && safetyManager.state !== "CRITICAL" }
+            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/mode.svg"; title: "MOD"; value: root.flightMode.length ? root.flightMode : "OFFLINE"; good: vehicle !== null }
             NavoHeadingCompass {
                 id: headingCompass
                 Layout.preferredWidth: 54
@@ -1362,15 +1362,18 @@ Item {
 
 
     component StatusPill: Rectangle {
+        property url iconSource: ""
         property string title: ""
         property string value: "--"
         property bool good: false
         Layout.preferredWidth: 72; Layout.preferredHeight: 36; radius: 7
         color: root.panel; border.color: good ? root.ok : root.line
-        Column {
-            anchors.centerIn: parent; spacing: 0
-            Label { anchors.horizontalCenter: parent.horizontalCenter; text: title; color: root.muted; font.pixelSize: 8 }
-            Label { anchors.horizontalCenter: parent.horizontalCenter; text: value; color: good ? root.ok : root.text; font.pixelSize: 11; font.bold: true }
+        Row { anchors.centerIn:parent; spacing:5
+            Image { width:20;height:20;anchors.verticalCenter:parent.verticalCenter;source:iconSource;fillMode:Image.PreserveAspectFit }
+            Column { anchors.verticalCenter:parent.verticalCenter; spacing:0
+                Label { anchors.horizontalCenter:parent.horizontalCenter;text:title;color:root.muted;font.pixelSize:7 }
+                Label { anchors.horizontalCenter:parent.horizontalCenter;text:value;color:good?root.ok:root.text;font.pixelSize:10;font.bold:true }
+            }
         }
     }
 
