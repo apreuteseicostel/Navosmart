@@ -1090,7 +1090,7 @@ Item {
                         }
                     }
                 }
-                Button { text: "DESCHIDE BĂLȚILE MELE"; onClicked: myLakesPopup.open() }
+                Button { width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Deschide Bălțile mele";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/lake.svg"};onClicked:myLakesPopup.open() }
             }
             NavoMyLakes {
                 id: myLakesPopup
@@ -1299,7 +1299,7 @@ Item {
                     Label { text: "CAMERA FAȚĂ • LAN"; color: root.text; font.pixelSize: 18; font.bold: true }
                     Item { Layout.fillWidth: true }
                     Label { text: cameraEthernet.connected ? (cameraEthernet.dataAlive ? "LAN LIVE" : "LAN CONECTAT") : "LAN OFFLINE"; color: cameraEthernet.dataAlive ? root.ok : (cameraEthernet.connected ? root.warn : root.muted); font.bold: true; font.pixelSize: 10 }
-                    Button { text: cameraEthernet.connected ? "DECONECTEAZĂ" : "CONECTEAZĂ"; enabled: cameraEthernet.connected || (cameraEthernet.host.length>0 && cameraEthernet.port>0); onClicked: cameraEthernet.connected ? cameraEthernet.disconnectCamera() : cameraEthernet.connectCamera() }
+                    Button { width:42;height:38;ToolTip.visible:hovered;ToolTip.text:cameraEthernet.connected?"Deconectează camera":"Conectează camera";enabled:cameraEthernet.connected||(cameraEthernet.host.length>0&&cameraEthernet.port>0);contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/camera.svg"};onClicked:cameraEthernet.connected?cameraEthernet.disconnectCamera():cameraEthernet.connectCamera() }
                 }
                 NavoCameraPip {
                     Layout.fillWidth: true; Layout.fillHeight: true
