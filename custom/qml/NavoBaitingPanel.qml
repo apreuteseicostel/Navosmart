@@ -290,7 +290,29 @@ Rectangle {
                     CheckBox { Layout.columnSpan: 3; text: "RTL după eliberare"; palette.windowText: root.secondaryTextColor; palette.buttonText: root.secondaryTextColor; checked: saved.rtlAfterDrop; onToggled: { saved.rtlAfterDrop = checked; root.applySettings() } }
                 }
             }
-            Button { Layout.alignment:Qt.AlignRight; width:40; height:40; padding:0; flat:true; ToolTip.visible:hovered; ToolTip.text:"Închide setările"; background:Rectangle{radius:7;color:parent.hovered?"#123d50":"transparent";border.color:parent.hovered?"#21b7ff":"#31404d"}; contentItem:Label{text:"×";color:"white";font.pixelSize:28;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter}; onClicked:settingsPopup.close() }
+            Button {
+                Layout.alignment: Qt.AlignRight
+                width: 40
+                height: 40
+                padding: 0
+                flat: true
+                ToolTip.visible: hovered
+                ToolTip.text: "Închide setările"
+                background: Rectangle {
+                    radius: 7
+                    color: parent.hovered ? "#123d50" : "transparent"
+                    border.color: parent.hovered ? "#21b7ff" : "#31404d"
+                }
+                contentItem: Label {
+                    text: "×"
+                    color: "white"
+                    font.pixelSize: 28
+                    font.bold: true
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                onClicked: settingsPopup.close()
+            }
         }
     }
     Dialog {
