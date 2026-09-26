@@ -270,12 +270,6 @@ Item {
         return NaN
     }
 
-    function computeBottomEchoStrength(samples) {
-        if(!samples || samples.length<3) return NaN
-        var n=Math.max(3,Math.floor(samples.length*0.10)), sum=0, count=0
-        for(var i=Math.max(0,samples.length-n);i<samples.length;i++) { var v=Number(samples[i]); if(isFinite(v)){sum+=v;count++} }
-        return count ? sum/count : NaN
-    }
 
     function coordinatesFromSonarSamples(samples) {
         var out=[]
