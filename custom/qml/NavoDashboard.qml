@@ -476,7 +476,13 @@ Item {
         root.lastNavigationStatus = "Comandă STOP/HOLD trimisă • aștept confirmarea autopilotului"
         return true
     }
-    function requireActiveLakeForPointSave() {\n        if (scanCoordinator.lakeId.length) return true\n        root.lastNavigationStatus = "Selectează sau creează o baltă pentru a păstra acest punct"\n        noActiveLakeDialog.open()\n        return false\n    }\n    function navigateToCoordinate(c) {
+    function requireActiveLakeForPointSave() {
+        if (scanCoordinator.lakeId.length) return true
+        root.lastNavigationStatus = "Selectează sau creează o baltă pentru a păstra acest punct"
+        noActiveLakeDialog.open()
+        return false
+    }
+    function navigateToCoordinate(c) {
         if (!vehicle || !c || !c.isValid) {
             root.lastNavigationStatus = "Navigatie indisponibila"
             return
@@ -490,12 +496,19 @@ Item {
     }
 
 
-    Dialog { id:noActiveLakeDialog; parent:Overlay.overlay; anchors.centerIn:parent; modal:true; title:"Baltă necesară"; standardButtons:Dialog.Cancel\n        ColumnLayout { width:Math.min(340,root.width-40); spacing:10\n            Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; text:"Selectează sau creează o baltă pentru a păstra acest punct. Punctele, sonar-ul și Area Scan vor rămâne grupate în aceeași baltă." }\n            Button { Layout.fillWidth:true; text:"DESCHIDE BĂLȚILE MELE"; onClicked:{noActiveLakeDialog.close();root.activePage=4} }\n        }\n    }\n\n    Rectangle { anchors.fill: parent; color: root.bg }
+    Dialog { id:noActiveLakeDialog; parent:Overlay.overlay; anchors.centerIn:parent; modal:true; title:"Baltă necesară"; standardButtons:Dialog.Cancel
+        ColumnLayout { width:Math.min(340,root.width-40); spacing:10
+            Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; text:"Selectează sau creează o baltă pentru a păstra acest punct. Punctele, sonar-ul și Area Scan vor rămâne grupate în aceeași baltă." }
+            Button { Layout.fillWidth:true; text:"DESCHIDE BĂLȚILE MELE"; onClicked:{noActiveLakeDialog.close();root.activePage=4} }
+        }
+    }
+
+    Rectangle { anchors.fill: parent; color: root.bg }
 
     Rectangle {
         id: header
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
-        height: 64; color: "#101822"; border.color: root.line
+        height: 64; color: "#101822"; border.color: root.line; z: 2000
         Flickable {
             anchors.fill: parent
             clip: false
@@ -542,12 +555,11 @@ Item {
             contentWidth: width
             contentHeight: navColumn.implicitHeight
             boundsBehavior: Flickable.StopAtBounds
-            ScrollBar.vertical: ScrollBar { policy: navColumn.implicitHeight > sidebar.height - 16 ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff }
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOff }
             ColumnLayout {
                 id: navColumn
                 width: parent.width
                 spacing: Math.max(3, Math.min(8, (sidebar.height - 44 - 10 * 36) / 11))
-                Label { Layout.alignment:Qt.AlignHCenter; text:"☰"; color:root.muted; font.bold:true; font.pixelSize:18; ToolTip.visible:navColumn.implicitHeight > sidebar.height - 16; ToolTip.text:"Derulează pentru mai multe funcții" }
                 NavButton { text: "HARTA"; iconSource: "qrc:/qml/NavoSmart/icons/map.svg"; active: root.activePage === 0; onClicked: root.activePage = 0 }
                 NavButton { text: "SONAR"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 1; onClicked: root.activePage = 1 }
                 NavButton { text: "AREA SCAN"; iconSource: "qrc:/qml/NavoSmart/icons/scan.svg"; active: root.activePage === 2; onClicked: root.activePage = 2 }
@@ -664,10 +676,10 @@ Item {
             Column {
                 anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom
                 anchors.topMargin: 8; anchors.rightMargin: 8; anchors.bottomMargin: 8
-                width: 58; spacing: 5
+                width: 54; spacing: 4
                 component MiniStatus: Rectangle {
                     property string title:""; property string value:""; property bool good:false; property url iconSource:""
-                    width:58; height:58; radius:7; color:"#101822"; border.color:good?root.ok:root.line
+                    width:54; height:52; radius:7; color:"#101822"; border.color:good?root.ok:root.line
                     Column { anchors.centerIn:parent; spacing:0
                         Image { anchors.horizontalCenter:parent.horizontalCenter;width:22;height:22;source:iconSource;fillMode:Image.PreserveAspectFit }
                         Label { anchors.horizontalCenter:parent.horizontalCenter; text:title; color:"#c9d4df"; font.pixelSize:7; font.bold:true }
