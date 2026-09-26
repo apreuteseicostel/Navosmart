@@ -1053,6 +1053,19 @@ Item {
                                 Layout.fillWidth: true
                                 text: modelData.name || "Baltă"
                                 flat: true
+                                contentItem: Label {
+                                    text: parent.text
+                                    color: root.text
+                                    font.bold: true
+                                    verticalAlignment: Text.AlignVCenter
+                                    horizontalAlignment: Text.AlignHCenter
+                                    elide: Text.ElideRight
+                                }
+                                background: Rectangle {
+                                    radius: 6
+                                    color: parent.hovered ? "#183248" : "transparent"
+                                    border.color: parent.hovered ? root.accent : "transparent"
+                                }
                                 onClicked: {
                                     myLakesPopup.selectLake(modelData)
                                     myLakesPopup.open()
