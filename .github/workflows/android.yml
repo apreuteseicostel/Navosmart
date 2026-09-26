@@ -39,18 +39,13 @@ jobs:
           from pathlib import Path
           p = Path("qgc/src/FlightDisplay/FlyViewMap.qml")
           src = p.read_text()
-          prop_anchor = '    property bool   pipMode:                    false   // true: map is shown in a small pip mode\n'
-          prop_line = prop_anchor + '    property bool   navosmartHideVehicleMarker: false\n'
+          prop_anchor = "    property bool   pipMode:                    false   // true: map is shown in a small pip mode\\n"
+          prop_line = prop_anchor + "    property bool   navosmartHideVehicleMarker: false\\n"
           if prop_anchor not in src:
               raise SystemExit("FlyViewMap property anchor not found in pinned v5.0.7")
           src = src.replace(prop_anchor, prop_line, 1)
-          vehicle_anchor = '''    MapItemView {
-        model: QGroundControl.multiVehicleManager.vehicles
-        delegate: VehicleMapItem {'''
-          vehicle_patch = '''    MapItemView {
-        model: QGroundControl.multiVehicleManager.vehicles
-        visible: !_root.navosmartHideVehicleMarker
-        delegate: VehicleMapItem {'''
+          vehicle_anchor = "    MapItemView {\\n        model: QGroundControl.multiVehicleManager.vehicles\\n        delegate: VehicleMapItem {"
+          vehicle_patch = "    MapItemView {\\n        model: QGroundControl.multiVehicleManager.vehicles\\n        visible: !_root.navosmartHideVehicleMarker\\n        delegate: VehicleMapItem {"
           if vehicle_anchor not in src:
               raise SystemExit("FlyViewMap vehicle marker block not found in pinned v5.0.7")
           p.write_text(src.replace(vehicle_anchor, vehicle_patch, 1))
