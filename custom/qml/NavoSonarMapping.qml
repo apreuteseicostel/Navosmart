@@ -51,7 +51,7 @@ Rectangle {
         var lat=Number(sample.lat), lon=Number(sample.lon)
         if(!isFinite(lat)||!isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180) return
         var s=rawSamples.slice(0)
-        s.push({lat:lat,lon:lon,depth:Number(sample.depth),temp:sample.temp,hardness:sample.hardness===undefined?bottomHardness:sample.hardness,bottomEcho:sample.bottomEcho===undefined?bottomEchoStrength:sample.bottomEcho,time:sample.time||Date.now()})
+        s.push({lat:lat,lon:lon,depth:Number(sample.depth),temp:sample.temp,hardness:(sample.hardness===undefined||!isFinite(Number(sample.hardness)))?bottomHardness:Number(sample.hardness),bottomEcho:(sample.bottomEcho===undefined||!isFinite(Number(sample.bottomEcho)))?bottomEchoStrength:Number(sample.bottomEcho),time:sample.time||Date.now()})
         rawSamples=s
         var c=QtPositioning.coordinate(lat,lon),t=trackCoordinates.slice(0)
         if(t.length===0 || t[t.length-1].distanceTo(c)>=1.0){t.push(c);trackCoordinates=t}
