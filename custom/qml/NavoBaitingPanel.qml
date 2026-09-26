@@ -97,7 +97,7 @@ Rectangle {
             displayText: "Alege un loc salvat"
             onActivated: function(index) { root.spotChosen(root.availableSpots[index]) }
         }
-        Button { enabled: !root.controller || !root.controller.enabled; onClicked: root.chooseOnMapRequested(); contentItem: Row { spacing:8; Image { width:22;height:22;source:"qrc:/qml/NavoSmart/icons/target.svg" } Label { anchors.verticalCenter:parent.verticalCenter;text:"ALEGE PUNCT PE HARTĂ";font.bold:true } } }
+        Button { width:42; height:38; enabled: !root.controller || !root.controller.enabled; onClicked: root.chooseOnMapRequested(); ToolTip.visible:hovered; ToolTip.text:"Alege punct pe hartă"; contentItem: Image { anchors.centerIn:parent; width:24; height:24; source:"qrc:/qml/NavoSmart/icons/target.svg"; fillMode:Image.PreserveAspectFit } }
         RowLayout {
             Layout.fillWidth: true
             Label { text: "Cuva"; color: root.secondaryTextColor }
