@@ -80,6 +80,19 @@ qt_add_qml_module(NavoSmartModule
         icons/lan.svg
         icons/nano.svg
         icons/autopilot.svg
+        icons/speed.svg
+        icons/battery.svg
+        icons/temp.svg
+        icons/satellite.svg
+        icons/mode.svg
+        icons/target.svg
+        icons/mission.svg
+        icons/zoom-in.svg
+        icons/zoom-out.svg
+        icons/center.svg
+        icons/boat.svg
+        icons/ruler.svg
+        icons/fullscreen.svg
     NO_PLUGIN
 )
 
