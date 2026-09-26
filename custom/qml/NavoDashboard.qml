@@ -476,7 +476,7 @@ Item {
         root.lastNavigationStatus = "Comandă STOP/HOLD trimisă • aștept confirmarea autopilotului"
         return true
     }
-    function navigateToCoordinate(c) {
+    function requireActiveLakeForPointSave() {\n        if (scanCoordinator.lakeId.length) return true\n        root.lastNavigationStatus = "Selectează sau creează o baltă pentru a păstra acest punct"\n        noActiveLakeDialog.open()\n        return false\n    }\n    function navigateToCoordinate(c) {
         if (!vehicle || !c || !c.isValid) {
             root.lastNavigationStatus = "Navigatie indisponibila"
             return
@@ -490,7 +490,7 @@ Item {
     }
 
 
-    Rectangle { anchors.fill: parent; color: root.bg }
+    Dialog { id:noActiveLakeDialog; parent:Overlay.overlay; anchors.centerIn:parent; modal:true; title:"Baltă necesară"; standardButtons:Dialog.Cancel\n        ColumnLayout { width:Math.min(340,root.width-40); spacing:10\n            Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; text:"Selectează sau creează o baltă pentru a păstra acest punct. Punctele, sonar-ul și Area Scan vor rămâne grupate în aceeași baltă." }\n            Button { Layout.fillWidth:true; text:"DESCHIDE BĂLȚILE MELE"; onClicked:{noActiveLakeDialog.close();root.activePage=4} }\n        }\n    }\n\n    Rectangle { anchors.fill: parent; color: root.bg }
 
     Rectangle {
         id: header
@@ -648,12 +648,12 @@ Item {
                     root.activePage=2
                 }
                 onSaveNamedPointRequested: function(coordinate,name,markerColor) {
-                    if(!scanCoordinator.lakeId.length){root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
+                    if(!root.requireActiveLakeForPointSave()) return
                     var spot=fishingSpots.saveSpot(coordinate,NaN,NaN,name,"Punct ales pe hartă",null,markerColor)
                     if(spot){scanCoordinator.checkpoint("fishing-spot-map");root.lastNavigationStatus="Punct salvat: "+spot.name}
                 }
                 onSavePointRequested: function(coordinate) {
-                    if(!scanCoordinator.lakeId.length) {root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
+                    if(!root.requireActiveLakeForPointSave()) return
                     var spot = fishingSpots.saveSpot(coordinate, root.depthM, root.waterTempC, "", "", null)
                     if (spot) {
                         scanCoordinator.checkpoint("fishing-spot")
@@ -716,7 +716,7 @@ Item {
                     latitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.latitude : NaN
                     longitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.longitude : NaN
                     onSaveWaypointRequested: function(latitude, longitude, depth, temp) {
-                        if(!scanCoordinator.lakeId.length) {root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
+                        if(!root.requireActiveLakeForPointSave()) return
                         var spot=fishingSpots.saveSpot(QtPositioning.coordinate(latitude,longitude),depth,temp,"","",null)
                         if(spot){scanCoordinator.checkpoint("sonar-fishing-spot");root.lastNavigationStatus="Punct sonar salvat: "+spot.name}
                     }
@@ -797,7 +797,7 @@ Item {
                             onMaximizeRequested: root.mapMaximized = !root.mapMaximized
                             onAreaRectangleRequested: function(cornerA, cornerB) { missionUploader.invalidate(); var pts=scanCoordinator.prepareRectangle(cornerA,cornerB); root.lastNavigationStatus=pts.length ? "Area Scan dreptunghi pregătit • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP • apasă PREGĂTEȘTE MISIUNEA" : "Dreptunghi respins: "+areaScanController.lastError; root.pendingAreaDrawMode="none" }
                             onAreaPolygonRequested: function(polygon) { missionUploader.invalidate(); var pts=scanCoordinator.preparePolygon(polygon); root.lastNavigationStatus=pts.length ? "Area Scan poligon pregătit • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP • apasă PREGĂTEȘTE MISIUNEA" : "Poligon respins: "+areaScanController.lastError; root.pendingAreaDrawMode="none" }
-                            onSavePointRequested: function(coordinate) { if(!scanCoordinator.lakeId.length){root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}; var spot=fishingSpots.saveSpot(coordinate,root.depthM,root.waterTempC,"","",null); if(spot) scanCoordinator.checkpoint("fishing-spot") }
+                            onSavePointRequested: function(coordinate) { if(!root.requireActiveLakeForPointSave()) return; var spot=fishingSpots.saveSpot(coordinate,root.depthM,root.waterTempC,"","",null); if(spot) scanCoordinator.checkpoint("fishing-spot") }
                         }
                     }
                     Flow {
@@ -878,12 +878,12 @@ Item {
                         onFishingSpotRenameRequested:function(spot){fishingPageRoot.openEdit(spot)}
                         onBaitingWaypointSelected:function(wp){baitingController.targetWaypoint=wp;root.lastNavigationStatus="Punct de nădire ales: "+wp.name}
                         onSaveNamedPointRequested:function(c,name,markerColor){
-                            if(!scanCoordinator.lakeId.length){root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
+                            if(!root.requireActiveLakeForPointSave()) return
                             var s=fishingSpots.saveSpot(c,NaN,NaN,name,"Punct ales pe hartă",null,markerColor)
                             if(s){scanCoordinator.checkpoint("fishing-spot-map");root.lastNavigationStatus="Punct salvat: "+s.name}
                         }
                         onSavePointRequested:function(c){
-                            if(!scanCoordinator.lakeId.length){root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
+                            if(!root.requireActiveLakeForPointSave()) return
                             var s=fishingSpots.saveSpot(c,root.depthM,root.waterTempC,"","Poziția bărcii",null,"#31d67b")
                             if(s){scanCoordinator.checkpoint("fishing-spot-boat");root.lastNavigationStatus="Poziția bărcii salvată: "+s.name}
                         }
@@ -1155,7 +1155,7 @@ Item {
                             root.lastNavigationStatus="Punct de nădire selectat: "+(wp.name||"Punct")
                         }
                         onSaveNamedPointRequested: function(coordinate,name,markerColor) {
-                            if(!scanCoordinator.lakeId.length){root.lastNavigationStatus="Selectează o baltă înainte de salvare";return}
+                            if(!root.requireActiveLakeForPointSave()) return
                             fishingSpots.saveSpot(coordinate,NaN,NaN,name,"Punct ales pe hartă",null,markerColor)
                         }
                         onFishingSpotRenameRequested: function(spot) { root.lastNavigationStatus="Redenumirea punctului este disponibilă în PUNCTE PESCUIT" }

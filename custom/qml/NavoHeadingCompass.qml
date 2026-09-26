@@ -22,7 +22,7 @@ Item {
 
     implicitWidth: 180; implicitHeight: 180
     z: expanded ? 10000 : 0
-    scale: expanded ? 2.35 : 1.0
+    scale: expanded ? 2.35 : 1.0\n    y: expanded ? 18 : 0
     transformOrigin: Item.TopRight
     Behavior on scale { NumberAnimation { duration: 160 } }
 
