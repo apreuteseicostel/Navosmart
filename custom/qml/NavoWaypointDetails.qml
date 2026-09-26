@@ -70,8 +70,8 @@ Rectangle {
         RowLayout {
             Layout.fillWidth: true
             spacing: 7
-            Button { width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Navighează aici";enabled:root.vehiclePositionValid&&root.coordinateValid;contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/navigate.svg"};onClicked:root.navigateRequested(root.waypoint) }
-            Button { width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Editează";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/edit.svg"};onClicked:root.editRequested(root.waypoint) }
+            Button { width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Navighează aici";enabled:root.vehiclePositionValid&&root.coordinateValid;contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/navigate.svg"}onClicked:root.navigateRequested(root.waypoint) }
+            Button { width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Editează";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/edit.svg"}onClicked:root.editRequested(root.waypoint) }
         }
     }
 
