@@ -1193,7 +1193,6 @@ Item {
                 anchors.fill:parent; anchors.margins:root.responsiveMargin; spacing:root.responsiveGap
                 ColumnLayout {
                     Layout.fillWidth:true; Layout.fillHeight:true; Layout.preferredWidth:1
-                    Label { text:"SIGURANȚĂ & FAILSAFE"; color:root.text; font.pixelSize:root.compactUi ? 15 : 18; font.bold:true }
                     NavoFailsafePanel {
                         Layout.fillWidth:true
                         Layout.alignment:Qt.AlignTop
@@ -1208,10 +1207,17 @@ Item {
                 Rectangle {
                     Layout.fillWidth:true; Layout.fillHeight:true; Layout.preferredWidth:1
                     radius:8; color:root.bg; border.color:root.line
-                    ColumnLayout {
-                        anchors.fill:parent; anchors.margins:root.compactUi ? 7 : 9; spacing:root.compactUi ? 4 : 6
-                        Label { text:"CUVE & SIGURANȚĂ HARDWARE"; color:"#f4f7fb"; font.pixelSize:15; font.bold:true }
-                        Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; color:"#ffd24a"; font.pixelSize:11; font.bold:true; text:"Confirmă ieșirile și PWM-urile pe banc înainte de activare. Telemetria PWM nu confirmă calibrarea mecanică." }
+                    ScrollView {
+                        id: hardwareSafetyScroll
+                        anchors.fill: parent
+                        anchors.margins: root.compactUi ? 7 : 9
+                        clip: true
+                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                        contentWidth: availableWidth
+                        ColumnLayout {
+                            width: hardwareSafetyScroll.availableWidth
+                            spacing: root.compactUi ? 4 : 6
+                            Label { text:"CUVE & SIGURANȚĂ HARDWARE"; color:"#f4f7fb"; font.pixelSize:15; font.bold:true }
                         GridLayout {
                             columns:3; Layout.fillWidth:true; columnSpacing:root.compactUi ? 5 : 7; rowSpacing:root.compactUi ? 3 : 5
                             Label { text:"Cuva"; color:root.text } Label { text:"Stânga"; color:root.text } Label { text:"Dreapta"; color:root.text }
@@ -1225,16 +1231,23 @@ Item {
                             SpinBox { Layout.fillWidth:true; Layout.minimumWidth:86; from:900;to:2100;value:hopperSettings.leftOpen;onValueModified:{hopperSettings.confirmed=false;hopperSettings.leftOpen=value} }
                             SpinBox { Layout.fillWidth:true; Layout.minimumWidth:86; from:900;to:2100;value:hopperSettings.rightOpen;onValueModified:{hopperSettings.confirmed=false;hopperSettings.rightOpen=value} }
                         }
-                        CheckBox {
-                            Layout.fillWidth:true
-                            text:"Am verificat mecanic calibrarea cuvelor"
-                            palette.text:"#f4f7fb"
-                            checked:hopperSettings.confirmed
-                            enabled: true
-                            ToolTip.visible: hovered
-                            ToolTip.text: "Confirmarea mecanică este disponibilă și cu Nano offline"
-                            onToggled:hopperSettings.confirmed=checked
-                        }
+                            CheckBox {
+                                Layout.fillWidth: true
+                                text: "Am verificat mecanic calibrarea cuvelor"
+                                checked: hopperSettings.confirmed
+                                enabled: true
+                                contentItem: Label {
+                                    text: parent.text
+                                    color: "#f4f7fb"
+                                    font.pixelSize: 12
+                                    wrapMode: Text.WordWrap
+                                    verticalAlignment: Text.AlignVCenter
+                                    leftPadding: parent.indicator ? parent.indicator.width + parent.spacing : 30
+                                }
+                                ToolTip.visible: hovered
+                                ToolTip.text: "Confirmarea mecanică este disponibilă și cu Nano offline"
+                                onToggled: hopperSettings.confirmed = checked
+                            }
                         Rectangle {
                             Layout.fillWidth:true; Layout.preferredHeight:root.compactUi ? 58 : 64; radius:7
                             color:root.panel; border.color:safetyManager.state==="CRITICAL"?root.danger:root.line
@@ -1255,7 +1268,8 @@ Item {
                                 }
                             }
                         }
-                        Item { Layout.fillHeight:true }
+                            Item { Layout.fillHeight: true }
+                        }
                     }
                 }
             }
