@@ -196,7 +196,7 @@ Item {
     readonly property real depthM: sonar.depthM
     readonly property real waterTempC: sonar.waterTempC
     readonly property bool sonarConnected: sonar.connected && sonar.dataAlive
-    readonly property real bottomEchoStrength: root.computeBottomEchoStrength(sonar.echoSamples)
+    readonly property real bottomEchoStrength: sonar.bottomEchoStrength
     readonly property real bottomHardnessPercent: isNaN(root.bottomEchoStrength) ? NaN : Math.max(0, Math.min(100, root.bottomEchoStrength * 100))
     property alias fishDetections: fishStore.detections
     property string cameraStreamUrl: ""
@@ -299,7 +299,7 @@ Item {
         onGeoSample: function(sample) {
             // Depth and CHART can arrive in separate Kogger frames. Persist the
             // latest complete CHART metrics together with this geo/depth sample.
-            var echo = root.computeBottomEchoStrength(sonar.echoSamples)
+            var echo = sonar.echoFresh ? sonar.bottomEchoStrength : NaN
             var enriched = {time:sample.time, lat:sample.lat, lon:sample.lon,
                             heading:sample.heading, depth:sample.depth, temp:sample.temp,
                             bottomEcho:echo,
