@@ -80,16 +80,7 @@ Popup {
    }
    Label{anchors.centerIn:parent;visible:!root.connected;text:"Aștept date reale de la Kogger\nEcograma nu este simulată";horizontalAlignment:Text.AlignHCenter;color:"#9db2c5";font.pixelSize:18}
   }
-  Rectangle{visible:root.width>=1100;Layout.preferredWidth:visible?50:0;Layout.fillHeight:true;color:"#06131e";border.color:"#1c4262";radius:6
-   Column{anchors.fill:parent;anchors.margins:6;spacing:4
-    Label{text:"Putere";color:"#9db2c5";font.pixelSize:11;anchors.horizontalCenter:parent.horizontalCenter}
-    Label{text:"ecou";color:"#9db2c5";font.pixelSize:11;anchors.horizontalCenter:parent.horizontalCenter}
-    Rectangle{width:22;height:Math.max(80,parent.height-80);anchors.horizontalCenter:parent.horizontalCenter
-     gradient:Gradient{GradientStop{position:0;color:"#f44b2e"}GradientStop{position:.28;color:"#f6da46"}GradientStop{position:.52;color:"#32d26f"}GradientStop{position:.75;color:"#1ccde1"}GradientStop{position:1;color:"#105caa"}}
-    }
-    Label{text:"Slab";color:"#9db2c5";font.pixelSize:10;anchors.horizontalCenter:parent.horizontalCenter}
-   }
-  }
+  Rectangle{Layout.preferredWidth:22;Layout.fillHeight:true;color:"#06131e";border.color:"#1c4262";radius:3;ToolTip.visible:legendMouse.containsMouse;ToolTip.text:"Putere ecou: puternic → slab"\n   Rectangle{anchors.fill:parent;anchors.margins:3;gradient:Gradient{GradientStop{position:0;color:"#f44b2e"}GradientStop{position:.28;color:"#f6da46"}GradientStop{position:.52;color:"#32d26f"}GradientStop{position:.75;color:"#1ccde1"}GradientStop{position:1;color:"#105caa"}}}\n   MouseArea{id:legendMouse;anchors.fill:parent;hoverEnabled:true}\n  }\n
   Rectangle{visible:root.width>=1350;Layout.preferredWidth:visible?180:0;Layout.fillHeight:true;color:"#06131e";border.color:"#1c4262";radius:8
    ColumnLayout{anchors.fill:parent;anchors.margins:10;spacing:8
     Label{text:"ADÂNCIME";color:"#9db2c5"} Label{text:isNaN(root.depthM)?"-- m":root.depthM.toFixed(1)+" m";color:"#f2f7fb";font.pixelSize:30;font.bold:true}
