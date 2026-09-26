@@ -1386,8 +1386,7 @@ Item {
         Layout.fillWidth: true
         Layout.preferredHeight: Math.max(32, Math.min(40, (sidebar.height - 70) / 9))
         background: Rectangle { radius: 6; color: parent.active ? "#183248" : "transparent"; border.color: parent.active ? root.accent : "transparent" }
-        contentItem: Image { anchors.centerIn:parent; width:26; height:26; source:parent.iconSource; fillMode:Image.PreserveAspectFit }
-        contentItem: Label { text: parent.text; color: parent.active ? root.accent : root.text; verticalAlignment: Text.AlignVCenter; leftPadding: 8; font.pixelSize: Math.max(11, Math.min(14, parent.height * 0.36)); font.bold: parent.active; elide: Text.ElideRight }
+        contentItem: Image { anchors.centerIn: parent; width: 26; height: 26; source: parent.iconSource; fillMode: Image.PreserveAspectFit }
     }
 
     component DataLine: RowLayout {
