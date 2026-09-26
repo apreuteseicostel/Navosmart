@@ -386,7 +386,7 @@ Item {
         MapTool { text:"CTR";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:"Reîncadrează harta și revine la orientarea Nord sus";onClicked:root.resetView() }
     }
     Column {
-        anchors.right:parent.right;anchors.top:parent.top;anchors.margins:10;spacing:5;z:200
+        anchors.right:parent.right;anchors.top:parent.top;anchors.rightMargin:10;anchors.topMargin:34;spacing:5;z:200
         property int controlSize:56
         component RightTool: Button {
             width:56;height:56;padding:0;font.pixelSize:22;font.bold:true
