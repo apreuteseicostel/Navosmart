@@ -31,6 +31,29 @@ jobs:
           sed -i '/import NavoSmart.Backend 1.0/i import NavoSmart 1.0' qgc/custom/qml/NavoDashboard.qml
           sed -i 's/QGroundControl\.FlyView/QGroundControl.FlightDisplay/g' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
           sed -i '/QGroundControl\.PlanView/d' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
+          # NAVO draws its own boat marker in NavoMap.qml. Remove only QGC's
+          # default active-vehicle VehicleMapItem so the purple triangle is not
+          # rendered underneath the NAVO boat. Telemetry and Vehicle stay intact.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("qgc/src/FlightDisplay/FlyViewMap.qml")
+          s = p.read_text()
+          block = """    // Add the vehicles to the map
+    MapItemView {
+        model: QGroundControl.multiVehicleManager.vehicles
+        delegate: VehicleMapItem {
+            vehicle:        object
+            coordinate:     object.coordinate
+            map:            _root
+            size:           pipMode ? ScreenTools.defaultFontPixelHeight : ScreenTools.defaultFontPixelHeight * 3
+            z:              QGroundControl.zOrderVehicles
+        }
+    }
+"""
+          if block not in s:
+              raise SystemExit("NAVO: QGC vehicle marker block changed; refusing unsafe patch")
+          p.write_text(s.replace(block, "    // NAVO: default QGC vehicle marker intentionally suppressed.\n", 1))
+          PY
           sed -i 's/GIT_TAG main/GIT_TAG caf5158061bd10e79c9f042abb62c86bc6f3e7a7/' qgc/src/GPS/CMakeLists.txt
           # NAVO replaces QGC FlyView through the custom URL interceptor.
           # Do not patch upstream Viewer3D here: the old text patch was brittle and
