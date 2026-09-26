@@ -375,15 +375,16 @@ Item {
         spacing:5; z:200
         property int controlSize:56
         component MapTool: Button {
+            property url iconSource: ""
             width:56;height:56;padding:0
             font.pixelSize:26;font.bold:true
             background:Rectangle { radius:8;color:"#800d1722";border.color:"#8027394b";border.width:1 }
-            contentItem:Label { text:parent.text;color:"#f4f7fb";font.pixelSize:parent.font.pixelSize;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter }
+            contentItem:Image { anchors.centerIn:parent;width:28;height:28;source:parent.iconSource;fillMode:Image.PreserveAspectFit }
         }
-        MapTool { text:"BOAT"; font.pixelSize:9; ToolTip.visible:hovered;ToolTip.text:"Centrează pe poziția actuală a bărcii";enabled:!!root.vehicle&&!!root.vehicle.coordinate&&root.vehicle.coordinate.isValid;onClicked:liveMap.center=root.vehicle.coordinate }
-        MapTool { text:"+";ToolTip.visible:hovered;ToolTip.text:"Mărește harta";onClicked:liveMap.zoomLevel=liveMap.zoomLevel+1 }
-        MapTool { text:"-";ToolTip.visible:hovered;ToolTip.text:"Micșorează harta";onClicked:liveMap.zoomLevel=liveMap.zoomLevel-1 }
-        MapTool { text:"CTR";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:"Reîncadrează harta și revine la orientarea Nord sus";onClicked:root.resetView() }
+        MapTool { text:"BOAT"; iconSource:"qrc:/qml/NavoSmart/icons/boat.svg"; font.pixelSize:9; ToolTip.visible:hovered;ToolTip.text:"Centrează pe poziția actuală a bărcii";enabled:!!root.vehicle&&!!root.vehicle.coordinate&&root.vehicle.coordinate.isValid;onClicked:liveMap.center=root.vehicle.coordinate }
+        MapTool { text:"+"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-in.svg";ToolTip.visible:hovered;ToolTip.text:"Mărește harta";onClicked:liveMap.zoomLevel=liveMap.zoomLevel+1 }
+        MapTool { text:"-"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-out.svg";ToolTip.visible:hovered;ToolTip.text:"Micșorează harta";onClicked:liveMap.zoomLevel=liveMap.zoomLevel-1 }
+        MapTool { text:"CTR"; iconSource:"qrc:/qml/NavoSmart/icons/center.svg";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:"Reîncadrează harta și revine la orientarea Nord sus";onClicked:root.resetView() }
     }
     Column {
         anchors.right:parent.right;anchors.top:parent.top;anchors.rightMargin:10;anchors.topMargin:34;spacing:5;z:200
@@ -396,8 +397,8 @@ Item {
         }
         RightTool { text:"MAP"; iconSource:"qrc:/qml/NavoSmart/icons/map.svg";font.pixelSize:11;checkable:true;checked:root.bathymetryHDEnabled;ToolTip.visible:hovered;ToolTip.text:root.bathymetryHDEnabled?"Ascunde batimetria HD":"Afișează batimetria HD";onClicked:root.toggleMapLayer() }
         RightTool { text:"HD"; iconSource:"qrc:/qml/NavoSmart/icons/lake.svg";font.pixelSize:14;checkable:true;checked:root.headingUp;ToolTip.visible:hovered;ToolTip.text:root.headingUp?"Heading Up activ • apasă pentru Nord sus":"Heading Up • rotește după barcă";onClicked:root.headingUp=!root.headingUp }
-        RightTool { text:"RUL"; iconSource:"qrc:/qml/NavoSmart/icons/scan.svg";font.pixelSize:11;checkable:true;checked:root.rulerMode;ToolTip.visible:hovered;ToolTip.text:root.rulerMode?root.rulerDistanceText():"Măsoară distanța între două puncte";onClicked:root.toggleRuler() }
-        RightTool { text:root.maximized?"MIN":"MAX"; iconSource:"qrc:/qml/NavoSmart/icons/cube.svg";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:root.maximized?"Revino la dashboard":"Hartă pe tot ecranul";onClicked:root.maximizeRequested() }
+        RightTool { text:"RUL"; iconSource:"qrc:/qml/NavoSmart/icons/ruler.svg";font.pixelSize:11;checkable:true;checked:root.rulerMode;ToolTip.visible:hovered;ToolTip.text:root.rulerMode?root.rulerDistanceText():"Măsoară distanța între două puncte";onClicked:root.toggleRuler() }
+        RightTool { text:root.maximized?"MIN":"MAX"; iconSource:"qrc:/qml/NavoSmart/icons/fullscreen.svg";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:root.maximized?"Revino la dashboard":"Hartă pe tot ecranul";onClicked:root.maximizeRequested() }
     }
     Rectangle {
         visible: root.showStatusHint
