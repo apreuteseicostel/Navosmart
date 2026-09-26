@@ -1346,12 +1346,12 @@ Item {
         property string title: ""
         property string value: "--"
         property bool good: false
-        Layout.preferredWidth: 100; Layout.preferredHeight: 42; radius: 7
+        Layout.preferredWidth: 82; Layout.preferredHeight: 38; radius: 7
         color: root.panel; border.color: good ? root.ok : root.line
         Column {
             anchors.centerIn: parent; spacing: 0
-            Label { anchors.horizontalCenter: parent.horizontalCenter; text: title; color: root.muted; font.pixelSize: 9 }
-            Label { anchors.horizontalCenter: parent.horizontalCenter; text: value; color: good ? root.ok : root.text; font.pixelSize: 12; font.bold: true }
+            Label { anchors.horizontalCenter: parent.horizontalCenter; text: title; color: root.muted; font.pixelSize: 8 }
+            Label { anchors.horizontalCenter: parent.horizontalCenter; text: value; color: good ? root.ok : root.text; font.pixelSize: 11; font.bold: true }
         }
     }
 
