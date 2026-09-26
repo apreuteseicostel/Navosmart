@@ -86,7 +86,7 @@ Rectangle {
             Image { width:26;height:26;source:"qrc:/qml/NavoSmart/icons/bait.svg";fillMode:Image.PreserveAspectFit }
             Label { text:"NĂDIRE"; color:"white"; font.bold:true; font.pixelSize:15 }
             Label { Layout.fillWidth:true; text:"ȚINTĂ: "+root.waypointName+"  •  CUVA: "+hopperBox.currentText; color:"#21b7ff"; font.bold:true; font.pixelSize:11; elide:Text.ElideRight; horizontalAlignment:Text.AlignRight }
-            ToolButton { text:"⚙"; font.pixelSize:18; enabled:!root.controller || !root.controller.enabled; onClicked:settingsPopup.open(); ToolTip.visible:hovered; ToolTip.text:"Setări nădire" }
+            ToolButton { Layout.preferredWidth:40; Layout.preferredHeight:38; text:"⚙"; font.pixelSize:18; enabled:!root.controller || !root.controller.enabled; onClicked:settingsPopup.open(); ToolTip.visible:hovered; ToolTip.text:"Setări nădire" }
         }
         ComboBox {
             Layout.fillWidth: true
@@ -97,7 +97,7 @@ Rectangle {
             displayText: "Alege un loc salvat"
             onActivated: function(index) { root.spotChosen(root.availableSpots[index]) }
         }
-        Button { width:42; height:38; enabled: !root.controller || !root.controller.enabled; onClicked: root.chooseOnMapRequested(); ToolTip.visible:hovered; ToolTip.text:"Alege punct pe hartă"; contentItem: Image { anchors.centerIn:parent; width:24; height:24; source:"qrc:/qml/NavoSmart/icons/target.svg"; fillMode:Image.PreserveAspectFit } }
+        Button { Layout.preferredWidth:42; Layout.maximumWidth:42; Layout.preferredHeight:38; enabled: !root.controller || !root.controller.enabled; onClicked: root.chooseOnMapRequested(); ToolTip.visible:hovered; ToolTip.text:"Alege punct pe hartă"; contentItem: Image { anchors.centerIn:parent; width:24; height:24; source:"qrc:/qml/NavoSmart/icons/target.svg"; fillMode:Image.PreserveAspectFit } }
         RowLayout {
             Layout.fillWidth: true
             Label { text: "Cuva"; color: root.secondaryTextColor }
@@ -118,7 +118,7 @@ Rectangle {
                 enabled: !!root.waypoint && !!root.controller && !root.controller.enabled
                 onClicked: confirmDialog.open()
             }
-            Button { width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Oprește nădirea";enabled:!!root.controller&&root.controller.enabled;contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/stop.svg"}
+            Button { Layout.preferredWidth:42; Layout.maximumWidth:42; Layout.preferredHeight:38;ToolTip.visible:hovered;ToolTip.text:"Oprește nădirea";enabled:!!root.controller&&root.controller.enabled;contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/stop.svg"}
                 onClicked:root.abortRequested() }
         }
         Rectangle {

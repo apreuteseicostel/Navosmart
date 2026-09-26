@@ -373,13 +373,13 @@ Item {
         id: mapControls
         anchors.left:parent.left; anchors.top:parent.top; anchors.margins:10
         spacing:5; z:200
-        property int controlSize:56
+        property int controlSize:44
         component MapTool: Button {
             property url iconSource: ""
-            width:56;height:56;padding:0
-            font.pixelSize:26;font.bold:true
+            width:44;height:44;padding:0
+            font.pixelSize:22;font.bold:true
             background:Rectangle { radius:8;color:"#800d1722";border.color:"#8027394b";border.width:1 }
-            contentItem:Image { anchors.centerIn:parent;width:28;height:28;source:parent.iconSource;fillMode:Image.PreserveAspectFit }
+            contentItem:Image { anchors.centerIn:parent;width:23;height:23;source:parent.iconSource;fillMode:Image.PreserveAspectFit }
         }
         MapTool { text:"BOAT"; iconSource:"qrc:/qml/NavoSmart/icons/boat.svg"; font.pixelSize:9; ToolTip.visible:hovered;ToolTip.text:"Centrează pe poziția actuală a bărcii";enabled:!!root.vehicle&&!!root.vehicle.coordinate&&root.vehicle.coordinate.isValid;onClicked:liveMap.center=root.vehicle.coordinate }
         MapTool { text:"+"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-in.svg";ToolTip.visible:hovered;ToolTip.text:"Mărește harta";onClicked:liveMap.zoomLevel=liveMap.zoomLevel+1 }
@@ -388,12 +388,12 @@ Item {
     }
     Column {
         anchors.right:parent.right;anchors.top:parent.top;anchors.rightMargin:10;anchors.topMargin:34;spacing:5;z:200
-        property int controlSize:56
+        property int controlSize:44
         component RightTool: Button {
             property url iconSource: ""
-            width:56;height:56;padding:0;font.pixelSize:22;font.bold:true
+            width:44;height:44;padding:0;font.pixelSize:18;font.bold:true
             background:Rectangle { radius:8;color:"#800d1722";border.color:"#8027394b" }
-            contentItem:Image { anchors.centerIn:parent;width:28;height:28;source:parent.iconSource;fillMode:Image.PreserveAspectFit }
+            contentItem:Image { anchors.centerIn:parent;width:23;height:23;source:parent.iconSource;fillMode:Image.PreserveAspectFit }
         }
         RightTool { text:"MAP"; iconSource:"qrc:/qml/NavoSmart/icons/map.svg";font.pixelSize:11;checkable:true;checked:root.bathymetryHDEnabled;ToolTip.visible:hovered;ToolTip.text:root.bathymetryHDEnabled?"Ascunde batimetria HD":"Afișează batimetria HD";onClicked:root.toggleMapLayer() }
         RightTool { text:"HD"; iconSource:"qrc:/qml/NavoSmart/icons/lake.svg";font.pixelSize:14;checkable:true;checked:root.headingUp;ToolTip.visible:hovered;ToolTip.text:root.headingUp?"Heading Up activ • apasă pentru Nord sus":"Heading Up • rotește după barcă";onClicked:root.headingUp=!root.headingUp }

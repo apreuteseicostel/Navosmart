@@ -1384,9 +1384,9 @@ Item {
         ToolTip.visible: hovered
         ToolTip.text: text
         Layout.fillWidth: true
-        Layout.preferredHeight: Math.max(32, Math.min(40, (sidebar.height - 70) / 9))
+        Layout.preferredHeight: Math.max(38, Math.min(46, (sidebar.height - 58) / 9))
         background: Rectangle { radius: 6; color: parent.active ? "#183248" : "transparent"; border.color: parent.active ? root.accent : "transparent" }
-        contentItem: Image { anchors.centerIn: parent; width: 26; height: 26; source: parent.iconSource; fillMode: Image.PreserveAspectFit }
+        contentItem: Image { anchors.centerIn: parent; width: 32; height: 32; source: parent.iconSource; fillMode: Image.PreserveAspectFit }
     }
 
     component DataLine: RowLayout {
