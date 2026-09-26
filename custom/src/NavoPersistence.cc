@@ -10,6 +10,7 @@ static QByteArray jsonMap(const QVariantMap& m){return QJsonDocument(QJsonObject
 static QByteArray jsonList(const QVariantList& l){return QJsonDocument(QJsonArray::fromVariantList(l)).toJson(QJsonDocument::Compact);}
 
 NavoPersistence::NavoPersistence(QObject* p):QObject(p){_sonarSaveTimer.setSingleShot(true);_sonarSaveTimer.setInterval(2000);connect(&_sonarSaveTimer,&QTimer::timeout,this,&NavoPersistence::flushSonar);load();}
+NavoPersistence::~NavoPersistence(){if(_sonarSaveTimer.isActive())flushSonar();}
 void NavoPersistence::syncSettings(){QSettings s;s.sync();}
 void NavoPersistence::load(){QSettings s;auto w=QJsonDocument::fromJson(s.value("navo/waypointNames").toByteArray());if(w.isObject())_waypointNames=w.object().toVariantMap();auto a=QJsonDocument::fromJson(s.value("navo/sonarSamples").toByteArray());if(a.isArray())_sonarSamples=a.array().toVariantList();auto b=QJsonDocument::fromJson(s.value("navo/bathymetrySessions").toByteArray());if(b.isArray())_bathymetrySessions=b.array().toVariantList();auto l=QJsonDocument::fromJson(s.value("navo/lakes").toByteArray());if(l.isArray())_lakes=l.array().toVariantList();}
 void NavoPersistence::saveWaypoints(){QSettings s;s.setValue("navo/waypointNames",jsonMap(_waypointNames));s.sync();}
