@@ -98,7 +98,7 @@ Popup {
     Label{text:"FUND (duritate): "+(isNaN(root.bottomHardnessPercent)?"--":Math.round(root.bottomHardnessPercent)+"%");color:root.bottomColor(isNaN(root.bottomEchoStrength)?0:root.bottomEchoStrength)}
     Label{visible:root.transport;text:root.transport?"RX "+root.transport.rxBytes+" B / "+root.transport.rxChunks:"";color:"#9db2c5";font.pixelSize:12}
     Item{Layout.fillHeight:true}
-    Button{width:42;height:38;visible:root.transport;ToolTip.visible:hovered;ToolTip.text:root.transport&&root.transport.connected?"Deconectează Kogger":"Conectează Kogger";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/sonar.svg"};onClicked:{if(root.transport.connected)root.transport.disconnectFromSonar();else root.transport.connectToSonar()}}
+    Button{width:42;height:38;visible:root.transport;ToolTip.visible:hovered;ToolTip.text:root.transport&&root.transport.connected?"Deconectează Kogger":"Conectează Kogger";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/sonar.svg"}onClicked:{if(root.transport.connected)root.transport.disconnectFromSonar();else root.transport.connectToSonar()}}
    }
   }
 }
