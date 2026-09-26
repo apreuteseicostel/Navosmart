@@ -297,8 +297,15 @@ Item {
         id: sonar
         vehicle: root.vehicle
         onGeoSample: function(sample) {
-            persistence.addSonarSample(sample)
-            sonarMapping.ingestSample(sample)
+            // Depth and CHART can arrive in separate Kogger frames. Persist the
+            // latest complete CHART metrics together with this geo/depth sample.
+            var echo = root.computeBottomEchoStrength(sonar.echoSamples)
+            var enriched = {time:sample.time, lat:sample.lat, lon:sample.lon,
+                            heading:sample.heading, depth:sample.depth, temp:sample.temp,
+                            bottomEcho:echo,
+                            hardness:isNaN(echo)?NaN:Math.max(0,Math.min(100,echo*100))}
+            persistence.addSonarSample(enriched)
+            sonarMapping.ingestSample(enriched)
         }
     }
     property bool sonarLossHandled: false
