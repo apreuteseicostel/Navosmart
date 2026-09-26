@@ -548,16 +548,16 @@ Item {
                 width: parent.width
                 spacing: Math.max(3, Math.min(8, (sidebar.height - 44 - 10 * 36) / 11))
                 Label { text: navColumn.implicitHeight > sidebar.height - 16 ? "NAVIGAȚIE ↓" : "NAVIGAȚIE"; color: root.muted; font.bold: true; font.pixelSize: 13 }
-                NavButton { text: "HARTA"; active: root.activePage === 0; onClicked: root.activePage = 0 }
-                NavButton { text: "SONAR"; active: root.activePage === 1; onClicked: root.activePage = 1 }
-                NavButton { text: "AREA SCAN"; active: root.activePage === 2; onClicked: root.activePage = 2 }
-                NavButton { text: "PUNCTE PESCUIT"; active: root.activePage === 3; onClicked: root.activePage = 3 }
-                NavButton { text: "BALȚILE MELE"; active: root.activePage === 4; onClicked: root.activePage = 4 }
-                NavButton { text: "CAMERA"; active: root.activePage === 5; onClicked: root.activePage = 5 }
-                NavButton { text: "3D"; active: root.activePage === 7; onClicked: root.activePage = 7 }
-                NavButton { text: "NĂDIRE"; active: root.activePage === 8; onClicked: root.activePage = 8 }
-                NavButton { text: "SIGURANȚĂ"; active: root.activePage === 9; onClicked: root.activePage = 9 }
-                NavButton { text: "SETARI"; active: root.activePage === 6; onClicked: root.activePage = 6 }
+                NavButton { text: "HARTA"; iconSource: "qrc:/qml/NavoSmart/icons/map.svg"; active: root.activePage === 0; onClicked: root.activePage = 0 }
+                NavButton { text: "SONAR"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 1; onClicked: root.activePage = 1 }
+                NavButton { text: "AREA SCAN"; iconSource: "qrc:/qml/NavoSmart/icons/scan.svg"; active: root.activePage === 2; onClicked: root.activePage = 2 }
+                NavButton { text: "PUNCTE PESCUIT"; iconSource: "qrc:/qml/NavoSmart/icons/fish.svg"; active: root.activePage === 3; onClicked: root.activePage = 3 }
+                NavButton { text: "BALȚILE MELE"; iconSource: "qrc:/qml/NavoSmart/icons/lake.svg"; active: root.activePage === 4; onClicked: root.activePage = 4 }
+                NavButton { text: "CAMERA"; iconSource: "qrc:/qml/NavoSmart/icons/camera.svg"; active: root.activePage === 5; onClicked: root.activePage = 5 }
+                NavButton { text: "3D"; iconSource: "qrc:/qml/NavoSmart/icons/cube.svg"; active: root.activePage === 7; onClicked: root.activePage = 7 }
+                NavButton { text: "NĂDIRE"; iconSource: "qrc:/qml/NavoSmart/icons/bait.svg"; active: root.activePage === 8; onClicked: root.activePage = 8 }
+                NavButton { text: "SIGURANȚĂ"; iconSource: "qrc:/qml/NavoSmart/icons/shield.svg"; active: root.activePage === 9; onClicked: root.activePage = 9 }
+                NavButton { text: "SETARI"; iconSource: "qrc:/qml/NavoSmart/icons/settings.svg"; active: root.activePage === 6; onClicked: root.activePage = 6 }
                 Label { text: "BARCA " + root.boatId; color: root.muted; font.pixelSize: 10; Layout.topMargin: 2 }
             }
         }
@@ -1376,9 +1376,11 @@ Item {
 
     component NavButton: Button {
         property bool active: false
+        property url iconSource: ""
         Layout.fillWidth: true
         Layout.preferredHeight: Math.max(32, Math.min(40, (sidebar.height - 70) / 9))
         background: Rectangle { radius: 6; color: parent.active ? "#183248" : "transparent"; border.color: parent.active ? root.accent : "transparent" }
+        contentItem: Row { spacing: 10; leftPadding: 8; Image { width: 24; height: 24; anchors.verticalCenter: parent.verticalCenter; source: parent.parent.iconSource; fillMode: Image.PreserveAspectFit } Label { anchors.verticalCenter: parent.verticalCenter; text: parent.parent.text; color: parent.parent.active ? root.accent : root.text; font.bold: parent.parent.active; font.pixelSize: 12 } }
         contentItem: Label { text: parent.text; color: parent.active ? root.accent : root.text; verticalAlignment: Text.AlignVCenter; leftPadding: 8; font.pixelSize: Math.max(11, Math.min(14, parent.height * 0.36)); font.bold: parent.active; elide: Text.ElideRight }
     }
 
