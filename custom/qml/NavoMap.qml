@@ -32,7 +32,8 @@ Item {
     property var rulerPoints: []
     readonly property real boatHeadingDeg: vehicle && vehicle.heading && isFinite(Number(vehicle.heading.rawValue)) ? Number(vehicle.heading.rawValue) : NaN
     property bool operatorLocationEnabled: true
-    readonly property bool operatorLocationValid: operatorPositionSource.position.coordinate.isValid
+    readonly property var operatorCoordinate: QGroundControl.qgcPositionManger && QGroundControl.qgcPositionManger.gcsPosition && QGroundControl.qgcPositionManger.gcsPosition.isValid ? QGroundControl.qgcPositionManger.gcsPosition : operatorPositionSource.position.coordinate
+    readonly property bool operatorLocationValid: operatorCoordinate && operatorCoordinate.isValid
 
     signal navigateRequested(var coordinate)
     signal savePointRequested(var coordinate)
@@ -137,9 +138,9 @@ Item {
         id: operatorMarker
         parent: liveMap
         visible: root.operatorLocationEnabled && root.operatorLocationValid
-        coordinate: visible ? operatorPositionSource.position.coordinate : QtPositioning.coordinate()
+        coordinate: visible ? root.operatorCoordinate : QtPositioning.coordinate()
         anchorPoint.x: 10; anchorPoint.y: 10
-        z: 34
+        z: 10000
         sourceItem: Item {
             width:20; height:20
             Rectangle { anchors.centerIn:parent; width:18; height:18; radius:9; color:"#26c6da33"; border.color:"#26c6da"; border.width:2
@@ -154,7 +155,7 @@ Item {
         id: operatorBoatLine
         parent: liveMap
         visible: operatorMarker.visible && navoBoatMarker.visible
-        path: visible ? [operatorPositionSource.position.coordinate, root.vehicle.coordinate] : []
+        path: visible ? [root.operatorCoordinate, root.vehicle.coordinate] : []
         line.width: 2
         line.color: "#26c6da"
         Component.onCompleted: liveMap.addMapItem(this)

@@ -538,10 +538,13 @@ Item {
                 waypointBearingDeg: root.waypointBearingDeg
                 rollDeg: root.rollDeg
                 pitchDeg: root.pitchDeg
+                onToggleRequested: expanded = !expanded
             }
         }
         }
     }
+
+    NavoHeadingCompass { id:headingCompassOverlay; visible:headingCompass.expanded; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; onToggleRequested:headingCompass.expanded=false }
 
     Rectangle {
         id: sidebar

@@ -9,6 +9,7 @@ Item {
     property real pitchDeg: NaN
     property bool headingValid: isFinite(headingDeg)
     property bool expanded: false
+    signal toggleRequested()
     property string cardinal: {
         if (!headingValid) return "--"
         var p=["N","NE","E","SE","S","SW","W","NW"]
@@ -21,11 +22,8 @@ Item {
     }
 
     implicitWidth: 180; implicitHeight: 180
-    z: expanded ? 10000 : 0
-    scale: expanded ? 2.35 : 1.0
-    y: expanded ? 18 : 0
-    transformOrigin: Item.TopRight
-    Behavior on scale { NumberAnimation { duration: 160 } }
+    z: 0
+    clip: false
 
     Rectangle {
         anchors.fill: parent; radius: width/2
@@ -55,7 +53,7 @@ Item {
 
     Item {
         id: boat
-        width: 46; height: 88; anchors.centerIn: parent
+        width: Math.max(18, root.width * 0.26); height: Math.max(34, root.height * 0.49); anchors.centerIn: parent
         rotation: root.normalizedHeading
         Behavior on rotation { RotationAnimation { duration: 260; direction: RotationAnimation.Shortest } }
         Canvas {
@@ -80,12 +78,12 @@ Item {
     }
 
     Column {
-        anchors.centerIn: parent; anchors.verticalCenterOffset: 57; spacing: 0
-        Label { anchors.horizontalCenter:parent.horizontalCenter; text:root.headingValid ? Math.round(root.normalizedHeading)+"° "+root.cardinal : "HEADING --"; color:"white"; font.bold:true; font.pixelSize:13 }
-        Label { anchors.horizontalCenter:parent.horizontalCenter; visible:isFinite(root.courseError); text:(root.courseError<0?"← ":"→ ")+Math.abs(Math.round(root.courseError))+"°"; color:"#ffbf3f"; font.pixelSize:11 }
+        anchors.centerIn: parent; anchors.verticalCenterOffset: root.height * 0.32; spacing: 0
+        Label { anchors.horizontalCenter:parent.horizontalCenter; text:root.headingValid ? Math.round(root.normalizedHeading)+"° "+root.cardinal : "HEADING --"; color:"white"; font.bold:true; font.pixelSize:Math.max(8,Math.min(13,root.width*0.072)) }
+        Label { anchors.horizontalCenter:parent.horizontalCenter; visible:isFinite(root.courseError); text:(root.courseError<0?"← ":"→ ")+Math.abs(Math.round(root.courseError))+"°"; color:"#ffbf3f"; font.pixelSize:Math.max(7,Math.min(11,root.width*0.061)) }
     }
 
     ToolTip.visible: mouse.containsMouse
     ToolTip.text: root.headingValid ? "Direcție "+Math.round(root.normalizedHeading)+"° "+root.cardinal+(isFinite(root.courseError)?" • abatere "+Math.round(root.courseError)+"°":"") : "Heading indisponibil"
-    MouseArea { id:mouse; anchors.fill:parent; hoverEnabled:true; onClicked: root.expanded = !root.expanded }
+    MouseArea { id:mouse; anchors.fill:parent; hoverEnabled:true; onClicked: root.toggleRequested() }
 }
