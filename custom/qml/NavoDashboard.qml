@@ -534,7 +534,7 @@ Item {
         id: sidebar
         anchors.left: parent.left; anchors.top: header.bottom; anchors.bottom: parent.bottom
         visible: !root.mapMaximized
-        width: root.width < 1100 ? 150 : 190; color: root.panel; border.color: root.line
+        width: root.width < 1100 ? 64 : 72; color: root.panel; border.color: root.line
         Flickable {
             anchors.fill: parent
             anchors.margins: 8
@@ -547,7 +547,7 @@ Item {
                 id: navColumn
                 width: parent.width
                 spacing: Math.max(3, Math.min(8, (sidebar.height - 44 - 10 * 36) / 11))
-                Label { text: navColumn.implicitHeight > sidebar.height - 16 ? "NAVIGAȚIE ↓" : "NAVIGAȚIE"; color: root.muted; font.bold: true; font.pixelSize: 13 }
+                Label { Layout.alignment:Qt.AlignHCenter; text:"☰"; color:root.muted; font.bold:true; font.pixelSize:18; ToolTip.visible:navColumn.implicitHeight > sidebar.height - 16; ToolTip.text:"Derulează pentru mai multe funcții" }
                 NavButton { text: "HARTA"; iconSource: "qrc:/qml/NavoSmart/icons/map.svg"; active: root.activePage === 0; onClicked: root.activePage = 0 }
                 NavButton { text: "SONAR"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 1; onClicked: root.activePage = 1 }
                 NavButton { text: "AREA SCAN"; iconSource: "qrc:/qml/NavoSmart/icons/scan.svg"; active: root.activePage === 2; onClicked: root.activePage = 2 }
@@ -558,7 +558,7 @@ Item {
                 NavButton { text: "NĂDIRE"; iconSource: "qrc:/qml/NavoSmart/icons/bait.svg"; active: root.activePage === 8; onClicked: root.activePage = 8 }
                 NavButton { text: "SIGURANȚĂ"; iconSource: "qrc:/qml/NavoSmart/icons/shield.svg"; active: root.activePage === 9; onClicked: root.activePage = 9 }
                 NavButton { text: "SETARI"; iconSource: "qrc:/qml/NavoSmart/icons/settings.svg"; active: root.activePage === 6; onClicked: root.activePage = 6 }
-                Label { text: "BARCA " + root.boatId; color: root.muted; font.pixelSize: 10; Layout.topMargin: 2 }
+                Label { Layout.alignment:Qt.AlignHCenter; text:"●"; color:root.ok; font.pixelSize:10; ToolTip.visible:mouseBoat.containsMouse; ToolTip.text:"BARCA "+root.boatId; MouseArea{id:mouseBoat;anchors.fill:parent;hoverEnabled:true} }
             }
         }
     }
@@ -1381,10 +1381,12 @@ Item {
     component NavButton: Button {
         property bool active: false
         property url iconSource: ""
+        ToolTip.visible: hovered
+        ToolTip.text: text
         Layout.fillWidth: true
         Layout.preferredHeight: Math.max(32, Math.min(40, (sidebar.height - 70) / 9))
         background: Rectangle { radius: 6; color: parent.active ? "#183248" : "transparent"; border.color: parent.active ? root.accent : "transparent" }
-        contentItem: Row { spacing: 10; leftPadding: 8; Image { width: 24; height: 24; anchors.verticalCenter: parent.verticalCenter; source: parent.parent.iconSource; fillMode: Image.PreserveAspectFit } Label { anchors.verticalCenter: parent.verticalCenter; text: parent.parent.text; color: parent.parent.active ? root.accent : root.text; font.bold: parent.parent.active; font.pixelSize: 12 } }
+        contentItem: Image { anchors.centerIn:parent; width:26; height:26; source:parent.iconSource; fillMode:Image.PreserveAspectFit }
         contentItem: Label { text: parent.text; color: parent.active ? root.accent : root.text; verticalAlignment: Text.AlignVCenter; leftPadding: 8; font.pixelSize: Math.max(11, Math.min(14, parent.height * 0.36)); font.bold: parent.active; elide: Text.ElideRight }
     }
 
