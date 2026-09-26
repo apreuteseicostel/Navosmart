@@ -393,7 +393,7 @@ Item {
             property url iconSource: ""
             width:56;height:56;padding:0;font.pixelSize:22;font.bold:true
             background:Rectangle { radius:8;color:"#800d1722";border.color:"#8027394b" }
-            contentItem:Column { anchors.centerIn:parent; spacing:1; Image { anchors.horizontalCenter:parent.horizontalCenter;width:26;height:26;source:parent.parent.iconSource;fillMode:Image.PreserveAspectFit } Label { anchors.horizontalCenter:parent.horizontalCenter;text:parent.parent.text;color:"#f4f7fb";font.pixelSize:9;font.bold:true } }
+            contentItem:Image { anchors.centerIn:parent;width:28;height:28;source:parent.iconSource;fillMode:Image.PreserveAspectFit }
         }
         RightTool { text:"MAP"; iconSource:"qrc:/qml/NavoSmart/icons/map.svg";font.pixelSize:11;checkable:true;checked:root.bathymetryHDEnabled;ToolTip.visible:hovered;ToolTip.text:root.bathymetryHDEnabled?"Ascunde batimetria HD":"Afișează batimetria HD";onClicked:root.toggleMapLayer() }
         RightTool { text:"HD"; iconSource:"qrc:/qml/NavoSmart/icons/lake.svg";font.pixelSize:14;checkable:true;checked:root.headingUp;ToolTip.visible:hovered;ToolTip.text:root.headingUp?"Heading Up activ • apasă pentru Nord sus":"Heading Up • rotește după barcă";onClicked:root.headingUp=!root.headingUp }
