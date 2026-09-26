@@ -114,6 +114,7 @@ Item {
         anchors.fill: parent
         planMasterController: root.planController
         rightPanelWidth: 0
+        navosmartHideVehicleMarker: true
         toolInsets: QtObject {
             readonly property real leftEdgeTopInset: 0
             readonly property real leftEdgeCenterInset: 0
