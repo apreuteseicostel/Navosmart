@@ -11,6 +11,7 @@ class NavoPersistence : public QObject {
  Q_PROPERTY(QVariantList lakes READ lakes NOTIFY lakesChanged)
 public:
  explicit NavoPersistence(QObject* parent=nullptr);
+ ~NavoPersistence() override;
  QVariantMap waypointNames() const{return _waypointNames;} QVariantList sonarSamples() const{return _sonarSamples;} QVariantList bathymetrySessions() const{return _bathymetrySessions;} QVariantList lakes() const{return _lakes;}
  Q_INVOKABLE void setWaypointName(int sequence,const QString& name);
  Q_INVOKABLE void replaceWaypointNames(const QVariantMap& names);
