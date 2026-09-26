@@ -504,7 +504,7 @@ Item {
             boundsBehavior: Flickable.StopAtBounds
         RowLayout {
             id: headerItems
-            x: 16; height: parent.height; spacing: 12
+            x: 16; height: parent.height; spacing: 8
             ColumnLayout {
                 Layout.preferredWidth: 150
                 spacing: 0
@@ -512,10 +512,11 @@ Item {
                 Label { text: "Pescarul lu Peste"; color: root.muted; font.pixelSize: 11 }
             }
             StatusPill { title: "SATELIȚI"; value: vehicle && vehicle.gps ? String(vehicle.gps.count.rawValue) : "--"; good: vehicle && vehicle.gps }
+            StatusPill { title: "HOME"; value: Number(root.distanceToHome).toFixed(0) + " m"; good: !!vehicle }
             StatusPill { title: "VITEZĂ"; value: vehicle && vehicle.groundSpeed ? Number(vehicle.groundSpeed.rawValue * 3.6).toFixed(1) + " km/h" : "--"; good: !!vehicle }
             StatusPill { title: "BATERIE"; value: battery ? Number(battery.percentRemaining.rawValue).toFixed(0) + "%" : "--"; good: battery && battery.percentRemaining.rawValue > 20 }
-            StatusPill { title: "MOD"; value: root.flightMode.length ? root.flightMode : "OFFLINE"; good: vehicle !== null }
             StatusPill { title: "TEMP"; value: nanoTelemetry.connected && !isNaN(nanoTelemetry.batteryTempC) ? Number(nanoTelemetry.batteryTempC).toFixed(1) + "°" : "--"; good: nanoTelemetry.connected && safetyManager.state !== "CRITICAL" }
+            StatusPill { title: "MOD"; value: root.flightMode.length ? root.flightMode : "OFFLINE"; good: vehicle !== null }
             NavoHeadingCompass {
                 Layout.preferredWidth: 58
                 Layout.preferredHeight: 58
@@ -676,7 +677,6 @@ Item {
                 MiniStatus { title:"SONAR"; value:root.sonarConnected?"ON":"OFF"; good:root.sonarConnected }
                 MiniStatus { title:"NANO"; value:nanoTelemetry.connected?"ON":"OFF"; good:nanoTelemetry.connected }
                 MiniStatus { title:"CAM"; value:root.cameraConnected?"ON":"OFF"; good:root.cameraConnected }
-                MiniStatus { title:"HOME"; value:Number(root.distanceToHome).toFixed(0)+"m"; good:!!vehicle }
                 MiniStatus { title:"ȚINTĂ"; value:root.distanceToTarget>0?Number(root.distanceToTarget).toFixed(0)+"m":"--"; good:root.distanceToTarget>0 }
             }
         }
@@ -1359,7 +1359,7 @@ Item {
         property string title: ""
         property string value: "--"
         property bool good: false
-        Layout.preferredWidth: 82; Layout.preferredHeight: 38; radius: 7
+        Layout.preferredWidth: 72; Layout.preferredHeight: 36; radius: 7
         color: root.panel; border.color: good ? root.ok : root.line
         Column {
             anchors.centerIn: parent; spacing: 0
