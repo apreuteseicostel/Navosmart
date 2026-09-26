@@ -65,6 +65,21 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoSafetyManager.qml
         qml/NavoBoatStatus.qml
         qml/NavoHeadingCompass.qml
+    RESOURCES
+        icons/map.svg
+        icons/sonar.svg
+        icons/scan.svg
+        icons/fish.svg
+        icons/lake.svg
+        icons/camera.svg
+        icons/cube.svg
+        icons/bait.svg
+        icons/shield.svg
+        icons/settings.svg
+        icons/home.svg
+        icons/lan.svg
+        icons/nano.svg
+        icons/autopilot.svg
     NO_PLUGIN
 )
 
