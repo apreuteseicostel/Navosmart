@@ -1320,7 +1320,6 @@ Item {
                 anchors.fill: parent; anchors.margins: root.responsiveMargin; spacing: root.responsiveGap
                 RowLayout {
                     Layout.fillWidth: true
-                    Label { text: "SETĂRI NAVO SMART"; color: root.text; font.pixelSize: root.compactUi ? 14 : 16; font.bold: true }
                     Item { Layout.fillWidth: true }
                     Button {
                         text: "UNITĂȚI"
@@ -1333,14 +1332,23 @@ Item {
                         }
                     }
                 }
-                NavoEthernetSettings {
-                    id: ethernetSettings
-                    Layout.fillWidth: true; Layout.fillHeight: true
-                    sonar: sonar
-                    camera: cameraEthernet
-                    onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
-                    onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
-                    onStatus: function(text) { root.lastNavigationStatus=text }
+                ScrollView {
+                    id: settingsScroll
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                    contentWidth: availableWidth
+                    NavoEthernetSettings {
+                        id: ethernetSettings
+                        width: settingsScroll.availableWidth
+                        height: Math.max(implicitHeight, settingsScroll.availableHeight)
+                        sonar: sonar
+                        camera: cameraEthernet
+                        onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
+                        onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
+                        onStatus: function(text) { root.lastNavigationStatus=text }
+                    }
                 }
             }
         }
