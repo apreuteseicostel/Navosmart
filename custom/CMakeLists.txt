@@ -93,6 +93,9 @@ qt_add_qml_module(NavoSmartModule
         icons/boat.svg
         icons/ruler.svg
         icons/fullscreen.svg
+        icons/navigate.svg
+        icons/edit.svg
+        icons/delete.svg
     NO_PLUGIN
 )
 
