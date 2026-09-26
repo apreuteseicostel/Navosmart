@@ -269,7 +269,7 @@ QtObject {
         if(persistence.replaceWaypointNames) persistence.replaceWaypointNames(p.waypointNames||({}))
         // A restored session cannot be considered live until the mission is
         // uploaded again and the autopilot confirms AUTO for this connection.
-        state=(p.state==="COMPLETE" ? "COMPLETE" : "PAUSED"); bathymetryCells=p.bathymetryCells||[]
+        state=(p.state==="COMPLETE" ? "COMPLETE" : (p.state==="RTL" ? "RTL" : "PAUSED")); bathymetryCells=p.bathymetryCells||[]
         areaScan.generatedPoints=areaPoints; areaScan.completedLanes=p.completedLanes||[]
         areaScan.activeLaneIndex=(p.currentLane===undefined?-1:Number(p.currentLane))
         areaScan.lastBoatCoordinate=(p.lastBoatCoordinate && p.lastBoatCoordinate.latitude!==undefined && p.lastBoatCoordinate.longitude!==undefined) ? QtPositioning.coordinate(Number(p.lastBoatCoordinate.latitude),Number(p.lastBoatCoordinate.longitude)) : null
