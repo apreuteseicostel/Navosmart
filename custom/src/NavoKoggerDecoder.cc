@@ -40,7 +40,12 @@ void NavoKoggerDecoder::process(){
    quint16 seq=le16(p),res=le16(p+2),off=le16(p+4);QByteArray part(p+6,payload-6);
    if(res==0){_chart.clear();emit frameRejected();continue;}
    if(int(off)+int(res)>MaxChartBytes){_chart.clear();emit frameRejected();continue;}
-   if(seq==0||res!=_chartResolution||off!=_chartAbsoluteOffset){\n    // Never publish an incomplete CHART as a valid echogram column. A new\n    // sequence/resolution/offset means the previous assembly was truncated.\n    if(!_chart.isEmpty() && _chart.size()!=int(_chartResolution)) emit frameRejected();\n    _chart.clear();_chartResolution=res;_chartAbsoluteOffset=off;\n   }
+   if(seq==0||res!=_chartResolution||off!=_chartAbsoluteOffset){
+    // Never publish an incomplete CHART as a valid echogram column. A new
+    // sequence/resolution/offset means the previous assembly was truncated.
+    if(!_chart.isEmpty() && _chart.size()!=int(_chartResolution)) emit frameRejected();
+    _chart.clear();_chartResolution=res;_chartAbsoluteOffset=off;
+   }
    if(int(seq)+part.size()>int(res)||int(off)+int(seq)+part.size()>MaxChartBytes){_chart.clear();emit frameRejected();continue;}
    if(seq==_chart.size()) { _chart.append(part); }
    else if(seq>_chart.size() && seq-_chart.size()<=4096) { _chart.append(QByteArray(seq-_chart.size(), char(0))); _chart.append(part); }
