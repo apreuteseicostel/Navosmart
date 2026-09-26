@@ -1294,7 +1294,12 @@ Item {
             Rectangle { anchors.fill: parent; radius: 8; color: "#05080c"; border.color: root.line }
             ColumnLayout {
                 anchors.fill: parent; anchors.margins: root.responsiveMargin
-                Label { text: "CAMERA FAȚĂ"; color: root.text; font.pixelSize: 18; font.bold: true }
+                RowLayout { Layout.fillWidth: true
+                    Label { text: "CAMERA FAȚĂ • LAN"; color: root.text; font.pixelSize: 18; font.bold: true }
+                    Item { Layout.fillWidth: true }
+                    Label { text: cameraEthernet.connected ? (cameraEthernet.dataAlive ? "LAN LIVE" : "LAN CONECTAT") : "LAN OFFLINE"; color: cameraEthernet.dataAlive ? root.ok : (cameraEthernet.connected ? root.warn : root.muted); font.bold: true; font.pixelSize: 10 }
+                    Button { text: cameraEthernet.connected ? "DECONECTEAZĂ" : "CONECTEAZĂ"; enabled: cameraEthernet.connected || (cameraEthernet.host.length>0 && cameraEthernet.port>0); onClicked: cameraEthernet.connected ? cameraEthernet.disconnectCamera() : cameraEthernet.connectCamera() }
+                }
                 NavoCameraPip {
                     Layout.fillWidth: true; Layout.fillHeight: true
                     connected: root.cameraStreamUrl.length > 0
