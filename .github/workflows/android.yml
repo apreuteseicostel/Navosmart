@@ -32,7 +32,7 @@ jobs:
           sed -i 's/QGroundControl\.FlyView/QGroundControl.FlightDisplay/g' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
           sed -i '/QGroundControl\.PlanView/d' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
           # NAVO draws its own boat marker; suppress only QGC's default VehicleMapItem.
-          python3 -c 'from pathlib import Path; p=Path("qgc/src/FlightDisplay/FlyViewMap.qml"); s=p.read_text(); a=s.index("    // Add the vehicles to the map\\n"); b=s.index("    // Add distance sensor view\\n",a); block=s[a:b]; assert "QGroundControl.multiVehicleManager.vehicles" in block and "VehicleMapItem" in block, "NAVO: unexpected QGC vehicle marker block"; p.write_text(s[:a]+"    // NAVO: default QGC vehicle marker intentionally suppressed.\\n"+s[b:])'
+          python3 -c 'from pathlib import Path; p=Path("qgc/src/FlightDisplay/FlyViewMap.qml"); s=p.read_text(); a=s.index("    // Add the vehicles to the map\n"); b=s.index("    // Add distance sensor view\n",a); block=s[a:b]; assert "QGroundControl.multiVehicleManager.vehicles" in block and "VehicleMapItem" in block, "NAVO: unexpected QGC vehicle marker block"; p.write_text(s[:a]+"    // NAVO: default QGC vehicle marker intentionally suppressed.\n"+s[b:])'
           sed -i 's/GIT_TAG main/GIT_TAG caf5158061bd10e79c9f042abb62c86bc6f3e7a7/' qgc/src/GPS/CMakeLists.txt
           # NAVO replaces QGC FlyView through the custom URL interceptor.
           # Do not patch upstream Viewer3D here: the old text patch was brittle and
