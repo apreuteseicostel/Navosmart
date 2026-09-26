@@ -98,7 +98,7 @@ Popup {
     Label{text:"FUND (duritate): "+(isNaN(root.bottomHardnessPercent)?"--":Math.round(root.bottomHardnessPercent)+"%");color:root.bottomColor(isNaN(root.bottomEchoStrength)?0:root.bottomEchoStrength)}
     Label{visible:root.transport;text:root.transport?"RX "+root.transport.rxBytes+" B / "+root.transport.rxChunks:"";color:"#9db2c5";font.pixelSize:12}
     Item{Layout.fillHeight:true}
-    Button{Layout.fillWidth:true;visible:root.transport;text:root.transport&&root.transport.connected?"DECONECTEAZĂ":"CONECTEAZĂ";onClicked:{if(root.transport.connected)root.transport.disconnectFromSonar();else root.transport.connectToSonar()}}
+    Button{width:42;height:38;visible:root.transport;ToolTip.visible:hovered;ToolTip.text:root.transport&&root.transport.connected?"Deconectează Kogger":"Conectează Kogger";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/sonar.svg"};onClicked:{if(root.transport.connected)root.transport.disconnectFromSonar();else root.transport.connectToSonar()}}
    }
   }
   Flow{Layout.fillWidth:true;Layout.leftMargin:8;Layout.rightMargin:8;Layout.bottomMargin:6;spacing:5
@@ -108,7 +108,7 @@ Popup {
    Label{text:"GPS: "+(isNaN(root.latitude)?"--":root.latitude.toFixed(6)+", "+root.longitude.toFixed(6));color:"#9db2c5";height:40;verticalAlignment:Text.AlignVCenter;visible:root.width>=760}
    Label{text:"FUND: "+(isNaN(root.bottomHardnessPercent)?"--":Math.round(root.bottomHardnessPercent)+"%");color:root.bottomColor(isNaN(root.bottomEchoStrength)?0:root.bottomEchoStrength);font.bold:true;height:40;verticalAlignment:Text.AlignVCenter}
    Label{visible:root.transport&&root.width>=900;text:root.transport?(root.transport.status+" • RX "+root.transport.rxBytes+" B / "+root.transport.rxChunks):"";color:root.transport&&root.transport.connected?"#31d67b":"#9db2c5";height:40;verticalAlignment:Text.AlignVCenter}
-   Button{visible:root.transport;text:root.transport&&root.transport.connected?"DECONECTEAZĂ":"CONECTEAZĂ KOGGER";onClicked:{if(root.transport.connected)root.transport.disconnectFromSonar();else root.transport.connectToSonar()}}
+   Button{width:42;height:38;visible:root.transport;ToolTip.visible:hovered;ToolTip.text:root.transport&&root.transport.connected?"Deconectează Kogger":"Conectează Kogger";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/sonar.svg"};onClicked:{if(root.transport.connected)root.transport.disconnectFromSonar();else root.transport.connectToSonar()}}
    SonarIconButton{hint:"Salvează punct";enabled:root.connected&&!isNaN(root.latitude)&&!isNaN(root.longitude)&&!isNaN(root.depthM);contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.fillStyle="#21b7ff";p.lineWidth=2;p.beginPath();p.arc(width/2,15,6,0,Math.PI*2);p.stroke();p.beginPath();p.moveTo(width/2,31);p.lineTo(14,17);p.lineTo(28,17);p.closePath();p.stroke();p.beginPath();p.arc(width/2,15,2,0,Math.PI*2);p.fill()}} onClicked:root.saveWaypointRequested(root.latitude,root.longitude,root.depthM,root.waterTempC)}
   } }
 }
