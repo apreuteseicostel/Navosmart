@@ -32,6 +32,30 @@ jobs:
           sed -i 's/QGroundControl\.FlyView/QGroundControl.FlightDisplay/g' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
           sed -i '/QGroundControl\.PlanView/d' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
           sed -i 's/GIT_TAG main/GIT_TAG caf5158061bd10e79c9f042abb62c86bc6f3e7a7/' qgc/src/GPS/CMakeLists.txt
+          # NAVO renders the bait boat itself at the H743/UM982 coordinate.
+          # Add a narrow custom switch to pinned FlyViewMap so only QGC's stock
+          # vehicle icon can be hidden; ADS-B, proximity and mission overlays remain.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("qgc/src/FlightDisplay/FlyViewMap.qml")
+          src = p.read_text()
+          prop_anchor = '    property bool   pipMode:                    false   // true: map is shown in a small pip mode\n'
+          prop_line = prop_anchor + '    property bool   navosmartHideVehicleMarker: false\n'
+          if prop_anchor not in src:
+              raise SystemExit("FlyViewMap property anchor not found in pinned v5.0.7")
+          src = src.replace(prop_anchor, prop_line, 1)
+          vehicle_anchor = '''    MapItemView {
+        model: QGroundControl.multiVehicleManager.vehicles
+        delegate: VehicleMapItem {'''
+          vehicle_patch = '''    MapItemView {
+        model: QGroundControl.multiVehicleManager.vehicles
+        visible: !_root.navosmartHideVehicleMarker
+        delegate: VehicleMapItem {'''
+          if vehicle_anchor not in src:
+              raise SystemExit("FlyViewMap vehicle marker block not found in pinned v5.0.7")
+          p.write_text(src.replace(vehicle_anchor, vehicle_patch, 1))
+          PY
+          grep -n -A4 -B2 'navosmartHideVehicleMarker' qgc/src/FlightDisplay/FlyViewMap.qml
           # NAVO replaces QGC FlyView through the custom URL interceptor.
           # Do not patch upstream Viewer3D here: the old text patch was brittle and
           # run #229 still loaded the upstream FlyView, masking NAVO QML errors.
