@@ -24,7 +24,7 @@ Popup {
  property bool noiseFilter:true
  property bool paused:false
  property bool recording:false
- component SonarIconButton: Button { width:42; height:38; padding:0; property string hint:""; ToolTip.visible:hovered; ToolTip.text:hint; background:Rectangle{radius:7;color:parent.checked?"#123d50":"#101b25";border.color:parent.checked?"#21b7ff":"#31404d"} }
+ component SonarIconButton: Button { width:38; height:36; padding:0; property string hint:""; ToolTip.visible:hovered; ToolTip.text:hint; background:Rectangle{radius:7;color:parent.checked?"#123d50":"#101b25";border.color:parent.checked?"#21b7ff":"#31404d"} }
  property var bottomStrengthHistory:[]
  property var bottomDepthHistory:[]
  readonly property real bottomEchoStrength: bottomStrengthHistory.length?Number(bottomStrengthHistory[bottomStrengthHistory.length-1]):NaN
@@ -52,17 +52,17 @@ Popup {
   }
   RowLayout{Layout.fillWidth:true;Layout.leftMargin:10;Layout.rightMargin:58;spacing:6
    SonarIconButton{hint:"Sensibilitate: "+Math.round(root.gain*100)+"%";contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;for(var i=0;i<3;i++){var y=11+i*8;p.beginPath();p.moveTo(8,y);p.lineTo(34,y);p.stroke();var x=[17,27,13][i];p.fillStyle="#21b7ff";p.beginPath();p.arc(x,y,3,0,Math.PI*2);p.fill()}}}}
-   Slider{id:gainSlider;from:.5;to:2.2;value:root.gain;stepSize:.05;Layout.preferredWidth:90;onMoved:root.gain=value;ToolTip.visible:hovered||pressed;ToolTip.text:"Sensibilitate "+Math.round(value*100)+"%"}
+   Slider{id:gainSlider;from:.5;to:2.2;value:root.gain;stepSize:.05;Layout.preferredWidth:76;onMoved:root.gain=value;ToolTip.visible:hovered||pressed;ToolTip.text:"Sensibilitate "+Math.round(value*100)+"%"}
    SonarIconButton{hint:root.noiseFilter?"Filtru zgomot: ON":"Filtru zgomot: OFF";checkable:true;checked:root.noiseFilter;contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle=parent.checked?"#21b7ff":"#d9edf7";p.lineWidth=2;p.beginPath();p.moveTo(7,12);p.lineTo(13,12);p.lineTo(17,7);p.lineTo(22,27);p.lineTo(27,14);p.lineTo(35,14);p.stroke()}} onClicked:root.noiseFilter=checked}
-   Slider{id:noiseSlider;from:0;to:.35;value:root.noiseFloor;stepSize:.01;Layout.preferredWidth:82;enabled:root.noiseFilter;onMoved:root.noiseFloor=value;ToolTip.visible:hovered||pressed;ToolTip.text:"Prag filtru "+Math.round(value*100)+"%"}
+   Slider{id:noiseSlider;from:0;to:.35;value:root.noiseFloor;stepSize:.01;Layout.preferredWidth:76;enabled:root.noiseFilter;onMoved:root.noiseFloor=value;ToolTip.visible:hovered||pressed;ToolTip.text:"Prag filtru "+Math.round(value*100)+"%"}
    SonarIconButton{hint:"Afișare pești";checkable:true;checked:root.fishIcons;contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle=parent.checked?"#21b7ff":"#d9edf7";p.lineWidth=2;p.beginPath();p.ellipse(10,13,18,12);p.moveTo(28,19);p.lineTo(35,13);p.lineTo(35,25);p.closePath();p.stroke();p.beginPath();p.arc(15,18,1.3,0,Math.PI*2);p.fillStyle=p.strokeStyle;p.fill()}} onClicked:root.fishIcons=checked}
    SonarIconButton{hint:root.showRawTrace?"Ecou brut: ON":"Ecou brut: OFF";checkable:true;checked:root.showRawTrace;contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle=parent.checked?"#21b7ff":"#d9edf7";p.lineWidth=2;p.beginPath();for(var x=6;x<=36;x+=2){var y=19+Math.sin(x*.75)*7;p.lineTo(x,y)}p.stroke()}} onClicked:root.showRawTrace=checked}
-   ComboBox{Layout.preferredWidth:78;model:["NAVO","DAY"];currentIndex:root.paletteMode==="NAVO"?0:1;ToolTip.visible:hovered;ToolTip.text:"Paletă ecogramă";onActivated:function(index){root.paletteMode=model[index]}}
+   ComboBox{Layout.preferredWidth:70;model:["NAVO","DAY"];currentIndex:root.paletteMode==="NAVO"?0:1;ToolTip.visible:hovered;ToolTip.text:"Paletă ecogramă";onActivated:function(index){root.paletteMode=model[index]}}
    Item{Layout.fillWidth:true}
    SonarIconButton{hint:root.recording?"Oprește înregistrarea":"Înregistrează sonar";checkable:true;checked:root.recording;contentItem:Label{anchors.centerIn:parent;text:"●";color:parent.checked?"#ff5c5c":"#f2f7fb";font.pixelSize:22} onClicked:{root.recording=checked;root.recordingRequested(root.recording)}}
    SonarIconButton{hint:root.paused?"Redă":"Pauză";contentItem:Label{anchors.centerIn:parent;text:root.paused?"▶":"Ⅱ";color:"#f2f7fb";font.pixelSize:20;font.bold:true} onClicked:root.paused=!root.paused}
    SonarIconButton{hint:"Salvează punct";enabled:root.connected&&!isNaN(root.latitude)&&!isNaN(root.longitude)&&!isNaN(root.depthM);contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/target.svg"} onClicked:root.saveWaypointRequested(root.latitude,root.longitude,root.depthM,root.waterTempC)}
-   Button{width:42;height:38;visible:root.transport;ToolTip.visible:hovered;ToolTip.text:root.transport&&root.transport.connected?"Deconectează Kogger":"Conectează Kogger";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/sonar.svg"} onClicked:{if(root.transport.connected)root.transport.disconnectFromSonar();else root.transport.connectToSonar()}}
+   SonarIconButton { visible:root.transport; hint:root.transport&&root.transport.connected?"Deconectează Kogger":"Conectează Kogger"; contentItem:Image{anchors.centerIn:parent;width:22;height:22;source:"qrc:/qml/NavoSmart/icons/sonar.svg";fillMode:Image.PreserveAspectFit}; onClicked:{if(root.transport.connected)root.transport.disconnectFromSonar();else root.transport.connectToSonar()} }
   }
   RowLayout{Layout.fillWidth:true;Layout.fillHeight:true;Layout.minimumHeight:180;spacing:4
   Rectangle{Layout.fillWidth:true;Layout.fillHeight:true;color:"#020b12"
@@ -98,7 +98,7 @@ Popup {
     Label{text:"FUND (duritate): "+(isNaN(root.bottomHardnessPercent)?"--":Math.round(root.bottomHardnessPercent)+"%");color:root.bottomColor(isNaN(root.bottomEchoStrength)?0:root.bottomEchoStrength)}
     Label{visible:root.transport;text:root.transport?"RX "+root.transport.rxBytes+" B / "+root.transport.rxChunks:"";color:"#9db2c5";font.pixelSize:12}
     Item{Layout.fillHeight:true}
-    Button{width:42;height:38;visible:root.transport;ToolTip.visible:hovered;ToolTip.text:root.transport&&root.transport.connected?"Deconectează Kogger":"Conectează Kogger";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/sonar.svg"}onClicked:{if(root.transport.connected)root.transport.disconnectFromSonar();else root.transport.connectToSonar()}}
+    SonarIconButton { visible:root.transport; hint:root.transport&&root.transport.connected?"Deconectează Kogger":"Conectează Kogger"; contentItem:Image{anchors.centerIn:parent;width:22;height:22;source:"qrc:/qml/NavoSmart/icons/sonar.svg";fillMode:Image.PreserveAspectFit}; onClicked:{if(root.transport.connected)root.transport.disconnectFromSonar();else root.transport.connectToSonar()} }
    }
   }
 }
