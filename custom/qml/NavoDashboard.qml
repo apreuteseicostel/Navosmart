@@ -920,10 +920,10 @@ Item {
                                 }
                                 Row {
                                     anchors.left:parent.left;anchors.leftMargin:8;anchors.bottom:parent.bottom;anchors.bottomMargin:5;spacing:4
-                                    Button { height:34; width:36; padding:2; ToolTip.visible:hovered; ToolTip.text:"Navighează"; contentItem:Image{anchors.centerIn:parent;width:20;height:20;source:"qrc:/qml/NavoSmart/icons/navigate.svg"}; onClicked:root.navigateToCoordinate(QtPositioning.coordinate(Number(modelData.lat),Number(modelData.lon))) }
-                                    Button { height:34; width:36; padding:2; ToolTip.visible:hovered; ToolTip.text:"Editează"; contentItem:Image{anchors.centerIn:parent;width:20;height:20;source:"qrc:/qml/NavoSmart/icons/edit.svg"}; onClicked:fishingPageRoot.openEdit(modelData) }
-                                    Button { height:34; width:36; padding:2; ToolTip.visible:hovered; ToolTip.text:"Nădire aici"; contentItem:Image{anchors.centerIn:parent;width:20;height:20;source:"qrc:/qml/NavoSmart/icons/bait.svg"}; onClicked:{baitingController.targetWaypoint={coordinate:QtPositioning.coordinate(Number(modelData.lat),Number(modelData.lon)),name:modelData.name,sequenceNumber:0};root.activePage=8;root.lastNavigationStatus="Punct de nădire ales: "+modelData.name} }
-                                    Button { height:34; width:36; padding:2; ToolTip.visible:hovered; ToolTip.text:"Șterge punct"; contentItem:Image{anchors.centerIn:parent;width:20;height:20;source:"qrc:/qml/NavoSmart/icons/delete.svg"}; onClicked:{fishingSpots.removeSpot(modelData.id);scanCoordinator.checkpoint("fishing-spot-delete")} }
+                                    Button { height:34; width:36; padding:2; ToolTip.visible:hovered; ToolTip.text:"Navighează"; contentItem:Image{anchors.centerIn:parent;width:20;height:20;source:"qrc:/qml/NavoSmart/icons/navigate.svg"} onClicked:root.navigateToCoordinate(QtPositioning.coordinate(Number(modelData.lat),Number(modelData.lon))) }
+                                    Button { height:34; width:36; padding:2; ToolTip.visible:hovered; ToolTip.text:"Editează"; contentItem:Image{anchors.centerIn:parent;width:20;height:20;source:"qrc:/qml/NavoSmart/icons/edit.svg"} onClicked:fishingPageRoot.openEdit(modelData) }
+                                    Button { height:34; width:36; padding:2; ToolTip.visible:hovered; ToolTip.text:"Nădire aici"; contentItem:Image{anchors.centerIn:parent;width:20;height:20;source:"qrc:/qml/NavoSmart/icons/bait.svg"} onClicked:{baitingController.targetWaypoint={coordinate:QtPositioning.coordinate(Number(modelData.lat),Number(modelData.lon)),name:modelData.name,sequenceNumber:0};root.activePage=8;root.lastNavigationStatus="Punct de nădire ales: "+modelData.name} }
+                                    Button { height:34; width:36; padding:2; ToolTip.visible:hovered; ToolTip.text:"Șterge punct"; contentItem:Image{anchors.centerIn:parent;width:20;height:20;source:"qrc:/qml/NavoSmart/icons/delete.svg"} onClicked:{fishingSpots.removeSpot(modelData.id);scanCoordinator.checkpoint("fishing-spot-delete")} }
                                 }
                             }
                         }
@@ -1090,7 +1090,7 @@ Item {
                         }
                     }
                 }
-                Button { width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Deschide Bălțile mele";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/lake.svg"};onClicked:myLakesPopup.open() }
+                Button { width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Deschide Bălțile mele";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/lake.svg"}onClicked:myLakesPopup.open() }
             }
             NavoMyLakes {
                 id: myLakesPopup
@@ -1299,7 +1299,7 @@ Item {
                     Label { text: "CAMERA FAȚĂ • LAN"; color: root.text; font.pixelSize: 18; font.bold: true }
                     Item { Layout.fillWidth: true }
                     Label { text: cameraEthernet.connected ? (cameraEthernet.dataAlive ? "LAN LIVE" : "LAN CONECTAT") : "LAN OFFLINE"; color: cameraEthernet.dataAlive ? root.ok : (cameraEthernet.connected ? root.warn : root.muted); font.bold: true; font.pixelSize: 10 }
-                    Button { width:42;height:38;ToolTip.visible:hovered;ToolTip.text:cameraEthernet.connected?"Deconectează camera":"Conectează camera";enabled:cameraEthernet.connected||(cameraEthernet.host.length>0&&cameraEthernet.port>0);contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/camera.svg"};onClicked:cameraEthernet.connected?cameraEthernet.disconnectCamera():cameraEthernet.connectCamera() }
+                    Button { width:42;height:38;ToolTip.visible:hovered;ToolTip.text:cameraEthernet.connected?"Deconectează camera":"Conectează camera";enabled:cameraEthernet.connected||(cameraEthernet.host.length>0&&cameraEthernet.port>0);contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/camera.svg"}onClicked:cameraEthernet.connected?cameraEthernet.disconnectCamera():cameraEthernet.connectCamera() }
                 }
                 NavoCameraPip {
                     Layout.fillWidth: true; Layout.fillHeight: true
