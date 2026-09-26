@@ -113,7 +113,7 @@ Popup {
             Layout.fillWidth: true
             Label { text: "BĂLȚILE MELE"; color: "#21b7ff"; font.bold: true; font.pixelSize: 20 }
             Item { Layout.fillWidth: true }
-            LakeIconButton { hint:"Închide"; contentItem:Label{text:"X";color:"#f2f7fb";font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter} onClicked:root.close() }
+            LakeIconButton { hint:"Închide"; contentItem:Image{anchors.centerIn:parent;width:22;height:22;source:"qrc:/qml/NavoSmart/icons/close.svg"} onClicked:root.close() }
         }
 
         RowLayout {
@@ -124,7 +124,7 @@ Popup {
                 placeholderText: "Nume baltă / lac"
                 onAccepted: root.addLake()
             }
-            LakeIconButton { hint:"Adaugă baltă"; enabled:newLakeName.text.trim().length>0; contentItem:Label{text:"+";color:"#21b7ff";font.pixelSize:28;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter} onClicked:root.addLake() }
+            LakeIconButton { hint:"Adaugă baltă"; enabled:newLakeName.text.trim().length>0; contentItem:Image{anchors.centerIn:parent;width:22;height:22;source:"qrc:/qml/NavoSmart/icons/add.svg"} onClicked:root.addLake() }
         }
 
         Label {
