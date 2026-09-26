@@ -86,6 +86,9 @@ Rectangle {
             Image { width:26;height:26;source:"qrc:/qml/NavoSmart/icons/bait.svg";fillMode:Image.PreserveAspectFit }
             Label { text:"NĂDIRE"; color:"white"; font.bold:true; font.pixelSize:15 }
             Label { Layout.fillWidth:true; text:"ȚINTĂ: "+root.waypointName+"  •  CUVA: "+hopperBox.currentText; color:"#21b7ff"; font.bold:true; font.pixelSize:11; elide:Text.ElideRight; horizontalAlignment:Text.AlignRight }
+        }
+        RowLayout { Layout.fillWidth:true; spacing:6
+            Item { Layout.fillWidth:true }
             Button { Layout.preferredWidth:40; Layout.maximumWidth:40; Layout.preferredHeight:40; padding:0; enabled:!root.controller || !root.controller.enabled; onClicked:settingsPopup.open(); ToolTip.visible:hovered; ToolTip.text:"Setări nădire"; contentItem:Image{anchors.centerIn:parent;width:22;height:22;source:"qrc:/qml/NavoSmart/icons/settings.svg";fillMode:Image.PreserveAspectFit} }
         }
         ComboBox {
