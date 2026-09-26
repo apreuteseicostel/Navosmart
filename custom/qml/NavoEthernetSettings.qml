@@ -10,6 +10,7 @@ Rectangle {
  property string cameraStreamUrl:""
  property string cameraProtocol:"auto"
  readonly property bool compact: width < 900 || height < 520
+ implicitHeight: compact ? 620 : 690
  signal status(string text)
  color:"#0b1c2e"; border.color:"#1c4262"; radius:10
 
