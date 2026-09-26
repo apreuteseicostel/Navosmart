@@ -365,9 +365,9 @@ Item {
         anchors.left: parent.left; anchors.bottom: parent.bottom; anchors.margins: 10; spacing: 6
         visible: root.areaDrawMode!=="none"
         Button { width:42;height:32;padding:2;enabled:false;ToolTip.visible:hovered;ToolTip.text:(root.areaDrawMode==="rectangle"?"Dreptunghi ":"Poligon ")+root.areaDraftPoints.length+(root.areaDrawMode==="rectangle"?"/2":"");contentItem:Image{anchors.centerIn:parent;width:21;height:21;source:root.areaDrawMode==="rectangle"?"qrc:/qml/NavoSmart/icons/rectangle.svg":"qrc:/qml/NavoSmart/icons/polygon.svg"} }
-        Button { visible:root.areaDrawMode==="polygon";width:42;height:32;padding:2;enabled:root.areaDraftPoints.length>=3;ToolTip.visible:hovered;ToolTip.text:"Finalizează poligonul";contentItem:Image{anchors.centerIn:parent;width:21;height:21;source:"qrc:/qml/NavoSmart/icons/done.svg"};onClicked:root.finishAreaDrawing() }
-        Button { width:42;height:32;padding:2;enabled:root.areaDraftPoints.length>0;ToolTip.visible:hovered;ToolTip.text:"Șterge ultimul punct / segment";contentItem:Image{anchors.centerIn:parent;width:21;height:21;source:"qrc:/qml/NavoSmart/icons/undo.svg"};onClicked:root.undoAreaPoint() }
-        Button { width:42;height:32;padding:2;ToolTip.visible:hovered;ToolTip.text:"Șterge desenul Area Scan";contentItem:Image{anchors.centerIn:parent;width:21;height:21;source:"qrc:/qml/NavoSmart/icons/delete.svg"};onClicked:root.clearAreaDrawing() }
+        Button { visible:root.areaDrawMode==="polygon";width:42;height:32;padding:2;enabled:root.areaDraftPoints.length>=3;ToolTip.visible:hovered;ToolTip.text:"Finalizează poligonul";contentItem:Image{anchors.centerIn:parent;width:21;height:21;source:"qrc:/qml/NavoSmart/icons/done.svg"}onClicked:root.finishAreaDrawing() }
+        Button { width:42;height:32;padding:2;enabled:root.areaDraftPoints.length>0;ToolTip.visible:hovered;ToolTip.text:"Șterge ultimul punct / segment";contentItem:Image{anchors.centerIn:parent;width:21;height:21;source:"qrc:/qml/NavoSmart/icons/undo.svg"}onClicked:root.undoAreaPoint() }
+        Button { width:42;height:32;padding:2;ToolTip.visible:hovered;ToolTip.text:"Șterge desenul Area Scan";contentItem:Image{anchors.centerIn:parent;width:21;height:21;source:"qrc:/qml/NavoSmart/icons/delete.svg"}onClicked:root.clearAreaDrawing() }
     }
     Column {
         id: mapControls
