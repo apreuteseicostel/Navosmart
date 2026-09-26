@@ -118,7 +118,8 @@ Rectangle {
                 enabled: !!root.waypoint && !!root.controller && !root.controller.enabled
                 onClicked: confirmDialog.open()
             }
-            Button { width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Oprește nădirea";enabled:!!root.controller&&root.controller.enabled;contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/stop.svg"};onClicked:root.abortRequested() }
+            Button { width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Oprește nădirea";enabled:!!root.controller&&root.controller.enabled;contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/stop.svg"}
+                onClicked:root.abortRequested() }
         }
         Rectangle {
             Layout.fillWidth: true
@@ -286,7 +287,8 @@ Rectangle {
                     CheckBox { Layout.columnSpan: 3; text: "RTL după eliberare"; palette.windowText: root.secondaryTextColor; palette.buttonText: root.secondaryTextColor; checked: saved.rtlAfterDrop; onToggled: { saved.rtlAfterDrop = checked; root.applySettings() } }
                 }
             }
-            Button { Layout.alignment:Qt.AlignRight;width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Închide setările";contentItem:Image{anchors.centerIn:parent;width:22;height:22;source:"qrc:/qml/NavoSmart/icons/close.svg"};onClicked:settingsPopup.close() }
+            Button { Layout.alignment:Qt.AlignRight;width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Închide setările";contentItem:Image{anchors.centerIn:parent;width:22;height:22;source:"qrc:/qml/NavoSmart/icons/close.svg"}
+                onClicked:settingsPopup.close() }
         }
     }
     Dialog {
