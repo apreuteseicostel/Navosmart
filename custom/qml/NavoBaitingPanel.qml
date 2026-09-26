@@ -113,11 +113,11 @@ Rectangle {
             Layout.fillWidth:true; spacing:8
             ColumnLayout { spacing:1
                 Label { Layout.alignment:Qt.AlignHCenter; text:root.controller&&root.controller.enabled?"ACTIV":"START"; color:root.controller&&root.controller.enabled?"#31d67b":root.secondaryTextColor; font.pixelSize:9; font.bold:true }
-                Button { Layout.preferredWidth:40;Layout.maximumWidth:40;Layout.preferredHeight:40;padding:0;enabled:!!root.waypoint&&!!root.controller&&!root.controller.enabled;ToolTip.visible:hovered;ToolTip.text:"Pornește nădirea";contentItem:Image{anchors.centerIn:parent;width:22;height:22;source:"qrc:/qml/NavoSmart/icons/play.svg";fillMode:Image.PreserveAspectFit};onClicked:confirmDialog.open() }
+                Button { Layout.preferredWidth:40;Layout.maximumWidth:40;Layout.preferredHeight:40;padding:0;enabled:!!root.waypoint&&!!root.controller&&!root.controller.enabled;ToolTip.visible:hovered;ToolTip.text:"Pornește nădirea";contentItem:Image{anchors.centerIn:parent;width:22;height:22;source:"qrc:/qml/NavoSmart/icons/play.svg";fillMode:Image.PreserveAspectFit} onClicked:confirmDialog.open() }
             }
             ColumnLayout { spacing:1
                 Label { Layout.alignment:Qt.AlignHCenter;text:"STOP";color:root.secondaryTextColor;font.pixelSize:9;font.bold:true }
-                Button { Layout.preferredWidth:40;Layout.maximumWidth:40;Layout.preferredHeight:40;padding:0;enabled:!!root.controller&&root.controller.enabled;ToolTip.visible:hovered;ToolTip.text:"Oprește nădirea";contentItem:Image{anchors.centerIn:parent;width:22;height:22;source:"qrc:/qml/NavoSmart/icons/stop.svg";fillMode:Image.PreserveAspectFit};onClicked:root.abortRequested() }
+                Button { Layout.preferredWidth:40;Layout.maximumWidth:40;Layout.preferredHeight:40;padding:0;enabled:!!root.controller&&root.controller.enabled;ToolTip.visible:hovered;ToolTip.text:"Oprește nădirea";contentItem:Image{anchors.centerIn:parent;width:22;height:22;source:"qrc:/qml/NavoSmart/icons/stop.svg";fillMode:Image.PreserveAspectFit} onClicked:root.abortRequested() }
             }
             Item { Layout.fillWidth:true }
         }
