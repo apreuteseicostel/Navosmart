@@ -498,7 +498,7 @@ Item {
         height: 64; color: "#101822"; border.color: root.line
         Flickable {
             anchors.fill: parent
-            clip: true
+            clip: false
             contentWidth: Math.max(width, headerItems.implicitWidth + 32)
             contentHeight: height
             boundsBehavior: Flickable.StopAtBounds
@@ -518,8 +518,9 @@ Item {
             StatusPill { title: "TEMP"; value: nanoTelemetry.connected && !isNaN(nanoTelemetry.batteryTempC) ? Number(nanoTelemetry.batteryTempC).toFixed(1) + "°" : "--"; good: nanoTelemetry.connected && safetyManager.state !== "CRITICAL" }
             StatusPill { title: "MOD"; value: root.flightMode.length ? root.flightMode : "OFFLINE"; good: vehicle !== null }
             NavoHeadingCompass {
-                Layout.preferredWidth: 58
-                Layout.preferredHeight: 58
+                id: headingCompass
+                Layout.preferredWidth: 54
+                Layout.preferredHeight: 54
                 headingDeg: root.headingDeg
                 waypointBearingDeg: root.waypointBearingDeg
                 rollDeg: root.rollDeg
