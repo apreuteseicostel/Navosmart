@@ -920,10 +920,10 @@ Item {
                                 }
                                 Row {
                                     anchors.left:parent.left;anchors.leftMargin:8;anchors.bottom:parent.bottom;anchors.bottomMargin:5;spacing:4
-                                    Button { text:"NAV"; height:27; width:48; padding:2; onClicked:root.navigateToCoordinate(QtPositioning.coordinate(Number(modelData.lat),Number(modelData.lon))) }
-                                    Button { text:"EDIT"; height:27; width:52; padding:2; onClicked:fishingPageRoot.openEdit(modelData) }
-                                    Button { text:"NĂDIRE"; height:27; width:62; padding:2; onClicked:{baitingController.targetWaypoint={coordinate:QtPositioning.coordinate(Number(modelData.lat),Number(modelData.lon)),name:modelData.name,sequenceNumber:0};root.activePage=8;root.lastNavigationStatus="Punct de nădire ales: "+modelData.name} }
-                                    Button { text:"ȘTERGE"; height:27; width:62; padding:2; onClicked:{fishingSpots.removeSpot(modelData.id);scanCoordinator.checkpoint("fishing-spot-delete")} }
+                                    Button { height:34; width:36; padding:2; ToolTip.visible:hovered; ToolTip.text:"Navighează"; contentItem:Image{anchors.centerIn:parent;width:20;height:20;source:"qrc:/qml/NavoSmart/icons/navigate.svg"}; onClicked:root.navigateToCoordinate(QtPositioning.coordinate(Number(modelData.lat),Number(modelData.lon))) }
+                                    Button { height:34; width:36; padding:2; ToolTip.visible:hovered; ToolTip.text:"Editează"; contentItem:Image{anchors.centerIn:parent;width:20;height:20;source:"qrc:/qml/NavoSmart/icons/edit.svg"}; onClicked:fishingPageRoot.openEdit(modelData) }
+                                    Button { height:34; width:36; padding:2; ToolTip.visible:hovered; ToolTip.text:"Nădire aici"; contentItem:Image{anchors.centerIn:parent;width:20;height:20;source:"qrc:/qml/NavoSmart/icons/bait.svg"}; onClicked:{baitingController.targetWaypoint={coordinate:QtPositioning.coordinate(Number(modelData.lat),Number(modelData.lon)),name:modelData.name,sequenceNumber:0};root.activePage=8;root.lastNavigationStatus="Punct de nădire ales: "+modelData.name} }
+                                    Button { height:34; width:36; padding:2; ToolTip.visible:hovered; ToolTip.text:"Șterge punct"; contentItem:Image{anchors.centerIn:parent;width:20;height:20;source:"qrc:/qml/NavoSmart/icons/delete.svg"}; onClicked:{fishingSpots.removeSpot(modelData.id);scanCoordinator.checkpoint("fishing-spot-delete")} }
                                 }
                             }
                         }
