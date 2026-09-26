@@ -83,6 +83,7 @@ Rectangle {
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
         anchors.margins: 8; spacing: 5
         RowLayout { Layout.fillWidth:true; spacing:6
+            Image { width:26;height:26;source:"qrc:/qml/NavoSmart/icons/bait.svg";fillMode:Image.PreserveAspectFit }
             Label { text:"NĂDIRE"; color:"white"; font.bold:true; font.pixelSize:15 }
             Label { Layout.fillWidth:true; text:"ȚINTĂ: "+root.waypointName+"  •  CUVA: "+hopperBox.currentText; color:"#21b7ff"; font.bold:true; font.pixelSize:11; elide:Text.ElideRight; horizontalAlignment:Text.AlignRight }
             ToolButton { text:"⚙"; font.pixelSize:18; enabled:!root.controller || !root.controller.enabled; onClicked:settingsPopup.open(); ToolTip.visible:hovered; ToolTip.text:"Setări nădire" }
@@ -96,7 +97,7 @@ Rectangle {
             displayText: "Alege un loc salvat"
             onActivated: function(index) { root.spotChosen(root.availableSpots[index]) }
         }
-        Button { enabled: !root.controller || !root.controller.enabled; text: "ALEGE PUNCT PE HARTĂ"; onClicked: root.chooseOnMapRequested() }
+        Button { enabled: !root.controller || !root.controller.enabled; onClicked: root.chooseOnMapRequested(); contentItem: Row { spacing:8; Image { width:22;height:22;source:"qrc:/qml/NavoSmart/icons/target.svg" } Label { anchors.verticalCenter:parent.verticalCenter;text:"ALEGE PUNCT PE HARTĂ";font.bold:true } } }
         RowLayout {
             Layout.fillWidth: true
             Label { text: "Cuva"; color: root.secondaryTextColor }
@@ -112,11 +113,12 @@ Rectangle {
             Layout.fillWidth: true
             Button {
                 Layout.fillWidth: true
-                text: root.controller && root.controller.enabled ? "NĂDIRE ÎN CURS" : "PORNEȘTE NĂDIREA"
+                text: root.controller && root.controller.enabled ? "●  NĂDIRE ÎN CURS" : "▶  PORNEȘTE NĂDIREA"
+                palette.buttonText: "#31d67b"
                 enabled: !!root.waypoint && !!root.controller && !root.controller.enabled
                 onClicked: confirmDialog.open()
             }
-            Button { text: "OPREȘTE"; enabled: !!root.controller && root.controller.enabled; onClicked: root.abortRequested() }
+            Button { text: "■  OPREȘTE"; palette.buttonText:"#ff6575"; enabled: !!root.controller && root.controller.enabled; onClicked: root.abortRequested() }
         }
         Rectangle {
             Layout.fillWidth: true
