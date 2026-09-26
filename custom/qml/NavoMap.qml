@@ -138,13 +138,13 @@ Item {
         parent: liveMap
         visible: root.operatorLocationEnabled && root.operatorLocationValid
         coordinate: visible ? operatorPositionSource.position.coordinate : QtPositioning.coordinate()
-        anchorPoint.x: 18; anchorPoint.y: 18
+        anchorPoint.x: 24; anchorPoint.y: 24
         z: 34
         sourceItem: Item {
-            width:36; height:36
+            width:48; height:48
             Rectangle {
-                anchors.fill:parent; radius:18; color:"#102b3aee"; border.color:"#26c6da"; border.width:2
-                Label { anchors.centerIn:parent; text:"🎮"; font.pixelSize:18 }
+                anchors.fill:parent; radius:24; color:"#102b3acc"; border.color:"#26c6da"; border.width:2
+                Label { anchors.centerIn:parent; text:"🎮"; font.pixelSize:28 }
             }
         }
         Component.onCompleted: liveMap.addMapItem(this)
