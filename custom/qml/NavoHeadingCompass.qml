@@ -27,7 +27,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent; radius: width/2
-        color: "#07131d99"; border.color: root.headingValid ? "#26c6da" : "#4d5b67"; border.width: 2
+        color: root.expanded ? "#07131d99" : "#07131dcc"; border.color: root.headingValid ? "#26c6da" : "#4d5b67"; border.width: 2
     }
 
     Item {
@@ -35,7 +35,7 @@ Item {
         anchors.fill: parent
         z: 3
         Repeater {
-            model: 36
+            model: root.expanded ? 36 : 0
             Rectangle {
                 required property int index
                 width: index%9===0 ? 2 : 1
