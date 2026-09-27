@@ -46,10 +46,10 @@ Item {
                 transform: Rotation { origin.x: width/2; origin.y: root.height/2-7; angle: index*10 }
             }
         }
-        Label { text:"N"; color:"#26c6da"; font.bold:true; anchors.horizontalCenter:parent.horizontalCenter; anchors.top:parent.top; anchors.topMargin:16 }
-        Label { text:"S"; color:"#d8e2ea"; anchors.horizontalCenter:parent.horizontalCenter; anchors.bottom:parent.bottom; anchors.bottomMargin:16 }
-        Label { text:"W"; color:"#d8e2ea"; anchors.verticalCenter:parent.verticalCenter; anchors.left:parent.left; anchors.leftMargin:17 }
-        Label { text:"E"; color:"#d8e2ea"; anchors.verticalCenter:parent.verticalCenter; anchors.right:parent.right; anchors.rightMargin:17 }
+        Label { visible:root.expanded; z:10; text:"N"; color:"#26c6da"; font.bold:true; font.pixelSize:22; anchors.horizontalCenter:parent.horizontalCenter; anchors.top:parent.top; anchors.topMargin:12 }
+        Label { visible:root.expanded; z:10; text:"S"; color:"#f4f7fb"; font.bold:true; font.pixelSize:20; anchors.horizontalCenter:parent.horizontalCenter; anchors.bottom:parent.bottom; anchors.bottomMargin:12 }
+        Label { visible:root.expanded; z:10; text:"W"; color:"#f4f7fb"; font.bold:true; font.pixelSize:20; anchors.verticalCenter:parent.verticalCenter; anchors.left:parent.left; anchors.leftMargin:12 }
+        Label { visible:root.expanded; z:10; text:"E"; color:"#f4f7fb"; font.bold:true; font.pixelSize:20; anchors.verticalCenter:parent.verticalCenter; anchors.right:parent.right; anchors.rightMargin:12 }
     }
 
     Item {
