@@ -337,14 +337,27 @@ Popup {
         parent: Overlay.overlay
         anchors.centerIn: parent
         modal: true
-        title: "Șterge balta?"
-        standardButtons: Dialog.Yes | Dialog.No
+        width: Math.min(390, root.width - 32)
+        padding: 14
         closePolicy: Popup.NoAutoClose
-        Label {
-            width: Math.min(380, parent ? parent.width-40 : 380)
-            wrapMode: Text.WordWrap
-            text: "Se șterg «"+(root.editLake ? (root.editLake.name||"Baltă") : "Baltă")+"» și datele ei salvate: batimetrie, sonar, puncte de pescuit și starea Area Scan. Operația nu poate fi anulată."
+        background: Rectangle { radius: 10; color: "#101a26"; border.color: "#ef5b6b"; border.width: 1 }
+        header: Label {
+            text: "Șterge balta?"
+            color: "#f2f7fb"; font.bold: true; font.pixelSize: 17
+            padding: 14
         }
-        onAccepted: root.deleteCurrentLake()
+        contentItem: Label {
+            width: deleteDialog.availableWidth
+            wrapMode: Text.WordWrap
+            color: "#c9d5df"; font.pixelSize: 13
+            text: "Ștergi «"+(root.editLake ? (root.editLake.name||"Baltă") : "Baltă")+"» și toate datele salvate? Acțiunea nu poate fi anulată."
+        }
+        footer: Row {
+            spacing: 10
+            padding: 12
+            layoutDirection: Qt.RightToLeft
+            Button { text: "ȘTERGE"; width: 92; onClicked: root.deleteCurrentLake() }
+            Button { text: "ANULEAZĂ"; width: 100; onClicked: deleteDialog.close() }
+        }
     }
 }
