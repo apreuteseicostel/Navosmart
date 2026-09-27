@@ -1220,7 +1220,6 @@ Item {
                 anchors.fill:parent; anchors.margins:root.responsiveMargin; spacing:root.responsiveGap
                 ColumnLayout {
                     Layout.fillWidth:true; Layout.fillHeight:true; Layout.preferredWidth:1
-                    Label { text:"SIGURANȚĂ & FAILSAFE"; color:root.text; font.pixelSize:root.compactUi ? 15 : 18; font.bold:true }
                     NavoFailsafePanel {
                         Layout.fillWidth:true
                         Layout.alignment:Qt.AlignTop
@@ -1238,7 +1237,6 @@ Item {
                     ColumnLayout {
                         anchors.fill:parent; anchors.margins:root.compactUi ? 7 : 9; spacing:root.compactUi ? 4 : 6
                         Label { text:"CUVE & SIGURANȚĂ HARDWARE"; color:"#f4f7fb"; font.pixelSize:15; font.bold:true }
-                        Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; color:"#ffd24a"; font.pixelSize:11; font.bold:true; text:"Confirmă ieșirile și PWM-urile pe banc înainte de activare. Telemetria PWM nu confirmă calibrarea mecanică." }
                         GridLayout {
                             columns:3; Layout.fillWidth:true; columnSpacing:root.compactUi ? 5 : 7; rowSpacing:root.compactUi ? 3 : 5
                             Label { text:"Cuva"; color:root.text } Label { text:"Stânga"; color:root.text } Label { text:"Dreapta"; color:root.text }
