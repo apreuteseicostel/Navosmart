@@ -10,7 +10,11 @@ Popup {
     property var selectedLake: null
     property string saveStatus: ""
     property var editLake: null
-    component LakeIconButton: Button { width:42; height:38; padding:0; property string hint:""; ToolTip.visible:hovered; ToolTip.text:hint; background:Rectangle{radius:7;color:parent.down?"#18354a":"#101b25";border.color:parent.enabled?"#31506a":"#26313a"} }
+    component LakeIconButton: Button {
+        width:38; height:36; padding:0; property string hint:""
+        ToolTip.visible:hovered; ToolTip.text:hint
+        background:Rectangle{radius:7;color:parent.hovered?"#153047":"#101b25";border.color:parent.hovered?"#21b7ff":(parent.enabled?"#31506a":"#26313a")}
+    }
 
     modal: true
     focus: true
@@ -148,11 +152,12 @@ Popup {
             handle: Rectangle { implicitWidth: 4; implicitHeight: 4; color: "#1c4262" }
 
             ListView {
-                SplitView.preferredWidth: Math.min(280, root.width*.40)
-                SplitView.minimumWidth: 220
+                SplitView.preferredWidth: Math.min(235, root.width*.32)
+                SplitView.minimumWidth: 185
                 SplitView.preferredHeight: root.width<560 ? 180 : root.height-130
                 clip: true
                 spacing: 5
+                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded; width: 5 }
                 model: root.persistence ? root.persistence.lakes : []
                 delegate: Rectangle {
                     required property var modelData
@@ -249,37 +254,41 @@ Popup {
                     color: "#9db2c5"
                     wrapMode: Text.WordWrap
                 }
-                GridLayout {
+                RowLayout {
                     Layout.fillWidth: true
                     visible: !!root.selectedLake
-                    columns: root.width < 560 ? 2 : 3
-                    columnSpacing: 6; rowSpacing: 6
-                    Button {
-                        text: "HARTĂ"; ToolTip.visible:hovered; ToolTip.text:"Deschide harta"; Layout.fillWidth:true
+                    spacing: 8
+                    Item { Layout.fillWidth:true }
+                    LakeIconButton {
+                        hint:"Deschide harta"
+                        contentItem:Image{anchors.centerIn:parent;width:21;height:21;source:"qrc:/qml/NavoSmart/icons/map.svg";fillMode:Image.PreserveAspectFit}
                         onClicked: {
                             if(root.scanCoordinator && root.scanCoordinator.restoreLake(root.selectedLakeId)) {
                                 root.lakeRestored(root.selectedLakeId); root.openLakeMap(root.selectedLakeId); root.close()
                             }
                         }
                     }
-                    Button {
-                        text: "3D"; ToolTip.visible:hovered; ToolTip.text:"Deschide harta 3D"; Layout.fillWidth:true
+                    LakeIconButton {
+                        hint:"Deschide batimetria 3D"
+                        contentItem:Image{anchors.centerIn:parent;width:21;height:21;source:"qrc:/qml/NavoSmart/icons/cube.svg";fillMode:Image.PreserveAspectFit}
                         onClicked: {
                             if(root.scanCoordinator && root.scanCoordinator.restoreLake(root.selectedLakeId)) {
                                 root.lakeRestored(root.selectedLakeId); root.openLakeBathymetry(root.selectedLakeId); root.close()
                             }
                         }
                     }
-                    Button {
-                        text: "PIN"; ToolTip.visible:hovered; ToolTip.text:"Puncte de pescuit"; Layout.fillWidth:true
+                    LakeIconButton {
+                        hint:"Puncte de pescuit"
+                        contentItem:Image{anchors.centerIn:parent;width:21;height:21;source:"qrc:/qml/NavoSmart/icons/target.svg";fillMode:Image.PreserveAspectFit}
                         onClicked: {
                             if(root.scanCoordinator && root.scanCoordinator.restoreLake(root.selectedLakeId)) {
                                 root.lakeRestored(root.selectedLakeId); root.openLakeFishingSpots(root.selectedLakeId); root.close()
                             }
                         }
                     }
-                    Button {
-                        text: "SCAN"; ToolTip.visible:hovered; ToolTip.text:"Continuă Area Scan"; Layout.fillWidth:true
+                    LakeIconButton {
+                        hint:"Continuă Area Scan"
+                        contentItem:Image{anchors.centerIn:parent;width:21;height:21;source:"qrc:/qml/NavoSmart/icons/scan.svg";fillMode:Image.PreserveAspectFit;opacity:parent.parent.enabled?1:0.35}
                         enabled: {
                             if(!root.persistence || !root.selectedLake) return false
                             var st=root.persistence.lakeState(root.selectedLakeId)||({})
@@ -291,6 +300,7 @@ Popup {
                             }
                         }
                     }
+                    Item { Layout.fillWidth:true }
                 }
                 ListView {
                     Layout.fillWidth: true
