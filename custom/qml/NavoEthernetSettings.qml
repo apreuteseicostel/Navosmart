@@ -53,7 +53,7 @@ Rectangle {
      CheckBox{id:sonarUdp;text:checked?"UDP":"TCP";checked:cfg.sonarUdp;palette.windowText:"#d7e3ee";indicator:Rectangle{implicitWidth:24;implicitHeight:24;radius:5;color:sonarUdp.checked?"#123b4b":"#101b25";border.color:sonarUdp.checked?"#21b7ff":"#31506a";Label{anchors.centerIn:parent;text:sonarUdp.checked?"✓":"";color:"#31d67b";font.bold:true}}}
      Item{Layout.columnSpan:2;Layout.fillHeight:true}
      Label{Layout.columnSpan:2;Layout.fillWidth:true;wrapMode:Text.WordWrap;color:"#9db2c5";font.pixelSize:10;text:"Stare: "+(sonar?sonar.status:"--")}
-     Button{width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Conectează sonar";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/sonar.svg"}enabled:sonar&&sonarHost.text.trim().length>0&&(parseInt(sonarPort.text)||0)>0;onClicked:{root.saveEndpoints();sonar.connectSonar()}}
+     Button{width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Conectează sonar";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/sonar.svg"}; enabled:sonar&&sonarHost.text.trim().length>0&&(parseInt(sonarPort.text)||0)>0;onClicked:{root.saveEndpoints();sonar.connectSonar()}}
     }
    }
    GroupBox {
@@ -76,8 +76,8 @@ Rectangle {
      NavoVideoPlayer{id:videoTest;visible:streamUrl.text.trim().length>0;Layout.fillWidth:true;Layout.fillHeight:visible;Layout.minimumHeight:visible?(root.compact?54:80):0;Layout.maximumHeight:visible?16777215:0;streamUrl:streamUrl.text;protocol:protocol.currentValue;onVideoError:function(message){root.status("Video: "+message)}}
      RowLayout {
       Layout.fillWidth:true
-      Button{width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Testează video";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/play.svg"}enabled:streamUrl.text.trim().length>0;onClicked:{root.saveEndpoints();videoTest.start()}}
-      Button{width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Oprește test video";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/stop.svg"}onClicked:videoTest.stop()}
+      Button{width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Testează video";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/play.svg"}; enabled:streamUrl.text.trim().length>0;onClicked:{root.saveEndpoints();videoTest.start()}}
+      Button{width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Oprește test video";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/stop.svg"}; onClicked:videoTest.stop()}
      }
      Label{Layout.fillWidth:true;elide:Text.ElideRight;color:"#9db2c5";font.pixelSize:10;text:"LAN: "+(camera?camera.status:"--")+" • Video: "+videoTest.status}
     }
@@ -85,7 +85,7 @@ Rectangle {
   }
   RowLayout {
    Layout.fillWidth:true
-   Button{width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Salvează toate setările";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/save.svg"}onClicked:root.saveEndpoints()}
+   Button{width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Salvează toate setările";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/save.svg"}; onClicked:root.saveEndpoints()}
    Item{Layout.fillWidth:true}
    Label{visible:false;text:""}
   }
