@@ -27,12 +27,13 @@ Item {
 
     Rectangle {
         anchors.fill: parent; radius: width/2
-        color: "#07131dcc"; border.color: root.headingValid ? "#26c6da" : "#4d5b67"; border.width: 2
+        color: "#07131d99"; border.color: root.headingValid ? "#26c6da" : "#4d5b67"; border.width: 2
     }
 
     Item {
         id: rose
         anchors.fill: parent
+        z: 3
         Repeater {
             model: 36
             Rectangle {
@@ -53,7 +54,9 @@ Item {
 
     Item {
         id: boat
-        width: Math.max(18, root.width * 0.26); height: Math.max(34, root.height * 0.49); anchors.centerIn: parent
+        z: 2
+        opacity: root.expanded ? 0.88 : 1.0
+        width: Math.max(18, root.width * 0.26); height: Math.max(34, root.height * 0.52); anchors.centerIn: parent
         rotation: root.normalizedHeading
         Behavior on rotation { RotationAnimation { duration: 260; direction: RotationAnimation.Shortest } }
         Canvas {
@@ -62,12 +65,12 @@ Item {
                 var c=getContext("2d"); c.reset()
                 // NAVO bait boat, top view: clean pointed bow, twin rear hoppers and antenna.
                 c.fillStyle="#d9ff19"; c.strokeStyle="#101820"; c.lineWidth=2
-                c.beginPath(); c.moveTo(width/2,1)
-                c.quadraticCurveTo(width-2,18,width-3,43)
+                c.beginPath(); c.moveTo(width/2,0)
+                c.quadraticCurveTo(width*0.82,height*0.16,width-3,height*0.39)
                 c.lineTo(width-6,height-5); c.quadraticCurveTo(width/2,height-1,6,height-5)
-                c.lineTo(3,43); c.quadraticCurveTo(2,18,width/2,1)
+                c.lineTo(3,height*0.39); c.quadraticCurveTo(width*0.18,height*0.16,width/2,0)
                 c.closePath(); c.fill(); c.stroke()
-                // Two hopper openings sit aft, not at the bow.
+                // NAVO SMART deck branding on the expanded map compass.\n                if (root.expanded) {\n                    c.fillStyle="#101820"; c.font="bold "+Math.max(8,Math.round(width*0.15))+"px sans-serif"; c.textAlign="center";\n                    c.fillText("NAVO",width/2,height*0.39); c.fillText("SMART",width/2,height*0.49);\n                }\n                // Two hopper openings sit aft, not at the bow.
                 c.fillStyle="#101820"
                 var hopperY=height*0.58, hopperH=height*0.25
                 c.beginPath(); c.roundedRect(width*0.16,hopperY,width*0.25,hopperH,2,2); c.fill()
