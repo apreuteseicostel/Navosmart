@@ -130,6 +130,8 @@ Item {
             readonly property real bottomEdgeRightInset: 0
         }
         bearing: root.headingUp && isFinite(root.boatHeadingDeg) ? root.boatHeadingDeg : 0
+        // NAVO renders its own boat/operator markers below; suppress QGC's default vehicle marker ("Q").
+        showVehicles: false
         Behavior on bearing { NumberAnimation { duration: 250 } }
     }
 
