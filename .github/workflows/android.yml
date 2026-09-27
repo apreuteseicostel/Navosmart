@@ -34,6 +34,9 @@ jobs:
           # NAVO draws its own boat marker; suppress only QGC's default VehicleMapItem.
           python3 -c 'from pathlib import Path; p=Path("qgc/src/FlightDisplay/FlyViewMap.qml"); s=p.read_text(); a=s.index("    // Add the vehicles to the map\n"); b=s.index("    // Add distance sensor view\n",a); block=s[a:b]; assert "QGroundControl.multiVehicleManager.vehicles" in block and "VehicleMapItem" in block, "NAVO: unexpected QGC vehicle marker block"; p.write_text(s[:a]+"    // NAVO: default QGC vehicle marker intentionally suppressed.\n"+s[b:])'
           sed -i 's/GIT_TAG main/GIT_TAG caf5158061bd10e79c9f042abb62c86bc6f3e7a7/' qgc/src/GPS/CMakeLists.txt
+          # Pin libevents to the revision used by the last green build. Upstream main
+          # gained 32-bit system-ID helpers on 2026-09-27 that QGC v5.0.7 MAVLink lacks.
+          sed -i 's/GIT_TAG main/GIT_TAG 077677a7d2f48f0af0eb8a4e4a7b6310956728bc/' qgc/src/MAVLink/LibEvents/CMakeLists.txt
           # NAVO replaces QGC FlyView through the custom URL interceptor.
           # Do not patch upstream Viewer3D here: the old text patch was brittle and
           # run #229 still loaded the upstream FlyView, masking NAVO QML errors.
