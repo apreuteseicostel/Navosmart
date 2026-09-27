@@ -46,10 +46,25 @@ Item {
                 transform: Rotation { origin.x: width/2; origin.y: root.height/2-7; angle: index*10 }
             }
         }
-        Label { visible:root.expanded; z:10; text:"N"; color:"#26c6da"; font.bold:true; font.pixelSize:22; anchors.horizontalCenter:parent.horizontalCenter; anchors.top:parent.top; anchors.topMargin:12 }
-        Label { visible:root.expanded; z:10; text:"S"; color:"#f4f7fb"; font.bold:true; font.pixelSize:20; anchors.horizontalCenter:parent.horizontalCenter; anchors.bottom:parent.bottom; anchors.bottomMargin:12 }
-        Label { visible:root.expanded; z:10; text:"W"; color:"#f4f7fb"; font.bold:true; font.pixelSize:20; anchors.verticalCenter:parent.verticalCenter; anchors.left:parent.left; anchors.leftMargin:12 }
-        Label { visible:root.expanded; z:10; text:"E"; color:"#f4f7fb"; font.bold:true; font.pixelSize:20; anchors.verticalCenter:parent.verticalCenter; anchors.right:parent.right; anchors.rightMargin:12 }
+        Repeater {
+            model: root.expanded ? [
+                {t:"N",  a:0}, {t:"NE", a:45}, {t:"E",  a:90}, {t:"SE", a:135},
+                {t:"S",  a:180}, {t:"SW", a:225}, {t:"W", a:270}, {t:"NW", a:315}
+            ] : []
+            delegate: Item {
+                required property var modelData
+                width: root.width; height: root.height
+                anchors.centerIn: parent
+                Label {
+                    text: modelData.t
+                    color: modelData.t==="N" ? "#26c6da" : "#f4f7fb"
+                    font.bold: true
+                    font.pixelSize: modelData.t.length===1 ? 19 : 12
+                    x: parent.width/2-width/2 + Math.sin(modelData.a*Math.PI/180)*parent.width*0.405
+                    y: parent.height/2-height/2 - Math.cos(modelData.a*Math.PI/180)*parent.height*0.405
+                }
+            }
+        }
     }
 
     Item {
@@ -108,9 +123,22 @@ Item {
     }
 
     Column {
-        anchors.centerIn: parent; anchors.verticalCenterOffset: root.height * (root.expanded ? 0.32 : 0.39); spacing: 0
-        Label { anchors.horizontalCenter:parent.horizontalCenter; text:root.headingValid ? Math.round(root.normalizedHeading)+"° "+root.cardinal : "HEADING --"; color:"white"; font.bold:true; font.pixelSize:Math.max(8,Math.min(13,root.width*0.072)) }
-        Label { anchors.horizontalCenter:parent.horizontalCenter; visible:isFinite(root.courseError); text:(root.courseError<0?"← ":"→ ")+Math.abs(Math.round(root.courseError))+"°"; color:"#ffbf3f"; font.pixelSize:Math.max(7,Math.min(11,root.width*0.061)) }
+        anchors.centerIn: parent
+        anchors.verticalCenterOffset: root.height * (root.expanded ? 0.31 : 0.39)
+        spacing: root.expanded ? 2 : 0
+        Label {
+            anchors.horizontalCenter:parent.horizontalCenter
+            text:root.headingValid ? (root.expanded ? "HEADING  "+Math.round(root.normalizedHeading)+"°  "+root.cardinal : Math.round(root.normalizedHeading)+"° "+root.cardinal) : "HEADING --"
+            color:"white"; font.bold:true
+            font.pixelSize:root.expanded ? 13 : Math.max(8,Math.min(12,root.width*0.072))
+        }
+        Label {
+            anchors.horizontalCenter:parent.horizontalCenter
+            visible:isFinite(root.courseError)
+            text:root.expanded ? "TRASEU  "+(root.courseError<0?"← ":"→ ")+Math.abs(Math.round(root.courseError))+"°" : (root.courseError<0?"← ":"→ ")+Math.abs(Math.round(root.courseError))+"°"
+            color:"#ffbf3f"; font.bold:root.expanded
+            font.pixelSize:root.expanded ? 11 : Math.max(7,Math.min(10,root.width*0.061))
+        }
     }
 
     ToolTip.visible: mouse.containsMouse
