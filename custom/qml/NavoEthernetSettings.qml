@@ -9,7 +9,7 @@ Rectangle {
  property var camera
  property string cameraStreamUrl:""
  property string cameraProtocol:"auto"
- readonly property bool compact: width < 760
+ readonly property bool compact: width < 620
  signal status(string text)
  color:"#0b1c2e"; border.color:"#1c4262"; radius:10
 
@@ -37,16 +37,16 @@ Rectangle {
  }
  Component.onCompleted:{loadEndpoints();root.cameraStreamUrl=cfg.cameraStreamUrl;root.cameraProtocol=cfg.cameraProtocol}
  ColumnLayout {
-  anchors.fill:parent;anchors.margins:root.compact?6:10;spacing:root.compact?3:5
+  anchors.fill:parent;anchors.margins:root.compact?8:14;spacing:root.compact?6:10
   Label{text:"REȚEA BARCĂ • ETHERNET";color:"#21b7ff";font.bold:true;font.pixelSize:root.compact?13:14;Layout.preferredHeight:root.compact?20:24;verticalAlignment:Text.AlignVCenter}
   GridLayout {
-   Layout.fillWidth:true;Layout.fillHeight:true;columns:root.compact?1:2;columnSpacing:root.compact?0:12;rowSpacing:root.compact?6:0
+   Layout.fillWidth:true;Layout.fillHeight:true;columns:root.compact?1:2;columnSpacing:root.compact?0:18;rowSpacing:root.compact?10:0
    GroupBox {
-    title:"KOGGER SONAR"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?190:-1;Layout.preferredWidth:1
+    title:"KOGGER SONAR"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?210:-1;Layout.preferredWidth:320;Layout.minimumWidth:280
     GridLayout {anchors.fill:parent;anchors.margins:root.compact?4:8;columns:2;columnSpacing:8;rowSpacing:root.compact?4:6
      Layout.maximumWidth: root.compact ? 16777215 : 620
      Label{text:"IP / Host";color:"#d7e3ee"}
-     TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:sonarHost;Layout.fillWidth:true;text:cfg.sonarHost;placeholderText:"ex. 192.168.x.x"}
+     TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:sonarHost;Layout.fillWidth:true;Layout.minimumWidth:190;text:cfg.sonarHost;placeholderText:"ex. 192.168.x.x"}
      Label{text:"Port";color:"#d7e3ee"}
      TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:sonarPort;Layout.fillWidth:true;text:cfg.sonarPort>0?cfg.sonarPort.toString():"";inputMethodHints:Qt.ImhDigitsOnly}
      Label{text:"Transport";color:"#d7e3ee"}
@@ -57,19 +57,19 @@ Rectangle {
     }
    }
    GroupBox {
-    title:"CAMERA FAȚĂ"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?280:-1;Layout.preferredWidth:1
+    title:"CAMERA FAȚĂ"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?300:-1;Layout.preferredWidth:420;Layout.minimumWidth:340
     ColumnLayout {
      anchors.fill:parent;anchors.margins:root.compact?4:8;spacing:root.compact?4:6
      GridLayout {Layout.fillWidth:true;columns:2;columnSpacing:8;rowSpacing:root.compact?4:6
       Layout.maximumWidth: root.compact ? 16777215 : 620
       Label{text:"IP / Host";color:"#d7e3ee"}
-      TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:cameraHost;Layout.fillWidth:true;text:cfg.cameraHost;placeholderText:"ex. 192.168.x.x"}
+      TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:cameraHost;Layout.fillWidth:true;Layout.minimumWidth:190;text:cfg.cameraHost;placeholderText:"ex. 192.168.x.x"}
       Label{text:"Port";color:"#d7e3ee"}
       TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:cameraPort;Layout.fillWidth:true;text:cfg.cameraPort>0?cfg.cameraPort.toString():"";inputMethodHints:Qt.ImhDigitsOnly}
       Label{text:"Transport";color:"#d7e3ee"}
       CheckBox{id:cameraUdp;text:checked?"UDP":"TCP";checked:cfg.cameraUdp}
       Label{text:"URL video";color:"#d7e3ee"}
-      TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:streamUrl;Layout.fillWidth:true;text:cfg.cameraStreamUrl;placeholderText:"rtsp://... sau http://..."}
+      TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:streamUrl;Layout.fillWidth:true;Layout.minimumWidth:190;text:cfg.cameraStreamUrl;placeholderText:"rtsp://... sau http://..."}
       Label{text:"Protocol";color:"#d7e3ee"}
       ComboBox{id:protocol;Layout.fillWidth:true;textRole:"text";valueRole:"value";model:[{text:"AUTO",value:"auto"},{text:"RTSP",value:"rtsp"},{text:"MJPEG/HTTP",value:"mjpeg"}];Component.onCompleted:{var i=indexOfValue(cfg.cameraProtocol);if(i>=0)currentIndex=i}}
      }
