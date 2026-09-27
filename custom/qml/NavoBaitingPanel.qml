@@ -103,6 +103,7 @@ Rectangle {
         }
         RowLayout {
             Layout.fillWidth: true
+            Layout.topMargin: 10
             Label { text: "Cuva"; color: root.secondaryTextColor }
             ComboBox {
                 id: hopperBox; Layout.fillWidth: true
@@ -114,9 +115,9 @@ Rectangle {
         }
         RowLayout {
             Layout.fillWidth:true
-            Layout.topMargin: 12
-            Layout.bottomMargin: 8
-            spacing:30
+            Layout.topMargin: 18
+            Layout.bottomMargin: 14
+            spacing:42
             Item { Layout.fillWidth:true }
             ColumnLayout { spacing:3
                 Label { Layout.alignment:Qt.AlignHCenter; text:root.controller&&root.controller.enabled?"ACTIV":"START"; color:root.controller&&root.controller.enabled?"#31d67b":root.secondaryTextColor; font.pixelSize:9; font.bold:true }
