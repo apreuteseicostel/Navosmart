@@ -35,22 +35,22 @@ Popup {
  function bottomColor(v){v=Math.max(0,Math.min(1,(v-root.noiseFloor)*root.gain));if(root.paletteMode==="DAY"){if(v>.72)return "#ffe44d";if(v>.42)return "#ef493d";return "#245fa8"}if(v>.78)return "#fff36a";if(v>.60)return "#f33b2f";if(v>.40)return "#ff8b28";if(v>.22)return "#55c85a";return "#1767a7"}
  function palette(v){v=Math.max(0,Math.min(1,v));if(root.paletteMode==="DAY"){if(v<.18)return "rgba(220,238,248,"+(0.30+v*2)+")";if(v<.42)return "rgba(48,150,205,"+(0.45+v)+")";if(v<.68)return "rgba(245,202,55,"+(0.60+v*.45)+")";return "rgba(215,55,38,"+(0.72+v*.28)+")"}if(v<.22)return "rgba(16,92,170,"+(0.25+v*2)+")";if(v<.48)return "rgba(28,205,225,"+(0.45+v)+")";if(v<.72)return "rgba(246,218,70,"+(0.55+v*.5)+")";return "rgba(244,75,46,"+(0.65+v*.35)+")"}
  modal:true;focus:true;visible:false;closePolicy:Popup.CloseOnEscape;padding:0
- width: parent ? Math.max(320,parent.width-24) : 960
- height: parent ? Math.max(320,parent.height-24) : 640
+ width: parent ? Math.max(320,parent.width-8) : 960
+ height: parent ? Math.max(320,parent.height-8) : 640
  anchors.centerIn: parent
  background:Rectangle{color:"#03101a";border.color:"#21b7ff"}
  // Close control is anchored to the popup itself so it can never be pushed off-screen by header content.
  Button{id:closeButton;z:100;anchors.top:parent.top;anchors.right:parent.right;anchors.topMargin:6;anchors.rightMargin:8;width:46;height:46;flat:true;ToolTip.visible:hovered;ToolTip.text:"Închide sonar";contentItem:Label{text:"×";color:"white";font.pixelSize:32;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter}onClicked:root.close()}
  contentItem:ColumnLayout{
-  spacing:6
-  RowLayout{Layout.fillWidth:true;Layout.margins:10
+  spacing:3
+  RowLayout{Layout.fillWidth:true;Layout.leftMargin:6;Layout.rightMargin:6;Layout.topMargin:4;Layout.bottomMargin:2
    Label{text:"KOGGER BASIC 2D • SONAR LIVE";color:"white";font.pixelSize:Math.max(14,Math.min(20,root.width/48));font.bold:true;Layout.maximumWidth:Math.max(180,root.width*0.48);elide:Text.ElideRight}
    Label{text:root.connected?"● LIVE":"● FĂRĂ DATE";color:root.connected?"#31d67b":"#9db2c5"}
    Item{Layout.fillWidth:true}
    Label{text:isNaN(root.depthM)?"-- m":root.depthM.toFixed(1)+" m";color:"#21b7ff";font.pixelSize:28;font.bold:true}
    Label{text:isNaN(root.waterTempC)?"-- °C":root.waterTempC.toFixed(1)+" °C";color:"white";font.pixelSize:20;Layout.rightMargin:52}
   }
-  RowLayout{Layout.fillWidth:true;Layout.leftMargin:10;Layout.rightMargin:58;spacing:8
+  RowLayout{Layout.fillWidth:true;Layout.leftMargin:6;Layout.rightMargin:52;Layout.bottomMargin:2;spacing:8
    SonarIconButton{hint:"Sensibilitate: "+Math.round(root.gain*100)+"%";contentItem:Canvas{anchors.centerIn:parent;width:36;height:36;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;for(var i=0;i<3;i++){var y=11+i*8;p.beginPath();p.moveTo(8,y);p.lineTo(34,y);p.stroke();var x=[17,27,13][i];p.fillStyle="#21b7ff";p.beginPath();p.arc(x,y,3,0,Math.PI*2);p.fill()}}}}
    Slider{id:gainSlider;from:.5;to:2.2;value:root.gain;stepSize:.05;Layout.preferredWidth:150;Layout.maximumWidth:190;onMoved:root.gain=value;ToolTip.visible:hovered||pressed;ToolTip.text:"Sensibilitate "+Math.round(value*100)+"%"}
    SonarIconButton{hint:root.noiseFilter?"Filtru zgomot: ON":"Filtru zgomot: OFF";checkable:true;checked:root.noiseFilter;contentItem:Canvas{anchors.centerIn:parent;width:36;height:36;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle=parent.checked?"#21b7ff":"#d9edf7";p.lineWidth=2;p.beginPath();p.moveTo(7,12);p.lineTo(13,12);p.lineTo(17,7);p.lineTo(22,27);p.lineTo(27,14);p.lineTo(35,14);p.stroke()}} onClicked:root.noiseFilter=checked}
@@ -64,7 +64,7 @@ Popup {
    SonarIconButton{hint:"Salvează punct";enabled:root.connected&&!isNaN(root.latitude)&&!isNaN(root.longitude)&&!isNaN(root.depthM);contentItem:Image{anchors.centerIn:parent;width:22;height:22;source:"qrc:/qml/NavoSmart/icons/target.svg"} onClicked:root.saveWaypointRequested(root.latitude,root.longitude,root.depthM,root.waterTempC)}
    SonarIconButton { visible:root.transport; hint:root.transport&&root.transport.connected?"Deconectează Kogger":"Conectează Kogger"; contentItem:Image{anchors.centerIn:parent;width:22;height:22;source:"qrc:/qml/NavoSmart/icons/sonar.svg";fillMode:Image.PreserveAspectFit} onClicked:{if(root.transport.connected)root.transport.disconnectFromSonar();else root.transport.connectToSonar()} }
   }
-  RowLayout{Layout.fillWidth:true;Layout.fillHeight:true;Layout.minimumHeight:180;spacing:8
+  RowLayout{Layout.fillWidth:true;Layout.fillHeight:true;Layout.minimumHeight:180;Layout.leftMargin:2;Layout.rightMargin:2;Layout.bottomMargin:2;spacing:4
   Rectangle{Layout.fillWidth:true;Layout.fillHeight:true;color:"#020b12"
    Repeater{model:5;Label{anchors.left:parent.left;anchors.leftMargin:8;y:index*(parent.height/4)-height/2;text:(index===0?"0.0":(!isNaN(root.depthM)?(root.depthM*index/4).toFixed(1):"--"))+" m";color:"#d9edf7";z:3}}
    Canvas{id:echogram;anchors.fill:parent
