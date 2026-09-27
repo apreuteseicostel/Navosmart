@@ -9,7 +9,7 @@ Rectangle {
  property var camera
  property string cameraStreamUrl:""
  property string cameraProtocol:"auto"
- readonly property bool compact: width < 620
+ readonly property bool compact: width < 520
  signal status(string text)
  color:"#0b1c2e"; border.color:"#1c4262"; radius:10
 
@@ -42,7 +42,7 @@ Rectangle {
   GridLayout {
    Layout.fillWidth:true;Layout.fillHeight:true;columns:root.compact?1:2;columnSpacing:root.compact?0:18;rowSpacing:root.compact?10:0
    GroupBox {
-    title:"KOGGER SONAR"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?250:-1;Layout.preferredWidth:320;Layout.minimumWidth:280
+    title:"KOGGER SONAR"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?250:-1;Layout.preferredWidth:360;Layout.minimumWidth:root.compact?260:300
     GridLayout {anchors.fill:parent;anchors.margins:root.compact?4:8;columns:2;columnSpacing:8;rowSpacing:root.compact?4:6
      Layout.maximumWidth: root.compact ? 16777215 : 620
      Label{text:"IP / Host";color:"#d7e3ee"}
@@ -57,7 +57,7 @@ Rectangle {
     }
    }
    GroupBox {
-    title:"CAMERA FAȚĂ"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?330:-1;Layout.preferredWidth:420;Layout.minimumWidth:340
+    title:"CAMERA FAȚĂ"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?330:-1;Layout.preferredWidth:420;Layout.minimumWidth:root.compact?280:340
     ColumnLayout {
      anchors.fill:parent;anchors.margins:root.compact?4:8;spacing:root.compact?4:6
      GridLayout {Layout.fillWidth:true;columns:2;columnSpacing:8;rowSpacing:root.compact?4:6
