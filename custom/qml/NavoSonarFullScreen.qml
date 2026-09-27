@@ -80,7 +80,7 @@ Popup {
    }
    Label{anchors.centerIn:parent;visible:!root.connected;text:"Aștept date reale de la Kogger\nEcograma nu este simulată";horizontalAlignment:Text.AlignHCenter;color:"#9db2c5";font.pixelSize:18}
   }
-  Rectangle{Layout.preferredWidth:68;Layout.minimumWidth:68;Layout.maximumWidth:68;Layout.fillHeight:true;color:"#06131e";border.color:"#1c4262";radius:5;ToolTip.visible:legendMouse.containsMouse;ToolTip.text:"Putere ecou: puternic → slab"
+  Rectangle{Layout.preferredWidth:68;Layout.minimumWidth:68;Layout.maximumWidth:68;Layout.fillHeight:true;Layout.alignment:Qt.AlignRight;color:"#06131e";border.color:"#1c4262";radius:5;ToolTip.visible:legendMouse.containsMouse;ToolTip.text:"Putere ecou: puternic → slab"
    Column { anchors.fill:parent;anchors.margins:4;spacing:3; Label{anchors.horizontalCenter:parent.horizontalCenter;text:"PUTERNIC";color:"#d9edf7";font.pixelSize:8;font.bold:true} Rectangle{width:26;anchors.horizontalCenter:parent.horizontalCenter;height:Math.max(80,parent.height-58);radius:3;gradient:Gradient{GradientStop{position:0;color:"#f44b2e"}GradientStop{position:.28;color:"#f6da46"}GradientStop{position:.52;color:"#32d26f"}GradientStop{position:.75;color:"#1ccde1"}GradientStop{position:1;color:"#105caa"}}} Label{anchors.horizontalCenter:parent.horizontalCenter;text:"SLAB";color:"#9db2c5";font.pixelSize:8} Label{anchors.horizontalCenter:parent.horizontalCenter;text:"ECOU";color:"#21b7ff";font.pixelSize:9;font.bold:true} }
    MouseArea{id:legendMouse;anchors.fill:parent;hoverEnabled:true}
   }
