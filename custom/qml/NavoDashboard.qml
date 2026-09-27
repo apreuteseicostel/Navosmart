@@ -1334,31 +1334,41 @@ Item {
         id: settingsPage
         Item {
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
-            ColumnLayout {
-                anchors.fill: parent; anchors.margins: root.responsiveMargin; spacing: root.responsiveGap
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.topMargin: root.compactUi ? 4 : 10
-                    Item { Layout.fillWidth: true }
-                    Button {
-                        text: "UNITĂȚI"
-                        ToolTip.visible: hovered
-                        ToolTip.text: "Deschide setările QGroundControl pentru unitățile de măsură"
-                        onClicked: {
-                            root.lastNavigationStatus = "Unități: Metric implicit • modificarea rămâne disponibilă în Setări generale QGroundControl"
-                            if (typeof mainWindow !== "undefined" && mainWindow.showSettingsTool)
-                                mainWindow.showSettingsTool()
+            ScrollView {
+                anchors.fill: parent
+                anchors.margins: root.responsiveMargin
+                clip: true
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical.policy: contentHeight > availableHeight ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+
+                ColumnLayout {
+                    width: parent.width
+                    spacing: root.responsiveGap
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: root.compactUi ? 4 : 10
+                        Item { Layout.fillWidth: true }
+                        Button {
+                            text: "UNITĂȚI"
+                            ToolTip.visible: hovered
+                            ToolTip.text: "Deschide setările QGroundControl pentru unitățile de măsură"
+                            onClicked: {
+                                root.lastNavigationStatus = "Unități: Metric implicit • modificarea rămâne disponibilă în Setări generale QGroundControl"
+                                if (typeof mainWindow !== "undefined" && mainWindow.showSettingsTool)
+                                    mainWindow.showSettingsTool()
+                            }
                         }
                     }
-                }
-                NavoEthernetSettings {
-                    id: ethernetSettings
-                    Layout.fillWidth: true; Layout.fillHeight: true
-                    sonar: sonar
-                    camera: cameraEthernet
-                    onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
-                    onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
-                    onStatus: function(text) { root.lastNavigationStatus=text }
+                    NavoEthernetSettings {
+                        id: ethernetSettings
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: root.compactUi ? 520 : Math.max(430, settingsPage.height - 70)
+                        sonar: sonar
+                        camera: cameraEthernet
+                        onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
+                        onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
+                        onStatus: function(text) { root.lastNavigationStatus=text }
+                    }
                 }
             }
         }
