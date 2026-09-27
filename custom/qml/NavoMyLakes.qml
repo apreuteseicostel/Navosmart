@@ -167,8 +167,19 @@ Popup {
                         spacing: 4
                         Button {
                             Layout.fillWidth: true
+                            Layout.fillHeight: true
                             text: modelData.name||"Baltă"
                             flat: true
+                            padding: 8
+                            contentItem: Label {
+                                text: parent.text
+                                color: "#f2f7fb"
+                                font.pixelSize: 13
+                                font.bold: true
+                                verticalAlignment: Text.AlignVCenter
+                                horizontalAlignment: Text.AlignLeft
+                                elide: Text.ElideRight
+                            }
                             onClicked: root.selectLake(modelData)
                         }
                         Button {
