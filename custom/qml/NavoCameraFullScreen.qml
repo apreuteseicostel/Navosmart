@@ -34,17 +34,26 @@ Rectangle {
     }
 
     Button {
+        id: closeButton
+        z: 100
         anchors.right: parent.right
         anchors.top: parent.top
-        anchors.margins: 14
-        width: 48
-        height: 48
-        flat: true
+        anchors.rightMargin: 8
+        anchors.topMargin: 8
+        width: 46
+        height: 46
+        padding: 0
         ToolTip.visible: hovered
-        ToolTip.text: "Închide"
+        ToolTip.text: "Închide Camera față"
+        background: Rectangle {
+            radius: 9
+            color: closeButton.hovered ? "#24384a" : "#101923e6"
+            border.color: "#6f8498"
+            border.width: 1
+        }
         contentItem: Label {
             text: "×"
-            color: "white"
+            color: "#f4f7fb"
             font.pixelSize: 32
             font.bold: true
             horizontalAlignment: Text.AlignHCenter
