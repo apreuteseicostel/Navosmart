@@ -1126,7 +1126,26 @@ Item {
                         }
                     }
                 }
-                Button { width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Deschide Bălțile mele";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/lake.svg"}onClicked:myLakesPopup.open() }
+                Button {
+                    Layout.alignment: Qt.AlignLeft
+                    Layout.preferredWidth: 172
+                    Layout.preferredHeight: 36
+                    flat: true
+                    ToolTip.visible: hovered
+                    ToolTip.text: "Deschide managerul Bălțile mele"
+                    background: Rectangle {
+                        radius: 8
+                        color: parent.hovered ? "#153047" : "#0b1a27"
+                        border.color: parent.hovered ? root.accent : root.line
+                    }
+                    contentItem: Row {
+                        spacing: 8
+                        anchors.centerIn: parent
+                        Image { width:22; height:22; source:"qrc:/qml/NavoSmart/icons/lake.svg"; fillMode:Image.PreserveAspectFit }
+                        Label { text:"Deschide Bălțile mele"; color:root.accent; font.pixelSize:11; font.bold:true; anchors.verticalCenter:parent.verticalCenter }
+                    }
+                    onClicked: myLakesPopup.open()
+                }
             }
             NavoMyLakes {
                 id: myLakesPopup
