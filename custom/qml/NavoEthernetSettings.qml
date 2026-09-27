@@ -42,38 +42,38 @@ Rectangle {
   GridLayout {
    Layout.fillWidth:true;Layout.fillHeight:true;columns:root.compact?1:2;columnSpacing:root.compact?0:18;rowSpacing:root.compact?10:0
    GroupBox {
-    title:"KOGGER SONAR"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?210:-1;Layout.preferredWidth:320;Layout.minimumWidth:280
+    title:"KOGGER SONAR"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?250:-1;Layout.preferredWidth:320;Layout.minimumWidth:280
     GridLayout {anchors.fill:parent;anchors.margins:root.compact?4:8;columns:2;columnSpacing:8;rowSpacing:root.compact?4:6
      Layout.maximumWidth: root.compact ? 16777215 : 620
      Label{text:"IP / Host";color:"#d7e3ee"}
-     TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:sonarHost;Layout.fillWidth:true;Layout.minimumWidth:190;text:cfg.sonarHost;placeholderText:"ex. 192.168.x.x"}
+     TextField { id:sonarHost; color:"#f2f7fb"; placeholderTextColor:"#70879a"; selectionColor:"#21b7ff"; selectedTextColor:"#07131d"; background:Rectangle{radius:6;color:"#101b25";border.color:sonarHost.activeFocus?"#21b7ff":"#31506a"};Layout.fillWidth:true;Layout.minimumWidth:190;text:cfg.sonarHost;placeholderText:"ex. 192.168.x.x"}
      Label{text:"Port";color:"#d7e3ee"}
-     TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:sonarPort;Layout.fillWidth:true;text:cfg.sonarPort>0?cfg.sonarPort.toString():"";inputMethodHints:Qt.ImhDigitsOnly}
+     TextField { id:sonarPort; color:"#f2f7fb"; placeholderTextColor:"#70879a"; selectionColor:"#21b7ff"; selectedTextColor:"#07131d"; background:Rectangle{radius:6;color:"#101b25";border.color:sonarPort.activeFocus?"#21b7ff":"#31506a"};Layout.fillWidth:true;text:cfg.sonarPort>0?cfg.sonarPort.toString():"";inputMethodHints:Qt.ImhDigitsOnly}
      Label{text:"Transport";color:"#d7e3ee"}
-     CheckBox{id:sonarUdp;text:checked?"UDP":"TCP";checked:cfg.sonarUdp}
+     CheckBox{id:sonarUdp;text:checked?"UDP":"TCP";checked:cfg.sonarUdp;palette.windowText:"#d7e3ee";indicator:Rectangle{implicitWidth:24;implicitHeight:24;radius:5;color:sonarUdp.checked?"#123b4b":"#101b25";border.color:sonarUdp.checked?"#21b7ff":"#31506a";Label{anchors.centerIn:parent;text:sonarUdp.checked?"✓":"";color:"#31d67b";font.bold:true}}}
      Item{Layout.columnSpan:2;Layout.fillHeight:true}
      Label{Layout.columnSpan:2;Layout.fillWidth:true;wrapMode:Text.WordWrap;color:"#9db2c5";font.pixelSize:10;text:"Stare: "+(sonar?sonar.status:"--")}
      Button{width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Conectează sonar";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/sonar.svg"}enabled:sonar&&sonarHost.text.trim().length>0&&(parseInt(sonarPort.text)||0)>0;onClicked:{root.saveEndpoints();sonar.connectSonar()}}
     }
    }
    GroupBox {
-    title:"CAMERA FAȚĂ"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?300:-1;Layout.preferredWidth:420;Layout.minimumWidth:340
+    title:"CAMERA FAȚĂ"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?330:-1;Layout.preferredWidth:420;Layout.minimumWidth:340
     ColumnLayout {
      anchors.fill:parent;anchors.margins:root.compact?4:8;spacing:root.compact?4:6
      GridLayout {Layout.fillWidth:true;columns:2;columnSpacing:8;rowSpacing:root.compact?4:6
       Layout.maximumWidth: root.compact ? 16777215 : 620
       Label{text:"IP / Host";color:"#d7e3ee"}
-      TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:cameraHost;Layout.fillWidth:true;Layout.minimumWidth:190;text:cfg.cameraHost;placeholderText:"ex. 192.168.x.x"}
+      TextField { id:cameraHost; color:"#f2f7fb"; placeholderTextColor:"#70879a"; selectionColor:"#21b7ff"; selectedTextColor:"#07131d"; background:Rectangle{radius:6;color:"#101b25";border.color:cameraHost.activeFocus?"#21b7ff":"#31506a"};Layout.fillWidth:true;Layout.minimumWidth:190;text:cfg.cameraHost;placeholderText:"ex. 192.168.x.x"}
       Label{text:"Port";color:"#d7e3ee"}
-      TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:cameraPort;Layout.fillWidth:true;text:cfg.cameraPort>0?cfg.cameraPort.toString():"";inputMethodHints:Qt.ImhDigitsOnly}
+      TextField { id:cameraPort; color:"#f2f7fb"; placeholderTextColor:"#70879a"; selectionColor:"#21b7ff"; selectedTextColor:"#07131d"; background:Rectangle{radius:6;color:"#101b25";border.color:cameraPort.activeFocus?"#21b7ff":"#31506a"};Layout.fillWidth:true;text:cfg.cameraPort>0?cfg.cameraPort.toString():"";inputMethodHints:Qt.ImhDigitsOnly}
       Label{text:"Transport";color:"#d7e3ee"}
-      CheckBox{id:cameraUdp;text:checked?"UDP":"TCP";checked:cfg.cameraUdp}
+      CheckBox{id:cameraUdp;text:checked?"UDP":"TCP";checked:cfg.cameraUdp;palette.windowText:"#d7e3ee";indicator:Rectangle{implicitWidth:24;implicitHeight:24;radius:5;color:cameraUdp.checked?"#123b4b":"#101b25";border.color:cameraUdp.checked?"#21b7ff":"#31506a";Label{anchors.centerIn:parent;text:cameraUdp.checked?"✓":"";color:"#31d67b";font.bold:true}}}
       Label{text:"URL video";color:"#d7e3ee"}
-      TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:streamUrl;Layout.fillWidth:true;Layout.minimumWidth:190;text:cfg.cameraStreamUrl;placeholderText:"rtsp://... sau http://..."}
+      TextField { id:streamUrl; color:"#f2f7fb"; placeholderTextColor:"#70879a"; selectionColor:"#21b7ff"; selectedTextColor:"#07131d"; background:Rectangle{radius:6;color:"#101b25";border.color:streamUrl.activeFocus?"#21b7ff":"#31506a"};Layout.fillWidth:true;Layout.minimumWidth:190;text:cfg.cameraStreamUrl;placeholderText:"rtsp://... sau http://..."}
       Label{text:"Protocol";color:"#d7e3ee"}
-      ComboBox{id:protocol;Layout.fillWidth:true;textRole:"text";valueRole:"value";model:[{text:"AUTO",value:"auto"},{text:"RTSP",value:"rtsp"},{text:"MJPEG/HTTP",value:"mjpeg"}];Component.onCompleted:{var i=indexOfValue(cfg.cameraProtocol);if(i>=0)currentIndex=i}}
+      ComboBox{id:protocol;Layout.fillWidth:true;palette.text:"#f2f7fb";palette.buttonText:"#f2f7fb";palette.base:"#101b25";palette.button:"#101b25";textRole:"text";valueRole:"value";model:[{text:"AUTO",value:"auto"},{text:"RTSP",value:"rtsp"},{text:"MJPEG/HTTP",value:"mjpeg"}];Component.onCompleted:{var i=indexOfValue(cfg.cameraProtocol);if(i>=0)currentIndex=i}}
      }
-     NavoVideoPlayer{id:videoTest;Layout.fillWidth:true;Layout.fillHeight:true;Layout.minimumHeight:root.compact?54:80;streamUrl:streamUrl.text;protocol:protocol.currentValue;onVideoError:function(message){root.status("Video: "+message)}}
+     NavoVideoPlayer{id:videoTest;visible:streamUrl.text.trim().length>0;Layout.fillWidth:true;Layout.fillHeight:visible;Layout.minimumHeight:visible?(root.compact?54:80):0;Layout.maximumHeight:visible?16777215:0;streamUrl:streamUrl.text;protocol:protocol.currentValue;onVideoError:function(message){root.status("Video: "+message)}}
      RowLayout {
       Layout.fillWidth:true
       Button{width:42;height:38;ToolTip.visible:hovered;ToolTip.text:"Testează video";contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/play.svg"}enabled:streamUrl.text.trim().length>0;onClicked:{root.saveEndpoints();videoTest.start()}}
