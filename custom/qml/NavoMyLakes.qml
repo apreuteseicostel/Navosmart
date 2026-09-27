@@ -118,10 +118,16 @@ Popup {
 
         RowLayout {
             Layout.fillWidth: true
-            TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";
+            TextField {
                 id: newLakeName
                 Layout.fillWidth: true
+                Layout.preferredHeight: 42
+                color: "#f2f7fb"
+                placeholderTextColor: "#7f91a3"
+                selectionColor: "#21b7ff"
+                selectedTextColor: "#07131d"
                 placeholderText: "Nume baltă / lac"
+                background: Rectangle { radius: 7; color: "#0b1825"; border.color: newLakeName.activeFocus ? "#21b7ff" : "#294052"; border.width: 1 }
                 onAccepted: root.addLake()
             }
             LakeIconButton { hint:"Adaugă baltă"; enabled:newLakeName.text.trim().length>0; contentItem:Image{anchors.centerIn:parent;width:22;height:22;source:"qrc:/qml/NavoSmart/icons/add.svg"} onClicked:root.addLake() }
