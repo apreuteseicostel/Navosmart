@@ -1254,6 +1254,13 @@ Item {
                             Layout.fillWidth:true
                             text:"Am verificat mecanic calibrarea cuvelor"
                             palette.text:"#f4f7fb"
+                            contentItem: Label {
+                                leftPadding: parent.indicator.width + parent.spacing
+                                text: parent.text
+                                color: "#f4f7fb"
+                                verticalAlignment: Text.AlignVCenter
+                                elide: Text.ElideRight
+                            }
                             checked:hopperSettings.confirmed
                             enabled: true
                             ToolTip.visible: hovered
