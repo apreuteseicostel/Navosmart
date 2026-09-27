@@ -684,18 +684,38 @@ Item {
                 width: 54; spacing: 4
                 component MiniStatus: Rectangle {
                     property string title:""; property string value:""; property bool good:false; property url iconSource:""
-                    width:54; height:52; radius:7; color:"#101822"; border.color:good?root.ok:root.line
+                    property bool clickable:false
+                    property string toolTipText:""
+                    signal clicked()
+                    width:54; height:52; radius:7; color:mouse.containsMouse&&clickable?"#183149":"#101822"; border.color:good?root.ok:(mouse.containsMouse&&clickable?"#21b7ff":root.line)
                     Column { anchors.centerIn:parent; spacing:0
                         Image { anchors.horizontalCenter:parent.horizontalCenter;width:22;height:22;source:iconSource;fillMode:Image.PreserveAspectFit }
                         Label { anchors.horizontalCenter:parent.horizontalCenter; text:title; color:"#c9d4df"; font.pixelSize:7; font.bold:true }
                         Label { anchors.horizontalCenter:parent.horizontalCenter; text:value; color:good?root.ok:"#ff6575"; font.pixelSize:9; font.bold:true }
                     }
+                    MouseArea { id:mouse; anchors.fill:parent; enabled:parent.clickable; hoverEnabled:true; cursorShape:enabled?Qt.PointingHandCursor:Qt.ArrowCursor; onClicked:parent.clicked() }
+                    ToolTip.visible: mouse.containsMouse && clickable
+                    ToolTip.text: toolTipText
                 }
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/autopilot.svg"; title:"AP"; value:vehicle?"ON":"OFF"; good:!!vehicle }
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/lan.svg"; title:"LAN"; value:sonar.transport&&sonar.transport.connected?"ON":"OFF"; good:sonar.transport&&sonar.transport.connected }
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/sonar.svg"; title:"SONAR"; value:root.sonarConnected?"ON":"OFF"; good:root.sonarConnected }
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/nano.svg"; title:"NANO"; value:nanoTelemetry.connected?"ON":"OFF"; good:nanoTelemetry.connected }
-                MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/camera.svg"; title:"CAM"; value:root.cameraConnected?"ON":"OFF"; good:root.cameraConnected }
+                MiniStatus {
+                    iconSource:"qrc:/qml/NavoSmart/icons/camera.svg"; title:"CAM"; value:root.cameraConnected?"ON":"OFF"; good:root.cameraConnected
+                    clickable:true
+                    toolTipText: root.cameraStreamUrl.length>0 ? (root.cameraPipEnabled ? "Ascunde Camera față PiP" : "Afișează Camera față PiP") : "Configurează Camera față"
+                    onClicked: {
+                        if (root.cameraStreamUrl.length > 0) {
+                            root.cameraPipEnabled = !root.cameraPipEnabled
+                            root.cameraFullscreen = false
+                            root.lastNavigationStatus = root.cameraPipEnabled ? "Camera față PiP activată" : "Camera față PiP ascunsă"
+                        } else {
+                            root.activePage = 5
+                            root.lastNavigationStatus = "Camera față: configurează stream-ul Ethernet"
+                        }
+                    }
+                }
             }
         }
     }
