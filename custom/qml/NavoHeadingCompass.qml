@@ -91,7 +91,7 @@ Item {
     }
 
     Column {
-        anchors.centerIn: parent; anchors.verticalCenterOffset: root.height * 0.32; spacing: 0
+        anchors.centerIn: parent; anchors.verticalCenterOffset: root.height * (root.expanded ? 0.32 : 0.39); spacing: 0
         Label { anchors.horizontalCenter:parent.horizontalCenter; text:root.headingValid ? Math.round(root.normalizedHeading)+"° "+root.cardinal : "HEADING --"; color:"white"; font.bold:true; font.pixelSize:Math.max(8,Math.min(13,root.width*0.072)) }
         Label { anchors.horizontalCenter:parent.horizontalCenter; visible:isFinite(root.courseError); text:(root.courseError<0?"← ":"→ ")+Math.abs(Math.round(root.courseError))+"°"; color:"#ffbf3f"; font.pixelSize:Math.max(7,Math.min(11,root.width*0.061)) }
     }
