@@ -9,7 +9,7 @@ Rectangle {
  property var camera
  property string cameraStreamUrl:""
  property string cameraProtocol:"auto"
- readonly property bool compact: width < 900 || height < 520
+ readonly property bool compact: width < 760
  signal status(string text)
  color:"#0b1c2e"; border.color:"#1c4262"; radius:10
 
@@ -44,6 +44,7 @@ Rectangle {
    GroupBox {
     title:"KOGGER SONAR"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?190:-1;Layout.preferredWidth:1
     GridLayout {anchors.fill:parent;anchors.margins:root.compact?4:8;columns:2;columnSpacing:8;rowSpacing:root.compact?4:6
+     Layout.maximumWidth: root.compact ? 16777215 : 620
      Label{text:"IP / Host";color:"#d7e3ee"}
      TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:sonarHost;Layout.fillWidth:true;text:cfg.sonarHost;placeholderText:"ex. 192.168.x.x"}
      Label{text:"Port";color:"#d7e3ee"}
@@ -60,6 +61,7 @@ Rectangle {
     ColumnLayout {
      anchors.fill:parent;anchors.margins:root.compact?4:8;spacing:root.compact?4:6
      GridLayout {Layout.fillWidth:true;columns:2;columnSpacing:8;rowSpacing:root.compact?4:6
+      Layout.maximumWidth: root.compact ? 16777215 : 620
       Label{text:"IP / Host";color:"#d7e3ee"}
       TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:cameraHost;Layout.fillWidth:true;text:cfg.cameraHost;placeholderText:"ex. 192.168.x.x"}
       Label{text:"Port";color:"#d7e3ee"}
