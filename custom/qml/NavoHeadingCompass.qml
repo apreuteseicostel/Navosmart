@@ -60,12 +60,22 @@ Item {
             anchors.fill: parent
             onPaint: {
                 var c=getContext("2d"); c.reset()
+                // NAVO bait boat, top view: clean pointed bow, twin rear hoppers and antenna.
                 c.fillStyle="#d9ff19"; c.strokeStyle="#101820"; c.lineWidth=2
-                c.beginPath(); c.moveTo(width/2,1); c.quadraticCurveTo(width-2,20,width-4,74)
-                c.lineTo(width-9,height-3); c.lineTo(9,height-3); c.lineTo(4,74)
-                c.quadraticCurveTo(2,20,width/2,1); c.closePath(); c.fill(); c.stroke()
-                c.fillStyle="#101820"; c.fillRect(8,45,12,31); c.fillRect(width-20,45,12,31)
-                c.fillStyle="#18232d"; c.beginPath(); c.roundedRect(12,19,width-24,24,5,5); c.fill()
+                c.beginPath(); c.moveTo(width/2,1)
+                c.quadraticCurveTo(width-2,18,width-3,43)
+                c.lineTo(width-6,height-5); c.quadraticCurveTo(width/2,height-1,6,height-5)
+                c.lineTo(3,43); c.quadraticCurveTo(2,18,width/2,1)
+                c.closePath(); c.fill(); c.stroke()
+                // Two hopper openings sit aft, not at the bow.
+                c.fillStyle="#101820"
+                var hopperY=height*0.58, hopperH=height*0.25
+                c.beginPath(); c.roundedRect(width*0.16,hopperY,width*0.25,hopperH,2,2); c.fill()
+                c.beginPath(); c.roundedRect(width*0.59,hopperY,width*0.25,hopperH,2,2); c.fill()
+                // Small stern antenna/mast.
+                c.strokeStyle="#d9ff19"; c.lineWidth=2
+                c.beginPath(); c.moveTo(width/2,height-4); c.lineTo(width/2,height+8); c.stroke()
+                c.fillStyle="#26c6da"; c.beginPath(); c.arc(width/2,height+9,2,0,Math.PI*2); c.fill()
             }
         }
     }
