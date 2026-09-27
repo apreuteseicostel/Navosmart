@@ -1338,7 +1338,7 @@ Item {
                 anchors.fill: parent; anchors.margins: root.responsiveMargin; spacing: root.responsiveGap
                 RowLayout {
                     Layout.fillWidth: true
-                    Label { text: "SETĂRI NAVO SMART"; color: root.text; font.pixelSize: root.compactUi ? 14 : 16; font.bold: true }
+                    Layout.topMargin: root.compactUi ? 4 : 10
                     Item { Layout.fillWidth: true }
                     Button {
                         text: "UNITĂȚI"
