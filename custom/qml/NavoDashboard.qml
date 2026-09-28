@@ -95,11 +95,6 @@ Item {
         id: digitalAnchor
         vehicle: root.vehicle
         onStatus: function(text) { root.lastNavigationStatus=text }
-                        onUnitsRequested: {
-                            root.lastNavigationStatus = "Unități: Metric implicit • modificarea rămâne disponibilă în Setări generale QGroundControl"
-                            if (typeof mainWindow !== "undefined" && mainWindow.showSettingsTool)
-                                mainWindow.showSettingsTool()
-                        }
     }
     NavoEnergyGuard { id: energyGuard }
     NavoFailsafeController {
@@ -1414,6 +1409,7 @@ Item {
                         onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
                         onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
                         onStatus: function(text) { root.lastNavigationStatus=text }
+                        onUnitsRequested: { if (typeof mainWindow !== "undefined" && mainWindow.showSettingsTool) mainWindow.showSettingsTool() }
                     }
                 }
             }
