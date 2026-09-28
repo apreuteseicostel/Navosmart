@@ -239,6 +239,7 @@ Item {
     property int activePage: 0
     property bool hopperStatusExpanded: false
     property bool mapFullscreen: false
+    property bool headingOverlayOpen: false
     property var mapController: null
     property string pendingAreaDrawMode: "none"
     property bool pendingBaitPointPick: false
@@ -541,13 +542,13 @@ Item {
                 rollDeg: root.rollDeg
                 pitchDeg: root.pitchDeg
                 expanded: false
-                onToggleRequested: expanded = !expanded
+                onToggleRequested: root.headingOverlayOpen = !root.headingOverlayOpen
             }
         }
         }
     }
 
-    NavoHeadingCompass { id:headingCompassOverlay; visible:headingCompass.expanded; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; onToggleRequested:headingCompass.expanded=false }
+    NavoHeadingCompass { id:headingCompassOverlay; visible:root.headingOverlayOpen; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; onToggleRequested:root.headingOverlayOpen=false }
 
     Rectangle {
         id: sidebar

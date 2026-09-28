@@ -125,11 +125,11 @@ Item {
     Column {
         anchors.centerIn: parent
         visible: root.expanded
-        anchors.verticalCenterOffset: root.height * 0.31
+        anchors.verticalCenterOffset: root.height * 0.36
         spacing: root.expanded ? 2 : 0
         Label {
             anchors.horizontalCenter:parent.horizontalCenter
-            text:root.headingValid ? (root.expanded ? "HEADING  "+Math.round(root.normalizedHeading)+"°  "+root.cardinal : Math.round(root.normalizedHeading)+"°") : "HEADING --"
+            text:root.headingValid ? Math.round(root.normalizedHeading)+"°" : "--"
             color:"white"; font.bold:true
             font.pixelSize:root.expanded ? 13 : Math.max(8,Math.min(12,root.width*0.072))
         }
