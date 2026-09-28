@@ -27,7 +27,7 @@ Item {
 
     Rectangle {
         anchors.fill: parent; radius: width/2
-        color: root.expanded ? "#07131d99" : "#07131dcc"; border.color: root.headingValid ? "#26c6da" : "#4d5b67"; border.width: 2
+        color: root.expanded ? "#07131d99" : "transparent"; border.color: root.expanded ? (root.headingValid ? "#26c6da" : "#4d5b67") : "transparent"; border.width: root.expanded ? 2 : 0
     }
 
     Item {
@@ -124,7 +124,8 @@ Item {
 
     Column {
         anchors.centerIn: parent
-        anchors.verticalCenterOffset: root.height * (root.expanded ? 0.31 : 0.39)
+        visible: root.expanded
+        anchors.verticalCenterOffset: root.height * 0.31
         spacing: root.expanded ? 2 : 0
         Label {
             anchors.horizontalCenter:parent.horizontalCenter
