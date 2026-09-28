@@ -24,7 +24,7 @@ Popup {
  property bool noiseFilter:true
  property bool paused:false
  property bool recording:false
- component SonarIconButton: Button { width:40; height:40; padding:0; property string hint:""; ToolTip.visible:hovered; ToolTip.text:hint; background:Rectangle{radius:7;color:parent.checked?"#123d50":"#101b25";border.color:parent.checked?"#21b7ff":"#31404d"} }
+ component SonarIconButton: Button { width:38; height:38; padding:0; property string hint:""; ToolTip.visible:hovered; ToolTip.text:hint; background:Rectangle{radius:7;color:parent.checked?"#123d50":"#101b25";border.color:parent.checked?"#21b7ff":"#31404d"} }
  property var bottomStrengthHistory:[]
  property var bottomDepthHistory:[]
  readonly property real bottomEchoStrength: bottomStrengthHistory.length?Number(bottomStrengthHistory[bottomStrengthHistory.length-1]):NaN
@@ -52,9 +52,9 @@ Popup {
   }
   RowLayout{Layout.fillWidth:true;Layout.leftMargin:6;Layout.rightMargin:52;Layout.bottomMargin:2;spacing:8
    SonarIconButton{hint:"Sensibilitate: "+Math.round(root.gain*100)+"%";contentItem:Canvas{anchors.centerIn:parent;width:34;height:34;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2.4;p.beginPath();p.arc(17,17,4,0,Math.PI*2);p.stroke();p.beginPath();p.arc(17,17,9,-0.8,0.8);p.stroke();p.beginPath();p.arc(17,17,14,-0.7,0.7);p.stroke();p.fillStyle="#21b7ff";p.beginPath();p.arc(17,17,2.8,0,Math.PI*2);p.fill()}}}
-   Slider{id:gainSlider;from:.5;to:2.2;value:root.gain;stepSize:.05;Layout.preferredWidth:150;Layout.maximumWidth:190;onMoved:root.gain=value;ToolTip.visible:hovered||pressed;ToolTip.text:"Sensibilitate "+Math.round(value*100)+"%"}
+   Slider{id:gainSlider;from:.5;to:2.2;value:root.gain;stepSize:.05;Layout.preferredWidth:Math.max(96,Math.min(150,root.width*0.12));Layout.maximumWidth:150;onMoved:root.gain=value;ToolTip.visible:hovered||pressed;ToolTip.text:"Sensibilitate "+Math.round(value*100)+"%"}
    SonarIconButton{hint:root.noiseFilter?"Filtru zgomot: ON":"Filtru zgomot: OFF";checkable:true;checked:root.noiseFilter;contentItem:Canvas{anchors.centerIn:parent;width:34;height:34;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle=parent.checked?"#21b7ff":"#d9edf7";p.lineWidth=2.5;p.beginPath();p.moveTo(4,18);p.lineTo(8,18);p.lineTo(11,10);p.lineTo(15,25);p.lineTo(19,7);p.lineTo(23,23);p.lineTo(27,13);p.lineTo(30,18);p.lineTo(34,18);p.stroke();p.strokeStyle="#f2f7fb";p.lineWidth=1.5;p.beginPath();p.moveTo(5,29);p.lineTo(29,29);p.stroke()}} onClicked:root.noiseFilter=checked}
-   Slider{id:noiseSlider;from:0;to:.35;value:root.noiseFloor;stepSize:.01;Layout.preferredWidth:150;Layout.maximumWidth:190;enabled:root.noiseFilter;onMoved:root.noiseFloor=value;ToolTip.visible:hovered||pressed;ToolTip.text:"Prag filtru "+Math.round(value*100)+"%"}
+   Slider{id:noiseSlider;from:0;to:.35;value:root.noiseFloor;stepSize:.01;Layout.preferredWidth:Math.max(96,Math.min(150,root.width*0.12));Layout.maximumWidth:150;enabled:root.noiseFilter;onMoved:root.noiseFloor=value;ToolTip.visible:hovered||pressed;ToolTip.text:"Prag filtru "+Math.round(value*100)+"%"}
    SonarIconButton{hint:"Afișare pești";checkable:true;checked:root.fishIcons;contentItem:Canvas{anchors.centerIn:parent;width:36;height:36;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle=parent.checked?"#21b7ff":"#d9edf7";p.lineWidth=2;p.beginPath();p.ellipse(10,13,18,12);p.moveTo(28,19);p.lineTo(35,13);p.lineTo(35,25);p.closePath();p.stroke();p.beginPath();p.arc(15,18,1.3,0,Math.PI*2);p.fillStyle=p.strokeStyle;p.fill()}} onClicked:root.fishIcons=checked}
    SonarIconButton{hint:root.showRawTrace?"Ecou brut: ON":"Ecou brut: OFF";checkable:true;checked:root.showRawTrace;contentItem:Canvas{anchors.centerIn:parent;width:36;height:36;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle=parent.checked?"#21b7ff":"#d9edf7";p.lineWidth=2;p.beginPath();for(var x=6;x<=36;x+=2){var y=19+Math.sin(x*.75)*7;p.lineTo(x,y)}p.stroke()}} onClicked:root.showRawTrace=checked}
    ComboBox{Layout.preferredWidth:92;Layout.minimumWidth:92;model:["NAVO","DAY"];currentIndex:root.paletteMode==="NAVO"?0:1;ToolTip.visible:hovered;ToolTip.text:"Paletă ecogramă";onActivated:function(index){root.paletteMode=model[index]}}
@@ -80,12 +80,12 @@ Popup {
    }
    Label{anchors.centerIn:parent;visible:!root.connected;text:"Aștept date reale de la Kogger\nEcograma nu este simulată";horizontalAlignment:Text.AlignHCenter;color:"#9db2c5";font.pixelSize:18}
   }
-  Rectangle{Layout.preferredWidth:68;Layout.minimumWidth:68;Layout.maximumWidth:68;Layout.fillHeight:true;Layout.alignment:Qt.AlignRight;color:"#06131e";border.color:"#1c4262";radius:5;ToolTip.visible:legendMouse.containsMouse;ToolTip.text:"Putere ecou: puternic → slab"
+  Rectangle{Layout.preferredWidth:60;Layout.minimumWidth:60;Layout.maximumWidth:60;Layout.fillHeight:true;Layout.alignment:Qt.AlignRight;color:"#06131e";border.color:"#1c4262";radius:5;ToolTip.visible:legendMouse.containsMouse;ToolTip.text:"Putere ecou: puternic → slab"
    Column { anchors.fill:parent;anchors.margins:4;spacing:3; Label{anchors.horizontalCenter:parent.horizontalCenter;text:"PUTERNIC";color:"#d9edf7";font.pixelSize:8;font.bold:true} Rectangle{width:26;anchors.horizontalCenter:parent.horizontalCenter;height:Math.max(80,parent.height-58);radius:3;gradient:Gradient{GradientStop{position:0;color:"#f44b2e"}GradientStop{position:.28;color:"#f6da46"}GradientStop{position:.52;color:"#32d26f"}GradientStop{position:.75;color:"#1ccde1"}GradientStop{position:1;color:"#105caa"}}} Label{anchors.horizontalCenter:parent.horizontalCenter;text:"SLAB";color:"#9db2c5";font.pixelSize:8} Label{anchors.horizontalCenter:parent.horizontalCenter;text:"ECOU";color:"#21b7ff";font.pixelSize:9;font.bold:true} }
    MouseArea{id:legendMouse;anchors.fill:parent;hoverEnabled:true}
   }
 
-  Rectangle{visible:root.width>=1350;Layout.preferredWidth:visible?180:0;Layout.fillHeight:true;color:"#06131e";border.color:"#1c4262";radius:8
+  Rectangle{visible:root.width>=1500;Layout.preferredWidth:visible?170:0;Layout.fillHeight:true;color:"#06131e";border.color:"#1c4262";radius:8
    ColumnLayout{anchors.fill:parent;anchors.margins:10;spacing:8
     Label{text:"ADÂNCIME";color:"#9db2c5"} Label{text:isNaN(root.depthM)?"-- m":root.depthM.toFixed(1)+" m";color:"#f2f7fb";font.pixelSize:30;font.bold:true}
     Rectangle{Layout.fillWidth:true;height:1;color:"#17364a"}

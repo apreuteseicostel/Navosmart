@@ -40,8 +40,8 @@ Rectangle {
         anchors.top: parent.top
         anchors.rightMargin: 8
         anchors.topMargin: 8
-        width: 46
-        height: 46
+        width: 56
+        height: 56
         padding: 0
         ToolTip.visible: hovered
         ToolTip.text: "Închide Camera față"
