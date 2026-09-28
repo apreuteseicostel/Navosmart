@@ -39,19 +39,36 @@ void NavoKoggerDecoder::process(){
   else if(id==0x03&&(version==0||version==1)&&payload>=6){
    quint16 seq=le16(p),res=le16(p+2),off=le16(p+4);QByteArray part(p+6,payload-6);
    if(res==0){_chart.clear();emit frameRejected();continue;}
-   if(int(off)+int(res)>MaxChartBytes){_chart.clear();emit frameRejected();continue;}
-   if(seq==0||res!=_chartResolution||off!=_chartAbsoluteOffset){
-    // Never publish an incomplete CHART as a valid echogram column. A new
-    // sequence/resolution/offset means the previous assembly was truncated.
-    if(!_chart.isEmpty() && _chart.size()!=int(_chartResolution)) emit frameRejected();
-    _chart.clear();_chartResolution=res;_chartAbsoluteOffset=off;
+   // Kogger CHART sampleResol describes sample resolution, not the byte
+   // length of an echogram column. The official KoggerApp closes the
+   // previous column when a new sequence starts (seqOffset == 0) or the
+   // resolution/absolute-offset metadata changes.
+   const bool newColumn=(seq==0&&!_chart.isEmpty())||
+                        (!_chart.isEmpty()&&(res!=_chartResolution||off!=_chartAbsoluteOffset));
+   if(newColumn){
+    QVariantList out;int step=version==1?2:1;
+    for(int i=0;i+step-1<_chart.size();i+=step)out.append(double(quint8(_chart[i]))/255.0);
+    if(!out.isEmpty()){_echoSamples=out;emit echoSamplesChanged();}
+    _chart.clear();
    }
-   if(int(seq)+part.size()>int(res)||int(off)+int(seq)+part.size()>MaxChartBytes){_chart.clear();emit frameRejected();continue;}
+   if(_chart.isEmpty()){_chartResolution=res;_chartAbsoluteOffset=off;}
+   if(int(seq)+part.size()>MaxChartBytes){_chart.clear();emit frameRejected();continue;}
    if(seq==_chart.size()) { _chart.append(part); }
-   else if(seq>_chart.size() && seq-_chart.size()<=4096) { _chart.append(QByteArray(seq-_chart.size(), char(0))); _chart.append(part); }
-   else if(seq<_chart.size() && _chart.size()-seq<=4096) { _chart.truncate(seq); _chart.append(part); }
-   else { _chart.clear(); emit frameRejected(); }
-   if(_chart.size()==int(res)){QVariantList out;int step=version==1?2:1;for(int i=0;i<_chart.size();i+=step)out.append(double(quint8(_chart[i]))/255.0);_echoSamples=out;emit echoSamplesChanged();_chart.clear();}
+   else if(seq>_chart.size()) {
+    // Match KoggerApp loss handling: preserve seqOffset by zero-filling
+    // missing fragments instead of discarding the whole column.
+    _chart.append(QByteArray(int(seq)-_chart.size(), char(0)));_chart.append(part);
+   }
+   else {
+    // A backwards seqOffset means the first fragment(s) of a new column
+    // were lost. Publish what we assembled, then rebuild at the advertised
+    // offset with zero-fill, as KoggerApp does.
+    QVariantList out;int step=version==1?2:1;
+    for(int i=0;i+step-1<_chart.size();i+=step)out.append(double(quint8(_chart[i]))/255.0);
+    if(!out.isEmpty()){_echoSamples=out;emit echoSamplesChanged();}
+    _chart=QByteArray(int(seq),char(0));_chart.append(part);
+    _chartResolution=res;_chartAbsoluteOffset=off;
+   }
   }
  }
 }
