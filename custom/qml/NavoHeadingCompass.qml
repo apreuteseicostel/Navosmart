@@ -128,7 +128,7 @@ Item {
         spacing: root.expanded ? 2 : 0
         Label {
             anchors.horizontalCenter:parent.horizontalCenter
-            text:root.headingValid ? (root.expanded ? "HEADING  "+Math.round(root.normalizedHeading)+"°  "+root.cardinal : Math.round(root.normalizedHeading)+"° "+root.cardinal) : "HEADING --"
+            text:root.headingValid ? (root.expanded ? "HEADING  "+Math.round(root.normalizedHeading)+"°  "+root.cardinal : Math.round(root.normalizedHeading)+"°") : "HEADING --"
             color:"white"; font.bold:true
             font.pixelSize:root.expanded ? 13 : Math.max(8,Math.min(12,root.width*0.072))
         }
