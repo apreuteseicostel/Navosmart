@@ -35,11 +35,11 @@ Rectangle {
 
     Button {
         id: closeButton
-        z: 100
+        z: 10000
         anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.rightMargin: 8
-        anchors.topMargin: 8
+        anchors.bottom: parent.bottom
+        anchors.rightMargin: 12
+        anchors.bottomMargin: 12
         width: 56
         height: 56
         padding: 0
