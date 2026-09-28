@@ -42,7 +42,7 @@ Rectangle {
   GridLayout {
    Layout.fillWidth:true;Layout.fillHeight:true;columns:root.compact?1:2;columnSpacing:root.compact?0:20;rowSpacing:root.compact?10:0;uniformCellWidths:!root.compact
    GroupBox {
-    title:"KOGGER SONAR"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?250:-1;Layout.fillWidth:true;Layout.minimumWidth:root.compact?260:0
+    title:"KOGGER SONAR"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?250:-1;Layout.minimumWidth:root.compact?260:0
     GridLayout {anchors.fill:parent;anchors.margins:root.compact?4:8;columns:2;columnSpacing:8;rowSpacing:root.compact?4:6
      Layout.maximumWidth: root.compact ? 16777215 : 520
      Label{text:"IP / Host";color:"#d7e3ee"}
@@ -57,7 +57,7 @@ Rectangle {
     }
    }
    GroupBox {
-    title:"CAMERA FAȚĂ"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?330:-1;Layout.fillWidth:true;Layout.minimumWidth:root.compact?280:0
+    title:"CAMERA FAȚĂ"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?330:-1;Layout.minimumWidth:root.compact?280:0
     ColumnLayout {
      anchors.fill:parent;anchors.margins:root.compact?4:8;spacing:root.compact?4:6
      GridLayout {Layout.fillWidth:true;columns:2;columnSpacing:8;rowSpacing:root.compact?4:6
