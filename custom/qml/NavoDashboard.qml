@@ -779,9 +779,20 @@ Item {
                         } else {
                             if(scanCoordinator.state==="MANUAL_SONAR" && sonarMapping.scanning) {
                                 sonarMapping.finishAndBuild()
+                                var manualBathyOk=false
+                                if(sonarMapping.rawSamples.length>=3 && bathymetryModel && bathymetryModel.rebuild) {
+                                    var manualCells=bathymetryModel.rebuild(sonarMapping.rawSamples)
+                                    if(manualCells!==undefined && manualCells!==null) {
+                                        scanCoordinator.bathymetryCells=manualCells
+                                        manualBathyOk=true
+                                    }
+                                }
+                                sonarMapping.markBathymetrySaved(manualBathyOk)
                                 scanCoordinator.state="IDLE"
-                                scanCoordinator.checkpoint("manual-sonar-stop")
-                                root.lastNavigationStatus="Înregistrare sonar oprită • datele au fost salvate"
+                                var manualSaved=scanCoordinator.checkpoint("manual-sonar-stop")
+                                root.lastNavigationStatus=manualSaved
+                                        ? ("Înregistrare sonar oprită • "+sonarMapping.rawSamples.length+" măsurători salvate"+(manualBathyOk?" • batimetrie generată":" • batimetrie indisponibilă"))
+                                        : "Înregistrare sonar oprită • EROARE la salvarea sesiunii"
                             }
                         }
                     }
