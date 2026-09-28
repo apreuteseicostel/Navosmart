@@ -9,7 +9,7 @@ Rectangle {
  property var camera
  property string cameraStreamUrl:""
  property string cameraProtocol:"auto"
- readonly property bool compact: width < 520
+ readonly property bool compact: width < 760
  signal status(string text)
  color:"#0b1c2e"; border.color:"#1c4262"; radius:10
 
@@ -40,11 +40,11 @@ Rectangle {
   anchors.fill:parent;anchors.margins:root.compact?8:14;spacing:root.compact?6:10
   Label{text:"REȚEA BARCĂ • ETHERNET";color:"#21b7ff";font.bold:true;font.pixelSize:root.compact?13:14;Layout.preferredHeight:root.compact?20:24;verticalAlignment:Text.AlignVCenter}
   GridLayout {
-   Layout.fillWidth:true;Layout.fillHeight:true;columns:root.compact?1:2;columnSpacing:root.compact?0:18;rowSpacing:root.compact?10:0
+   Layout.fillWidth:true;Layout.fillHeight:true;columns:root.compact?1:2;columnSpacing:root.compact?0:20;rowSpacing:root.compact?10:0;uniformCellWidths:!root.compact
    GroupBox {
-    title:"KOGGER SONAR"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?250:-1;Layout.preferredWidth:360;Layout.minimumWidth:root.compact?260:300
+    title:"KOGGER SONAR"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?250:-1;Layout.fillWidth:true;Layout.minimumWidth:root.compact?260:0
     GridLayout {anchors.fill:parent;anchors.margins:root.compact?4:8;columns:2;columnSpacing:8;rowSpacing:root.compact?4:6
-     Layout.maximumWidth: root.compact ? 16777215 : 620
+     Layout.maximumWidth: root.compact ? 16777215 : 520
      Label{text:"IP / Host";color:"#d7e3ee"}
      TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:sonarHost;Layout.fillWidth:true;Layout.minimumWidth:190;text:cfg.sonarHost;placeholderText:"ex. 192.168.x.x"}
      Label{text:"Port";color:"#d7e3ee"}
@@ -57,11 +57,11 @@ Rectangle {
     }
    }
    GroupBox {
-    title:"CAMERA FAȚĂ"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?330:-1;Layout.preferredWidth:420;Layout.minimumWidth:root.compact?280:340
+    title:"CAMERA FAȚĂ"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?330:-1;Layout.fillWidth:true;Layout.minimumWidth:root.compact?280:0
     ColumnLayout {
      anchors.fill:parent;anchors.margins:root.compact?4:8;spacing:root.compact?4:6
      GridLayout {Layout.fillWidth:true;columns:2;columnSpacing:8;rowSpacing:root.compact?4:6
-      Layout.maximumWidth: root.compact ? 16777215 : 620
+      Layout.maximumWidth: root.compact ? 16777215 : 520
       Label{text:"IP / Host";color:"#d7e3ee"}
       TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:cameraHost;Layout.fillWidth:true;Layout.minimumWidth:190;text:cfg.cameraHost;placeholderText:"ex. 192.168.x.x"}
       Label{text:"Port";color:"#d7e3ee"}
