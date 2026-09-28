@@ -44,11 +44,11 @@ Rectangle {
    GroupBox {
     title:"KOGGER SONAR"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?250:-1;Layout.minimumWidth:root.compact?260:0
     GridLayout {anchors.fill:parent;anchors.margins:root.compact?4:8;columns:2;columnSpacing:8;rowSpacing:root.compact?4:6
-     Layout.maximumWidth: root.compact ? 16777215 : 520
+     Layout.fillWidth:true
      Label{text:"IP / Host";color:"#d7e3ee"}
-     TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:sonarHost;Layout.fillWidth:true;Layout.minimumWidth:190;text:cfg.sonarHost;placeholderText:"ex. 192.168.x.x"}
+     TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:sonarHost;Layout.fillWidth:true;Layout.minimumWidth:root.compact?190:120;Layout.maximumWidth:root.compact?16777215:360;text:cfg.sonarHost;placeholderText:"ex. 192.168.x.x"}
      Label{text:"Port";color:"#d7e3ee"}
-     TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:sonarPort;Layout.fillWidth:true;text:cfg.sonarPort>0?cfg.sonarPort.toString():"";inputMethodHints:Qt.ImhDigitsOnly}
+     TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:sonarPort;Layout.fillWidth:true;Layout.maximumWidth:root.compact?16777215:180;text:cfg.sonarPort>0?cfg.sonarPort.toString():"";inputMethodHints:Qt.ImhDigitsOnly}
      Label{text:"Transport";color:"#d7e3ee"}
      CheckBox{id:sonarUdp;text:checked?"UDP":"TCP";checked:cfg.sonarUdp}
      Item{Layout.columnSpan:2;Layout.fillHeight:true}
@@ -61,11 +61,11 @@ Rectangle {
     ColumnLayout {
      anchors.fill:parent;anchors.margins:root.compact?4:8;spacing:root.compact?4:6
      GridLayout {Layout.fillWidth:true;columns:2;columnSpacing:8;rowSpacing:root.compact?4:6
-      Layout.maximumWidth: root.compact ? 16777215 : 520
+      Layout.fillWidth:true
       Label{text:"IP / Host";color:"#d7e3ee"}
-      TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:cameraHost;Layout.fillWidth:true;Layout.minimumWidth:190;text:cfg.cameraHost;placeholderText:"ex. 192.168.x.x"}
+      TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:cameraHost;Layout.fillWidth:true;Layout.minimumWidth:root.compact?190:120;Layout.maximumWidth:root.compact?16777215:360;text:cfg.cameraHost;placeholderText:"ex. 192.168.x.x"}
       Label{text:"Port";color:"#d7e3ee"}
-      TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:cameraPort;Layout.fillWidth:true;text:cfg.cameraPort>0?cfg.cameraPort.toString():"";inputMethodHints:Qt.ImhDigitsOnly}
+      TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";id:cameraPort;Layout.fillWidth:true;Layout.maximumWidth:root.compact?16777215:180;text:cfg.cameraPort>0?cfg.cameraPort.toString():"";inputMethodHints:Qt.ImhDigitsOnly}
       Label{text:"Transport";color:"#d7e3ee"}
       CheckBox{id:cameraUdp;text:checked?"UDP":"TCP";checked:cfg.cameraUdp}
       Label{text:"URL video";color:"#d7e3ee"}
