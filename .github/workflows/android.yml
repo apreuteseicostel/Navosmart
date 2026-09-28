@@ -79,6 +79,11 @@ jobs:
           echo "ANDROID_NDK_ROOT=${{ steps.ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=${{ steps.ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
           echo "ANDROID_NDK=${{ steps.ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
+      - name: Setup Python for Qt installer
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
       - name: Install host Qt
         uses: jurplel/install-qt-action@v4
         with:
@@ -88,7 +93,7 @@ jobs:
           arch: linux_gcc_64
           dir: '${{ runner.temp }}'
           modules: 'qtcharts qtlocation qtpositioning qtspeech qt5compat qtmultimedia qtserialport qtimageformats qtshadertools qtconnectivity qtquick3d qtsensors'
-          setup-python: false
+          setup-python: true
           cache: true
       - name: Validate all NAVO QML syntax and QObject headers
         run: |
