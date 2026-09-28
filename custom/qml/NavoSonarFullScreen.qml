@@ -64,7 +64,7 @@ Popup {
    SonarIconButton{hint:"Salvează punct";enabled:root.connected&&!isNaN(root.latitude)&&!isNaN(root.longitude)&&!isNaN(root.depthM);contentItem:Image{anchors.centerIn:parent;width:22;height:22;source:"qrc:/qml/NavoSmart/icons/target.svg"} onClicked:root.saveWaypointRequested(root.latitude,root.longitude,root.depthM,root.waterTempC)}
    SonarIconButton { visible:root.transport; hint:root.transport&&root.transport.connected?"Deconectează Kogger":"Conectează Kogger"; contentItem:Image{anchors.centerIn:parent;width:22;height:22;source:"qrc:/qml/NavoSmart/icons/sonar.svg";fillMode:Image.PreserveAspectFit} onClicked:{if(root.transport.connected)root.transport.disconnectFromSonar();else root.transport.connectToSonar()} }
   }
-  RowLayout{Layout.fillWidth:true;Layout.fillHeight:true;Layout.minimumHeight:180;Layout.leftMargin:2;Layout.rightMargin:2;Layout.bottomMargin:2;spacing:2
+  RowLayout{Layout.fillWidth:true;Layout.fillHeight:true;Layout.minimumHeight:180;Layout.leftMargin:2;Layout.rightMargin:2;Layout.bottomMargin:0;spacing:2
   Rectangle{Layout.fillWidth:true;Layout.fillHeight:true;Layout.minimumWidth:0;Layout.preferredWidth:1;color:"#020b12"
    Repeater{model:5;Label{anchors.left:parent.left;anchors.leftMargin:8;y:index*(parent.height/4)-height/2;text:(index===0?"0.0":(!isNaN(root.depthM)?(root.depthM*index/4).toFixed(1):"--"))+" m";color:"#d9edf7";z:3}}
    Canvas{id:echogram;anchors.fill:parent
@@ -80,8 +80,11 @@ Popup {
    }
    Label{anchors.centerIn:parent;visible:!root.connected;text:"Aștept date reale de la Kogger\nEcograma nu este simulată";horizontalAlignment:Text.AlignHCenter;color:"#9db2c5";font.pixelSize:18}
   }
-  Rectangle{Layout.preferredWidth:54;Layout.minimumWidth:54;Layout.maximumWidth:54;Layout.fillHeight:true;Layout.alignment:Qt.AlignRight;color:"#06131e";border.color:"#1c4262";radius:5;ToolTip.visible:legendMouse.containsMouse;ToolTip.text:"Putere ecou: puternic → slab"
-   Column { anchors.fill:parent;anchors.margins:4;spacing:3; Label{anchors.horizontalCenter:parent.horizontalCenter;text:"PUTERNIC";color:"#d9edf7";font.pixelSize:8;font.bold:true} Rectangle{width:22;anchors.horizontalCenter:parent.horizontalCenter;height:Math.max(60,parent.height-76);radius:3;gradient:Gradient{GradientStop{position:0;color:"#f44b2e"}GradientStop{position:.28;color:"#f6da46"}GradientStop{position:.52;color:"#32d26f"}GradientStop{position:.75;color:"#1ccde1"}GradientStop{position:1;color:"#105caa"}}} Label{anchors.horizontalCenter:parent.horizontalCenter;text:"SLAB";color:"#9db2c5";font.pixelSize:8} Label{anchors.horizontalCenter:parent.horizontalCenter;text:"ECOU";color:"#21b7ff";font.pixelSize:9;font.bold:true} }
+  Rectangle{Layout.preferredWidth:62;Layout.minimumWidth:62;Layout.maximumWidth:62;Layout.fillHeight:true;Layout.alignment:Qt.AlignRight;color:"#06131e";border.color:"#1c4262";radius:5;ToolTip.visible:legendMouse.containsMouse;ToolTip.text:"Putere ecou: puternic → slab"
+   Label{id:echoStrong;anchors.top:parent.top;anchors.topMargin:5;anchors.horizontalCenter:parent.horizontalCenter;text:"PUTERNIC";color:"#d9edf7";font.pixelSize:8;font.bold:true}
+   Rectangle{id:echoScale;anchors.top:echoStrong.bottom;anchors.topMargin:4;anchors.bottom:echoWeak.top;anchors.bottomMargin:4;anchors.horizontalCenter:parent.horizontalCenter;width:24;radius:3;gradient:Gradient{GradientStop{position:0;color:"#f44b2e"}GradientStop{position:.28;color:"#f6da46"}GradientStop{position:.52;color:"#32d26f"}GradientStop{position:.75;color:"#1ccde1"}GradientStop{position:1;color:"#105caa"}}}
+   Label{id:echoWeak;anchors.bottom:echoLabel.top;anchors.bottomMargin:2;anchors.horizontalCenter:parent.horizontalCenter;text:"SLAB";color:"#9db2c5";font.pixelSize:8;font.bold:true}
+   Label{id:echoLabel;anchors.bottom:parent.bottom;anchors.bottomMargin:5;anchors.horizontalCenter:parent.horizontalCenter;text:"ECOU";color:"#21b7ff";font.pixelSize:9;font.bold:true}
    MouseArea{id:legendMouse;anchors.fill:parent;hoverEnabled:true}
   }
 

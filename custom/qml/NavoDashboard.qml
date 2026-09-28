@@ -95,6 +95,11 @@ Item {
         id: digitalAnchor
         vehicle: root.vehicle
         onStatus: function(text) { root.lastNavigationStatus=text }
+                        onUnitsRequested: {
+                            root.lastNavigationStatus = "Unități: Metric implicit • modificarea rămâne disponibilă în Setări generale QGroundControl"
+                            if (typeof mainWindow !== "undefined" && mainWindow.showSettingsTool)
+                                mainWindow.showSettingsTool()
+                        }
     }
     NavoEnergyGuard { id: energyGuard }
     NavoFailsafeController {
@@ -1400,21 +1405,6 @@ Item {
                 ColumnLayout {
                     width: parent.width
                     spacing: root.responsiveGap
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Layout.topMargin: root.compactUi ? 4 : 10
-                        Item { Layout.fillWidth: true }
-                        Button {
-                            text: "UNITĂȚI"
-                            ToolTip.visible: hovered
-                            ToolTip.text: "Deschide setările QGroundControl pentru unitățile de măsură"
-                            onClicked: {
-                                root.lastNavigationStatus = "Unități: Metric implicit • modificarea rămâne disponibilă în Setări generale QGroundControl"
-                                if (typeof mainWindow !== "undefined" && mainWindow.showSettingsTool)
-                                    mainWindow.showSettingsTool()
-                            }
-                        }
-                    }
                     NavoEthernetSettings {
                         id: ethernetSettings
                         Layout.fillWidth: true
