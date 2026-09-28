@@ -51,6 +51,7 @@ Item {
     property bool baitPointPickMode: false
     property var areaDraftPoints: []
     property var lastAreaOutline: []
+    property int rectangleDragCorner: -1
 
     function beginAreaRectangle() {
         areaDraftPoints=[]
@@ -62,8 +63,23 @@ Item {
         areaDrawMode="polygon"
         if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid) liveMap.center=vehicle.coordinate
     }
-    function undoAreaPoint() { if(areaDraftPoints.length===0)return; var pts=areaDraftPoints.slice(0); pts.pop(); areaDraftPoints=pts }
-    function clearAreaDrawing() { areaDraftPoints=[]; lastAreaOutline=[]; areaDrawMode="none" }
+    function undoAreaPoint() { if(areaDraftPoints.length===0)return; var pts=areaDraftPoints.slice(0); pts.pop(); areaDraftPoints=pts; rectangleDragCorner=-1 }
+    function rectangleDimensionsText() {
+        if(areaDrawMode!=="rectangle" || areaDraftPoints.length!==2) return ""
+        var a=areaDraftPoints[0], b=areaDraftPoints[1]
+        var widthM=QtPositioning.coordinate(a.latitude,a.longitude).distanceTo(QtPositioning.coordinate(a.latitude,b.longitude))
+        var heightM=QtPositioning.coordinate(a.latitude,a.longitude).distanceTo(QtPositioning.coordinate(b.latitude,a.longitude))
+        return Math.round(widthM)+" × "+Math.round(heightM)+" m"
+    }
+    function nearestRectangleCorner(c) {
+        if(!c || !c.isValid || areaDraftPoints.length!==2) return -1
+        return c.distanceTo(areaDraftPoints[0]) <= c.distanceTo(areaDraftPoints[1]) ? 0 : 1
+    }
+    function updateRectangleCorner(index,c) {
+        if(index<0 || index>1 || !c || !c.isValid || areaDraftPoints.length!==2) return
+        var pts=areaDraftPoints.slice(0); pts[index]=c; areaDraftPoints=pts
+    }
+    function clearAreaDrawing() { areaDraftPoints=[]; lastAreaOutline=[]; areaDrawMode="none"; rectangleDragCorner=-1 }
     function cancelAreaDrawing() { clearAreaDrawing() }
     function resetView() {
         if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid) liveMap.center=vehicle.coordinate
@@ -284,15 +300,32 @@ Item {
     MouseArea {
         anchors.fill: parent
         enabled: root.areaDrawMode !== "none"
+        acceptedButtons: Qt.LeftButton
+        preventStealing: root.areaDrawMode === "rectangle" && root.areaDraftPoints.length === 2
+        onPressed: function(mouse) {
+            if(root.areaDrawMode!=="rectangle" || root.areaDraftPoints.length!==2) return
+            var c=liveMap.toCoordinate(Qt.point(mouse.x,mouse.y),false)
+            root.rectangleDragCorner=root.nearestRectangleCorner(c)
+            root.updateRectangleCorner(root.rectangleDragCorner,c)
+        }
+        onPositionChanged: function(mouse) {
+            if(root.areaDrawMode!=="rectangle" || root.rectangleDragCorner<0 || !pressed) return
+            var c=liveMap.toCoordinate(Qt.point(mouse.x,mouse.y),false)
+            root.updateRectangleCorner(root.rectangleDragCorner,c)
+        }
+        onReleased: root.rectangleDragCorner=-1
+        onCanceled: root.rectangleDragCorner=-1
         onClicked: function(mouse) {
             var c=liveMap.toCoordinate(Qt.point(mouse.x,mouse.y),false)
             if(!c || !c.isValid)return
             var pts=root.areaDraftPoints.slice(0)
             if(root.areaDrawMode==="rectangle") {
-                if(pts.length>=2)pts=[]
-                pts.push(c)
-                root.areaDraftPoints=pts
-                if(pts.length===2)root.finishAreaDrawing()
+                if(pts.length<2) {
+                    pts.push(c)
+                    root.areaDraftPoints=pts
+                }
+                // With two corners the rectangle stays editable. Tap/drag moves
+                // the nearest diagonal corner; GATA is the only commit action.
             } else {
                 pts.push(c);root.areaDraftPoints=pts
             }
@@ -362,12 +395,18 @@ Item {
     }
 
     Row {
-        anchors.left: parent.left; anchors.bottom: parent.bottom; anchors.margins: 10; spacing: 6
+        anchors.left: parent.left; anchors.bottom: parent.bottom; anchors.leftMargin:14; anchors.bottomMargin:14; spacing:8
         visible: root.areaDrawMode!=="none"
-        Button { width:42;height:32;padding:2;enabled:false;ToolTip.visible:hovered;ToolTip.text:(root.areaDrawMode==="rectangle"?"Dreptunghi ":"Poligon ")+root.areaDraftPoints.length+(root.areaDrawMode==="rectangle"?"/2":"");contentItem:Image{anchors.centerIn:parent;width:21;height:21;source:root.areaDrawMode==="rectangle"?"qrc:/qml/NavoSmart/icons/rectangle.svg":"qrc:/qml/NavoSmart/icons/polygon.svg"} }
-        Button { visible:root.areaDrawMode==="polygon";width:42;height:32;padding:2;enabled:root.areaDraftPoints.length>=3;ToolTip.visible:hovered;ToolTip.text:"Finalizează poligonul";contentItem:Image{anchors.centerIn:parent;width:21;height:21;source:"qrc:/qml/NavoSmart/icons/done.svg"}onClicked:root.finishAreaDrawing() }
-        Button { width:42;height:32;padding:2;enabled:root.areaDraftPoints.length>0;ToolTip.visible:hovered;ToolTip.text:"Șterge ultimul punct / segment";contentItem:Image{anchors.centerIn:parent;width:21;height:21;source:"qrc:/qml/NavoSmart/icons/undo.svg"}onClicked:root.undoAreaPoint() }
-        Button { width:42;height:32;padding:2;ToolTip.visible:hovered;ToolTip.text:"Șterge desenul Area Scan";contentItem:Image{anchors.centerIn:parent;width:21;height:21;source:"qrc:/qml/NavoSmart/icons/delete.svg"}onClicked:root.clearAreaDrawing() }
+        z: 3000
+        Button { width:50;height:48;padding:2;enabled:false;ToolTip.visible:hovered;ToolTip.text:(root.areaDrawMode==="rectangle"?"Dreptunghi ":"Poligon ")+root.areaDraftPoints.length+(root.areaDrawMode==="rectangle"?"/2":"");contentItem:Image{anchors.centerIn:parent;width:26;height:26;source:root.areaDrawMode==="rectangle"?"qrc:/qml/NavoSmart/icons/rectangle.svg":"qrc:/qml/NavoSmart/icons/polygon.svg"} }
+        Button { visible:root.areaDrawMode==="polygon" || root.areaDrawMode==="rectangle";width:50;height:48;padding:2;enabled:root.areaDrawMode==="rectangle"?root.areaDraftPoints.length===2:root.areaDraftPoints.length>=3;ToolTip.visible:hovered;ToolTip.text:root.areaDrawMode==="rectangle"?"GATA • generează culoarele":"Finalizează poligonul";contentItem:Image{anchors.centerIn:parent;width:26;height:26;source:"qrc:/qml/NavoSmart/icons/done.svg"}onClicked:root.finishAreaDrawing() }
+        Button { width:50;height:48;padding:2;enabled:root.areaDraftPoints.length>0;ToolTip.visible:hovered;ToolTip.text:"Șterge ultimul punct / segment";contentItem:Image{anchors.centerIn:parent;width:26;height:26;source:"qrc:/qml/NavoSmart/icons/undo.svg"}onClicked:root.undoAreaPoint() }
+        Button { width:50;height:48;padding:2;ToolTip.visible:hovered;ToolTip.text:"Șterge desenul Area Scan";contentItem:Image{anchors.centerIn:parent;width:26;height:26;source:"qrc:/qml/NavoSmart/icons/delete.svg"}onClicked:root.clearAreaDrawing() }
+        Rectangle {
+            visible: root.areaDrawMode==="rectangle" && root.areaDraftPoints.length===2
+            width:112;height:48;radius:8;color:"#d9071827";border.color:"#21b7ff"
+            Label { anchors.centerIn:parent;text:root.rectangleDimensionsText();color:"white";font.bold:true;font.pixelSize:12 }
+        }
     }
     Column {
         id: mapControls
@@ -408,7 +447,7 @@ Item {
         height: 30; radius: 7; color: "#d9101c29"
         Label {
             id: mapHint; anchors.centerIn: parent
-            text: root.areaDrawMode === "rectangle" ? "Atinge două colțuri pe hartă" :
+            text: root.areaDrawMode === "rectangle" ? (root.areaDraftPoints.length<2 ? "Atinge două colțuri pe hartă" : "Ajustează colțurile • apoi GATA") :
                   root.areaDrawMode === "polygon" ? "Atinge punctele, apoi TERMINĂ" :
                   (root.rulerMode ? "RUL • "+root.rulerDistanceText() :
                    (root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ?
