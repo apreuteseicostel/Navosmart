@@ -40,7 +40,7 @@ Popup {
  anchors.centerIn: parent
  background:Rectangle{color:"#03101a";border.color:"#21b7ff"}
  // Close control is anchored to the popup itself so it can never be pushed off-screen by header content.
- Button{id:closeButton;z:100;anchors.top:parent.top;anchors.right:parent.right;anchors.topMargin:6;anchors.rightMargin:8;width:46;height:46;flat:true;ToolTip.visible:hovered;ToolTip.text:"Închide sonar";contentItem:Label{text:"×";color:"white";font.pixelSize:32;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter}onClicked:root.close()}
+ Button{id:closeButton;z:10000;anchors.bottom:parent.bottom;anchors.right:parent.right;anchors.bottomMargin:12;anchors.rightMargin:12;width:46;height:46;flat:true;ToolTip.visible:hovered;ToolTip.text:"Închide sonar";contentItem:Label{text:"×";color:"white";font.pixelSize:32;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter}onClicked:root.close()}
  contentItem:ColumnLayout{
   spacing:3
   RowLayout{Layout.fillWidth:true;Layout.leftMargin:6;Layout.rightMargin:6;Layout.topMargin:4;Layout.bottomMargin:2
