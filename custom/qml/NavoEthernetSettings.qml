@@ -42,7 +42,8 @@ Rectangle {
   RowLayout{Layout.fillWidth:true;Layout.preferredHeight:40
    Label{text:"REȚEA BARCĂ • ETHERNET";color:"#21b7ff";font.bold:true;font.pixelSize:root.compact?13:14;verticalAlignment:Text.AlignVCenter}
    Item{Layout.fillWidth:true}
-   Button{Layout.preferredWidth:96;Layout.preferredHeight:34;text:"UNITĂȚI";ToolTip.visible:hovered;ToolTip.text:"Unități de măsură";onClicked:root.unitsRequested()}
+   Button{Layout.preferredWidth:46;Layout.preferredHeight:42;padding:0;ToolTip.visible:hovered;ToolTip.text:"Salvează toate setările";background:Rectangle{radius:8;color:parent.hovered?"#123d50":"#101b25";border.color:"#21b7ff"}contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/save.svg";fillMode:Image.PreserveAspectFit}onClicked:root.saveEndpoints()}
+   Button{Layout.preferredWidth:104;Layout.preferredHeight:42;padding:0;ToolTip.visible:hovered;ToolTip.text:"Unități de măsură";background:Rectangle{radius:8;color:parent.hovered?"#123d50":"#101b25";border.color:"#21b7ff"}contentItem:Label{text:"UNITĂȚI";color:"#d7e3ee";font.bold:true;font.pixelSize:12;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter}onClicked:root.unitsRequested()}
   }
   GridLayout {
    Layout.fillWidth:true;Layout.fillHeight:true;columns:root.compact?1:2;columnSpacing:root.compact?0:24;rowSpacing:root.compact?10:0;uniformCellWidths:true
@@ -79,20 +80,15 @@ Rectangle {
      }
      NavoVideoPlayer{id:videoTest;Layout.fillWidth:true;Layout.fillHeight:true;Layout.minimumHeight:root.compact?54:80;streamUrl:streamUrl.text;protocol:protocol.currentValue;onVideoError:function(message){root.status("Video: "+message)}}
      RowLayout {
-      Layout.fillWidth:true;spacing:8
+      Layout.fillWidth:true;Layout.topMargin:4;Layout.bottomMargin:4;spacing:8
       Item{Layout.fillWidth:true}
       Button{Layout.preferredWidth:46;Layout.preferredHeight:42;padding:0;ToolTip.visible:hovered;ToolTip.text:"Testează video";background:Rectangle{radius:8;color:parent.hovered?"#123d50":"#101b25";border.color:"#21b7ff"}contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/play.svg";fillMode:Image.PreserveAspectFit}enabled:streamUrl.text.trim().length>0;onClicked:{root.saveEndpoints();videoTest.start()}}
       Button{Layout.preferredWidth:46;Layout.preferredHeight:42;padding:0;ToolTip.visible:hovered;ToolTip.text:"Oprește test video";background:Rectangle{radius:8;color:parent.hovered?"#3a2025":"#101b25";border.color:"#ff6b6b"}contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/stop.svg";fillMode:Image.PreserveAspectFit}onClicked:videoTest.stop()}
+      Item{Layout.preferredWidth:8}
      }
      Label{Layout.fillWidth:true;elide:Text.ElideRight;color:"#9db2c5";font.pixelSize:10;text:"LAN: "+(camera?camera.status:"--")+" • Video: "+videoTest.status}
     }
    }
-  }
-  RowLayout {
-   Layout.fillWidth:true
-   Button{Layout.preferredWidth:46;Layout.preferredHeight:42;padding:0;ToolTip.visible:hovered;ToolTip.text:"Salvează toate setările";background:Rectangle{radius:8;color:parent.hovered?"#123d50":"#101b25";border.color:"#21b7ff"}contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/save.svg";fillMode:Image.PreserveAspectFit}onClicked:root.saveEndpoints()}
-   Item{Layout.fillWidth:true}
-   Label{visible:false;text:""}
   }
  }
 }
