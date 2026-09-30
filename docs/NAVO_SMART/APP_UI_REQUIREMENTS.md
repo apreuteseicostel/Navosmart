@@ -30,3 +30,14 @@ NAVO-style popup: narrower list left, spacious details right; HARTĂ/3D/PIN/SCAN
 
 ## Fishing spots / baiting UI
 Navigation/edit/bait/delete use compact aligned icons. Baiting: Alege punct and Setări on one row; Start/Stop/Nădire symmetric and spaced for touch. Settings are persistent and hidden until requested, not reopened every time.
+
+
+## G20 validation — 30 Sep 2026
+- Compact compass boat: shift about 10–20 px left and enlarge slightly; expanded compass remains unchanged.
+- Fishing Spots map MAX hides the right panel and gives the map the available width; MIN restores the panel.
+- Fishing spot double-tap opens details (name, GPS, depth, water temperature, saved time when available) with Navigate/Bait/Edit access.
+- G20/operator GPS uses the NAVO remote marker; the underlying QGC purple GCS logo must not remain visually exposed.
+- Header `NAVO SMART / Pescarul lu Peste` is a Dashboard shortcut.
+- HOME status: short tap centers Home; long press requires confirmation before RTL and must reject invalid Home/GPS.
+- Ethernet settings must fit the G20 landscape viewport in two close columns without right-edge clipping or wasted bottom space.
+- Sonar fullscreen must extend the echogram to the right and keep a clearly visible full-height echo-power legend at the far right; close control must not cover the legend.
