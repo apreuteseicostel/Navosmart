@@ -84,16 +84,16 @@ Rectangle {
             Label{text:"Control";color:"#d7e3ee";font.bold:true}
             Label{text:"Funcție";color:"#d7e3ee";font.bold:true}
 
-            Label{text:"L1";color:"#d7e3ee"}; ActionCombo{settingValue:cfg.l1Action;onPicked:v=>cfg.l1Action=v}
-            Label{text:"R1";color:"#d7e3ee"}; ActionCombo{settingValue:cfg.r1Action;onPicked:v=>cfg.r1Action=v}
-            Label{text:"L2";color:"#d7e3ee"}; ActionCombo{settingValue:cfg.l2Action;onPicked:v=>cfg.l2Action=v}
-            Label{text:"R2";color:"#d7e3ee"}; ActionCombo{settingValue:cfg.r2Action;onPicked:v=>cfg.r2Action=v}
-            Label{text:"Camera";color:"#d7e3ee"}; ActionCombo{settingValue:cfg.cameraAction;onPicked:v=>cfg.cameraAction=v}
-            Label{text:"Pause";color:"#d7e3ee"}; ActionCombo{settingValue:cfg.pauseAction;onPicked:v=>cfg.pauseAction=v}
-            Label{text:"H (long press)";color:"#d7e3ee"}; ActionCombo{settingValue:cfg.hAction;onPicked:v=>cfg.hAction=v}
-            Label{text:"3 poziții";color:"#d7e3ee"}; Label{text:"MANUAL / HOLD / AUTO";color:"#47d16c";font.bold:true}
-            Label{text:"Joystick stâng";color:"#d7e3ee"}; Label{text:"↑ Zoom +  •  ↓ Zoom −";color:"#47d16c";font.bold:true}
-            Label{text:"Joystick dreapta";color:"#d7e3ee"}; Label{text:"PILOTAJ • blocat";color:"#ffc857";font.bold:true}
+            Label{text:"L1";color:"#d7e3ee"} ActionCombo{settingValue:cfg.l1Action;onPicked:v=>cfg.l1Action=v}
+            Label{text:"R1";color:"#d7e3ee"} ActionCombo{settingValue:cfg.r1Action;onPicked:v=>cfg.r1Action=v}
+            Label{text:"L2";color:"#d7e3ee"} ActionCombo{settingValue:cfg.l2Action;onPicked:v=>cfg.l2Action=v}
+            Label{text:"R2";color:"#d7e3ee"} ActionCombo{settingValue:cfg.r2Action;onPicked:v=>cfg.r2Action=v}
+            Label{text:"Camera";color:"#d7e3ee"} ActionCombo{settingValue:cfg.cameraAction;onPicked:v=>cfg.cameraAction=v}
+            Label{text:"Pause";color:"#d7e3ee"} ActionCombo{settingValue:cfg.pauseAction;onPicked:v=>cfg.pauseAction=v}
+            Label{text:"H (long press)";color:"#d7e3ee"} ActionCombo{settingValue:cfg.hAction;onPicked:v=>cfg.hAction=v}
+            Label{text:"3 poziții";color:"#d7e3ee"} Label{text:"MANUAL / HOLD / AUTO";color:"#47d16c";font.bold:true}
+            Label{text:"Joystick stâng";color:"#d7e3ee"} Label{text:"↑ Zoom +  •  ↓ Zoom −";color:"#47d16c";font.bold:true}
+            Label{text:"Joystick dreapta";color:"#d7e3ee"} Label{text:"PILOTAJ • blocat";color:"#ffc857";font.bold:true}
         }
         RowLayout {
             Layout.fillWidth:true
