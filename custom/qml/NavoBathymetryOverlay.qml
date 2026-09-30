@@ -16,6 +16,7 @@ Item {
     signal navigateSpotRequested(var spot)
     signal baitSpotRequested(var spot)
     signal renameSpotRequested(var spot)
+    signal openFishingSpotsRequested(var spot)
 
     anchors.fill: parent
 
@@ -63,7 +64,7 @@ Item {
                 Rectangle { anchors.left:parent.left; anchors.leftMargin:22; anchors.verticalCenter:parent.verticalCenter; width:pinText.implicitWidth+12; height:24; radius:6; color:"#071827d9"; border.color:"#20384a"
                     Label { id:pinText; anchors.centerIn:parent; text:modelData.name; color:"white"; font.bold:true; font.pixelSize:11 }
                 }
-                MouseArea { anchors.fill:parent; onClicked:{root.selectedSpot=modelData;root.selectedCell=null;spotDetails.open()} }
+                MouseArea { anchors.fill:parent; onClicked:{root.selectedSpot=modelData;root.selectedCell=null} onDoubleClicked:{root.selectedSpot=modelData;root.selectedCell=null;spotDetails.open()} }
             }
         }
     }
@@ -94,13 +95,17 @@ Item {
         standardButtons: Dialog.Close
         ColumnLayout {
             width:340
-            Label { text: root.selectedSpot && root.selectedSpot.depth!==null ? "Adâncime salvată: "+Number(root.selectedSpot.depth).toFixed(2)+" m" : "Adâncime: --"; font.bold:true }
+            Label { text: root.selectedSpot && root.selectedSpot.depth!==null && isFinite(Number(root.selectedSpot.depth)) ? "Adâncime: "+Number(root.selectedSpot.depth).toFixed(2)+" m" : "Adâncime: --"; font.bold:true }
+            Label { text: root.selectedSpot && root.selectedSpot.temp!==null && isFinite(Number(root.selectedSpot.temp)) ? "Temperatură apă: "+Number(root.selectedSpot.temp).toFixed(1)+" °C" : "Temperatură apă: --" }
+            Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.selectedSpot ? ("GPS: "+Number(root.selectedSpot.lat).toFixed(6)+", "+Number(root.selectedSpot.lon).toFixed(6)) : "" }
+            Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.selectedSpot && root.selectedSpot.createdAt ? "Salvat: "+new Date(root.selectedSpot.createdAt).toLocaleString() : "" }
             Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.selectedSpot ? root.selectedSpot.note : "" }
             RowLayout {
                 Layout.fillWidth:true
                 Button { text:"NAVIGHEAZĂ"; onClicked:{root.navigateSpotRequested(root.selectedSpot);spotDetails.close()} }
                 Button { text:"NĂDIRE"; onClicked:{root.baitSpotRequested(root.selectedSpot);spotDetails.close()} }
-                Button { text:"NUME"; onClicked:{root.renameSpotRequested(root.selectedSpot);spotDetails.close()} }
+                Button { text:"EDITARE"; onClicked:{root.renameSpotRequested(root.selectedSpot);spotDetails.close()} }
+                Button { text:"PUNCTE"; onClicked:{root.openFishingSpotsRequested(root.selectedSpot);spotDetails.close()} }
             }
             Button { text:"ȘTERGE PUNCTUL"; enabled:root.selectedSpot!==null; onClicked:{if(root.fishingSpotsModel&&root.selectedSpot){root.fishingSpotsModel.removeSpot(root.selectedSpot.id);root.status("Punct șters");root.selectedSpot=null;spotDetails.close()}} }
         }
