@@ -55,6 +55,11 @@ Item {
         property string cameraProtocol: "auto"
     }
     Settings {
+        id: lightSettings
+        category: "NavoLights"
+        property string positionMode: "AUTO"
+    }
+    Settings {
         id: hopperSettings
         category: "NavoHopperCalibration"
         property bool confirmed: false
@@ -207,6 +212,18 @@ Item {
     property bool cameraFullscreen: false
     property bool cameraPipEnabled: true
     readonly property bool boatActive: !!vehicle && ((vehicle.groundSpeed && Number(vehicle.groundSpeed.rawValue)>0.25) || scanCoordinator.state==="SCANNING" || baitingController.enabled || root.awaitingMissionStart)
+    property bool lastAutoPositionState: false
+    onBoatActiveChanged: {
+        if(lightSettings.positionMode==="AUTO" && lastAutoPositionState!==boatActive) {
+            lastAutoPositionState=boatActive
+            commandNanoLight(2,boatActive?1:0,"Poziții AUTO")
+        }
+    }
+    function setPositionLightMode(mode) {
+        lightSettings.positionMode=mode
+        if(mode==="AUTO") { lastAutoPositionState=boatActive; commandNanoLight(2,boatActive?1:0,"Poziții AUTO") }
+        else commandNanoLight(2,mode==="ON"?1:0,"Poziții")
+    }
     property bool awaitingMissionStart: false
     property string areaScanFinishAction: "HOLD"
     onVehicleChanged: { awaitingMissionStart=false; if(baitingController && baitingController.enabled) baitingController.abortCycle("Autopilot schimbat"); if(scanCoordinator && scanCoordinator.state==="SCANNING") scanCoordinator.pause("Autopilot schimbat") }
@@ -375,6 +392,36 @@ Item {
             root.lastNavigationStatus = "SIGURANTA RTL: " + reason
             root.rtlMission()
         }
+    }
+
+    function dispatchG20Action(control, action) {
+        if(action==="NONE") return
+        if(action==="CUVA_STANGA") { openHopper("stanga"); return }
+        if(action==="CUVA_DREAPTA") { openHopper("dreapta"); return }
+        if(action==="CUVE_AMBELE") { openHopper("ambele"); return }
+        if(action==="SONAR") { activePage=1; lastNavigationStatus="G20 "+control+" • SONAR"; return }
+        if(action==="CAMERA") { activePage=5; cameraFullscreen=!cameraFullscreen; lastNavigationStatus="G20 "+control+" • CAMERA FAȚĂ"; return }
+        if(action==="HOLD") { holdMission(true); lastNavigationStatus="G20 "+control+" • HOLD"; return }
+        if(action==="RTL") { homeRtlConfirm.open(); lastNavigationStatus="G20 "+control+" • confirmă RTL / ACASĂ"; return }
+        if(action==="MANUAL") {
+            if(vehicle) { vehicle.flightMode="Manual"; pendingMode="Manual"; pendingModeLabel="MANUAL"; lastNavigationStatus="G20 • MANUAL solicitat" }
+            return
+        }
+        if(action==="AUTO") {
+            if(vehicle && vehicle.missionFlightMode) { vehicle.flightMode=vehicle.missionFlightMode; pendingMode=vehicle.missionFlightMode; pendingModeLabel="AUTO"; lastNavigationStatus="G20 • AUTO selectat • misiunea NU pornește automat" }
+            return
+        }
+        if(action==="FAR") { commandNanoLight(1,2,"Far"); return }
+        if(action==="POZITII") { commandNanoLight(2,2,"Poziții"); return }
+    }
+
+    function commandNanoLight(target, mode, label) {
+        // MAV_CMD_WAYPOINT_USER_1 (31000), consumed only by navo_nano_bridge.lua.
+        // param1: 1=headlight, 2=position; param2: 0=OFF, 1=ON, 2=TOGGLE.
+        if(!vehicle || !vehicle.sendCommand) { lastNavigationStatus=label+" indisponibil: H743 deconectat"; return false }
+        vehicle.sendCommand(1,31000,true,target,mode,0,0,0,0,0)
+        lastNavigationStatus=label+" • comandă trimisă • aștept confirmarea Nano"
+        return true
     }
 
     function modeColor() {
@@ -1413,6 +1460,22 @@ Item {
                 ColumnLayout {
                     width: parent.width
                     spacing: root.responsiveGap
+                    NavoG20Settings {
+                        id: g20Settings
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: root.compactUi ? 430 : 360
+                        positionMode: lightSettings.positionMode
+                        onPositionModeRequested: function(mode) { root.setPositionLightMode(mode) }
+                        onActionRequested: function(control, action) { root.dispatchG20Action(control, action) }
+                        onZoomRequested: function(direction) {
+                            if (root.mapController && root.mapController.adjustZoom)
+                                root.mapController.adjustZoom(direction)
+                            else {
+                                root.activePage=0
+                                root.lastNavigationStatus=direction>0 ? "G20 • Zoom +" : "G20 • Zoom −"
+                            }
+                        }
+                    }
                     NavoEthernetSettings {
                         id: ethernetSettings
                         Layout.fillWidth: true
