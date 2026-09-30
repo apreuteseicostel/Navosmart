@@ -1416,7 +1416,7 @@ Item {
                     NavoEthernetSettings {
                         id: ethernetSettings
                         Layout.fillWidth: true
-                        Layout.preferredHeight: root.compactUi ? 520 : Math.max(430, settingsPage.height - 70)
+                        Layout.preferredHeight: root.compactUi ? 470 : Math.max(410, settingsPage.height - 70)
                         sonar: sonar
                         camera: cameraEthernet
                         onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
