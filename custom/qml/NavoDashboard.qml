@@ -394,11 +394,17 @@ Item {
             if(vehicle && vehicle.missionFlightMode) { vehicle.flightMode=vehicle.missionFlightMode; pendingMode=vehicle.missionFlightMode; pendingModeLabel="AUTO"; lastNavigationStatus="G20 • AUTO selectat • misiunea NU pornește automat" }
             return
         }
-        if(action==="FAR") {
-            if(nanoTelemetry && nanoTelemetry.toggleHeadlight) nanoTelemetry.toggleHeadlight()
-            else lastNavigationStatus="G20 "+control+" • FAR: aștept bridge Nano"
-            return
-        }
+        if(action==="FAR") { commandNanoLight(1,2,"Far"); return }
+        if(action==="POZITII") { commandNanoLight(2,2,"Poziții"); return }
+    }
+
+    function commandNanoLight(target, mode, label) {
+        // MAV_CMD_WAYPOINT_USER_1 (31000), consumed only by navo_nano_bridge.lua.
+        // param1: 1=headlight, 2=position; param2: 0=OFF, 1=ON, 2=TOGGLE.
+        if(!vehicle || !vehicle.sendCommand) { lastNavigationStatus=label+" indisponibil: H743 deconectat"; return false }
+        vehicle.sendCommand(1,31000,true,target,mode,0,0,0,0,0)
+        lastNavigationStatus=label+" • comandă trimisă • aștept confirmarea Nano"
+        return true
     }
 
     function modeColor() {
