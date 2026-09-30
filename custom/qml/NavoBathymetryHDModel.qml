@@ -14,6 +14,8 @@ QtObject {
     property var contourSegments: []
     property real minDepthM: NaN
     property real maxDepthM: NaN
+    property real minHardness: NaN
+    property real maxHardness: NaN
     property int columns: 0
     property int rows: 0
     property bool ready: false
@@ -56,6 +58,22 @@ QtObject {
         return {depth:weighted/weights,nearest:nearest,valid:true}
     }
 
+    function _idwHardness(lat, lon, valid) {
+        var weighted=0, weights=0, nearest=1e99
+        for(var i=0;i<valid.length;i++) {
+            var c=valid[i]
+            if(!_validNumber(c.hardness)) continue
+            var d=_distanceM(lat,lon,c.lat,c.lon)
+            if(d<nearest) nearest=d
+            if(d<0.20) return {value:Number(c.hardness),valid:true}
+            var w=1.0/Math.pow(Math.max(0.20,d),Math.max(1.0,interpolationPower))
+            weighted+=Number(c.hardness)*w
+            weights+=w
+        }
+        if(weights<=0 || nearest>maxInterpolationDistanceM) return {value:NaN,valid:false}
+        return {value:weighted/weights,valid:true}
+    }
+
     function _edgePoint(aLat,aLon,aDepth,bLat,bLon,bDepth,level) {
         var den=Number(bDepth)-Number(aDepth)
         var t=Math.abs(den)<0.000001 ? 0.5 : (Number(level)-Number(aDepth))/den
@@ -77,6 +95,8 @@ QtObject {
         contourSegments=[]
         minDepthM=NaN
         maxDepthM=NaN
+        minHardness=NaN
+        maxHardness=NaN
         columns=0
         rows=0
 
@@ -90,6 +110,10 @@ QtObject {
             minLon=Math.min(minLon,Number(c.lon)); maxLon=Math.max(maxLon,Number(c.lon))
             minDepthM=isNaN(minDepthM)?Number(c.depth):Math.min(minDepthM,Number(c.depth))
             maxDepthM=isNaN(maxDepthM)?Number(c.depth):Math.max(maxDepthM,Number(c.depth))
+            if(_validNumber(c.hardness)) {
+                minHardness=isNaN(minHardness)?Number(c.hardness):Math.min(minHardness,Number(c.hardness))
+                maxHardness=isNaN(maxHardness)?Number(c.hardness):Math.max(maxHardness,Number(c.hardness))
+            }
         }
         if(valid.length<3 || minLat>=maxLat || minLon>=maxLon) {
             rebuilt(0,0)
@@ -131,11 +155,14 @@ QtObject {
             for(cx=0;cx<nx;cx++) {
                 var west=minLon+(maxLon-minLon)*(cx/nx)
                 var east=minLon+(maxLon-minLon)*((cx+1)/nx)
-                var mid=_idw((south+north)*0.5,(west+east)*0.5,valid)
+                var midLat=(south+north)*0.5, midLon=(west+east)*0.5
+                var mid=_idw(midLat,midLon,valid)
                 if(!mid.valid) continue
+                var hard=_idwHardness(midLat,midLon,valid)
                 out.push({
                     north:north,south:south,west:west,east:east,
-                    depth:mid.depth
+                    depth:mid.depth,
+                    hardness:hard.valid ? hard.value : NaN
                 })
             }
         }
