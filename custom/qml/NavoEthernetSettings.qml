@@ -38,7 +38,7 @@ Rectangle {
  }
  Component.onCompleted:{loadEndpoints();root.cameraStreamUrl=cfg.cameraStreamUrl;root.cameraProtocol=cfg.cameraProtocol}
  ColumnLayout {
-  anchors.fill:parent;anchors.margins:root.compact?8:16;spacing:root.compact?6:12
+  anchors.fill:parent;anchors.margins:8;spacing:root.compact?5:8
   RowLayout{Layout.fillWidth:true;Layout.preferredHeight:40
    Label{text:"REȚEA BARCĂ • ETHERNET";color:"#21b7ff";font.bold:true;font.pixelSize:root.compact?13:14;verticalAlignment:Text.AlignVCenter}
    Item{Layout.fillWidth:true}
@@ -46,9 +46,9 @@ Rectangle {
    Button{Layout.preferredWidth:104;Layout.preferredHeight:42;padding:0;ToolTip.visible:hovered;ToolTip.text:"Unități de măsură";background:Rectangle{radius:8;color:parent.hovered?"#123d50":"#101b25";border.color:"#21b7ff"}contentItem:Label{text:"UNITĂȚI";color:"#d7e3ee";font.bold:true;font.pixelSize:12;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter}onClicked:root.unitsRequested()}
   }
   GridLayout {
-   Layout.fillWidth:true;Layout.fillHeight:true;columns:root.compact?1:2;columnSpacing:root.compact?0:24;rowSpacing:root.compact?10:0;uniformCellWidths:true
+   Layout.fillWidth:true;Layout.fillHeight:true;columns:root.compact?1:2;columnSpacing:root.compact?0:10;rowSpacing:root.compact?8:0;uniformCellWidths:true
    GroupBox {
-    title:"KOGGER SONAR"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?250:-1;Layout.minimumWidth:root.compact?260:320
+    title:"KOGGER SONAR"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?250:-1;Layout.minimumWidth:root.compact?250:250
     GridLayout {anchors.fill:parent;anchors.margins:root.compact?4:8;columns:2;columnSpacing:8;rowSpacing:root.compact?4:6
      Layout.fillWidth:true
      Label{text:"IP / Host";color:"#d7e3ee"}
@@ -63,7 +63,7 @@ Rectangle {
     }
    }
    GroupBox {
-    title:"CAMERA FAȚĂ"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?330:-1;Layout.minimumWidth:root.compact?280:320
+    title:"CAMERA FAȚĂ"; palette.windowText:"#d7e3ee"; Layout.fillWidth:true;Layout.fillHeight:!root.compact;Layout.preferredHeight:root.compact?330:-1;Layout.minimumWidth:root.compact?250:250
     ColumnLayout {
      anchors.fill:parent;anchors.margins:root.compact?4:8;spacing:root.compact?4:6
      GridLayout {Layout.fillWidth:true;columns:2;columnSpacing:8;rowSpacing:root.compact?4:6
