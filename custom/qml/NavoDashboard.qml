@@ -385,8 +385,15 @@ Item {
         if(action==="SONAR") { activePage=1; lastNavigationStatus="G20 "+control+" • SONAR"; return }
         if(action==="CAMERA") { activePage=5; cameraFullscreen=!cameraFullscreen; lastNavigationStatus="G20 "+control+" • CAMERA FAȚĂ"; return }
         if(action==="HOLD") { holdMission(true); lastNavigationStatus="G20 "+control+" • HOLD"; return }
-        if(action==="RTL") { pendingRtlConfirmation=true; lastNavigationStatus="G20 "+control+" • confirmă RTL / ACASĂ"; return }
-        if(action==="MANUAL" || action==="AUTO") { requestFlightMode(action, action); return }
+        if(action==="RTL") { homeRtlConfirm.open(); lastNavigationStatus="G20 "+control+" • confirmă RTL / ACASĂ"; return }
+        if(action==="MANUAL") {
+            if(vehicle) { vehicle.flightMode="Manual"; pendingMode="Manual"; pendingModeLabel="MANUAL"; lastNavigationStatus="G20 • MANUAL solicitat" }
+            return
+        }
+        if(action==="AUTO") {
+            if(vehicle && vehicle.missionFlightMode) { vehicle.flightMode=vehicle.missionFlightMode; pendingMode=vehicle.missionFlightMode; pendingModeLabel="AUTO"; lastNavigationStatus="G20 • AUTO selectat • misiunea NU pornește automat" }
+            return
+        }
         if(action==="FAR") {
             if(nanoTelemetry && nanoTelemetry.toggleHeadlight) nanoTelemetry.toggleHeadlight()
             else lastNavigationStatus="G20 "+control+" • FAR: aștept bridge Nano"
