@@ -377,6 +377,23 @@ Item {
         }
     }
 
+    function dispatchG20Action(control, action) {
+        if(action==="NONE") return
+        if(action==="CUVA_STANGA") { openHopper("stanga"); return }
+        if(action==="CUVA_DREAPTA") { openHopper("dreapta"); return }
+        if(action==="CUVE_AMBELE") { openHopper("ambele"); return }
+        if(action==="SONAR") { activePage=1; lastNavigationStatus="G20 "+control+" • SONAR"; return }
+        if(action==="CAMERA") { activePage=5; cameraFullscreen=!cameraFullscreen; lastNavigationStatus="G20 "+control+" • CAMERA FAȚĂ"; return }
+        if(action==="HOLD") { holdMission(true); lastNavigationStatus="G20 "+control+" • HOLD"; return }
+        if(action==="RTL") { pendingRtlConfirmation=true; lastNavigationStatus="G20 "+control+" • confirmă RTL / ACASĂ"; return }
+        if(action==="MANUAL" || action==="AUTO") { requestFlightMode(action, action); return }
+        if(action==="FAR") {
+            if(nanoTelemetry && nanoTelemetry.toggleHeadlight) nanoTelemetry.toggleHeadlight()
+            else lastNavigationStatus="G20 "+control+" • FAR: aștept bridge Nano"
+            return
+        }
+    }
+
     function modeColor() {
         var m = root.flightMode.toUpperCase()
         if (m === "AUTO" || m === "GUIDED") return root.ok
@@ -1413,6 +1430,20 @@ Item {
                 ColumnLayout {
                     width: parent.width
                     spacing: root.responsiveGap
+                    NavoG20Settings {
+                        id: g20Settings
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: root.compactUi ? 430 : 360
+                        onActionRequested: function(control, action) { root.dispatchG20Action(control, action) }
+                        onZoomRequested: function(direction) {
+                            if (root.mapController && root.mapController.adjustZoom)
+                                root.mapController.adjustZoom(direction)
+                            else {
+                                root.activePage=0
+                                root.lastNavigationStatus=direction>0 ? "G20 • Zoom +" : "G20 • Zoom −"
+                            }
+                        }
+                    }
                     NavoEthernetSettings {
                         id: ethernetSettings
                         Layout.fillWidth: true
