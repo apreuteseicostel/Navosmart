@@ -473,6 +473,11 @@ Item {
         }
     }
 
+    function adjustZoom(direction) {
+        var step = direction > 0 ? 1 : -1
+        liveMap.zoomLevel = Math.max(2, Math.min(22, liveMap.zoomLevel + step))
+    }
+
     function centerOnBoatOnce() {
         if(initialCenterApplied)return
         if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid) {
