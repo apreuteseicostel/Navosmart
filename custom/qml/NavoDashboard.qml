@@ -498,6 +498,11 @@ Item {
     }
 
 
+    Dialog { id:homeRtlConfirm; parent:Overlay.overlay; anchors.centerIn:parent; modal:true; title:"Întoarcere la HOME?"; standardButtons:Dialog.Yes | Dialog.No; closePolicy:Popup.NoAutoClose
+        Label { width:320; wrapMode:Text.WordWrap; text:"Comanzi RTL către H743/ArduPilot. Barca se va întoarce la HOME salvat de autopilot." }
+        onAccepted: root.rtlMission()
+    }
+
     Dialog { id:noActiveLakeDialog; parent:Overlay.overlay; anchors.centerIn:parent; modal:true; title:"Baltă necesară"; standardButtons:Dialog.Cancel
         ColumnLayout { width:Math.min(340,root.width-40); spacing:10
             Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; text:"Selectează sau creează o baltă pentru a păstra acest punct. Punctele, sonar-ul și Area Scan vor rămâne grupate în aceeași baltă." }
@@ -525,9 +530,13 @@ Item {
                 spacing: 0
                 Label { text: "NAVO SMART"; color: root.text; font.pixelSize: 22; font.bold: true }
                 Label { text: "Pescarul lu Peste"; color: root.muted; font.pixelSize: 11 }
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.mapMaximized=false; root.activePage=0 } }
             }
             StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/satellite.svg"; title: "SATELIȚI"; value: vehicle && vehicle.gps ? String(vehicle.gps.count.rawValue) : "--"; good: vehicle && vehicle.gps }
-            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/home.svg"; title: "HOME"; value: Number(root.distanceToHome).toFixed(0) + " m"; good: !!vehicle }
+            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/home.svg"; title: "HOME"; value: Number(root.distanceToHome).toFixed(0) + " m"; good: !!vehicle; interactive:true
+                onClicked: { root.activePage=0; Qt.callLater(function(){ if(root.mapController && root.mapController.centerHome && !root.mapController.centerHome()) root.lastNavigationStatus="HOME indisponibil" }) }
+                onPressAndHold: { if(!root.vehicle || !root.vehicle.homePosition || !root.vehicle.homePosition.isValid || !root.vehicle.coordinate || !root.vehicle.coordinate.isValid || !root.vehicle.gps || root.vehicle.gps.lock.rawValue<3) root.lastNavigationStatus="RTL blocat: HOME/GPS invalid"; else homeRtlConfirm.open() }
+            }
             StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/speed.svg"; title: "VITEZĂ"; value: vehicle && vehicle.groundSpeed ? Number(vehicle.groundSpeed.rawValue * 3.6).toFixed(1) + " km/h" : "--"; good: !!vehicle }
             StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/target.svg"; title: "ȚINTĂ"; value: root.distanceToTarget > 0 ? Number(root.distanceToTarget).toFixed(0) + " m" : "--"; good: root.distanceToTarget > 0 }
             StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/battery.svg"; title: "BATERIE"; value: battery ? Number(battery.percentRemaining.rawValue).toFixed(0) + "%" : "--"; good: battery && battery.percentRemaining.rawValue > 20 }
@@ -907,9 +916,10 @@ Item {
             id: fishingPageRoot
             property string spotEditId: ""
             property string spotEditColor: "#31d67b"
+            property bool mapExpanded: false
             Rectangle { anchors.fill:parent; radius:8; color:root.panel; border.color:root.line }
             RowLayout {
-                anchors.fill:parent; anchors.margins:8; spacing:8
+                anchors.fill:parent; anchors.margins:8; spacing:fishingPageRoot.mapExpanded?0:8
                 Rectangle {
                     Layout.fillWidth:true; Layout.fillHeight:true
                     Layout.minimumWidth: 320
@@ -923,6 +933,9 @@ Item {
                         fishModel:fishStore; fishingSpotsModel:fishingSpots; bathymetryCells:scanCoordinator.bathymetryCells
                         baitingController:baitingController; areaScanController:areaScanController
                         savedDepthM:root.depthM; savedWaterTempC:root.waterTempC; showStatusHint:false
+                        maximized:fishingPageRoot.mapExpanded
+                        onMaximizeRequested:fishingPageRoot.mapExpanded=!fishingPageRoot.mapExpanded
+                        onFishingSpotsRequested:function(spot){fishingPageRoot.mapExpanded=false;root.lastNavigationStatus="Punct selectat: "+(spot&&spot.name?spot.name:"--")}
                         onNavigateRequested:function(c){root.navigateToCoordinate(c)}
                         onFishingSpotRenameRequested:function(spot){fishingPageRoot.openEdit(spot)}
                         onBaitingWaypointSelected:function(wp){baitingController.targetWaypoint=wp;root.lastNavigationStatus="Punct de nădire ales: "+wp.name}
@@ -944,7 +957,7 @@ Item {
                     }
                 }
                 Rectangle {
-                    Layout.preferredWidth: root.width < 1150 ? 270 : Math.min(330, parent.width*0.25); Layout.minimumWidth:240; Layout.maximumWidth:330; Layout.fillHeight:true
+                    visible:!fishingPageRoot.mapExpanded; Layout.preferredWidth: visible ? (root.width < 1150 ? 270 : Math.min(330, parent.width*0.25)) : 0; Layout.minimumWidth:visible?240:0; Layout.maximumWidth:visible?330:0; Layout.fillHeight:true
                     radius:8; color:root.panel; border.color:root.line
                     ColumnLayout {
                         anchors.fill:parent; anchors.margins:8; spacing:7
@@ -1435,9 +1448,13 @@ Item {
         property string title: ""
         property string value: "--"
         property bool good: false
+        property bool interactive: false
+        signal clicked()
+        signal pressAndHold()
         property real pillWidth: 72
         Layout.preferredWidth: pillWidth; Layout.preferredHeight: 36; radius: 7
         color: root.panel; border.color: good ? root.ok : root.line
+        MouseArea { id:pillMouse; anchors.fill:parent; enabled:parent.interactive; hoverEnabled:true; cursorShape:parent.interactive?Qt.PointingHandCursor:Qt.ArrowCursor; pressAndHoldInterval:1600; onClicked:parent.clicked(); onPressAndHold:parent.pressAndHold() }
         Row { anchors.centerIn:parent; spacing:5
             Image { width:20;height:20;anchors.verticalCenter:parent.verticalCenter;source:iconSource;fillMode:Image.PreserveAspectFit }
             Column { anchors.verticalCenter:parent.verticalCenter; spacing:0
