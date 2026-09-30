@@ -46,6 +46,7 @@ Item {
     signal baitPointPicked(var coordinate)
     signal maximizeRequested()
     signal fishingSpotRenameRequested(var spot)
+    signal fishingSpotsRequested(var spot)
 
     property string areaDrawMode: "none"
     property bool baitPointPickMode: false
@@ -81,6 +82,14 @@ Item {
     }
     function clearAreaDrawing() { areaDraftPoints=[]; lastAreaOutline=[]; areaDrawMode="none"; rectangleDragCorner=-1 }
     function cancelAreaDrawing() { clearAreaDrawing() }
+    function centerHome() {
+        if (vehicle && vehicle.homePosition && vehicle.homePosition.isValid) {
+            liveMap.center = vehicle.homePosition
+            liveMap.zoomLevel = Math.max(liveMap.zoomLevel, lakeZoomLevel)
+            return true
+        }
+        return false
+    }
     function resetView() {
         if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid) liveMap.center=vehicle.coordinate
         liveMap.zoomLevel=Math.max(liveMap.zoomLevel,lakeZoomLevel)
@@ -155,13 +164,17 @@ Item {
         parent: liveMap
         visible: root.operatorLocationEnabled && root.operatorLocationValid
         coordinate: visible ? root.operatorCoordinate : QtPositioning.coordinate()
-        anchorPoint.x: 10; anchorPoint.y: 10
+        anchorPoint.x: 26; anchorPoint.y: 26
         z: 10000
         sourceItem: Item {
-            width:20; height:20
-            Rectangle { anchors.centerIn:parent; width:18; height:18; radius:9; color:"#26c6da33"; border.color:"#26c6da"; border.width:2
-                Rectangle { anchors.centerIn:parent; width:6; height:6; radius:3; color:"#26c6da" }
+            width:52; height:52
+            // Opaque NAVO G20 marker deliberately covers the built-in QGC GCS logo at the same GPS coordinate.
+            Rectangle { anchors.centerIn:parent; width:46; height:46; radius:23; color:"#071827"; border.color:"#26c6da"; border.width:3 }
+            Rectangle { anchors.centerIn:parent; width:26; height:18; radius:4; color:"#263844"; border.color:"#d9ff19"; border.width:2
+                Rectangle { width:5; height:5; radius:2.5; color:"#26c6da"; anchors.left:parent.left; anchors.leftMargin:5; anchors.verticalCenter:parent.verticalCenter }
+                Rectangle { width:5; height:5; radius:2.5; color:"#26c6da"; anchors.right:parent.right; anchors.rightMargin:5; anchors.verticalCenter:parent.verticalCenter }
             }
+            Rectangle { width:3; height:10; color:"#d9ff19"; anchors.horizontalCenter:parent.horizontalCenter; anchors.bottom:parent.verticalCenter; anchors.bottomMargin:8 }
         }
         Component.onCompleted: liveMap.addMapItem(this)
         Component.onDestruction: liveMap.removeMapItem(this)
@@ -224,6 +237,7 @@ Item {
             root.baitingWaypointSelected(wp)
         }
         onRenameSpotRequested: function(spot) { root.fishingSpotRenameRequested(spot) }
+        onOpenFishingSpotsRequested: function(spot) { root.fishingSpotsRequested(spot) }
     }
 
     NavoWaypointMapOverlay {
