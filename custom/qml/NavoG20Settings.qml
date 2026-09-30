@@ -8,6 +8,8 @@ Rectangle {
     color: "#0b1c2e"; border.color: "#1c4262"; radius: 10
     signal actionRequested(string control, string action)
     signal zoomRequested(int direction)
+    signal positionModeRequested(string mode)
+    property string positionMode: "AUTO"
 
     Settings {
         id: cfg
@@ -92,6 +94,16 @@ Rectangle {
             Label{text:"3 poziții";color:"#d7e3ee"}; Label{text:"MANUAL / HOLD / AUTO";color:"#47d16c";font.bold:true}
             Label{text:"Joystick stâng";color:"#d7e3ee"}; Label{text:"↑ Zoom +  •  ↓ Zoom −";color:"#47d16c";font.bold:true}
             Label{text:"Joystick dreapta";color:"#d7e3ee"}; Label{text:"PILOTAJ • blocat";color:"#ffc857";font.bold:true}
+        }
+        RowLayout {
+            Layout.fillWidth:true
+            Label{text:"Poziții";color:"#d7e3ee"}
+            ComboBox {
+                model:["AUTO","ON","OFF"]; currentIndex:Math.max(0,model.indexOf(root.positionMode))
+                onActivated:root.positionModeRequested(currentText)
+            }
+            Label{text:"AUTO = aprinse când barca este activă";color:"#9db2c5";font.pixelSize:10}
+            Item{Layout.fillWidth:true}
         }
         RowLayout {
             Layout.fillWidth:true
