@@ -32,6 +32,8 @@ static QString measurementKey(const QVariantList& samples,double gridSizeM,doubl
         // Include optional sonar metadata when present so corrected samples invalidate cache too.
         if (sm.contains("timestamp")) { hh.addData(",t="); hh.addData(sm.value("timestamp").toString().toUtf8()); }
         if (sm.contains("confidence")) { hh.addData(",c="); hh.addData(QByteArray::number(sm.value("confidence").toDouble(),'g',17)); }
+        if (sm.contains("hardness")) { hh.addData(",h="); hh.addData(QByteArray::number(sm.value("hardness").toDouble(),'g',17)); }
+        if (sm.contains("bottomEcho")) { hh.addData(",e="); hh.addData(QByteArray::number(sm.value("bottomEcho").toDouble(),'g',17)); }
     }
     return QString::fromLatin1(hh.result().toHex());
 }
