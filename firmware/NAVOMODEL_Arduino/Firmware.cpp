@@ -18,6 +18,7 @@
 #include <stdbool.h>
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 static LightControl lights;
 static volatile uint16_t pulse[5],start[5];
 static volatile uint32_t seen[5],started_ms[5];
