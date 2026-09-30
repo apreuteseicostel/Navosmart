@@ -28,7 +28,7 @@ Rectangle {
     readonly property var actions: [
         {text:"Nimic",value:"NONE"}, {text:"Cuva stânga",value:"CUVA_STANGA"},
         {text:"Cuva dreapta",value:"CUVA_DREAPTA"}, {text:"Ambele cuve",value:"CUVE_AMBELE"},
-        {text:"Far ON/OFF",value:"FAR"}, {text:"Sonar fullscreen",value:"SONAR"},
+        {text:"Far ON/OFF",value:"FAR"}, {text:"Poziții ON/OFF",value:"POZITII"}, {text:"Sonar fullscreen",value:"SONAR"},
         {text:"Camera față",value:"CAMERA"}, {text:"HOLD",value:"HOLD"},
         {text:"RTL / Acasă",value:"RTL"}
     ]
