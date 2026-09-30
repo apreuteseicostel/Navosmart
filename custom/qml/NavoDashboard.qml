@@ -55,6 +55,11 @@ Item {
         property string cameraProtocol: "auto"
     }
     Settings {
+        id: lightSettings
+        category: "NavoLights"
+        property string positionMode: "AUTO"
+    }
+    Settings {
         id: hopperSettings
         category: "NavoHopperCalibration"
         property bool confirmed: false
@@ -207,6 +212,18 @@ Item {
     property bool cameraFullscreen: false
     property bool cameraPipEnabled: true
     readonly property bool boatActive: !!vehicle && ((vehicle.groundSpeed && Number(vehicle.groundSpeed.rawValue)>0.25) || scanCoordinator.state==="SCANNING" || baitingController.enabled || root.awaitingMissionStart)
+    property bool lastAutoPositionState: false
+    onBoatActiveChanged: {
+        if(lightSettings.positionMode==="AUTO" && lastAutoPositionState!==boatActive) {
+            lastAutoPositionState=boatActive
+            commandNanoLight(2,boatActive?1:0,"Poziții AUTO")
+        }
+    }
+    function setPositionLightMode(mode) {
+        lightSettings.positionMode=mode
+        if(mode==="AUTO") { lastAutoPositionState=boatActive; commandNanoLight(2,boatActive?1:0,"Poziții AUTO") }
+        else commandNanoLight(2,mode==="ON"?1:0,"Poziții")
+    }
     property bool awaitingMissionStart: false
     property string areaScanFinishAction: "HOLD"
     onVehicleChanged: { awaitingMissionStart=false; if(baitingController && baitingController.enabled) baitingController.abortCycle("Autopilot schimbat"); if(scanCoordinator && scanCoordinator.state==="SCANNING") scanCoordinator.pause("Autopilot schimbat") }
@@ -1447,6 +1464,8 @@ Item {
                         id: g20Settings
                         Layout.fillWidth: true
                         Layout.preferredHeight: root.compactUi ? 430 : 360
+                        positionMode: lightSettings.positionMode
+                        onPositionModeRequested: function(mode) { root.setPositionLightMode(mode) }
                         onActionRequested: function(control, action) { root.dispatchG20Action(control, action) }
                         onZoomRequested: function(direction) {
                             if (root.mapController && root.mapController.adjustZoom)
