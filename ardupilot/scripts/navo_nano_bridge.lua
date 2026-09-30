@@ -11,6 +11,13 @@ uart:set_flow_control(0)
 
 local line = ""
 local last_frame_ms = 0
+local mavlink_msgs = require("MAVLink/mavlink_msgs")
+local COMMAND_LONG_ID = mavlink_msgs.get_msgid("COMMAND_LONG")
+local msg_map = {}; msg_map[COMMAND_LONG_ID] = "COMMAND_LONG"
+local MAV_CMD_WAYPOINT_USER_1 = 31000
+mavlink:init(10, 1)
+mavlink:register_rx_msgid(COMMAND_LONG_ID)
+mavlink:block_command(MAV_CMD_WAYPOINT_USER_1)
 
 local function xor_checksum(payload)
     local cs = 0
@@ -44,7 +51,27 @@ local function parse(s)
     publish(f); last_frame_ms=millis():toint(); return true
 end
 
+local function send_nano_command(target, op)
+    local payload="NAVOCMD,1,"..target..","..op
+    uart:writestring("$"..payload.."*"..string.format("%02X",xor_checksum(payload)).."\r\n")
+end
+
+local function handle_gcs_commands()
+    local msg, chan=mavlink:receive_chan()
+    if not msg then return end
+    local p=mavlink_msgs.decode(msg,msg_map)
+    if not p or p.msgid~=COMMAND_LONG_ID or p.command~=MAV_CMD_WAYPOINT_USER_1 then return end
+    local target=math.floor(p.param1+0.5)==1 and "HEAD" or (math.floor(p.param1+0.5)==2 and "POS" or nil)
+    local mode=math.floor(p.param2+0.5)
+    local op=mode==0 and "OFF" or (mode==1 and "ON" or (mode==2 and "TOGGLE" or nil))
+    local result=3 -- MAV_RESULT_UNSUPPORTED
+    if target and op then send_nano_command(target,op); result=0 end
+    local ack={command=p.command,result=result,progress=0,result_param2=0,target_system=p.sysid,target_component=p.compid}
+    mavlink:send_chan(chan,mavlink_msgs.encode("COMMAND_ACK",ack))
+end
+
 local function update()
+    handle_gcs_commands()
     local n=uart:available()
     while n>0 do
         local b=uart:read()
