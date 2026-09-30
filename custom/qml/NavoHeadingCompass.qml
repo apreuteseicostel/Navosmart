@@ -71,7 +71,7 @@ Item {
         id: boat
         z: 2
         opacity: root.expanded ? 0.88 : 1.0
-        width: Math.max(22, root.width * (root.expanded ? 0.30 : 0.32)); height: Math.max(36, root.height * (root.expanded ? 0.52 : 0.58)); anchors.centerIn: parent
+        width: Math.max(22, root.width * (root.expanded ? 0.30 : 0.38)); height: Math.max(36, root.height * (root.expanded ? 0.52 : 0.66)); anchors.centerIn: parent; anchors.horizontalCenterOffset: root.expanded ? 0 : -14
         rotation: root.normalizedHeading
         Behavior on rotation { RotationAnimation { duration: 260; direction: RotationAnimation.Shortest } }
         Canvas {
