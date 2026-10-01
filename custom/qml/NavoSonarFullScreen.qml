@@ -98,7 +98,8 @@ Popup {
     Rectangle{Layout.fillWidth:true;height:1;color:"#17364a"}
     Label{text:"KOGGER BASIC";color:"#21b7ff";font.bold:true}
     Label{text:root.connected?"● Conectat":"● Fără date";color:root.connected?"#31d67b":"#9db2c5"}
-    Label{text:"FUND (duritate): "+(isNaN(root.bottomHardnessPercent)?"--":Math.round(root.bottomHardnessPercent)+"%");color:root.bottomColor(isNaN(root.bottomEchoStrength)?0:root.bottomEchoStrength)}
+    Label{text:"FUND (ecou relativ): "+(isNaN(root.bottomHardnessPercent)?"--":Math.round(root.bottomHardnessPercent)+"%");color:root.bottomColor(isNaN(root.bottomEchoStrength)?0:root.bottomEchoStrength);ToolTip.visible:bottomEchoMouse.containsMouse;ToolTip.text:"Estimare relativă din intensitatea ecoului; nu este o măsurare fizică a durității"}
+    MouseArea{id:bottomEchoMouse;visible:false}
     Label{visible:root.transport;text:root.transport?"RX "+root.transport.rxBytes+" B / "+root.transport.rxChunks:"";color:"#9db2c5";font.pixelSize:12}
     Item{Layout.fillHeight:true}
     SonarIconButton { visible:root.transport; hint:root.transport&&root.transport.connected?"Deconectează Kogger":"Conectează Kogger"; contentItem:Image{anchors.centerIn:parent;width:22;height:22;source:"qrc:/qml/NavoSmart/icons/sonar.svg";fillMode:Image.PreserveAspectFit} onClicked:{if(root.transport.connected)root.transport.disconnectFromSonar();else root.transport.connectToSonar()} }
