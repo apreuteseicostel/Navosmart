@@ -4,7 +4,7 @@
 NavoKoggerDecoder::NavoKoggerDecoder(QObject* p):QObject(p){}
 quint16 NavoKoggerDecoder::le16(const char* p){return qFromLittleEndian<quint16>(reinterpret_cast<const uchar*>(p));}
 quint32 NavoKoggerDecoder::le32(const char* p){return qFromLittleEndian<quint32>(reinterpret_cast<const uchar*>(p));}
-void NavoKoggerDecoder::reset(){_buffer.clear();_chart.clear();_echoSamples.clear();_connected=false;_depthM=qQNaN();_waterTempC=qQNaN();emit connectedChanged();emit depthChanged();emit temperatureChanged();emit echoSamplesChanged();}
+void NavoKoggerDecoder::reset(){_buffer.clear();_chart.clear();_echoSamples.clear();_chartResolution=0;_chartAbsoluteOffset=0;_chartVersion=0;_publishedChartResolution=0;_publishedChartAbsoluteOffset=0;_publishedChartVersion=0;_connected=false;_depthM=qQNaN();_waterTempC=qQNaN();emit connectedChanged();emit depthChanged();emit temperatureChanged();emit echoSamplesChanged();}
 void NavoKoggerDecoder::feedBytes(const QByteArray& b){
  if(b.isEmpty())return;
  _buffer.append(b);
@@ -48,10 +48,10 @@ void NavoKoggerDecoder::process(){
    if(newColumn){
     QVariantList out;int step=version==1?2:1;
     for(int i=0;i+step-1<_chart.size();i+=step)out.append(double(quint8(_chart[i]))/255.0);
-    if(!out.isEmpty()){_echoSamples=out;emit echoSamplesChanged();}
+    if(!out.isEmpty()){_publishedChartResolution=_chartResolution;_publishedChartAbsoluteOffset=_chartAbsoluteOffset;_publishedChartVersion=_chartVersion;_echoSamples=out;emit echoSamplesChanged();}
     _chart.clear();
    }
-   if(_chart.isEmpty()){_chartResolution=res;_chartAbsoluteOffset=off;}
+   if(_chart.isEmpty()){_chartResolution=res;_chartAbsoluteOffset=off;_chartVersion=version;}
    if(int(seq)+part.size()>MaxChartBytes){_chart.clear();emit frameRejected();continue;}
    if(seq==_chart.size()) { _chart.append(part); }
    else if(seq>_chart.size()) {
@@ -67,7 +67,7 @@ void NavoKoggerDecoder::process(){
     for(int i=0;i+step-1<_chart.size();i+=step)out.append(double(quint8(_chart[i]))/255.0);
     if(!out.isEmpty()){_echoSamples=out;emit echoSamplesChanged();}
     _chart=QByteArray(int(seq),char(0));_chart.append(part);
-    _chartResolution=res;_chartAbsoluteOffset=off;
+    _chartResolution=res;_chartAbsoluteOffset=off;_chartVersion=version;
    }
   }
  }
