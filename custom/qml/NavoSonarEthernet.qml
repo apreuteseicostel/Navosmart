@@ -33,13 +33,20 @@ QtObject {
  }
  property NavoKoggerDecoder decoder: NavoKoggerDecoder {
   id: decoderObject
-  onEchoSamplesChanged: { root.lastEchoMs=Date.now(); root.clockMs=root.lastEchoMs }
+  onEchoSamplesChanged: {
+   root.lastEchoMs=Date.now(); root.clockMs=root.lastEchoMs
+   // Publish only completed CHART columns paired with recent depth and valid GPS.
+   if(!isFinite(depthM) || depthM<=0 || root.lastDepthMs<=0 ||
+      root.lastEchoMs-root.lastDepthMs>1500 || !root.vehicle ||
+      !root.vehicle.coordinate || !root.vehicle.coordinate.isValid) return
+   root.geoSample({time:root.lastEchoMs,lat:root.vehicle.coordinate.latitude,
+                   lon:root.vehicle.coordinate.longitude,
+                   heading:root.vehicle.heading ? root.vehicle.heading.rawValue : NaN,
+                   depth:depthM,temp:waterTempC,bottomEcho:root.bottomEchoStrength})
+  }
   onDepthChanged: {
    if(!isFinite(depthM) || depthM<=0) return
    root.lastDepthMs=Date.now(); root.clockMs=root.lastDepthMs
-   if(root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid && !isNaN(depthM))
-    root.geoSample({time:Date.now(),lat:root.vehicle.coordinate.latitude,lon:root.vehicle.coordinate.longitude,
-                    heading:root.vehicle.heading ? root.vehicle.heading.rawValue : NaN,depth:depthM,temp:waterTempC})
   }
  }
 }
