@@ -790,6 +790,9 @@ Item {
             depthM: root.depthM
             waterTempC: root.waterTempC
             samples: sonar.echoSamples
+            chartResolution: sonar.chartResolution
+            chartAbsoluteOffset: sonar.chartAbsoluteOffset
+            chartVersion: sonar.chartVersion
             onOpenFullSonar: root.activePage = 1
         }
     }
