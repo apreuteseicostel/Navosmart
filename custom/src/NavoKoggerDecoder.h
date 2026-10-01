@@ -13,6 +13,9 @@ class NavoKoggerDecoder : public QObject {
  Q_PROPERTY(quint16 chartResolution READ chartResolution NOTIFY echoSamplesChanged)
  Q_PROPERTY(quint16 chartAbsoluteOffset READ chartAbsoluteOffset NOTIFY echoSamplesChanged)
  Q_PROPERTY(quint8 chartVersion READ chartVersion NOTIFY echoSamplesChanged)
+ Q_PROPERTY(double chartResolutionMeters READ chartResolutionMeters NOTIFY echoSamplesChanged)
+ Q_PROPERTY(double chartOffsetMeters READ chartOffsetMeters NOTIFY echoSamplesChanged)
+ Q_PROPERTY(double chartRangeMeters READ chartRangeMeters NOTIFY echoSamplesChanged)
 public:
  explicit NavoKoggerDecoder(QObject* parent=nullptr);
  bool connected() const { return _connected; }
@@ -23,6 +26,10 @@ public:
  quint16 chartResolution() const { return _publishedChartResolution; }
  quint16 chartAbsoluteOffset() const { return _publishedChartAbsoluteOffset; }
  quint8 chartVersion() const { return _publishedChartVersion; }
+ double chartResolutionMeters() const { return double(_publishedChartResolution) * 0.001; }
+ double chartOffsetMeters() const { return double(_publishedChartAbsoluteOffset) * double(_publishedChartResolution) * 0.001; }
+ int chartSampleCount() const { return _publishedChartRaw.size() / (_publishedChartVersion == 1 ? 2 : 1); }
+ double chartRangeMeters() const { return double(chartSampleCount()) * chartResolutionMeters(); }
  Q_INVOKABLE void feedBytes(const QByteArray& bytes);
  Q_INVOKABLE void reset();
 signals:

@@ -318,6 +318,9 @@ Item {
                             chartResolution:sample.chartResolution,
                             chartAbsoluteOffset:sample.chartAbsoluteOffset,
                             chartVersion:sample.chartVersion,
+                            chartResolutionMeters:sample.chartResolutionMeters,
+                            chartOffsetMeters:sample.chartOffsetMeters,
+                            chartRangeMeters:sample.chartRangeMeters,
                             hardness:isNaN(echo)?NaN:Math.max(0,Math.min(100,echo*100))}
             persistence.addSonarSample(enriched)
             sonarMapping.ingestSample(enriched)
@@ -793,6 +796,9 @@ Item {
             chartResolution: sonar.chartResolution
             chartAbsoluteOffset: sonar.chartAbsoluteOffset
             chartVersion: sonar.chartVersion
+            chartResolutionMeters: sonar.chartResolutionMeters
+            chartOffsetMeters: sonar.chartOffsetMeters
+            chartRangeMeters: sonar.chartRangeMeters
             chartRawByteCount: sonar.chartRawByteCount
             onOpenFullSonar: root.activePage = 1
         }

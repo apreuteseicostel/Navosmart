@@ -22,6 +22,9 @@ QtObject {
  readonly property int chartResolution: decoderObject.chartResolution
  readonly property int chartAbsoluteOffset: decoderObject.chartAbsoluteOffset
  readonly property int chartVersion: decoderObject.chartVersion
+ readonly property real chartResolutionMeters: decoderObject.chartResolutionMeters
+ readonly property real chartOffsetMeters: decoderObject.chartOffsetMeters
+ readonly property real chartRangeMeters: decoderObject.chartRangeMeters
  property var vehicle
  property int rxBytes: 0
  property int rxChunks: 0
@@ -49,7 +52,10 @@ QtObject {
                    depth:depthM,temp:waterTempC,bottomEcho:root.bottomEchoStrength,
                    chartResolution:decoderObject.chartResolution,
                    chartAbsoluteOffset:decoderObject.chartAbsoluteOffset,
-                   chartVersion:decoderObject.chartVersion})
+                   chartVersion:decoderObject.chartVersion,
+                   chartResolutionMeters:decoderObject.chartResolutionMeters,
+                   chartOffsetMeters:decoderObject.chartOffsetMeters,
+                   chartRangeMeters:decoderObject.chartRangeMeters})
   }
   onDepthChanged: {
    if(!isFinite(depthM) || depthM<=0) return

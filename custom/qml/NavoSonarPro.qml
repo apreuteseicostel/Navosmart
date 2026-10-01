@@ -8,6 +8,9 @@ Rectangle {
     property int chartAbsoluteOffset: 0
     property int chartVersion: 0
     property int chartRawByteCount: 0
+    property real chartResolutionMeters: NaN
+    property real chartOffsetMeters: NaN
+    property real chartRangeMeters: NaN
     property var samples: []
     property bool connected: false
     property real depthM: NaN
@@ -67,11 +70,15 @@ Rectangle {
         Label {
             Layout.fillWidth: true
             color: "#a6bdd0"
+            font.pixelSize: 13
+            wrapMode: Text.WordWrap
             text: root.samples.length > 0 && root.chartResolution > 0
-                ? "CHART v" + root.chartVersion + " • rezoluție " + root.chartResolution
-                  + " • offset " + root.chartAbsoluteOffset + " • " + root.samples.length + " eșantioane • " + root.chartRawByteCount + " octeți"
+                ? "CHART v" + root.chartVersion + " • scală " + root.chartResolutionMeters.toFixed(3) + " m/eșantion"
+                  + " • offset " + root.chartOffsetMeters.toFixed(3) + " m • lungime " + root.chartRangeMeters.toFixed(2) + " m\n"
+                  + "Raw: " + root.chartRawByteCount + " B • " + root.samples.length + " eșantioane/canal"
+                  + " • " + (root.chartVersion === 1 ? "2 canale" : "1 canal")
+                  + " • rezoluție " + root.chartResolution + " mm • offset " + root.chartAbsoluteOffset + " eșantioane"
                 : "CHART: aștept date valide"
-            elide: Text.ElideRight
         }
         RowLayout {
             Layout.fillWidth: true
