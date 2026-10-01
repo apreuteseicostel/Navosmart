@@ -793,6 +793,7 @@ Item {
             chartResolution: sonar.chartResolution
             chartAbsoluteOffset: sonar.chartAbsoluteOffset
             chartVersion: sonar.chartVersion
+            chartRawByteCount: sonar.chartRawByteCount
             onOpenFullSonar: root.activePage = 1
         }
     }
