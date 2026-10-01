@@ -625,6 +625,7 @@ Item {
                 spacing: Math.max(3, Math.min(8, (sidebar.height - 44 - 10 * 36) / 11))
                 NavButton { text: "HARTA"; iconSource: "qrc:/qml/NavoSmart/icons/map.svg"; active: root.activePage === 0; onClicked: root.activePage = 0 }
                 NavButton { text: "SONAR"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 1; onClicked: root.activePage = 1 }
+                NavButton { text: "SONAR PRO"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 10; onClicked: root.activePage = 10 }
                 NavButton { text: "AREA SCAN"; iconSource: "qrc:/qml/NavoSmart/icons/scan.svg"; active: root.activePage === 2; onClicked: root.activePage = 2 }
                 NavButton { text: "PUNCTE PESCUIT"; iconSource: "qrc:/qml/NavoSmart/icons/fish.svg"; active: root.activePage === 3; onClicked: root.activePage = 3 }
                 NavButton { text: "BALȚILE MELE"; iconSource: "qrc:/qml/NavoSmart/icons/lake.svg"; active: root.activePage === 4; onClicked: root.activePage = 4 }
@@ -646,6 +647,7 @@ Item {
             anchors.fill: parent; anchors.margins: 10
             sourceComponent: root.activePage === 0 ? mapPage :
                              root.activePage === 1 ? sonarPage :
+                             root.activePage === 10 ? sonarProPage :
                              root.activePage === 2 ? areaPage :
                              root.activePage === 3 ? fishingPage :
                              root.activePage === 4 ? lakesPage :
@@ -775,6 +777,17 @@ Item {
                     }
                 }
             }
+        }
+    }
+
+    Component {
+        id: sonarProPage
+        NavoSonarPro {
+            connected: root.sonarConnected
+            depthM: root.depthM
+            waterTempC: root.waterTempC
+            samples: sonar.echoSamples
+            onOpenFullSonar: root.activePage = 1
         }
     }
 
