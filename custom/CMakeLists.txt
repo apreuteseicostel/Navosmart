@@ -31,6 +31,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoBaitingPanel.qml
         qml/NavoHopperBridge.qml
         qml/NavoSonarCard.qml
+        qml/NavoSonarPro.qml
         qml/NavoSonarFullScreen.qml
         qml/NavoCameraPip.qml
         qml/NavoSafetyCard.qml
