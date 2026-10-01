@@ -1,0 +1,666 @@
+#pragma once
+
+#include <math.h>
+#include <stdint.h>
+#include <time.h>
+#include <algorithm>
+#include <cmath>
+#include <QObject>
+#include <QMap>
+#include <QSet>
+#include <QPair>
+#include <QVector>
+#include <QVector3D>
+#include <QVariantMap>
+#include <QReadWriteLock>
+
+#include "black_stripes_processor.h"
+#include "dataset_defs.h"
+#include "data_interpolator.h"
+#include "epoch.h"
+#include "id_binnary.h"
+
+
+class Dataset : public QObject
+{
+    Q_OBJECT
+
+public:
+    /*structures*/
+    enum class DatasetState : uint8_t {
+        kUndefined = 0,
+        kFile,
+        kConnection
+    };
+    enum class LlaRefState : uint8_t {
+        kUndefined = 0,
+        kSettings,
+        kFile,
+        kConnection
+    };
+
+    Q_PROPERTY(float boatLatitude             READ getBoatLatitude          NOTIFY lastPositionChanged)
+    Q_PROPERTY(float boatLongitude            READ getBoatLongitude         NOTIFY lastPositionChanged)
+    Q_PROPERTY(float distToContact            READ getDistToContact         NOTIFY lastPositionChanged)
+    Q_PROPERTY(float angleToContact           READ getAngleToContact        NOTIFY lastPositionChanged)
+    Q_PROPERTY(bool  isActiveContactIndxValid READ isValidActiveContactIndx NOTIFY activeContactChanged)
+    Q_PROPERTY(bool  isBoatCoordinateValid    READ isValidBoatCoordinate    NOTIFY lastPositionChanged)
+    Q_PROPERTY(float isLastDepthValid         READ isValidLastDepth         NOTIFY lastDepthChanged)
+    Q_PROPERTY(float depth                    READ getLastDepth             NOTIFY lastDepthChanged)
+    Q_PROPERTY(float isSpeedValid             READ isValidSpeed             NOTIFY speedChanged)
+    Q_PROPERTY(float speed                    READ getSpeed                 NOTIFY speedChanged)
+    Q_PROPERTY(bool  isLastTempValid              READ isValidLastTemp              NOTIFY lastTempChanged)
+    Q_PROPERTY(float lastTemp                     READ getLastTemp                  NOTIFY lastTempChanged)
+    Q_PROPERTY(bool  isLastRangefinderDepthValid  READ isValidLastRangefinderDepth  NOTIFY lastRangefinderDepthChanged)
+    Q_PROPERTY(float lastRangefinderDepth         READ getLastRangefinderDepth      NOTIFY lastRangefinderDepthChanged)
+    Q_PROPERTY(bool  isLastBottomTrackDepthValid  READ isValidLastBottomTrackDepth  NOTIFY lastBottomTrackDepthChanged)
+    Q_PROPERTY(float lastBottomTrackDepth         READ getLastBottomTrackDepth      NOTIFY lastBottomTrackDepthChanged)
+    // Last USBL solution, flattened for QML. Per-field absence is NAN (checked with
+    // isNaN in QML, as the autopilot fields are); isLastUsblSolutionValid only says a
+    // solution was ever received. lastUsblFixEpochMs is HOST arrival time, not the
+    // device clock in UsblSolution::timestamp_us — it is what fix age is measured from,
+    // and it is a double because QML int is 32-bit and epoch ms would wrap.
+    Q_PROPERTY(bool   isLastUsblSolutionValid          READ isValidLastUsblSolution        NOTIFY lastUsblSolutionChanged)
+    Q_PROPERTY(double lastUsblFixEpochMs               READ getLastUsblFixEpochMs          NOTIFY lastUsblSolutionChanged)
+    Q_PROPERTY(int    lastUsblAddress                  READ getLastUsblAddress             NOTIFY lastUsblSolutionChanged)
+    Q_PROPERTY(float  lastUsblDistance                 READ getLastUsblDistance            NOTIFY lastUsblSolutionChanged)
+    Q_PROPERTY(float  lastUsblAzimuth                  READ getLastUsblAzimuth             NOTIFY lastUsblSolutionChanged)
+    Q_PROPERTY(float  lastUsblElevation                READ getLastUsblElevation           NOTIFY lastUsblSolutionChanged)
+    Q_PROPERTY(float  lastUsblSnr                      READ getLastUsblSnr                 NOTIFY lastUsblSolutionChanged)
+    Q_PROPERTY(bool   isLastUsblBeaconCoordinateValid  READ isValidLastUsblBeaconCoordinate NOTIFY lastUsblSolutionChanged)
+    // address (as a string key) -> one solution object. A single property rather than a
+    // Q_INVOKABLE per address, because a function call in a QML binding is not a tracked
+    // dependency -- the value would render once and then never update.
+    Q_PROPERTY(QVariantMap usblSolutions                READ getUsblSolutions               NOTIFY lastUsblSolutionChanged)
+    Q_PROPERTY(double lastUsblBeaconLatitude           READ getLastUsblBeaconLatitude      NOTIFY lastUsblSolutionChanged)
+    Q_PROPERTY(double lastUsblBeaconLongitude          READ getLastUsblBeaconLongitude     NOTIFY lastUsblSolutionChanged)
+    Q_PROPERTY(float  lastUsblBeaconDepth              READ getLastUsblBeaconDepth         NOTIFY lastUsblSolutionChanged)
+    Q_PROPERTY(bool isSimpleNavV2Valid                  READ isValidSimpleNavV2                   NOTIFY simpleNavV2Changed)
+    Q_PROPERTY(int simpleNavV2GnssFixType               READ simpleNavV2GnssFixType               NOTIFY simpleNavV2Changed)
+    Q_PROPERTY(int simpleNavV2NumSats                   READ simpleNavV2NumSats                   NOTIFY simpleNavV2Changed)
+    Q_PROPERTY(uint simpleNavV2UnixTime                 READ simpleNavV2UnixTime                  NOTIFY simpleNavV2Changed)
+    Q_PROPERTY(int simpleNavV2UnixOffsetMs              READ simpleNavV2UnixOffsetMs              NOTIFY simpleNavV2Changed)
+    Q_PROPERTY(double simpleNavV2Latitude               READ simpleNavV2Latitude                  NOTIFY simpleNavV2Changed)
+    Q_PROPERTY(double simpleNavV2Longitude              READ simpleNavV2Longitude                 NOTIFY simpleNavV2Changed)
+    Q_PROPERTY(double simpleNavV2GroundCourseDeg        READ simpleNavV2GroundCourseDeg           NOTIFY simpleNavV2Changed)
+    Q_PROPERTY(double simpleNavV2GroundVelocityMps      READ simpleNavV2GroundVelocityMps         NOTIFY simpleNavV2Changed)
+    Q_PROPERTY(float simpleNavV2YawDeg                  READ simpleNavV2YawDeg                    NOTIFY simpleNavV2Changed)
+    Q_PROPERTY(float simpleNavV2PitchDeg                READ simpleNavV2PitchDeg                  NOTIFY simpleNavV2Changed)
+    Q_PROPERTY(float simpleNavV2RollDeg                 READ simpleNavV2RollDeg                   NOTIFY simpleNavV2Changed)
+    Q_PROPERTY(bool isBoatStatusValid                   READ isValidBoatStatus                    NOTIFY boatStatusChanged)
+    Q_PROPERTY(int boatStatusBatteryBoatPercent         READ boatStatusBatteryBoatPercent          NOTIFY boatStatusChanged)
+    Q_PROPERTY(int boatStatusBatteryBridgePercent       READ boatStatusBatteryBridgePercent        NOTIFY boatStatusChanged)
+    Q_PROPERTY(int boatStatusSignalQualityBoatPercent   READ boatStatusSignalQualityBoatPercent    NOTIFY boatStatusChanged)
+    Q_PROPERTY(int boatStatusSignalQualityBridgePercent READ boatStatusSignalQualityBridgePercent  NOTIFY boatStatusChanged)
+    Q_PROPERTY(bool  spatialPreparing         READ isSpatialPreparing       NOTIFY spatialPreparingChanged)
+
+    Q_PROPERTY(bool hasChartData       READ hasChartData       NOTIFY dataAvailabilityChanged)
+    Q_PROPERTY(bool hasRangefinderData READ hasRangefinderData NOTIFY dataAvailabilityChanged)
+    Q_PROPERTY(bool hasAttitudeData    READ hasAttitudeData    NOTIFY dataAvailabilityChanged)
+    Q_PROPERTY(float lastYaw           READ lastYaw            NOTIFY attitudeUpdated)
+    Q_PROPERTY(float lastPitch         READ lastPitch          NOTIFY attitudeUpdated)
+    Q_PROPERTY(float lastRoll          READ lastRoll           NOTIFY attitudeUpdated)
+    Q_PROPERTY(bool hasTemperatureData READ hasTemperatureData NOTIFY dataAvailabilityChanged)
+    Q_PROPERTY(bool hasDopplerBeamData READ hasDopplerBeamData NOTIFY dataAvailabilityChanged)
+    Q_PROPERTY(bool hasDvlSolutionData READ hasDvlSolutionData NOTIFY dataAvailabilityChanged)
+    Q_PROPERTY(bool hasPositionData    READ hasPositionData    NOTIFY dataAvailabilityChanged)
+    Q_PROPERTY(bool hasUsblData        READ hasUsblData        NOTIFY dataAvailabilityChanged)
+
+    /*methods*/
+    Dataset();
+    ~Dataset() override;
+
+    void setState(DatasetState state);
+    void setActiveZeroing(bool state);
+    DatasetState getState() const;
+    LLARef getLlaRef() const;
+    void setLlaRef(const LLARef& val, LlaRefState state);
+
+    inline int size() const {
+        return pool_.size();
+    }
+
+    inline int sizeThreadSafe() const {
+        QReadLocker rl(&poolMtx_);
+        return pool_.size();
+    }
+
+    Epoch* fromIndex(int index_offset = 0) {
+        int index = validIndex(index_offset);
+        if(index >= 0) {
+            return &pool_[index];
+        }
+
+        return nullptr;
+    }
+
+    Epoch fromIndexCopy(int index_offset = 0) {
+        QReadLocker rl(&poolMtx_);
+
+        const int index = validIndex(index_offset);
+        if (channelsSetup_.empty() || index < 0) {
+            return Epoch{};
+        }
+
+        const Epoch &src = pool_.at(index);
+        Epoch copy = src;
+
+        return copy;
+    }
+
+    struct MosaicEpochProbe {
+        bool valid = false;
+        bool posFinite = false;
+        bool yawFinite = false;
+        bool firstBeam = false;
+        bool secondBeam = false;
+        bool firstBottom = false;
+        bool secondBottom = false;
+    };
+
+    QVector<MosaicEpochProbe> probeMosaicEpochs(int lastN,
+                                                const ChannelId& firstChId, uint8_t firstSubChId,
+                                                const ChannelId& secondChId, uint8_t secondSubChId) const {
+        QReadLocker rl(&poolMtx_);
+
+        QVector<MosaicEpochProbe> out;
+        const int poolSize = pool_.size();
+        if (poolSize == 0 || lastN <= 0) {
+            return out;
+        }
+
+        const int from = std::max(0, poolSize - lastN);
+        out.reserve(poolSize - from);
+
+        const bool firstValid = firstChId.isValid();
+        const bool secondValid = secondChId.isValid();
+
+        for (int i = from; i < poolSize; ++i) {
+            const Epoch& epoch = pool_.at(i);
+
+            MosaicEpochProbe probe;
+            probe.valid = epoch.isValid();
+
+            if (probe.valid) {
+                const auto& ned = epoch.getSonarPositionCRef().ned;
+                probe.posFinite = std::isfinite(ned.n) && std::isfinite(ned.e);
+                probe.yawFinite = std::isfinite(epoch.tryRetValidYaw());
+
+                if (firstValid) {
+                    probe.firstBeam = epoch.chartAvail(firstChId, firstSubChId);
+                    probe.firstBottom = probe.firstBeam
+                                        && std::isfinite(epoch.chartBottomDistance(firstChId, firstSubChId));
+                }
+                if (secondValid) {
+                    probe.secondBeam = epoch.chartAvail(secondChId, secondSubChId);
+                    probe.secondBottom = probe.secondBeam
+                                         && std::isfinite(epoch.chartBottomDistance(secondChId, secondSubChId));
+                }
+            }
+
+            out.append(probe);
+        }
+
+        return out;
+    }
+
+    Epoch fromIndexMosaicCopy(int index_offset = 0) {
+        QReadLocker rl(&poolMtx_);
+
+        const int index = validIndex(index_offset);
+        if (channelsSetup_.empty() || index < 0) {
+            return Epoch{};
+        }
+
+        return pool_.at(index).deepCopyForMosaic();
+    }
+
+    Epoch fromIndexBottomTrackCopy(int index_offset = 0) {
+        QReadLocker rl(&poolMtx_);
+
+        const int index = validIndex(index_offset);
+        if (channelsSetup_.empty() || index < 0) {
+            return Epoch{};
+        }
+
+        return pool_.at(index).deepCopyForBottomTrack();
+    }
+
+    Epoch::Echogram fromIndexCopyEchogram(int index_offset, const ChannelId& channelId) {
+        QReadLocker rl(&poolMtx_);
+
+        const int currSize = pool_.size();
+        if (channelsSetup_.empty() || currSize == 0)
+            return {};
+
+        int indx = validIndex(index_offset);
+        if (indx == -1) {
+            return {};
+        }
+
+        const Epoch &ep = pool_.at(indx);
+
+        if (!ep.chartAvail(channelId, 0))
+            return {};
+
+        return ep.chartCopy(channelId, 0);
+    }
+
+    Epoch* last() {
+        if(size() > 0) {
+            return fromIndex(endIndex());
+        }
+        return addNewEpoch();
+    }
+
+    Epoch* lastlast() {
+        if(size() > 1) {
+            return fromIndex(endIndex()-1);
+        }
+        return nullptr;
+    }
+
+    int endIndex() const {
+        return size() - 1;
+    }
+
+    int validIndex(int index_offset = 0) {
+        int index = index_offset;
+        if(index >= size()) { index = endIndex(); }
+        else if(index < 0) { index = -1; }
+        return index;
+    }
+
+    void getMaxDistanceRange(float* from, float* to, const ChannelId& channel, uint8_t subAddressCh1, const ChannelId& channel2 = channelNone(), uint8_t subAddressCh2 = 0);
+
+    bool channelsListIsEmpty() const {
+        QReadLocker locker(&lock_);
+
+        return channelsSetup_.isEmpty();
+    }
+
+    QVector<DatasetChannel> channelsList() const {
+        QReadLocker locker(&lock_);
+
+        return channelsSetup_;
+    }
+
+    bool isContainsChannelInChannelSetup(const ChannelId& channelId) const {
+        QReadLocker locker(&lock_);
+
+        for (const auto& channel : channelsSetup_) {
+            if (channel.channelId_ == channelId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    int getLastBottomTrackEpoch() const;
+
+    float getLastArtificalYaw() const;
+    float getLastArtificaPitch() const;
+    float getLastArtificalRoll() const;
+
+    float tryRetLastValidYaw() const {
+        if (isfinite(_lastYaw)) {
+            return _lastYaw;
+        }
+        if (isfinite(lastAYaw_)) {
+            return lastAYaw_;
+        }
+        return NAN;
+    }
+
+    float getLastYaw() const {
+        return _lastYaw;
+    }
+
+    float getLastTemp() {
+        return lastTemp_;
+    }
+
+    bool isValidLastTemp() const { return isfinite(lastTemp_); }
+    bool isValidLastRangefinderDepth() const { return isfinite(lastRangefinderDepth_); }
+    bool isValidLastBottomTrackDepth() const { return isfinite(lastBottomTrackDepth_); }
+    float getLastRangefinderDepth() const { return lastRangefinderDepth_; }
+    float getLastBottomTrackDepth() const { return lastBottomTrackDepth_; }
+
+    bool   isValidLastUsblSolution() const { return lastUsblFixEpochMs_ > 0.0; }
+    double getLastUsblFixEpochMs() const { return lastUsblFixEpochMs_; }
+    int    getLastUsblAddress() const { return lastUsblSolution_.id; }
+    float  getLastUsblDistance() const { return lastUsblSolution_.distance_m; }
+    float  getLastUsblAzimuth() const { return lastUsblSolution_.azimuth_deg; }
+    float  getLastUsblElevation() const { return lastUsblSolution_.elevation_deg; }
+    float  getLastUsblSnr() const { return lastUsblSolution_.snr; }
+    double getLastUsblBeaconLatitude() const { return lastUsblSolution_.beacon_latitude; }
+    double getLastUsblBeaconLongitude() const { return lastUsblSolution_.beacon_longitude; }
+    float  getLastUsblBeaconDepth() const { return lastUsblSolution_.beacon_depth; }
+    bool   isValidLastUsblBeaconCoordinate() const {
+        return LLA(lastUsblSolution_.beacon_latitude, lastUsblSolution_.beacon_longitude).isCoordinatesValid();
+    }
+    QVariantMap getUsblSolutions() const;
+
+    BottomTrackParam getBottomTrackParam() {
+        QReadLocker rl(&lock_);
+
+        return bottomTrackParam_;
+    }
+
+    BottomTrackParam* getBottomTrackParamPtr() {
+        return &bottomTrackParam_;
+    }
+
+    BottomTrackParam& getBottomTrackParamRef() {
+        return bottomTrackParam_;
+    }
+
+    std::tuple<ChannelId, uint8_t, QString> channelIdFromName(const QString& name) const;
+
+    void setActiveContactIndx(int64_t indx);
+    int64_t getActiveContactIndx() const;
+    void setMosaicChannels(const QString& firstChStr, const QString& secondChStr);
+    QMap<int, QSet<TileKey>> traceTileKeysForEpoch(int epochIndx) const;
+    friend class DataProcessor;
+
+public slots:
+    Q_INVOKABLE void onSetLAngleOffset(float val);
+    Q_INVOKABLE void onSetRAngleOffset(float val);
+    void setSpatialIndexingEnabled(bool sonarState, bool dimRectState, bool chunkedCatchup);
+
+    void onSonarPosCanCalc(uint64_t indx);
+
+public:
+    bool  isValidActiveContactIndx() const { return activeContactIndx_ != -1;  };
+    bool  isValidBoatCoordinate() const    { return !qFuzzyIsNull(boatLatitute_) || !qFuzzyIsNull(boatLongitude_); };
+    bool  isValidLastDepth() const         { return !qFuzzyIsNull(lastDepth_); };
+    bool isValidSpeed() const              { return isfinite(speed_) /*&& !qFuzzyIsNull(speed_)*/; };
+    bool isValidSimpleNavV2() const        { return simpleNavV2Valid_; };
+    int simpleNavV2GnssFixType() const     { return static_cast<int>(simpleNavV2GnssFixType_); };
+    int simpleNavV2NumSats() const         { return static_cast<int>(simpleNavV2NumSats_); };
+    uint simpleNavV2UnixTime() const       { return simpleNavV2UnixTime_; };
+    int simpleNavV2UnixOffsetMs() const    { return static_cast<int>(simpleNavV2UnixOffsetMs_); };
+    double simpleNavV2Latitude() const     { return simpleNavV2Latitude_; };
+    double simpleNavV2Longitude() const    { return simpleNavV2Longitude_; };
+    double simpleNavV2GroundCourseDeg() const { return simpleNavV2GroundCourseDeg_; };
+    double simpleNavV2GroundVelocityMps() const { return simpleNavV2GroundVelocityMps_; };
+    float simpleNavV2YawDeg() const        { return simpleNavV2YawDeg_; };
+    float simpleNavV2PitchDeg() const      { return simpleNavV2PitchDeg_; };
+    float simpleNavV2RollDeg() const       { return simpleNavV2RollDeg_; };
+    bool isValidBoatStatus() const         { return boatStatusValid_; };
+    int boatStatusBatteryBoatPercent() const { return static_cast<int>(boatBatteryPercent_); };
+    int boatStatusBatteryBridgePercent() const { return static_cast<int>(bridgeBatteryPercent_); };
+    int boatStatusSignalQualityBoatPercent() const { return static_cast<int>(boatSignalQualityPercent_); };
+    int boatStatusSignalQualityBridgePercent() const { return static_cast<int>(bridgeSignalQualityPercent_); };
+    bool isSpatialPreparing() const        { return spatialPreparing_;          };
+    float getBoatLatitude() const          { return boatLatitute_;             };
+    float getBoatLongitude() const         { return boatLongitude_;            };
+    float getDistToContact() const         { return distToActiveContact_;      };
+    float getAngleToContact() const        { return angleToActiveContact_;     };
+    float getLastDepth() const             { return lastDepth_;                };
+    float getSpeed() const                 { return speed_;                    };
+
+    bool hasChartData() const       { return hasChartData_;       };
+    bool hasRangefinderData() const { return hasRangefinderData_; };
+    bool hasAttitudeData() const    { return hasAttitudeData_;    };
+    float lastYaw() const           { return lastYaw_;            };
+    float lastPitch() const         { return lastPitch_;          };
+    float lastRoll() const          { return lastRoll_;           };
+    bool hasTemperatureData() const { return hasTemperatureData_; };
+    bool hasDopplerBeamData() const { return hasDopplerBeamData_; };
+    bool hasDvlSolutionData() const { return hasDvlSolutionData_; };
+    bool hasPositionData() const    { return hasPositionData_;    };
+    bool hasUsblData() const        { return hasUsblData_;        };
+
+public slots:
+    void addEvent(int timestamp, int id, int unixt = 0);
+    void addEncoder(float angle1_deg, float angle2_deg = NAN, float angle3_deg = NAN);
+    void addTimestamp(int timestamp);
+
+    //
+    void setChartSetup (const ChannelId& channelId, uint16_t resol, uint16_t count, uint16_t offset);
+    void setTranscSetup(const ChannelId& channelId, uint16_t freq, uint8_t pulse, uint8_t boost);
+    void setSoundSpeed (const ChannelId& channelId, uint32_t soundSpeed);
+    void setSonarOffset(float x, float y, float z);
+    void invalidateEpochTgc();
+    void setFixBlackStripesState(bool state);
+    void setFixBlackStripesForwardSteps(int val);
+    void setFixBlackStripesBackwardSteps(int val);
+    void addChart(const ChannelId& channelId, const ChartParameters& chartParams, const QVector<QVector<uint8_t>>& data, float resolution, float offset);
+    void rawDataRecieved(const ChannelId& channelId, RawData raw_data);
+    void addDist(const ChannelId& channelId, int dist);
+    void addRangefinder(const ChannelId& channelId, float distance);
+    void addUsblSolution(IDBinUsblSolution::UsblSolution data);
+    void addDopplerBeam(IDBinDVL::BeamSolution *beams, uint16_t cnt);
+    void addDVLSolution(IDBinDVL::DVLSolution dvlSolution);
+    void addAtt(float yaw, float pitch, float roll);
+    void addPosition(double lat, double lon, uint32_t unix_time = 0, int32_t nanosec = 0);
+    void addArtificalYaw();
+    void addPositionRTK(Position position);
+
+    void addDepth(float depth);
+
+    void addGnssVelocity(double h_speed, double course);
+    void addSimpleNavV2(uint8_t gnssFixType,
+                        uint8_t numSats,
+                        uint32_t unixTime,
+                        int16_t unixOffsetMs,
+                        double latitude,
+                        double longitude,
+                        double groundCourseDeg,
+                        double groundVelocityMps,
+                        float yawDeg,
+                        float pitchDeg,
+                        float rollDeg);
+
+//    void addDateTime(int year, );
+    void addTemp(float temp_c);
+    void addBoatStatus(uint8_t batteryBoatPercent, uint8_t batteryBridgePercent, uint8_t signalQualityBoatPercent, uint8_t signalQualityBridgePercent);
+
+    void mergeGnssTrack(QList<Position> track);
+
+    void resetDataset();
+    void softResetDataset();
+    void resetRenderBuffers();
+    void resetDistProcessing();
+
+    void setChannelOffset(const ChannelId& channelId, float x, float y, float z);
+    void spatialProcessing();
+
+    void setRefPosition(int epoch_index);
+    void setRefPosition(Epoch* ref_epoch);
+    void setRefPosition(Position position);
+    void setRefPositionByFirstValid();
+
+public:
+    Epoch* getFirstEpochByValidPosition();
+
+public slots:
+    QStringList channelsNameList();
+
+    void onDistCompleted(int epIndx, const ChannelId& channelId, float dist);
+    void onDistCompletedBatch(const QVector<BottomTrackUpdate>& updates);
+    void onLastBottomTrackEpochChanged(const ChannelId& channelId, int val, const BottomTrackParam& btP, bool manual, bool redrawAll);
+    void onDimensionRectCanCalc(uint64_t indx);
+
+signals:
+    void attitudeUpdated();
+    // data horizon
+    void epochAdded(uint64_t indx);
+    void positionAdded(uint64_t indx);
+    void chartAdded(uint64_t indx); // without ChartId
+    void attitudeAdded(uint64_t indx);
+    void artificalAttitudeAdded(uint64_t indx);
+    void bottomTrackAdded(uint64_t indx);
+    void sonarPositionsUpdated(int from, int to);
+    //void interpYaw(int epIndx);
+    //void interpPos(int epIndx);
+    void dataUpdate();
+    void bottomTrackUpdated(const ChannelId& channelId, int lEpoch, int rEpoch, bool manual, bool redrawAll);
+    void updatedLlaRef();
+    void channelsUpdated();
+    void redrawEpochs(const QSet<int>& indxs);
+    void lastPositionChanged();
+    void activeContactChanged();
+    void lastDepthChanged();
+    void speedChanged();
+    void lastTempChanged();
+    void lastRangefinderDepthChanged();
+    void lastBottomTrackDepthChanged();
+    void lastUsblSolutionChanged();
+    // The solution itself, for consumers that need more than the QML-facing flattening --
+    // usbl_yaw and the head's own position are not in `usblSolutions`, and a map track needs both.
+    // Emitted on the LINK thread, so anything on the GUI side must connect queued.
+    void usblSolutionAdded(IDBinUsblSolution::UsblSolution solution);
+    void simpleNavV2Changed();
+    void boatStatusChanged();
+    void spatialPreparingChanged();
+    void datasetStateChanged(int state);
+    void dataAvailabilityChanged();
+
+    void sendTilesByZoom(int epochIndx, const QMap<int, QSet<TileKey>>& tilesByZoom);
+
+protected:
+
+    int lastEventTimestamp = 0;
+    int lastEventId = 0;
+    float _lastEncoder = 0;
+
+    bool activeZeroing_ = false;
+    uint64_t testTime_ = 1740466541;
+
+    DatasetChannel firstChannelId_ = DatasetChannel(); // TODO: temp solution
+    QVector<DatasetChannel> channelsSetup_;
+
+    void validateChannelList(const ChannelId& channelId, uint8_t subChannelId);
+
+    //enum {
+    //    AutoRangeNone,
+    //    AutoRangeLast,
+    //    AutoRangeMax,
+    //    AutoRangeMaxVis
+    //} _autoRange = AutoRangeLast;
+
+
+    QVector<Epoch> pool_;
+
+    float lastAYaw_ = NAN, lastAPitch_ = NAN, lastARoll_ = NAN;
+    float _lastYaw = NAN, _lastPitch = NAN, _lastRoll = NAN;
+    float lastTemp_ = NAN;
+
+    bool hasChartData_       = false;
+    bool hasRangefinderData_ = false;
+    bool hasAttitudeData_    = false;
+    float lastYaw_           = NAN;
+    float lastPitch_         = NAN;
+    float lastRoll_          = NAN;
+    bool hasTemperatureData_ = false;
+    bool hasDopplerBeamData_ = false;
+    bool hasDvlSolutionData_ = false;
+    bool hasPositionData_    = false;
+    bool hasUsblData_        = false;
+
+    void markDataAvailable(bool& flag) { if (!flag) { flag = true; emit dataAvailabilityChanged(); } }
+    void resetDataAvailability() {
+        hasChartData_ = hasRangefinderData_ = hasAttitudeData_ = hasTemperatureData_ = false;
+        hasDopplerBeamData_ = hasDvlSolutionData_ = hasPositionData_ = hasUsblData_ = false;
+        emit dataAvailabilityChanged();
+    }
+
+    Epoch* addNewEpoch();
+
+private:
+    friend class DataInterpolator;
+
+    /*methods*/
+    LlaRefState getCurrentLlaRefState() const;
+    bool shouldAddNewEpoch(const ChannelId& channelId, uint8_t numSubChannels) const;
+    void updateEpochWithChart(const ChannelId& channelId, const ChartParameters& chartParams, const QVector<QVector<uint8_t>>& data, float resolution, float offset);
+    void setLastDepth(float val);
+    void setLastRangefinderDepth(float val);
+    void setLastBottomTrackDepth(float val);
+    void tryResetDataset(float lat, float lon);
+    void calcDimensionRects(uint64_t indx);
+    void appendTileEpochIndex(int epochIndx, const QMap<int, QSet<TileKey>>& tilesByZoom);
+    void clearTileEpochIndex();
+    void scheduleSpatialCatchup();
+    void setSpatialPreparing(bool state);
+
+    /*data*/
+    mutable QReadWriteLock lock_;
+    mutable QReadWriteLock poolMtx_;
+    mutable QReadWriteLock tileEpochIdxMtx_;
+
+    LLARef _llaRef;
+    LlaRefState llaRefState_ = LlaRefState::kUndefined;
+    DatasetState state_ = DatasetState::kUndefined;
+    DataInterpolator interpolator_;
+    int lastBottomTrackEpoch_;
+    BottomTrackParam bottomTrackParam_;
+    QMap<ChannelId, RecordParameters> usingRecordParameters_;
+    BlackStripesProcessor* bSProc_;
+    QMap<ChannelId, int> lastAddChartEpochIndx_;
+    QSet<ChannelId> channelsToResizeEthData_;
+
+    // for GUI
+    QList<QString> channelsNames_;
+    QList<ChannelId> channelsIds_;
+    QList<uint8_t> subChannelIds_;
+    int64_t activeContactIndx_  = -1;
+    float boatLatitute_         = 0.0f;
+    float boatLongitude_        = 0.0f;
+    float distToActiveContact_  = 0.0f;
+    float angleToActiveContact_ = 0.0f;
+    float lastDepth_            = 0.0f;
+    float lastRangefinderDepth_ = NAN;
+    float lastBottomTrackDepth_ = NAN;
+    float speed_                = 0.0f;
+    IDBinUsblSolution::UsblSolution lastUsblSolution_;
+    double lastUsblFixEpochMs_  = 0.0;
+    // One entry per beacon address. `lastUsblSolution_` above is whichever answered most
+    // recently, which is ambiguous the moment a schedule interrogates more than one
+    // beacon -- a "range" reading flickers between them with nothing saying whose it is.
+    // Entries are never expired: the fix age tells the operator it is stale, and dropping
+    // it would blank a widget instead of marking it old.
+    QMap<int, IDBinUsblSolution::UsblSolution> usblByAddr_;
+    QMap<int, double> usblEpochMsByAddr_;
+    // Written from the data thread, read from the QML thread. A torn read of the POD
+    // above is a wrong number; a torn read of a QMap is a crash, so this one is locked.
+    mutable QReadWriteLock usblAddrLock_;
+    bool simpleNavV2Valid_ = false;
+    uint8_t simpleNavV2GnssFixType_ = 0;
+    uint8_t simpleNavV2NumSats_ = 0;
+    uint32_t simpleNavV2UnixTime_ = 0;
+    int16_t simpleNavV2UnixOffsetMs_ = 0;
+    double simpleNavV2Latitude_ = 0.0;
+    double simpleNavV2Longitude_ = 0.0;
+    double simpleNavV2GroundCourseDeg_ = 0.0;
+    double simpleNavV2GroundVelocityMps_ = 0.0;
+    float simpleNavV2YawDeg_ = 0.0f;
+    float simpleNavV2PitchDeg_ = 0.0f;
+    float simpleNavV2RollDeg_ = 0.0f;
+    bool boatStatusValid_ = false;
+    uint8_t boatBatteryPercent_ = 0;
+    uint8_t bridgeBatteryPercent_ = 0;
+    uint8_t boatSignalQualityPercent_ = 0;
+    uint8_t bridgeSignalQualityPercent_ = 0;
+    QVector3D sonarOffset_;
+    uint64_t sonarPosIndx_;
+    bool sonarIndexingEnabled_ = false;
+    bool dimRectIndexingEnabled_ = false;
+    bool chunkedSpatialCatchup_ = false;
+    bool spatialCatchupScheduled_ = false;
+    bool spatialPreparing_ = false;
+    uint64_t pendingSonarPosIndx_ = 0;
+    uint64_t pendingDimRectIndx_ = 0;
+
+    ChannelId mosaicFirstChId_;
+    ChannelId mosaicSecondChId_;
+    uint8_t mosaicFirstSubChId_;
+    uint8_t mosaicSecondSubChId_;
+    uint64_t lastDimRectindx_;
+    float lAngleOffset_;
+    float rAngleOffset_;
+    QVector<QHash<TileKey, QVector<int>>> tileEpochIndxsByZoom_;
+};
