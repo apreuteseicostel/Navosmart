@@ -7,6 +7,7 @@ Rectangle {
     property int chartResolution: 0
     property int chartAbsoluteOffset: 0
     property int chartVersion: 0
+    property int chartRawByteCount: 0
     property var samples: []
     property bool connected: false
     property real depthM: NaN
@@ -68,7 +69,7 @@ Rectangle {
             color: "#a6bdd0"
             text: root.samples.length > 0 && root.chartResolution > 0
                 ? "CHART v" + root.chartVersion + " • rezoluție " + root.chartResolution
-                  + " • offset " + root.chartAbsoluteOffset + " • " + root.samples.length + " eșantioane"
+                  + " • offset " + root.chartAbsoluteOffset + " • " + root.samples.length + " eșantioane • " + root.chartRawByteCount + " octeți"
                 : "CHART: aștept date valide"
             elide: Text.ElideRight
         }
