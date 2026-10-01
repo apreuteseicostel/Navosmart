@@ -309,9 +309,9 @@ Item {
         id: sonar
         vehicle: root.vehicle
         onGeoSample: function(sample) {
-            // Depth and CHART can arrive in separate Kogger frames. Persist the
-            // latest complete CHART metrics together with this geo/depth sample.
-            var echo = sonar.echoFresh ? sonar.bottomEchoStrength : NaN
+            // Preserve the echo metric captured with this georeferenced CHART column.
+            var echo = (sample.bottomEcho !== undefined && isFinite(Number(sample.bottomEcho)))
+                       ? Number(sample.bottomEcho) : NaN
             var enriched = {time:sample.time, lat:sample.lat, lon:sample.lon,
                             heading:sample.heading, depth:sample.depth, temp:sample.temp,
                             bottomEcho:echo,
