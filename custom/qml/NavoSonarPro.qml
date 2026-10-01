@@ -12,17 +12,33 @@ Rectangle {
     property real gain: 1.0
     property real noiseFloor: 0.10
     property bool bottomTrackEnabled: true
-    readonly property real bottomEcho: {
-        if (!bottomTrackEnabled || !samples || samples.length === 0) return NaN
-        var start = Math.floor(samples.length * 0.9)
-        var sum = 0
-        var count = 0
-        for (var i = start; i < samples.length; ++i) {
-            var v = Number(samples[i])
-            if (isFinite(v)) { sum += v; count++ }
+    // Experimental bottom peak tracker; calibrated physical hardness is NOT inferred.
+    readonly property var bottomResult: {
+        if (!bottomTrackEnabled || !samples || samples.length < 8)
+            return ({ index: -1, strength: NaN, confidence: 0 })
+        var n = samples.length
+        var start = Math.max(1, Math.floor(n * 0.25))
+        var end = n - 2
+        var best = -1
+        var bestScore = 0
+        var second = 0
+        for (var i = start; i <= end; ++i) {
+            var left = Number(samples[i - 1])
+            var center = Number(samples[i])
+            var right = Number(samples[i + 1])
+            if (!isFinite(left) || !isFinite(center) || !isFinite(right)) continue
+            var score = Math.max(0, (left + 2 * center + right) / 4 - noiseFloor)
+            if (score > bestScore) { second = bestScore; bestScore = score; best = i }
+            else if (score > second) second = score
         }
-        return count ? Math.max(0, Math.min(1, (sum / count - noiseFloor) * gain)) : NaN
+        if (best < 0 || bestScore <= 0)
+            return ({ index: -1, strength: NaN, confidence: 0 })
+        return ({ index: best, strength: Math.min(1, bestScore * gain),
+                  confidence: Math.max(0, Math.min(1, (bestScore - second) / Math.max(bestScore, 0.001))) })
     }
+    readonly property real bottomEcho: bottomResult.strength
+    readonly property real bottomDepthEstimate: bottomResult.index >= 0 && isFinite(depthM)
+        ? depthM * bottomResult.index / Math.max(1, samples.length - 1) : NaN
     signal openFullSonar()
     color: "#0b1c2e"
     radius: 10
@@ -50,6 +66,7 @@ Rectangle {
             CheckBox { text: "Bottom Track"; checked: root.bottomTrackEnabled; onToggled: root.bottomTrackEnabled = checked }
             Label { text: isNaN(root.bottomEcho) ? "Ecou: —" : "Ecou relativ: " + Math.round(root.bottomEcho * 100) + "%"; color: "#a6bdd0" }
         }
+        Label { Layout.fillWidth: true; color: "#a6bdd0"; text: root.bottomResult.index < 0 ? "Profil fund: indisponibil" : "Vârf ecou: eșantion " + root.bottomResult.index + " / " + root.samples.length + " • încredere relativă " + Math.round(root.bottomResult.confidence * 100) + "%" }
         RowLayout {
             Layout.fillWidth: true
             Label { text: "Sensibilitate"; color: "#a6bdd0" }
