@@ -1,0 +1,1735 @@
+#ifndef IDBINNARY_H
+#define IDBINNARY_H
+
+#include <array>
+
+#include <QObject>
+#include <QByteArray>
+#include <QList>
+#include <QMap>
+#include <QVector>
+#include <QTimer>
+#include "dataset_defs.h"
+#include "proto_binnary.h"
+
+
+using namespace Parsers;
+using Segment = QPair<uint16_t, uint16_t>; // first - begin, second - end
+
+enum BoardVersion : int16_t {
+    BoardNone = -1,
+    BoardEnhanced = 1,
+    BoardBase = 3,
+    BoardNBase = 4,
+    BoardChirp = 5,
+    BoardAssist = 6,
+    BoardNEnhanced = 7,
+    BoardSideEnhanced = 8,
+    BoardRecorderMini = 9,
+    BoardDVL = 10,
+    BoardBasic2D = 12,
+    BoardUSBL = 15,
+    BoardUSBLBeacon = 16,
+    BoardNanoSSS = 17,
+    BoardPULSEred_2D = 128,
+    BoardPULSEblue_DSS = 129
+};
+
+struct LastReadInfo {
+    LastReadInfo() : version(), checkSum(0), address(0), isReaded(true) {};
+    LastReadInfo(Version _version, uint16_t _checkSum, uint8_t _address, bool _isReaded) :
+        version(_version), checkSum(_checkSum), address(_address), isReaded(_isReaded) {};
+
+    Version  version;
+    uint16_t checkSum;
+    uint8_t  address;
+    bool     isReaded;
+};
+
+using ListLinkedChannels = QList<QPair<ChannelId, uint8_t>>;
+
+struct ChartParameters {
+    ChartParameters()
+        : boardVersion(BoardNone),
+          version(v0)
+    {};
+
+    ChartParameters(BoardVersion _boardVersion, Version _version, QList<Segment> _errList)
+        : boardVersion(_boardVersion),
+          version(_version),
+          errList(_errList)
+    {};
+
+    BoardVersion boardVersion;
+    Version version;
+    QList<Segment> errList;
+};
+
+class IDBin : public QObject
+{
+    Q_OBJECT
+public:
+    explicit IDBin(QObject *parent = nullptr);
+    ~IDBin() override;
+
+    Resp  parse(FrameParser &proto);
+
+    virtual ID id() = 0;
+    virtual bool isSettable() { return false; }
+    virtual bool isSettup() { return false; }
+    virtual bool isRequestable() { return true; }
+
+    Type lastType() { return m_lastType; }
+    Version lastVersion() { return m_lastVersion; }
+    Resp lastResp() { return m_lastResp; }
+
+    virtual void simpleRequest(Version ver);
+    virtual void requestAll() { simpleRequest(v0); }
+    virtual void startColdStartTimer() {};
+
+    void setAddress(uint8_t addr) { m_address = addr; }
+    void setConsoleOut(bool is_console) { isConsoleOut = is_console; }
+
+#ifdef SEPARATE_READING
+    void initTimersConnects();
+
+    QTimer* getSetTimer() {
+        return &setTimer_;
+    }
+
+    QTimer* getColdStartTimer() {
+        return &coldStartTimer_;
+    }
+#endif
+
+signals:
+    void updateContent(Parsers::Type type, Parsers::Version ver, Parsers::Resp resp, uint8_t address);
+    void dataSend(QByteArray data);
+    void binFrameOut(Parsers::ProtoBinOut proto_out);
+    void notifyDevDriver(bool state);
+
+protected:
+    const U4 m_key = 0xC96B5D4A;
+
+    Type m_lastType;
+    Version m_lastVersion;
+    Resp m_lastResp;
+    uint8_t _lastAddress = 0;
+    QList<Version> availableVer;
+    uint8_t m_address = 0;
+    bool isConsoleOut = false;
+
+    virtual Resp  parsePayload(FrameParser &proto) = 0;
+    virtual void requestSpecific(ProtoBinOut &proto_out) { Q_UNUSED(proto_out) }
+
+    bool checkKeyConfirm(U4 key) { return (key == m_key); }
+    void appendKey(ProtoBinOut &proto_out);
+
+    void hashBinFrameOut(ProtoBinOut &proto);
+    void interExecColdStartTimer();
+
+private:
+    /*methods*/
+    bool checkResponse(FrameParser& proto);
+    void onExpiredColdStartTimer();
+    void onExpiredSetTimer();
+    /*data*/
+    static const uint8_t repeatingCount_ = 7;
+    static const int timerPeriodMsec_ = 1500;
+    QTimer setTimer_;
+    QTimer coldStartTimer_;
+    LastReadInfo hashLastInfo_;
+    uint8_t setTimerCount_;
+    uint8_t coldStartTimerCount_;
+    bool isColdStart_;
+    bool needToCheckSetResp_;
+};
+
+
+
+class IDBinTimestamp : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinTimestamp() : IDBin() {
+    }
+
+    ID id() override { return ID_TIMESTAMP; }
+    Resp  parsePayload(FrameParser &proto) override;
+
+    uint32_t timestamp() { return m_timestamp; }
+protected:
+    uint32_t m_timestamp;
+};
+
+
+
+class IDBinDist : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinDist() : IDBin() {
+    }
+
+    ID id() override { return ID_DIST; }
+    Resp  parsePayload(FrameParser &proto) override;
+
+    uint32_t dist_mm() { return m_dist_mm; }
+protected:
+    uint32_t m_dist_mm;
+};
+
+
+
+struct RawData {
+    struct RawDataHeader {
+        struct  __attribute__((packed)) {
+            uint16_t dataType : 5; //
+            uint16_t dataSize : 6; // +1 bytes
+            uint16_t dataTrigger : 2;
+            uint16_t channelGroup : 3;
+        };
+        uint8_t channelCount = 0;
+        uint32_t globalOffset = 0;
+        uint32_t localOffset = 0;
+        float sampleRate = 0;
+    } __attribute__((packed));
+
+    RawDataHeader header;
+    QByteArray data;
+
+    uint32_t samplesPerChannel() {
+        return data.size()/(header.dataSize + 1)/header.channelCount;
+    }
+};
+
+
+class IDBinChart : public IDBin
+{
+    Q_OBJECT
+public:
+    IDBinChart() :
+        IDBin(),
+        lossIndex_(0)
+    {
+        lossHistory_.resize(1000);
+        std::fill(lossHistory_.begin(), lossHistory_.end(), 0);
+    }
+
+    ID id() override { return ID_CHART; }
+    Resp  parsePayload(FrameParser &proto) override;
+
+    uint16_t sampleResol() const { return m_sampleResol; }
+    uint16_t absOffset() const { return m_absOffset; }
+    int chartSize() const { return m_chartSize; }
+
+    bool readAndClearIsCompleteChart() {
+        bool flag_val = m_isCompleteChart;
+        m_isCompleteChart = false;
+        return flag_val;
+    }
+
+    U2 resolution() {return m_sampleResol; }
+    U2 offsetRange() {return m_absOffset*m_sampleResol; }
+
+    uint8_t* logData8() { return m_completeChart; }
+    uint8_t* logData28() { return m_completeChart2; }
+
+    QList<Segment> getErrList() {
+        if (!compErrList_.empty()) {
+            auto retVal = std::move(compErrList_);
+            compErrList_.clear();
+            return retVal;
+        }
+        return {};
+    }
+
+    // uint8_t* rawData() { return _rawDataSave; }
+    // uint32_t rawDataSize() { return _rawDataSize; }
+    // uint8_t rawType() { return type; }
+
+    uint8_t getAverageLosses() const {
+        int sum = 0;
+        for (uint8_t loss : lossHistory_) {
+            sum += loss;
+        }
+        return (sum * 1.0f) / (lossHistory_.size() * 1.0f) * 100.0f;
+    }
+
+protected:
+    uint32_t m_seqOffset = 0, m_sampleResol = 0, m_absOffset = 0;
+    uint32_t sampleResolLast_ = 0, absOffsetLast_ = 0;
+    uint32_t m_chartSizeIncr = 0;
+    uint32_t m_chartSize = 0;
+    uint8_t m_fillChart[20000];
+    uint8_t m_completeChart[20000];
+    uint8_t m_completeChart2[20000];
+
+    QList<Segment> tempErrList_;
+    QList<Segment> compErrList_;
+
+    bool m_isCompleteChart = false;
+
+    QMap<int, RawData> _rawData;
+    QMap<int, RawData> _rawDataComplete;
+signals:
+    void rawDataRecieved(RawData raw_data);
+
+private:
+    QVector<uint8_t> lossHistory_;
+    int lossIndex_ = 0;
+};
+
+
+
+class IDBinAttitude : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinAttitude()
+        : IDBin(),
+        m_yaw(0.0f),
+        m_pitch(0.0f),
+        m_roll(0.0f),
+        m_w0(0.0f),
+        m_w1(0.0f),
+        m_w2(0.0f),
+        m_w3(0.0f)
+    {
+    }
+
+    ID id() override { return ID_ATTITUDE; }
+    Resp  parsePayload(FrameParser &proto) override;
+
+    float yaw(Version src_ver = v0);
+    float pitch(Version src_ver = v0);
+    float roll(Version src_ver = v0);
+    float w0(Version src_ver = v1);
+    float w1(Version src_ver = v1);
+    float w2(Version src_ver = v1);
+    float w3(Version src_ver = v1);
+protected:
+    float m_yaw, m_pitch, m_roll;
+    float m_w0, m_w1, m_w2, m_w3;
+};
+
+
+
+class IDBinTemp : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinTemp() : IDBin() {
+    }
+
+    ID id() override { return ID_TEMP; }
+    Resp  parsePayload(FrameParser &proto) override;
+
+    float temp() { return m_temp; }
+protected:
+    float m_temp;
+};
+
+class IDBinEncoder : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinEncoder() : IDBin() {
+    }
+
+    struct Encoder {
+        float e1 = NAN, e2 = NAN, e3 = NAN;
+    };
+
+    ID id() override { return Parsers::ID_ENCODER; }
+    Resp  parsePayload(FrameParser &proto) override;
+
+    Encoder get() { return data; }
+protected:
+    Encoder data;
+};
+
+class IDBinDataset : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinDataset() : IDBin() {
+    }
+
+    ID id() override { return ID_DATASET; }
+    Resp  parsePayload(FrameParser &proto) override;
+    void startColdStartTimer() override;
+    struct Channel
+    {
+        uint8_t id = 0;
+        uint32_t period = 0;
+        uint32_t mask = 0;
+    };
+
+    enum ChannelMask : uint8_t {
+        MASK_DIST_V0 = 1,
+        MASK_CHART_V0 = 2,
+        MASK_ATTITUDE_V0 = 4,
+        MASK_ATTITUDE_V1 = 8,
+        MASK_TEMP_V0 = 16,
+        MASK_TIMESTAMP_V0 = 32,
+        MASK_DIST_SDDBT = 64,
+        MASK_DIST_SDDBT_P2 = 128,
+    };
+
+    void setChannel(uint8_t ch_id, uint32_t period, uint32_t mask);
+    uint32_t mask(U1 ch_id);
+    void setMask(U1 ch_id, uint32_t mask);
+
+
+    void setFlag(U1 ch_id, uint32_t flag) {
+        if(ch_id != 0) {
+            setMask(ch_id, mask(ch_id) | ((U4)flag));
+
+            for(int i = 1; i < 3; i++) {
+                if(ch_id != i) {
+                    resetFlag(i, flag);
+                }
+            }
+        } else {
+            for(int i = 1; i < 3; i++) {
+                resetFlag(i, flag);
+            }
+        }
+    }
+
+    void resetFlag(U1 ch_id, uint32_t flag) { setMask(ch_id, mask(ch_id) & (~((U4)flag))); }
+    void moveFlag(U1 ch_id, uint32_t flag) {
+        if(ch_id != 0) {
+            uint32_t msk = mask(0)&flag;
+            setFlag(ch_id, msk);
+        }
+    }
+    bool flag(U1 ch_id, uint32_t flag) { return (mask(ch_id) & ((U4)flag)) != 0 ;}
+
+    void setDist_v0(U1 ch_id) {
+        setFlag(ch_id, MASK_DIST_V0);
+        moveFlag(ch_id,    MASK_DIST_V0 | MASK_CHART_V0 | MASK_DIST_SDDBT | MASK_DIST_SDDBT_P2);
+        setFlag(0, MASK_DIST_SDDBT | MASK_DIST_SDDBT_P2);
+    }
+    void resetDist_v0(U1 ch_id) { resetFlag(ch_id, MASK_DIST_V0); }
+    bool getDist_v0(U1 ch_id) { return flag(ch_id, MASK_DIST_V0); }
+
+    void setChart_v0(U1 ch_id) {
+        setFlag(ch_id, MASK_CHART_V0);
+        moveFlag(ch_id,  MASK_DIST_V0 | MASK_CHART_V0 | MASK_DIST_SDDBT | MASK_DIST_SDDBT_P2);
+    }
+    void resetChart_v0(U1 ch_id) { resetFlag(ch_id, MASK_CHART_V0); }
+    bool getChart_v0(U1 ch_id) { return flag(ch_id, MASK_CHART_V0); }
+
+    void setAttitude_v0(U1 ch_id) { setFlag(ch_id, MASK_ATTITUDE_V0); }
+    void resetAttitude_v0(U1 ch_id) { resetFlag(ch_id, MASK_ATTITUDE_V0); }
+    bool getAttitude_v0(U1 ch_id) { return flag(ch_id, MASK_ATTITUDE_V0); }
+
+    void setAttitude_v1(U1 ch_id) { setFlag(ch_id, MASK_ATTITUDE_V1); }
+    void resetAttitude_v1(U1 ch_id) { resetFlag(ch_id, MASK_ATTITUDE_V1); }
+    bool getAttitude_v1(U1 ch_id) { return flag(ch_id, MASK_ATTITUDE_V1); }
+
+    void setTemp_v0(U1 ch_id) {
+        setFlag(ch_id, MASK_TEMP_V0);
+        moveFlag(ch_id,  MASK_TEMP_V0);
+    }
+    void resetTemp_v0(U1 ch_id) { resetFlag(ch_id, MASK_TEMP_V0); }
+    bool getTemp_v0(U1 ch_id) { return flag(ch_id, MASK_TEMP_V0); }
+
+    void setEuler(U1 ch_id) { setFlag(ch_id, MASK_ATTITUDE_V0); }
+    void resetEuler(U1 ch_id) { resetFlag(ch_id, MASK_ATTITUDE_V0); }
+    bool getEuler(U1 ch_id) { return flag(ch_id, MASK_ATTITUDE_V0); }
+
+    void setTimestamp_v0(U1 ch_id) { setFlag(ch_id, MASK_TIMESTAMP_V0); }
+    void resetTimestamp_v0(U1 ch_id) { resetFlag(ch_id, MASK_TIMESTAMP_V0); }
+    bool getTimestamp_v0(U1 ch_id) { return flag(ch_id, MASK_TIMESTAMP_V0); }
+
+    void setSDDBT(U1 ch_id) {
+        setFlag(ch_id, MASK_DIST_SDDBT);
+        moveFlag(ch_id,  MASK_DIST_V0 | MASK_CHART_V0 | MASK_DIST_SDDBT | MASK_DIST_SDDBT_P2);
+        setFlag(0, MASK_DIST_V0 | MASK_DIST_SDDBT_P2);
+    }
+    void resetSDDBT(U1 ch_id) { resetFlag(ch_id, MASK_DIST_SDDBT); }
+    bool getSDDBT(U1 ch_id) { return flag(ch_id, MASK_DIST_SDDBT); }
+
+    void setSDDBT_P2(U1 ch_id) {
+        setFlag(ch_id, MASK_DIST_SDDBT_P2);
+        moveFlag(ch_id,  MASK_DIST_V0 | MASK_CHART_V0 | MASK_DIST_SDDBT | MASK_DIST_SDDBT_P2);
+        setFlag(0, MASK_DIST_V0 | MASK_DIST_SDDBT);
+
+    }
+    void resetSDDBT_P2(U1 ch_id) { resetFlag(ch_id, MASK_DIST_SDDBT_P2); }
+    bool getSDDBT_P2(U1 ch_id) { return flag(ch_id, MASK_DIST_SDDBT_P2); }
+
+    void resetAll() {
+        setMask(1, 0);
+        setMask(2, 0);
+    }
+
+    void commit() {
+        sendChannel(1, period(1), mask(1));
+        sendChannel(2, period(2), mask(2));
+    }
+
+    uint32_t period(U1 ch_id);
+    void setPeriod(U1 ch_id, uint32_t period);
+
+    QVector<Channel> getChannels() const;
+    Channel getChannel(U1 channelId) const;
+
+protected:
+    Channel m_channel[3];
+
+    void sendChannel(U1 ch_id, uint32_t period, uint32_t mask);
+    void requestSpecific(ProtoBinOut &proto_out) override { proto_out.write<U1>(0); }
+};
+
+
+
+class IDBinDistSetup : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinDistSetup() : IDBin() {
+    }
+
+    ID id() override { return ID_DIST_SETUP; }
+    Resp  parsePayload(FrameParser &proto) override;
+    void startColdStartTimer() override;
+
+    void setRange(uint32_t start_offset, uint32_t max_dist);
+
+    int max() { return m_maxDist; }
+    void setMax(uint32_t max_dist) { setRange(deadZone(), max_dist); }
+
+    int deadZone() { return m_startOffset; }
+    void setDeadZone(uint32_t dead_zone) { setRange(dead_zone, max()); }
+
+    void setConfidence(int confidence);
+    int confidence() { return m_confidence; }
+
+    void requestAll() override {
+        simpleRequest(v1);
+        simpleRequest(v2);
+    }
+protected:
+    uint32_t m_startOffset = 200;
+    uint32_t m_maxDist = 50000;
+    U1 m_confidence;
+
+};
+
+
+
+class IDBinServoControl : public IDBin
+{
+    Q_OBJECT
+public:
+    static constexpr int AngleScale = 100;
+
+    enum GeneralBits : U1 { GenEnable = 0x0001 };
+    enum OptionsBits : U1 { OptReverse = 0x0001 };
+
+    explicit IDBinServoControl() : IDBin() {}
+
+    ID id() override { return ID_SERVO_CONTROL; }
+    Resp parsePayload(FrameParser &proto) override;
+    void startColdStartTimer() override;
+
+    void setAll(U2 general, U2 options, U2 pwm_min_us, U2 pwm_max_us,
+                S2 angle_range_deg, S2 step_deg, S2 range_deg, S2 center_deg);
+
+    bool enabled() const { return (m_general & GenEnable) != 0; }
+    void setEnabled(bool on) {
+        U2 g = on ? (m_general | GenEnable) : (m_general & ~GenEnable);
+        setAll(g, m_options, m_pwmMinUs, m_pwmMaxUs, m_angleRangeDeg, m_stepDeg, m_rangeDeg, m_centerDeg);
+    }
+
+    bool reverse() const { return (m_options & OptReverse) != 0; }
+    void setReverse(bool on) {
+        U2 o = on ? (m_options | OptReverse) : (m_options & ~OptReverse);
+        setAll(m_general, o, m_pwmMinUs, m_pwmMaxUs, m_angleRangeDeg, m_stepDeg, m_rangeDeg, m_centerDeg);
+    }
+
+    U2 pwmMinUs() const { return m_pwmMinUs; }
+    void setPwmMinUs(U2 v) {
+        setAll(m_general, m_options, v, m_pwmMaxUs, m_angleRangeDeg, m_stepDeg, m_rangeDeg, m_centerDeg);
+    }
+
+    U2 pwmMaxUs() const { return m_pwmMaxUs; }
+    void setPwmMaxUs(U2 v) {
+        setAll(m_general, m_options, m_pwmMinUs, v, m_angleRangeDeg, m_stepDeg, m_rangeDeg, m_centerDeg);
+    }
+
+    S2 angleRangeDeg() const { return m_angleRangeDeg; }
+    void setAngleRangeDeg(S2 v) {
+        setAll(m_general, m_options, m_pwmMinUs, m_pwmMaxUs, v, m_stepDeg, m_rangeDeg, m_centerDeg);
+    }
+
+    S2 stepDeg() const { return m_stepDeg; }
+    void setStepDeg(S2 v) {
+        setAll(m_general, m_options, m_pwmMinUs, m_pwmMaxUs, m_angleRangeDeg, v, m_rangeDeg, m_centerDeg);
+    }
+
+    S2 rangeDeg() const { return m_rangeDeg; }
+    void setRangeDeg(S2 v) {
+        setAll(m_general, m_options, m_pwmMinUs, m_pwmMaxUs, m_angleRangeDeg, m_stepDeg, v, m_centerDeg);
+    }
+
+    S2 centerDeg() const { return m_centerDeg; }
+    void setCenterDeg(S2 v) {
+        setAll(m_general, m_options, m_pwmMinUs, m_pwmMaxUs, m_angleRangeDeg, m_stepDeg, m_rangeDeg, v);
+    }
+
+    void requestAll() override { simpleRequest(v0); }
+
+protected:
+    U2 m_general       = 0;
+    U2 m_options       = 0;
+    U2 m_pwmMinUs      = 500;
+    U2 m_pwmMaxUs      = 2500;
+    S2 m_angleRangeDeg = 18000;
+    S2 m_stepDeg       = 450;
+    S2 m_rangeDeg      = 18000;
+    S2 m_centerDeg     = 0;
+};
+
+
+
+class IDBinPwmRoute : public IDBin
+{
+    Q_OBJECT
+public:
+    static constexpr int PwmOutCount = 3;
+    enum Target : U1 { TargetOff = 0, TargetServoScan = 1 };
+
+    explicit IDBinPwmRoute() : IDBin() {}
+
+    ID id() override { return ID_PWM_ROUTE; }
+    Resp parsePayload(FrameParser &proto) override;
+    void startColdStartTimer() override;
+
+    void setRoute(U1 out1, U1 out2, U1 out3);
+
+    U1 target(int idx) const {
+        return (idx >= 0 && idx < PwmOutCount) ? m_target[idx] : static_cast<U1>(TargetOff);
+    }
+    void setTarget(int idx, U1 t) {
+        if (idx < 0 || idx >= PwmOutCount) return;
+        U1 t0 = m_target[0], t1 = m_target[1], t2 = m_target[2];
+        if (idx == 0) t0 = t;
+        else if (idx == 1) t1 = t;
+        else t2 = t;
+        setRoute(t0, t1, t2);
+    }
+
+    void requestAll() override { simpleRequest(v0); }
+
+protected:
+    U1 m_target[PwmOutCount] = { TargetServoScan, TargetOff, TargetOff };
+};
+
+
+
+// Calibration stand. Control-only: the device answers a command and publishes nothing else, so
+// this class sends and never mirrors device state — unlike every setup command around it.
+//
+// Frames go out through binFrameOut, not hashBinFrameOut. The hash path re-sends until the
+// device acknowledges, which is right for a setting and wrong here: a resent Start restarts a
+// physical scan.
+class IDBinStandScan : public IDBin
+{
+    Q_OBJECT
+public:
+    enum Command : U1 {
+        CmdNop    = 0,
+        CmdStart  = 1,
+        CmdStop   = 2,
+        CmdPause  = 3,
+        CmdResume = 4,
+        CmdHome   = 5
+    };
+
+    enum ScanOrder : U1 {
+        AzimuthToElevation = 0,
+        ElevationToAzimuth = 1
+    };
+
+    enum OptionsBits : U1 {
+        OptReverseInner    = 0x01,
+        OptContinuousInner = 0x02
+    };
+
+    struct Scan {
+        U1 order      = AzimuthToElevation;
+        U1 options    = 0;
+        U2 fires      = 1;
+        U2 cycles     = 1;
+        U2 settleMs   = 0;
+        U2 postFireMs = 0;
+        S4 innerStart = 0;
+        S4 innerEnd   = 0;
+        S4 innerStep  = 0;
+        S4 outerStart = 0;
+        S4 outerEnd   = 0;
+        S4 outerStep  = 0;
+    };
+
+    explicit IDBinStandScan() : IDBin() {}
+
+    ID id() override { return ID_STAND_SCAN; }
+    Resp parsePayload(FrameParser &proto) override;
+
+    // The capability probe. The command does nothing on a device that has a stand and is
+    // answered with an unknown-id response by one that does not — which is the only signal
+    // available, since there is no readback to request.
+    void probe();
+
+    void start(const Scan &scan);
+    void stop()   { command(CmdStop); }
+    void pause()  { command(CmdPause); }
+    void resume() { command(CmdResume); }
+    void home()   { command(CmdHome); }
+
+protected:
+    void command(Command cmd);
+    void writeScan(Command cmd, const Scan &scan);
+};
+
+
+
+class IDBinDevSync : public IDBin
+{
+    Q_OBJECT
+public:
+    enum SyncSource : U1 { SyncOff = 0, SyncTimer = 1 };
+
+    explicit IDBinDevSync() : IDBin() {}
+
+    ID id() override { return ID_DEV_SYNC; }
+    Resp parsePayload(FrameParser &proto) override;
+    void startColdStartTimer() override;
+    void requestAll() override { simpleRequest(v0); }
+
+    int  portCount() const { return m_portSource.size(); }
+    U1   portSource(int idx) const {
+        return (idx >= 0 && idx < m_portSource.size())
+            ? static_cast<U1>(m_portSource.at(idx))
+            : static_cast<U1>(SyncOff);
+    }
+    U2   periodMs() const { return m_periodMs; }
+    bool synced()  const { return m_synced; }
+
+    void setPortSource(int idx, U1 src) {
+        if (idx < 0 || idx >= m_portSource.size()) return;
+        if (static_cast<U1>(m_portSource.at(idx)) == src) return;
+        m_portSource[idx] = static_cast<char>(src);
+        m_pending = true;
+    }
+    void setPeriodMs(U2 ms) {
+        if (m_periodMs == ms) return;
+        m_periodMs = ms;
+        m_pending = true;
+    }
+
+    void flushPending();
+    void commitFromDisplayed() {
+        m_committedPortSource = m_portSource;
+        m_committedPeriodMs   = m_periodMs;
+        m_pending = false;
+    }
+    void revertToCommitted() {
+        m_portSource = m_committedPortSource;
+        m_periodMs   = m_committedPeriodMs;
+        m_pending = false;
+    }
+    void reset() {
+        m_synced  = false;
+        m_pending = false;
+        m_periodMs = 20;
+        m_portSource.clear();
+        m_committedPeriodMs = 20;
+        m_committedPortSource.clear();
+    }
+
+protected:
+    QByteArray m_portSource;
+    U2         m_periodMs = 20;
+    bool       m_synced   = false;
+
+    QByteArray m_committedPortSource;
+    U2         m_committedPeriodMs = 20;
+
+    bool       m_pending  = false;
+};
+
+
+
+class IDBinChartSetup : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinChartSetup() : IDBin() {
+    }
+
+    ID id() override { return ID_CHART_SETUP; }
+    Resp  parsePayload(FrameParser &proto) override;
+    void startColdStartTimer() override;
+
+    void setV0(U2 count, U2 resolution, U2 offset);
+
+    U2 count() { return m_sanpleCount; }
+    void setCount(U2 count) {
+        setV0(count, resolution(), offset());
+    }
+
+    U2 resolution() { return m_sanpleResolution; }
+    void setResolution(U2 resol) {
+        setV0(count(), resol, offset());
+    }
+
+    U2 offset() { return m_sanpleOffset; }
+    void setOffset(U2 offset) {
+        setV0(count(), resolution(), offset);
+    }
+
+protected:
+    U2 m_sanpleCount = 100;
+    U2 m_sanpleResolution = 10;
+    U2 m_sanpleOffset = 0;
+};
+
+
+class IDBinDSPSetup : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinDSPSetup() : IDBin() {
+    }
+
+    ID id() override { return ID_DSP; }
+    Resp  parsePayload(FrameParser &proto) override;
+    void startColdStartTimer() override;
+
+    void setV0(U1 hor_smooth_factor);
+
+    U1 horSmoothFactor() { return m_horSmoothFactor; }
+    void setHorSmoothFactor(U1 hor_smooth_factor) {
+        setV0(hor_smooth_factor);
+    }
+
+protected:
+    U1 m_horSmoothFactor = 0;
+};
+
+
+class IDBinTransc : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinTransc() : IDBin() {
+    }
+
+    ID id() override { return ID_TRANSC; }
+    Resp  parsePayload(FrameParser &proto) override;
+    void startColdStartTimer() override;
+
+    void setTransc(U2 freq, U1 pulse, U1 boost);
+
+    U2 freq() { return m_freq; }
+    void setFreq(U2 freq) { setTransc(freq, pulse(), boost()); }
+
+    U1 pulse() { return m_pulse; }
+    void setPulse(U1 pulse) { setTransc(freq(), pulse, boost()); }
+
+    U1 boost() { return m_boost; }
+    void setBoost(U1 boost) { setTransc(freq(), pulse(), boost); }
+
+protected:
+    U2 m_freq = 700;
+    U1 m_pulse = 10;
+    U1 m_boost = 0;
+};
+
+
+
+class IDBinSoundSpeed : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinSoundSpeed() : IDBin() {
+    }
+
+    ID id() override { return ID_SND_SPEED; }
+    Resp  parsePayload(FrameParser &proto) override;
+    void startColdStartTimer() override;
+
+    void setSoundSpeed(U4 snd_spd);
+    int getSoundSpeed() { return m_soundSpeed; }
+protected:
+    U4 m_soundSpeed = 1500000;
+};
+
+
+
+class IDBinUART : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinUART() : IDBin() {
+    }
+
+    ID id() override { return ID_UART; }
+    Resp  parsePayload(FrameParser &proto) override;
+    void startColdStartTimer() override;
+
+    struct UART
+    {
+        U1 id = 0;
+        U4 baudrate = 115200;
+        U1 dev_address = 0;
+    };
+
+    void setBaudrate(U4 baudrate);
+    int getBaudrate(int id = 1) { return m_uart[id].baudrate; }
+
+    void setDevAddress(U1 addr);
+    U1 devAddress() { return m_uart[1].dev_address; }
+
+    void setDevDefAddress(U1 addr);
+    U1 devDefAddress() { return devDef_address; }
+
+    QVector<UART> getUart() const;
+
+    void requestAll() override {
+        simpleRequest(v0);
+        simpleRequest(v1);
+        simpleRequest(v2);
+    }
+protected:
+    UART m_uart[5];
+    U1 devDef_address = 0;
+
+    void requestSpecific(ProtoBinOut &proto_out) override {
+        appendKey(proto_out);
+        if(proto_out.ver() == 0 || proto_out.ver() == 1) {
+            proto_out.write<U1>(1);
+        }
+    }
+};
+
+class IDBinVersion : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinVersion() : IDBin() {
+    }
+
+    enum BootMode : int {
+        BootModeUnknown = -1,
+        BootModeFirmware = 0,
+        BootModeBootloader = 1
+    };
+
+    ID id() override { return ID_VERSION; }
+    Resp  parsePayload(FrameParser &proto) override;
+    uint8_t productName() { return 0; }
+
+    BoardVersion boardVersion() { return m_boardVersion; }
+    uint8_t boardVersionMinor() { return m_boardVersionMinor; }
+    int bootMode() const { return _bootMode; }
+
+    int fwVersion() { return _fwVersion; }
+    int fwVersionMinor() { return _fwVersionMinor; }
+
+    int bootVersion() { return _bootVersion; }
+    int bootVersionMinor() { return _bootVersionMinor; }
+
+    uint32_t serialNumber() { return m_serialNumber; }
+
+    void reset() {
+        m_boardVersion = BoardNone;
+        m_boardVersionMinor = 0;
+        m_serialNumber = 0;
+        _bootMode = BootModeUnknown;
+    }
+
+    QByteArray uid() { return _uid; }
+
+    void requestAll() override {
+        simpleRequest(v0);
+        simpleRequest(v1);
+        simpleRequest(v2);
+    }
+protected:
+    BoardVersion m_boardVersion = BoardNone;
+    uint8_t m_boardVersionMinor = 0;
+    uint32_t m_serialNumber = 0;
+    QString m_pn;
+    QByteArray _uid;
+    int _fwVersion = 0;
+    int _fwVersionMinor = 0;
+    int _bootVersion = 0;
+    int _bootVersionMinor = 0;
+    int _bootMode = BootModeUnknown;
+};
+
+class IDBinMark : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinMark() : IDBin() {
+    }
+
+    ID id() override { return ID_MARK; }
+    Resp  parsePayload(FrameParser &proto) override;
+
+    bool mark() { return (m_mark & 0x1) == 0x1; }
+    void setMark();
+
+protected:
+    U1 m_mark = 0;
+};
+
+class IDBinFlash : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinFlash() : IDBin() {
+    }
+
+    ID id() override { return ID_FLASH; }
+    Resp  parsePayload(FrameParser &proto) override;
+
+    void flashing();
+    void restore();
+    void erase();
+
+protected:
+};
+
+
+
+class IDBinBoot : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinBoot() : IDBin() {
+    }
+
+    ID id() override { return ID_BOOT; }
+    Resp  parsePayload(FrameParser &proto) override;
+
+    void reboot();
+    void runFW();
+protected:
+
+};
+
+
+
+class IDBinUpdate : public IDBin
+{
+    Q_OBJECT
+public:
+    struct __attribute__((packed)) ID_UPGRADE_V0
+    {
+       uint16_t lastNumMsg = 0;
+       uint32_t lastOffset = 0;
+       uint8_t type = 0;
+       uint8_t rcvNumMsg = 0;
+    };
+
+    explicit IDBinUpdate() : IDBin() {
+    }
+
+    ID id() override { return ID_UPDATE; }
+    Resp  parsePayload(FrameParser &proto) override;
+
+    void setUpdate(QByteArray fw);
+    QByteArray getUpdate() const;
+
+    int availSend() {return _fw.length() - _currentFwOffset; }
+    int progress() {
+        if(_fw.length() != 0) {
+            return static_cast<int>((100ll * static_cast<long long>(_currentFwOffset)) /
+                                    static_cast<long long>(_fw.length()));
+        }
+
+        return 0;
+    }
+
+    ID_UPGRADE_V0 getDeviceProgress() { return _progress; }
+
+    uint16_t currentNumPacket() {
+        return _currentNumPacket;
+    }
+
+    int currentFwOffset() {
+        return _currentFwOffset;
+    }
+
+    void setUpgradeNewPoint(uint16_t num_packet, int offset) {
+        _currentNumPacket = num_packet + 1;
+        _currentFwOffset = offset;
+    }
+
+public slots:
+    bool putUpdate(bool is_auto_offset = true);
+
+protected:
+    uint16_t _currentNumPacket = 0;
+    int _currentFwOffset = 0;
+    QByteArray _fw;
+    const uint16_t _packetSize = 32*3;
+
+    ID_UPGRADE_V0 _progress;
+};
+
+class IDBinVoltage : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinVoltage() : IDBin() {
+    }
+
+    ID id() override { return ID_VOLTAGE; }
+    Resp  parsePayload(FrameParser &proto) override;
+
+    float voltage(int v_id) { return _v[v_id]; }
+protected:
+    float _v[255];
+};
+
+
+class IDBinNav : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinNav() : IDBin() {
+    }
+
+    ID id() override { return ID_NAV; }
+    Resp  parsePayload(FrameParser &proto) override;
+
+    struct SimpleNav {
+        static constexpr ID getId() { return ID_NAV; }
+        static constexpr Version getVer() { return v1; }
+
+        float yaw = NAN;
+        float pitch = NAN;
+        float roll = NAN;
+        double latitude = NAN;
+        double longitude = NAN;
+        float depth  = NAN;
+    } __attribute__((packed));
+
+    struct SimpleNavV2 {
+        static constexpr ID getId() { return ID_NAV; }
+        static constexpr Version getVer() { return v2; }
+
+        uint8_t gnss_fix_type = 0;
+        uint8_t numSats = 0;
+        uint32_t unix_time = 0;
+        int16_t unix_offset_ms = 0;
+        int32_t latitude = 0;               // deg * 1e7
+        int32_t longitude = 0;              // deg * 1e7
+        int16_t ground_course_deg = 0;      // deg * 1e2
+        int16_t ground_velocity_mps = 0;    // meters/s * 1e3
+        int16_t yaw_deg = 0;                // deg * 1e2
+        int16_t pitch_deg = 0;              // deg * 1e2
+        int16_t roll_deg = 0;               // deg * 1e2
+    } __attribute__((packed));
+
+    double latitude() { return _nav.latitude; }
+    double longitude() { return _nav.longitude; }
+
+    float yaw() { return _nav.yaw; }
+    float pitch() { return _nav.pitch; }
+    float roll() { return _nav.roll; }
+
+    float depth() { return _nav.depth; }
+
+    uint8_t gnssFixTypeV2() const { return _navV2.gnss_fix_type; }
+    uint8_t numSatsV2() const { return _navV2.numSats; }
+    uint32_t unixTimeV2() const { return _navV2.unix_time; }
+    int16_t unixOffsetMsV2() const { return _navV2.unix_offset_ms; }
+    double latitudeV2() const { return static_cast<double>(_navV2.latitude) * 1e-7; }
+    double longitudeV2() const { return static_cast<double>(_navV2.longitude) * 1e-7; }
+    double groundCourseDegV2() const { return static_cast<double>(_navV2.ground_course_deg) * 0.01; }
+    double groundVelocityMpsV2() const { return static_cast<double>(_navV2.ground_velocity_mps) * 0.001; }
+    float yawV2() const { return static_cast<float>(static_cast<double>(_navV2.yaw_deg) * 0.01); }
+    float pitchV2() const { return static_cast<float>(static_cast<double>(_navV2.pitch_deg) * 0.01); }
+    float rollV2() const { return static_cast<float>(static_cast<double>(_navV2.roll_deg) * 0.01); }
+
+protected:
+    SimpleNav _nav;
+    SimpleNavV2 _navV2;
+};
+
+class IDBinBoatStatus : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinBoatStatus() : IDBin() {
+    }
+
+    ID id() override { return ID_BOAT_STATUS; }
+    Resp parsePayload(FrameParser& proto) override;
+
+    struct BoatStatus {
+        static constexpr ID getId() { return ID_BOAT_STATUS; }
+        static constexpr Version getVer() { return v0; }
+
+        uint8_t batteryBoat_percent = 0;
+        uint8_t batteryBridge_percent = 0;
+        uint8_t signal_quality_boat_percent = 0;
+        uint8_t signal_quality_bridge_percent = 0;
+    } __attribute__((packed));
+
+    uint8_t batteryBoatPercent() const { return data_.batteryBoat_percent; }
+    uint8_t batteryBridgePercent() const { return data_.batteryBridge_percent; }
+    uint8_t signalQualityBoatPercent() const { return data_.signal_quality_boat_percent; }
+    uint8_t signalQualityBridgePercent() const { return data_.signal_quality_bridge_percent; }
+
+protected:
+    BoatStatus data_{};
+};
+
+class IDBinRecorderStatus : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinRecorderStatus() : IDBin() {
+    }
+
+    ID id() override { return ID_RECORDER_STATUS; }
+    Resp parsePayload(FrameParser& proto) override;
+
+    struct RecorderStatus {
+        static constexpr ID getId() { return ID_RECORDER_STATUS; }
+        static constexpr Version getVer() { return v0; }
+
+        union {
+            struct {
+                uint8_t device_condition : 3;
+                uint8_t recording_mode   : 2;
+                uint8_t recording_state  : 3;
+            };
+            uint8_t packed_status;
+        };
+        uint16_t status_flags;
+        uint16_t warning_flags;
+        uint16_t degraded_flags;
+        uint16_t critical_flags;
+        uint16_t uptime_10s;
+        uint16_t current_log_id;
+        uint16_t recorded_size_64k;
+        uint16_t free_space_1m;
+        uint16_t recording_duration_seconds;
+        uint16_t seconds_since_last_write;
+    } __attribute__((packed));
+
+    bool     isValid() const { return valid_; }
+    uint8_t  deviceCondition() const { return data_.device_condition; }
+    uint8_t  recordingMode() const { return data_.recording_mode; }
+    uint8_t  recordingState() const { return data_.recording_state; }
+    uint16_t statusFlags() const { return data_.status_flags; }
+    uint16_t warningFlags() const { return data_.warning_flags; }
+    uint16_t degradedFlags() const { return data_.degraded_flags; }
+    uint16_t criticalFlags() const { return data_.critical_flags; }
+    uint16_t uptime10s() const { return data_.uptime_10s; }
+    uint16_t currentLogId() const { return data_.current_log_id; }
+    uint16_t recordedSize64k() const { return data_.recorded_size_64k; }
+    uint16_t freeSpace1m() const { return data_.free_space_1m; }
+    uint16_t recordingDurationSeconds() const { return data_.recording_duration_seconds; }
+    uint16_t secondsSinceLastWrite() const { return data_.seconds_since_last_write; }
+
+protected:
+    RecorderStatus data_{};
+    bool valid_ = false;
+};
+
+class IDBinDVL : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinDVL() : IDBin() {
+    }
+
+    ID id() override { return ID_DVL_VEL; }
+    Resp  parsePayload(FrameParser &proto) override;
+
+    struct __attribute__((packed)) BeamSolution
+    {
+        uint8_t num;
+        uint8_t flags;
+        float velocity = NAN;
+        float uncertainty = NAN;
+        float dt = NAN;
+        float distance = NAN;
+        uint8_t amplitude;
+        uint8_t mode;
+        uint8_t coherence[4];
+        int8_t difference[4];
+    };
+
+    typedef struct  __attribute__((packed)) {
+        union {
+            struct {
+                uint32_t xValid : 1;
+                uint32_t yValid : 1;
+                uint32_t zValid : 1;
+                uint32_t z1Valid : 1;
+                uint32_t z2Valid : 1;
+                uint32_t isBottomTrack : 1;
+                uint32_t beam1Valid : 1;
+                uint32_t beam2Valid : 1;
+                uint32_t beam3Valid : 1;
+                uint32_t beam4Valid : 1;
+                uint32_t beam5Valid : 1;
+                uint32_t beam6Valid : 1;
+                uint32_t beamAvailNum : 3;
+                uint32_t beamSolutionNum : 3;
+            };
+            uint32_t flags;
+        };
+
+        struct {
+            uint32_t timestamp_ms;
+            float deltaT;
+            float latency;
+        } solutionTime  __attribute__((packed));
+
+        struct {
+            float x;
+            float y;
+            float z;
+            float z1;
+            float z2;
+        } velocity  __attribute__((packed));
+
+        struct {
+            float x;
+            float y;
+            float z;
+            float z1;
+            float z2;
+        } uncertainty  __attribute__((packed));
+
+        struct {
+            float z;
+            float z1;
+            float z2;
+        } distance  __attribute__((packed));
+    } DVLSolution;
+
+    float velX() { return vel_x; }
+    float velY() { return vel_y; }
+    float velZ() { return vel_z; }
+    float dist() { return _dist; }
+
+    BeamSolution* beams() { return _beams; }
+    uint16_t beamsCount() { return _beamCount; }
+
+    DVLSolution dvlSolution() {
+        return _dvlSolution;
+    }
+
+protected:
+    float vel_x, vel_y, vel_z;
+    float _dist;
+
+    BeamSolution _beams[4] = {};
+    DVLSolution _dvlSolution;
+    uint16_t _beamCount = 0;
+    float test_bias = 0;
+};
+
+class IDBinDVLMode : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinDVLMode() : IDBin() {
+    }
+
+    ID id() override { return ID_DVL_MODE; }
+    Resp  parsePayload(FrameParser &proto) override;
+
+    struct __attribute__((packed)) DVLModeSetup
+    {
+        uint8_t id = 0;
+        uint8_t selection = 1; // 0 - not select, 1 - always
+        int8_t gain = 0;
+        int8_t curve = 0;
+        uint16_t reserved = 0;
+        float start = 0, stop = 0; // 0 - ignore
+    };
+
+    void setModes(bool ismode1, bool ismode2, bool ismode3, bool ismode4, float range_mode4);
+
+protected:
+
+};
+
+
+
+class IDBinUsblSolution : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinUsblSolution() : IDBin() {
+    }
+
+    ID id() override { return ID_USBL_SOLUTION; }
+    Resp  parsePayload(FrameParser &proto) override;
+
+    // ID_USBL_SOLUTION multiplexes unrelated payloads onto the same version:
+    // v1 carries either AcousticNavSolution or BeaconActivationResponce, told
+    // apart by payload length. Version alone cannot identify the content.
+    enum class PayloadKind : uint8_t {
+        None = 0,
+        Solution,
+        AcousticNav,
+        BaseToBeacon,
+        BeaconActivation
+    };
+
+    struct UsblSolution {
+        uint8_t id = 0xFF;
+        uint8_t role = 0;
+        uint8_t cmd_id = 0xFF;
+        uint8_t reserved = 0;
+
+        int64_t timestamp_us = 0;
+        uint32_t ping_counter = 0;
+        int64_t carrier_counter = 0;
+
+        float distance_m = NAN;
+        float distance_unc = 0;
+
+        float azimuth_deg = NAN;
+        float azimuth_unc = 0;
+
+        float elevation_deg = NAN;
+        float elevation_unc = 0;
+
+        // NAN like its neighbours, and for the same reason: v1/v2 are PROJECTED onto this struct
+        // and projectToSolution assigns no SNR, because neither AcousticNavSolution nor
+        // BaseToBeacon carries one. A 0 default made that absence indistinguishable from a
+        // measured 0 dB, and every consumer -- the node rows, the widget fields, the CSV export --
+        // reported a confident zero for a number the payload never contained. Only v0 reads this
+        // off the wire, where a genuine 0 stays a genuine 0.
+        float snr = NAN;
+
+        float beacon_x_m = NAN;
+        float beacon_y_m = NAN;
+        double beacon_latitude = NAN;
+        double beacon_longitude = NAN;
+        float beacon_depth = NAN;
+
+        float usbl_yaw = NAN;
+        float usbl_pitch = NAN;
+        float usbl_roll = NAN;
+
+        double usbl_latitude = NAN;
+        double usbl_longitude = NAN;
+        uint32_t last_iTOW = 0;
+
+        float beacon_n_m = NAN;
+        float beacon_e_m = NAN;
+        // Tail-appended: absent from older firmware payloads, left NAN by the
+        // short-payload path in FrameParser::read<T>().
+        float code_snr[8] = {NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN};
+    } __attribute__((packed));
+
+    struct AcousticNavSolution {
+        static constexpr ID getId() { return ID_USBL_SOLUTION; }
+        static constexpr Version getVer() { return v1; }
+
+        uint8_t address = 0xFF;
+        uint8_t cmd_id = 0xFF;
+
+        uint32_t reserved = 0;
+
+        int64_t timestamp_us = 0;
+        int64_t carrier_us = 0;
+        int64_t carrier_counter = 0;
+
+        double lat = NAN;
+        double lon = NAN;
+        float depth = NAN;
+
+        float acousticAzimuth = NAN;
+        float geoAzimuth = NAN;
+        float heading = NAN;
+
+        float distance = NAN;
+
+        double baseLat = NAN;
+        double baseLon = NAN;
+        float baseDepth = NAN;
+    } __attribute__((packed));
+
+    struct BaseToBeacon {
+        static constexpr ID getId() { return ID_USBL_SOLUTION; }
+        static constexpr Version getVer() { return v2; }
+
+        uint8_t address = 0xFF;
+        uint8_t cmd_id = 0xFF;
+
+        uint32_t reserved = 0;
+
+        int64_t timestamp_us = 0;
+        int64_t carrier_us = 0;
+        int64_t carrier_counter = 0;
+
+        float acousticAzimuth = NAN;
+        float geoAzimuth = NAN;
+        float beaconDistance = NAN;
+        float beaconN = NAN;
+        float beaconE = NAN;
+        float beaconD = NAN;
+        double beaconLat = NAN;
+        double beaconLon = NAN;
+
+        float antennaYaw = NAN;
+        float antennaDepth = NAN;
+        double antennaLat = NAN;
+        double antennaLon = NAN;
+    } __attribute__((packed));
+
+    struct USBLRequestBeacon {
+        uint8_t id = 0; // 0 is promisc mode
+        uint8_t reserved = 0;
+        uint16_t watermark = 0;
+        double latitude_deg = NAN;
+        double longitude_deg = NAN;
+        float external_heading_deg = NAN;
+        float force_beacon_depth_m = NAN;
+        float external_pitch = NAN;
+        float external_roll = NAN;
+    }  __attribute__((packed));
+
+    struct BeaconActivationResponce {
+        uint8_t id = 0; // 0 is promisc mode
+        uint8_t reserved = 0;
+        uint16_t reserved1 = 0;
+    }  __attribute__((packed));
+
+    struct BeaconActivate {
+        float timeout_s = 2;
+    }  __attribute__((packed));
+
+    UsblSolution usblSolution() {
+        return _usblSolution;
+    }
+
+    AcousticNavSolution acousticNavSolution() const { return _acousticNavSolution; }
+    BaseToBeacon baseToBeacon() const { return _baseToBeacon; }
+    PayloadKind lastPayloadKind() const { return _lastPayloadKind; }
+
+    void askBeacon(USBLRequestBeacon ask);
+    void enableBeaconOnce(float timeout);
+
+protected:
+    // v1/v2 payloads are projected onto _usblSolution so the 2D/3D views and the
+    // epoch pool keep consuming a single solution type.
+    void projectToSolution(const AcousticNavSolution& src);
+    void projectToSolution(const BaseToBeacon& src);
+
+    UsblSolution _usblSolution;
+    AcousticNavSolution _acousticNavSolution;
+    BaseToBeacon _baseToBeacon;
+    BeaconActivationResponce _beaconResponcel;
+    PayloadKind _lastPayloadKind = PayloadKind::None;
+};
+
+class IDBinUsblControl : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinUsblControl() : IDBin() {
+    }
+
+    ID id() override { return ID_USBL_CONTROL; }
+    Resp parsePayload(FrameParser& proto) override;
+
+    // Fire SIGNAL_SYNC_MASTER and SIGNAL_ADDRESS_MASTER (if enabled by "address") in a sequence
+    // If (timeout_us > 0) then it will fire the signal sequence by trigger event,
+    // else immediately (not precise time) by this CMD
+    struct USBLPingRequest {
+        static constexpr ID getId() { return ID_USBL_CONTROL; }
+        static constexpr Version getVer() { return v1; }
+        // 0: immediately by this CMD
+        // 0xFFFFFFFF: trigger always enabled
+        // otherwise: enable tx trigger for a certain time after setting the value
+
+        uint32_t trigger_timeout_us = 0;
+        // 1-8 are addresses, 0: promisc address, 0xFF: disabled address slot
+        uint8_t address = 0;
+        uint8_t cmd_id = 0;
+        // 0: Pinger (no waiting for a response), >0: Interrogator (ranging)
+        uint32_t reply_distance_mm = 20000;
+
+        enum Function : uint8_t {
+            FunctionDefault = 0,
+            FunctionBitArray = 1,
+            FunctionLLGeoAzimuth = 2
+        };
+
+        Function function = FunctionDefault;
+        // non-zero only if (function == FunctionBitArray)
+        // Payload bytes count is ((payload_bit_length + 7) / 8)
+        uint16_t payload_bit_length = 0;
+    } __attribute__((packed));
+
+    // Regular addresses
+    struct USBLPingAddresses {
+        static constexpr ID getId() { return ID_USBL_CONTROL; }
+        static constexpr Version getVer() { return v2; }
+
+        uint8_t cur_position = 1; // 1-8, 0 is reserved
+        uint8_t max_position = 1; // 1-8, 0 is reserved
+        // 1-8 are addresses, 0: promisc address, 0xFF: disabled address slot
+        uint8_t address[8] = {0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    } __attribute__((packed));
+
+    // Firmware calls this USBLTransponderEnable.
+    struct USBLResponseTimeout {
+        static constexpr ID getId() { return ID_USBL_CONTROL; }
+        static constexpr Version getVer() { return v3; }
+        // 0: silent mode, response disabled
+        // 0xFFFFFFFF: response always enabled
+        // otherwise: enable response for a certain time after setting the value
+        uint32_t timeout_us = 0;
+    } __attribute__((packed));
+
+    struct USBLMonitorConfig {
+        static constexpr ID getId() { return ID_USBL_CONTROL; }
+        static constexpr Version getVer() { return v7; }
+
+        uint32_t suppressSelfResponse_us = 0;
+        uint32_t suppressSelfRequest_us = 0;
+        bool receiveResponseInIdle = false;
+    } __attribute__((packed));
+
+    // Filter for incoming request addresses. Firmware calls this USBLRequestAddressFilter.
+    struct USBLResponseAddressFilter {
+        static constexpr ID getId() { return ID_USBL_CONTROL; }
+        static constexpr Version getVer() { return v4; }
+        // 0-7 are addresses, 0xFF: disabled address slot
+        uint8_t address[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    } __attribute__((packed));
+
+    // The one per-command-slot configuration. Firmware dispatches ID_USBL_CONTROL by
+    // VERSION ALONE (a flat isContextVer chain, no length discrimination anywhere), so a
+    // second struct at v6 is unreachable by construction — an earlier USBLCmdSlotConfig
+    // here was silently parsed as this struct and rejected with RespErrorPayload.
+    // One version, one struct.
+    struct USBLCmdConfig  {
+        static constexpr ID getId() { return ID_USBL_CONTROL; }
+        static constexpr Version getVer() { return v6; }
+
+        uint8_t cmd_id = 0;
+
+        enum EventFilter : uint8_t {
+            EventOnReceiveRequest = 1,
+            EventOnReceiveResponse = 2
+        } eventFilter = EventOnReceiveRequest;
+
+        enum SendBackCmdIdAction : uint8_t {
+            SendBackCmdIdIncoming = 0,
+            SendBackCmdIdReplacement = 1
+        } cmdIdAction = SendBackCmdIdIncoming;
+
+        uint8_t cmd_id_replacement = 0;
+
+        enum SendBackAddressAction : uint8_t {
+            SendBackAddressIncoming = 0,
+            SendBackAddressReplacement = 1,
+        } addressAction = SendBackAddressIncoming;
+
+        uint8_t address_replacement = 0;
+
+        enum SendBackEventAction : uint8_t {
+            SendBackEventSwaping = 0,
+            SendBackEventSame = 1,
+        } eventAction = SendBackEventSwaping;
+
+        uint8_t reserved1 = 0;
+        uint32_t reserved2 = 0;
+
+        enum Function : uint8_t {
+            FunctionDefault = 0,
+            FunctionBitArray = 1,
+            FunctionLLGeoAzimuth = 2
+        };
+
+        Function receiver_function = FunctionDefault;
+        uint16_t receive_bit_length = 0;
+        Function sender_function = FunctionDefault;
+        uint16_t sending_bit_length = 0;
+    } __attribute__((packed));
+
+    void pingRequest(uint32_t timeout_us, uint8_t address, uint8_t cmd_id = 0);
+    void pingRequest(uint32_t timeout_us, uint8_t address, uint8_t cmd_id, uint32_t reply_distance_mm, const QByteArray& payload = {});
+    void setTransponderEnable(uint32_t timeout_us);
+    void setResponseTimeout(uint32_t timeout_us);
+    void setMonitorConfig(const USBLMonitorConfig& cfg);
+    void setResponseAddressFilter(const std::array<uint8_t, 8>& addresses);
+    void setResponseAddressFilter(uint8_t address);
+    // sending_bit_length is derived from the payload actually written, so a truncated
+    // payload can never declare more bits than went on the wire.
+    void setCmdConfig(const USBLCmdConfig& cfg, const QByteArray& sendingPayload = {});
+
+protected:
+
+};
+
+// Receive-only: modem payloads carried back by an acoustic request/response.
+// Transmission is configured through IDBinUsblControl's command slots.
+class IDBinModemSolution : public IDBin
+{
+    Q_OBJECT
+public:
+    explicit IDBinModemSolution() : IDBin() {
+    }
+
+    ID id() override { return ID_MODEM_SOLUTION; }
+    Resp  parsePayload(FrameParser &proto) override;
+
+    struct ModemSolutionHeader {
+        static constexpr ID getId() { return ID_MODEM_SOLUTION; }
+        static constexpr Version getVer() { return v0; }
+
+        int64_t timestamp_us = 0;
+        int64_t carrier_us = 0;
+        int64_t carrier_counter = 0;
+
+        uint64_t reserved1 = 0;
+
+        enum EventFilter : uint8_t {
+            EventOnRequest = 1,
+            EventOnResponse = 2,
+        } event = EventOnRequest;
+
+        uint8_t address_from = 0;
+        uint8_t address_to = 0;
+        uint8_t cmd_id_from = 0;
+
+        uint16_t bit_length = 0;
+        // payload bytes follow
+    } __attribute__((packed));
+
+    ModemSolutionHeader header() const { return _header; }
+    QByteArray payload() const { return _payload; }
+
+protected:
+    ModemSolutionHeader _header;
+    QByteArray _payload;
+};
+
+
+#endif // IDBINNARY_H
