@@ -315,6 +315,9 @@ Item {
             var enriched = {time:sample.time, lat:sample.lat, lon:sample.lon,
                             heading:sample.heading, depth:sample.depth, temp:sample.temp,
                             bottomEcho:echo,
+                            chartResolution:sample.chartResolution,
+                            chartAbsoluteOffset:sample.chartAbsoluteOffset,
+                            chartVersion:sample.chartVersion,
                             hardness:isNaN(echo)?NaN:Math.max(0,Math.min(100,echo*100))}
             persistence.addSonarSample(enriched)
             sonarMapping.ingestSample(enriched)
