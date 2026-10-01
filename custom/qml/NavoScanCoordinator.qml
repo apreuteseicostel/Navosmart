@@ -263,7 +263,16 @@ QtObject {
         var p=persistence.lakeState(id); if(!p || Object.keys(p).length===0){status("Balta nu are încă stare salvată");return false}
         lakeId=id; lakeName=p.lakeName||lakeName; areaPoints=geoCoordinates(p.areaPoints||[])
         sonarMapping.lakeId=id; sonarMapping.rawSamples=(p.sonarSamples||[]).slice(0)
-        sonarMapping.trackCoordinates=[]
+        // Rebuild the breadcrumb from persisted samples after an app restart.
+        var restoredTrack=[]
+        for(var ti=0;ti<sonarMapping.rawSamples.length;ti++) {
+            var ss=sonarMapping.rawSamples[ti],lat=Number(ss.lat),lon=Number(ss.lon)
+            if(!isFinite(lat)||!isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180) continue
+            var coord=QtPositioning.coordinate(lat,lon)
+            if(restoredTrack.length===0 || restoredTrack[restoredTrack.length-1].distanceTo(coord)>=1.0)
+                restoredTrack.push(coord)
+        }
+        sonarMapping.trackCoordinates=restoredTrack
         if(fishingSpots) fishingSpots.fishingSpots=(p.fishingSpots||[]).slice(0)
         if(fishStore){fishStore.detections=(p.fishDetections||[]).slice(0);fishStore.rebuildHotspots()}
         if(persistence.replaceWaypointNames) persistence.replaceWaypointNames(p.waypointNames||({}))
