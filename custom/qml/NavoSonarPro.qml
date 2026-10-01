@@ -4,7 +4,9 @@ import QtQuick.Layouts
 
 Rectangle {
     id: root
-    property var sonar
+    property int chartResolution: 0
+    property int chartAbsoluteOffset: 0
+    property int chartVersion: 0
     property var samples: []
     property bool connected: false
     property real depthM: NaN
@@ -60,6 +62,15 @@ Rectangle {
             waterTempC: root.waterTempC
             echoSamples: root.samples
             onOpenFullSonar: root.openFullSonar()
+        }
+        Label {
+            Layout.fillWidth: true
+            color: "#a6bdd0"
+            text: root.samples.length > 0 && root.chartResolution > 0
+                ? "CHART v" + root.chartVersion + " • rezoluție " + root.chartResolution
+                  + " • offset " + root.chartAbsoluteOffset + " • " + root.samples.length + " eșantioane"
+                : "CHART: aștept date valide"
+            elide: Text.ElideRight
         }
         RowLayout {
             Layout.fillWidth: true
