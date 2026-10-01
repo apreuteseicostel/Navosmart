@@ -38,13 +38,13 @@ void NavoKoggerDecoder::process(){
   else if(id==0x05&&version==0&&payload>=2){qint16 raw=qFromLittleEndian<qint16>(reinterpret_cast<const uchar*>(p));_waterTempC=double(raw)*0.01;emit temperatureChanged();}
   else if(id==0x03&&(version==0||version==1)&&payload>=6){
    quint16 seq=le16(p),res=le16(p+2),off=le16(p+4);QByteArray part(p+6,payload-6);
-   if(res==0){_chart.clear();emit frameRejected();continue;}
+   if(res==0){_chart.clear();_chartResolution=0;_chartAbsoluteOffset=0;_chartVersion=0;emit frameRejected();continue;}
    // Kogger CHART sampleResol describes sample resolution, not the byte
    // length of an echogram column. The official KoggerApp closes the
    // previous column when a new sequence starts (seqOffset == 0) or the
    // resolution/absolute-offset metadata changes.
    const bool newColumn=(seq==0&&!_chart.isEmpty())||
-                        (!_chart.isEmpty()&&(res!=_chartResolution||off!=_chartAbsoluteOffset));
+                        (!_chart.isEmpty()&&(res!=_chartResolution||off!=_chartAbsoluteOffset||version!=_chartVersion));
    if(newColumn){
     QVariantList out;int step=version==1?2:1;
     for(int i=0;i+step-1<_chart.size();i+=step)out.append(double(quint8(_chart[i]))/255.0);
@@ -52,7 +52,7 @@ void NavoKoggerDecoder::process(){
     _chart.clear();
    }
    if(_chart.isEmpty()){_chartResolution=res;_chartAbsoluteOffset=off;_chartVersion=version;}
-   if(int(seq)+part.size()>MaxChartBytes){_chart.clear();emit frameRejected();continue;}
+   if(int(seq)+part.size()>MaxChartBytes){_chart.clear();_chartResolution=0;_chartAbsoluteOffset=0;_chartVersion=0;emit frameRejected();continue;}
    if(seq==_chart.size()) { _chart.append(part); }
    else if(seq>_chart.size()) {
     // Match KoggerApp loss handling: preserve seqOffset by zero-filling
@@ -65,7 +65,7 @@ void NavoKoggerDecoder::process(){
     // offset with zero-fill, as KoggerApp does.
     QVariantList out;int step=version==1?2:1;
     for(int i=0;i+step-1<_chart.size();i+=step)out.append(double(quint8(_chart[i]))/255.0);
-    if(!out.isEmpty()){_echoSamples=out;emit echoSamplesChanged();}
+    if(!out.isEmpty()){_publishedChartResolution=_chartResolution;_publishedChartAbsoluteOffset=_chartAbsoluteOffset;_publishedChartVersion=_chartVersion;_echoSamples=out;emit echoSamplesChanged();}
     _chart=QByteArray(int(seq),char(0));_chart.append(part);
     _chartResolution=res;_chartAbsoluteOffset=off;_chartVersion=version;
    }
