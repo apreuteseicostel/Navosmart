@@ -18,6 +18,9 @@ QtObject {
  property alias depthM: decoderObject.depthM
  property alias waterTempC: decoderObject.waterTempC
  property alias echoSamples: decoderObject.echoSamples
+ readonly property int chartResolution: decoderObject.chartResolution
+ readonly property int chartAbsoluteOffset: decoderObject.chartAbsoluteOffset
+ readonly property int chartVersion: decoderObject.chartVersion
  property var vehicle
  property int rxBytes: 0
  property int rxChunks: 0
@@ -42,7 +45,10 @@ QtObject {
    root.geoSample({time:root.lastEchoMs,lat:root.vehicle.coordinate.latitude,
                    lon:root.vehicle.coordinate.longitude,
                    heading:root.vehicle.heading ? root.vehicle.heading.rawValue : NaN,
-                   depth:depthM,temp:waterTempC,bottomEcho:root.bottomEchoStrength})
+                   depth:depthM,temp:waterTempC,bottomEcho:root.bottomEchoStrength,
+                   chartResolution:decoderObject.chartResolution,
+                   chartAbsoluteOffset:decoderObject.chartAbsoluteOffset,
+                   chartVersion:decoderObject.chartVersion})
   }
   onDepthChanged: {
    if(!isFinite(depthM) || depthM<=0) return
