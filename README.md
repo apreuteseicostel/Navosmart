@@ -36,3 +36,40 @@ Priority features selected for NAVO SMART:
 - Fishing log metadata on spots: bait/rig/note/depth/temp/time and later catch history.
 
 Implementation rule: UI controls remain disabled or explicitly marked unconfigured until their real backend/hardware path is implemented and validated.
+
+
+## NAVO SMART PRO experimental integration
+
+This branch is isolated from the stable NAVO SMART main branch. Its baseline is
+commit 8fc2a448b42d246b568d5453c59114e2f5e4ad08 (Android #651 GREEN).
+The ongoing main-branch build #652 is not a validation of this branch.
+
+### KoggerApp upstream (GPL-3.0)
+Upstream: https://github.com/koggertech/KoggerApp
+Protocol: https://github.com/koggertech/Kogger-Protocol
+
+Candidate upstream modules for evaluation and staged integration:
+- src/data_processor/bottom_track_processor.*, bt_worker.*
+- src/data_processor/isobaths_processor.*
+- src/data_processor/mosaic_processor.*, mosaic_db.*
+- src/data_processor/surface_processor.*, surface_mesh.*, surface_tile.*
+- src/data_processor/hot_tile_cache.*, compute_worker.*
+- qml/scene3d/* and qml/scene2d/* for UI and interaction patterns
+- Recording, playback, and export components (dependency audit pending).
+
+Import the upstream files only after tracing their build dependencies, retaining
+copyright notices, documenting the exact upstream revision and GPL-3.0 obligations,
+and checking compatibility with the distribution model. An upstream module is
+not considered integrated until it compiles and passes relevant tests.
+
+### Integration sequence
+1. Freeze a known-good Android APK and inspect upstream module dependencies.
+2. Add a separately built experimental processing adapter; do not replace the
+   current NAVO Kogger decoder or the H743 command dispatcher.
+3. Connect CHART/depth/GNSS timestamped samples to bathymetry and tile cache.
+4. Integrate isobaths, mosaic and 3D rendering, with feature flags.
+5. Add recording, playback and export; benchmark map FPS/memory on G20.
+6. Develop independent RT7-inspired features (precision approach, positioning,
+   smart scan, geofences, bait patterns and energy monitoring).
+
+Autonomous controls remain disabled until bench and on-water validation.
