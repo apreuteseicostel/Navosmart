@@ -25,6 +25,11 @@ Item {
     property bool maximized: false
     property int lakeZoomLevel: 17
     property bool initialCenterApplied: false
+    property bool autoFollowBoat: true
+    property bool autoZoomEnabled: true
+    property real followMargin: 0.15
+    readonly property var baitTargetCoordinate: baitingController && baitingController.targetWaypoint && baitingController.targetWaypoint.coordinate ? baitingController.targetWaypoint.coordinate : QtPositioning.coordinate()
+    readonly property bool baitTargetValid: baitTargetCoordinate && baitTargetCoordinate.isValid
     property bool headingUp: false
     property bool rulerMode: false
     property bool mapLayerMenuOpen: false
@@ -90,8 +95,24 @@ Item {
         }
         return false
     }
+    function followBoat() {
+        if (!vehicle || !vehicle.coordinate || !vehicle.coordinate.isValid) return
+        autoFollowBoat = true
+        liveMap.center = vehicle.coordinate
+        adjustBoatFraming()
+    }
+    function adjustBoatFraming() {
+        if (!autoFollowBoat || !autoZoomEnabled || !vehicle || !vehicle.coordinate || !vehicle.coordinate.isValid || liveMap.width < 100 || liveMap.height < 100) return
+        var boatPoint = liveMap.fromCoordinate(vehicle.coordinate, false)
+        if (!isFinite(boatPoint.x) || !isFinite(boatPoint.y)) return
+        var m = followMargin
+        if (boatPoint.x < liveMap.width*m || boatPoint.x > liveMap.width*(1-m) || boatPoint.y < liveMap.height*m || boatPoint.y > liveMap.height*(1-m)) {
+            liveMap.center = vehicle.coordinate
+            if (liveMap.zoomLevel > 3) liveMap.zoomLevel = Math.max(3,liveMap.zoomLevel-0.5)
+        }
+    }
     function resetView() {
-        if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid) liveMap.center=vehicle.coordinate
+        followBoat()
         liveMap.zoomLevel=Math.max(liveMap.zoomLevel,lakeZoomLevel)
         headingUp=false
         rulerMode=false; rulerPoints=[]
@@ -191,6 +212,17 @@ Item {
         Component.onDestruction: liveMap.removeMapItem(this)
     }
 
+    MapPolyline {
+        id: baitTargetLine
+        parent: liveMap
+        visible: root.baitTargetValid && !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
+        path: visible ? [root.vehicle.coordinate, root.baitTargetCoordinate] : []
+        line.width: 3
+        line.color: "#ffd34e"
+        z: 840
+        Component.onCompleted: liveMap.addMapItem(this)
+        Component.onDestruction: liveMap.removeMapItem(this)
+    }
     MapQuickItem {
         id: navoBoatMarker
         parent: liveMap
@@ -434,9 +466,9 @@ Item {
             background:Rectangle { radius:8;color:"#800d1722";border.color:"#8027394b";border.width:1 }
             contentItem:Image { anchors.centerIn:parent;width:23;height:23;source:parent.iconSource;fillMode:Image.PreserveAspectFit }
         }
-        MapTool { text:"BOAT"; iconSource:"qrc:/qml/NavoSmart/icons/boat.svg"; font.pixelSize:9; ToolTip.visible:hovered;ToolTip.text:"Centrează pe poziția actuală a bărcii";enabled:!!root.vehicle&&!!root.vehicle.coordinate&&root.vehicle.coordinate.isValid;onClicked:liveMap.center=root.vehicle.coordinate }
-        MapTool { text:"+"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-in.svg";ToolTip.visible:hovered;ToolTip.text:"Mărește harta";onClicked:liveMap.zoomLevel=liveMap.zoomLevel+1 }
-        MapTool { text:"-"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-out.svg";ToolTip.visible:hovered;ToolTip.text:"Micșorează harta";onClicked:liveMap.zoomLevel=liveMap.zoomLevel-1 }
+        MapTool { text:"BOAT"; iconSource:"qrc:/qml/NavoSmart/icons/boat.svg"; font.pixelSize:9; ToolTip.visible:hovered;ToolTip.text:"Centrează pe poziția actuală a bărcii";enabled:!!root.vehicle&&!!root.vehicle.coordinate&&root.vehicle.coordinate.isValid;onClicked:root.followBoat() }
+        MapTool { text:"+"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-in.svg";ToolTip.visible:hovered;ToolTip.text:"Mărește harta";onClicked:{root.autoFollowBoat=false;liveMap.zoomLevel=liveMap.zoomLevel+1} }
+        MapTool { text:"-"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-out.svg";ToolTip.visible:hovered;ToolTip.text:"Micșorează harta";onClicked:{root.autoFollowBoat=false;liveMap.zoomLevel=liveMap.zoomLevel-1} }
         MapTool { text:"CTR"; iconSource:"qrc:/qml/NavoSmart/icons/center.svg";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:"Reîncadrează harta și revine la orientarea Nord sus";onClicked:root.resetView() }
     }
     Column {
@@ -491,7 +523,7 @@ Item {
 
     Connections {
         target: root.vehicle
-        function onCoordinateChanged() { root.centerOnBoatOnce() }
+        function onCoordinateChanged() { root.centerOnBoatOnce(); root.adjustBoatFraming() }
     }
     Connections {
         target: QGroundControl.multiVehicleManager
