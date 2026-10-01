@@ -9,12 +9,18 @@ class NavoKoggerDecoder : public QObject {
  Q_PROPERTY(double depthM READ depthM NOTIFY depthChanged)
  Q_PROPERTY(double waterTempC READ waterTempC NOTIFY temperatureChanged)
  Q_PROPERTY(QVariantList echoSamples READ echoSamples NOTIFY echoSamplesChanged)
+ Q_PROPERTY(quint16 chartResolution READ chartResolution NOTIFY echoSamplesChanged)
+ Q_PROPERTY(quint16 chartAbsoluteOffset READ chartAbsoluteOffset NOTIFY echoSamplesChanged)
+ Q_PROPERTY(quint8 chartVersion READ chartVersion NOTIFY echoSamplesChanged)
 public:
  explicit NavoKoggerDecoder(QObject* parent=nullptr);
  bool connected() const { return _connected; }
  double depthM() const { return _depthM; }
  double waterTempC() const { return _waterTempC; }
  QVariantList echoSamples() const { return _echoSamples; }
+ quint16 chartResolution() const { return _publishedChartResolution; }
+ quint16 chartAbsoluteOffset() const { return _publishedChartAbsoluteOffset; }
+ quint8 chartVersion() const { return _publishedChartVersion; }
  Q_INVOKABLE void feedBytes(const QByteArray& bytes);
  Q_INVOKABLE void reset();
 signals:
@@ -33,6 +39,10 @@ private:
  QByteArray _buffer;
  QByteArray _chart;
  quint16 _chartResolution=0;
+ quint8 _chartVersion=0;
+ quint16 _publishedChartResolution=0;
+ quint16 _publishedChartAbsoluteOffset=0;
+ quint8 _publishedChartVersion=0;
  quint16 _chartAbsoluteOffset=0;
  bool _connected=false;
  double _depthM=qQNaN();
