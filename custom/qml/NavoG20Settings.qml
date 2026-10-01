@@ -35,12 +35,14 @@ Rectangle {
         {text:"RTL / Acasă",value:"RTL"}
     ]
 
+    property int settingsRevision: 0
     function resetDefaults() {
         cfg.hAction="RTL"; cfg.mode3Action="MANUAL/HOLD/AUTO"
         cfg.l1Action="CUVA_STANGA"; cfg.r1Action="CUVA_DREAPTA"
         cfg.l2Action="FAR"; cfg.r2Action="SONAR"; cfg.cameraAction="CAMERA"
         cfg.pauseAction="HOLD"; cfg.leftStickAction="ZOOM_HARTA"
         cfg.hopperHoldMs=1500; cfg.rtlHoldMs=1800
+        settingsRevision++
     }
     function trigger(control, longPress) {
         var a="NONE"
@@ -126,7 +128,10 @@ Rectangle {
         signal picked(string value)
         Layout.fillWidth:true
         textRole:"text"; valueRole:"value"; model:root.actions
-        Component.onCompleted:{var i=indexOfValue(settingValue);if(i>=0)currentIndex=i}
+        function syncSelection() { var i=indexOfValue(settingValue); if(i>=0 && currentIndex!==i) currentIndex=i }
+        Component.onCompleted:syncSelection()
+        onSettingValueChanged:syncSelection()
+        Connections { target:root; function onSettingsRevisionChanged() { syncSelection() } }
         onActivated:picked(currentValue)
     }
 }
