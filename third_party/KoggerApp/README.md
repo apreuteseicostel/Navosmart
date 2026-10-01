@@ -28,3 +28,22 @@ and resolve compiler/linker errors before connecting the PRO UI.
 The original NAVO sonar path and H743 command path remain unchanged.
 Distributing a combined application requires GPL-3.0 compliance, including
 appropriate notices and corresponding source code.
+
+## NAVO-to-Kogger adapter contract (not yet implemented)
+
+Input: completed CHART echo column (QVariantList), depth in metres,
+water temperature, timestamp in milliseconds, and valid H743 GNSS
+latitude/longitude. The current NAVO decoder emits completed columns
+via echoSamplesChanged. NAVO publishes geoSample only if depth is fresh
+(within 1500 ms) and vehicle GPS is valid.
+
+An adapter must preserve the original CHART resolution/scale, channel
+identity, acquisition timestamp, and range before creating Kogger Epoch
+and DatasetChannel records. The existing NAVO QVariantList currently
+exposes normalized echo amplitudes, but not all Kogger metadata. Do not
+synthesize missing physical range/channel values or call the original
+BottomTrackProcessor on fabricated Epoch records. First extend the
+NAVO decoder's metadata interface, then map the validated fields.
+
+Kogger's original BottomTrackProcessor operates over Dataset epochs and
+is not a drop-in replacement for NAVO's QML bottom-echo estimate.
