@@ -806,6 +806,7 @@ Item {
                     echoSamples: sonar.echoSamples
                     transport: sonar
                     fishHotspots: fishStore.hotspots
+                    boatTrack: sonarMapping.trackCoordinates
                     speedMps: root.vehicle && root.vehicle.groundSpeed ? root.vehicle.groundSpeed.rawValue : NaN
                     latitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.latitude : NaN
                     longitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.longitude : NaN
