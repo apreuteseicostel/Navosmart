@@ -800,7 +800,6 @@ Item {
             chartOffsetMeters: sonar.chartOffsetMeters
             chartRangeMeters: sonar.chartRangeMeters
             chartRawByteCount: sonar.chartRawByteCount
-            onOpenFullSonar: root.activePage = 1
         }
     }
 
