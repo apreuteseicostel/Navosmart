@@ -113,8 +113,8 @@ Rectangle {
     onKoggerCompensationChanged: { history = []; pushHistory(); repaint() }
     onShowBottomTrackChanged: repaint()
     // Freeze scale together with the displayed history while paused.
-    readonly property real scaleStart: displayedColumn ? displayedColumn.offset : 0
-    readonly property real scaleRange: displayedColumn ? displayedColumn.range : 0
+    readonly property real scaleStart: displayedColumn ? displayedColumn.offset : (isFinite(chartOffsetMeters) ? chartOffsetMeters : 0)
+    readonly property real scaleRange: displayedColumn ? displayedColumn.range : (isFinite(chartRangeMeters) && chartRangeMeters > 0 ? chartRangeMeters : 0)
     onScaleStartChanged: repaint()
     onScaleRangeChanged: repaint()
 
@@ -176,7 +176,15 @@ Rectangle {
                     for (var n=0;n<=4;n++) {
                         var gy=n*height/4
                         ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(width,gy);ctx.stroke()
-                        if(root.scaleRange) ctx.fillText((root.scaleStart+n*root.scaleRange/4).toFixed(1)+" m",6,Math.max(62,Math.min(height-8,gy+15)))
+                        if(root.scaleRange > 0) {
+                            var depthLabel=(root.scaleStart+n*root.scaleRange/4).toFixed(1)+" m"
+                            var labelY=Math.max(14,Math.min(height-6,gy+(n===4?-5:14)))
+                            var labelWidth=ctx.measureText(depthLabel).width+10
+                            ctx.fillStyle=root.dayPalette?"#e5edf2":"#102b3b"
+                            ctx.fillRect(3,labelY-12,labelWidth,16)
+                            ctx.fillStyle=root.dayPalette?"#18364a":"#d9edf7"
+                            ctx.fillText(depthLabel,8,labelY)
+                        }
                     }
                 }
             }
