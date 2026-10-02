@@ -803,6 +803,7 @@ Item {
     Component {
         id: sonarProPage
         NavoSonarPro {
+            chartSource: sonar
             vehicle: root.vehicle
             planController: root.planController
             boatTrack: root.proBoatTrack

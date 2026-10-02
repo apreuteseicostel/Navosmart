@@ -99,6 +99,10 @@ qt_add_qml_module(NavoSmartModule
         icons/edit.svg
         icons/delete.svg
         icons/save.svg
+        icons/pause.svg
+        icons/gain.svg
+        icons/filter.svg
+        icons/palette.svg
         icons/play.svg
         icons/stop.svg
         icons/close.svg

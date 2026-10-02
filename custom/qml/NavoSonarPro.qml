@@ -14,6 +14,7 @@ Rectangle {
     property real chartResolutionMeters: NaN
     property real chartOffsetMeters: NaN
     property real chartRangeMeters: NaN
+    property var chartSource: null
     property var samples: []
     property bool connected: false
     property real depthM: NaN
@@ -30,61 +31,75 @@ Rectangle {
     signal closed()
     property real gain: 1.0
     property real noiseFloor: 0.10
-    property bool bottomTrackEnabled: true
-    // Experimental bottom peak tracker; calibrated physical hardness is NOT inferred.
-    readonly property var bottomResult: {
-        if (!bottomTrackEnabled || !samples || samples.length < 8)
-            return ({ index: -1, strength: NaN, confidence: 0 })
-        var n = samples.length
-        var start = Math.max(1, Math.floor(n * 0.25))
-        var end = n - 2
-        var best = -1
-        var bestScore = 0
-        var second = 0
-        for (var i = start; i <= end; ++i) {
-            var left = Number(samples[i - 1])
-            var center = Number(samples[i])
-            var right = Number(samples[i + 1])
-            if (!isFinite(left) || !isFinite(center) || !isFinite(right)) continue
-            var score = Math.max(0, (left + 2 * center + right) / 4 - noiseFloor)
-            if (score > bestScore) { second = bestScore; bestScore = score; best = i }
-            else if (score > second) second = score
-        }
-        if (best < 0 || bestScore <= 0)
-            return ({ index: -1, strength: NaN, confidence: 0 })
-        return ({ index: best, strength: Math.min(1, bestScore * gain),
-                  confidence: Math.max(0, Math.min(1, (bestScore - second) / Math.max(bestScore, 0.001))) })
-    }
-    readonly property real bottomEcho: bottomResult.strength
-    readonly property real bottomDepthEstimate: bottomResult.index >= 0 && isFinite(depthM)
-        ? chartOffsetMeters + chartResolutionMeters * bottomResult.index : NaN
+    property bool noiseFilterEnabled: false
+    property bool dayPalette: false
+    readonly property var displayedColumn: history.length ? history[history.length - 1] : null
+    readonly property int buttonSize: width < 640 ? 36 : 40
+    readonly property int echoWidth: width < 640 ? 44 : 58
     color: "#03101a"
     clip: true
     function pushHistory() {
-        if (paused || !connected || !samples || !samples.length) return
+        var column = chartSource ? chartSource.echoSamples : samples
+        var offset = chartSource ? chartSource.chartOffsetMeters : chartOffsetMeters
+        var range = chartSource ? chartSource.chartRangeMeters : chartRangeMeters
+        var available = chartSource ? chartSource.connected : connected
+        if (paused || !available || !column || !column.length ||
+                !isFinite(offset) || !isFinite(range) || range <= 0) return
         var h = history.slice(0)
-        h.push({samples: samples.slice(0), offset: chartOffsetMeters, range: chartRangeMeters})
-        if (h.length > historyColumns) h.shift()
+        h.push({samples: column.slice(0), offset: offset, range: range})
+        if (h.length > historyColumns) h.splice(0, h.length - historyColumns)
         history = h
     }
-    onSamplesChanged: pushHistory()
-    onHistoryChanged: echogram.requestPaint()
-    onGainChanged: echogram.requestPaint()
-    onNoiseFloorChanged: echogram.requestPaint()
-    readonly property real scaleStart: isFinite(chartOffsetMeters) ? chartOffsetMeters : 0
-    readonly property real scaleRange: isFinite(chartRangeMeters) && chartRangeMeters > 0 ? chartRangeMeters : 0
-    onScaleStartChanged: echogram.requestPaint()
-    onScaleRangeChanged: echogram.requestPaint()
+    function sampleStrength(column, index) {
+        var value = Number(column[index])
+        if (!isFinite(value)) return 0
+        if (noiseFilterEnabled && index > 0 && index < column.length - 1) {
+            var left = Number(column[index - 1]), right = Number(column[index + 1])
+            if (isFinite(left) && isFinite(right))
+                value = Math.max(Math.min(left, value), Math.min(Math.max(left, value), right))
+        }
+        return Math.max(0, Math.min(1, (value - noiseFloor) * gain))
+    }
+    function echoColor(value) {
+        if (dayPalette)
+            return value > .72 ? "#a52026" : value > .48 ? "#e97820" : value > .24 ? "#136d9b" : "#b7d8e8"
+        return value > .72 ? "#f44b2e" : value > .48 ? "#f6da46" : value > .24 ? "#1ccde1" : "#105caa"
+    }
+    function resetDisplaySettings() {
+        gain = 1.0
+        noiseFloor = .10
+        noiseFilterEnabled = false
+        dayPalette = false
+    }
+    function repaint() { echogram.requestPaint(); liveEcho.requestPaint() }
+    // Read the source getters synchronously: all metadata is published before
+    // this signal. Capture every column even when one TCP chunk holds several.
+    Connections {
+        target: root.chartSource
+        function onEchoSamplesChanged() { root.pushHistory() }
+    }
+    onSamplesChanged: if (!chartSource) Qt.callLater(pushHistory)
+    Component.onCompleted: Qt.callLater(pushHistory)
+    onHistoryChanged: repaint()
+    onGainChanged: repaint()
+    onNoiseFloorChanged: repaint()
+    onNoiseFilterEnabledChanged: repaint()
+    onDayPaletteChanged: repaint()
+    // Freeze scale together with the displayed history while paused.
+    readonly property real scaleStart: displayedColumn ? displayedColumn.offset : 0
+    readonly property real scaleRange: displayedColumn ? displayedColumn.range : 0
+    onScaleStartChanged: repaint()
+    onScaleRangeChanged: repaint()
 
     component IconButton: Button {
         id: control
         property string glyph
         property string hint
-        implicitWidth: 40; implicitHeight: 40; padding: 8
+        implicitWidth: root.buttonSize; implicitHeight: root.buttonSize; padding: 8
         Accessible.name: hint
         ToolTip.visible: hovered || pressed
         ToolTip.text: hint
-        background: Rectangle { radius: 8; color: control.checked ? "#18536a" : "#cc0b1c2e"; border.color: "#31536c" }
+        background: Rectangle { radius: 8; color: control.checked ? "#18536a" : "#cc0b1c2e"; opacity: control.enabled ? 1 : .4; border.color: "#31536c" }
         contentItem: Image { source: "qrc:/qml/NavoSmart/icons/" + control.glyph + ".svg"; fillMode: Image.PreserveAspectFit }
     }
     Row {
@@ -97,27 +112,28 @@ Rectangle {
             clip: true
             Canvas {
                 id: echogram
-                anchors.fill: parent
+                anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
+                anchors.right: echoColumn.left
                 onWidthChanged: requestPaint()
                 onHeightChanged: requestPaint()
                 onPaint: {
                     var ctx = getContext("2d")
-                    ctx.reset(); ctx.fillStyle = "#03101a"; ctx.fillRect(0,0,width,height)
+                    ctx.reset(); ctx.fillStyle = root.dayPalette ? "#f1f5f7" : "#03101a"; ctx.fillRect(0,0,width,height)
                     var cw = width / root.historyColumns
                     for (var x=0; x<root.history.length; x++) {
                         var entry=root.history[x], col=entry.samples
                         if (!root.scaleRange || !isFinite(entry.range) || entry.range<=0) continue
                         var px=width-(root.history.length-x)*cw
                         for (var y=0; y<col.length; y++) {
-                            var v=Math.max(0,Math.min(1,(Number(col[y])-root.noiseFloor)*root.gain))
+                            var v=root.sampleStrength(col, y)
                             if (!isFinite(v) || v<=0) continue
                             var py=(entry.offset+y*entry.range/col.length-root.scaleStart)/root.scaleRange*height
                             var ph=entry.range/col.length/root.scaleRange*height
-                            ctx.fillStyle=v>.72?"#f44b2e":v>.48?"#f6da46":v>.24?"#1ccde1":"#105caa"
+                            ctx.fillStyle=root.echoColor(v)
                             ctx.fillRect(px,py,Math.max(1,cw+.5),Math.max(1,ph+.5))
                         }
                     }
-                    ctx.strokeStyle="#40536a"; ctx.fillStyle="#d9edf7"; ctx.font="12px sans-serif"
+                    ctx.strokeStyle=root.dayPalette?"#bccbd4":"#40536a"; ctx.fillStyle=root.dayPalette?"#18364a":"#d9edf7"; ctx.font="12px sans-serif"
                     for (var n=0;n<=4;n++) {
                         var gy=n*height/4
                         ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(width,gy);ctx.stroke()
@@ -132,13 +148,34 @@ Rectangle {
                 color: "#9db2c5"
             }
             Rectangle {
+                id: echoColumn
                 anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom
-                width: 8
-                gradient: Gradient {
-                    GradientStop { position: 0; color: "#f44b2e" }
-                    GradientStop { position: .3; color: "#f6da46" }
-                    GradientStop { position: .65; color: "#1ccde1" }
-                    GradientStop { position: 1; color: "#105caa" }
+                width: root.echoWidth
+                color: root.dayPalette ? "#e1eaf0" : "#081b2b"
+                border.color: "#31536c"
+                Canvas {
+                    id: liveEcho
+                    anchors.fill: parent; anchors.margins: 2
+                    onWidthChanged: requestPaint()
+                    onHeightChanged: requestPaint()
+                    onPaint: {
+                        var ctx = getContext("2d")
+                        ctx.reset()
+                        if (!root.displayedColumn || !root.scaleRange) return
+                        var col = root.displayedColumn.samples
+                        for (var i = 0; i < col.length; ++i) {
+                            var v = root.sampleStrength(col, i)
+                            if (v <= 0) continue
+                            ctx.fillStyle = root.echoColor(v)
+                            ctx.fillRect(0, i * height / col.length, v * width, Math.max(1, height / col.length))
+                        }
+                    }
+                }
+                Label {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.bottom: parent.bottom; anchors.bottomMargin: 5
+                    text: "ECOU"; font.pixelSize: 9; font.bold: true
+                    color: root.dayPalette ? "#18364a" : "#d9edf7"
                 }
             }
         }
@@ -216,36 +253,63 @@ Rectangle {
     }
     Rectangle {
         anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 6
-        width: Math.min(parent.width-150, telemetry.implicitWidth+16); height: 38; radius: 7; color: "#cc0b1c2e"
+        width: Math.max(0, Math.min(parent.width-toolbar.width-18, telemetry.implicitWidth+16)); height: root.buttonSize; radius: 7; color: "#cc0b1c2e"
         Label {
             id: telemetry; anchors.fill: parent; anchors.margins: 8; elide: Text.ElideRight
             color: root.connected ? "#21b7ff" : "#9db2c5"
-            text: "PRO  •  " + (root.connected ? "LIVE" : "OFFLINE") + "   " + (isFinite(root.depthM)?root.depthM.toFixed(1)+" m":"— m") + "   " + (isFinite(root.waterTempC)?root.waterTempC.toFixed(1)+" °C":"— °C")
+            text: "PRO  •  " + (root.connected ? (root.paused ? "PAUZĂ" : "LIVE") : "OFFLINE") + "   " + (isFinite(root.depthM)?root.depthM.toFixed(1)+" m":"— m") + "   " + (isFinite(root.waterTempC)?root.waterTempC.toFixed(1)+" °C":"— °C")
         }
     }
     Row {
+        id: toolbar
         anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 6; spacing: 4
         IconButton { glyph: "map"; hint: root.mapEnabled ? "Ascunde harta" : "Arată harta"; checkable: true; checked: root.mapEnabled; onClicked: root.mapEnabled=!root.mapEnabled }
+        IconButton { glyph: root.paused ? "play" : "pause"; hint: root.paused ? "Continuă ecograma" : "Pauză afișare ecogramă"; checkable: true; checked: root.paused; onClicked: root.paused=!root.paused }
+        IconButton { glyph: "palette"; hint: root.dayPalette ? "Paletă NAVO" : "Paletă de zi"; checkable: true; checked: root.dayPalette; onClicked: root.dayPalette=!root.dayPalette }
         IconButton { glyph: "settings"; hint: "Reglaje sonar"; checkable: true; checked: root.settingsVisible; onClicked: root.settingsVisible=!root.settingsVisible }
         IconButton { glyph: "close"; hint: "Închide Sonar PRO"; onClicked: root.closed() }
     }
     Rectangle {
         visible: root.settingsVisible
         anchors.left: parent.left; anchors.bottom: parent.bottom; anchors.margins: 8
-        width: Math.min(360,parent.width-16); height: 138; radius: 8; color: "#ed0b1c2e"; border.color: "#31536c"
-        ColumnLayout {
-            anchors.fill: parent; anchors.margins: 8
-            RowLayout {
-                Label { text: "Sensibilitate"; color: "#d9edf7" }
-                Slider { Layout.fillWidth: true; from: .5; to: 3; value: root.gain; onMoved: root.gain=value }
-            }
-            RowLayout {
-                Label { text: "Zgomot"; color: "#d9edf7" }
-                Slider { Layout.fillWidth: true; from: 0; to: .5; value: root.noiseFloor; onMoved: root.noiseFloor=value }
-            }
-            RowLayout {
-                IconButton { glyph: root.paused?"play":"stop"; hint: root.paused?"Continuă ecograma":"Pauză ecogramă"; onClicked: root.paused=!root.paused }
-                Label { text: "CHART v"+root.chartVersion+" • "+root.chartRawByteCount+" B"; color: "#9db2c5" }
+        width: Math.min(360,parent.width-16)
+        height: Math.min(settingsContent.implicitHeight+16, Math.max(0, parent.height-root.buttonSize-28))
+        radius: 8; color: "#ed0b1c2e"; border.color: "#31536c"
+        ScrollView {
+            anchors.fill: parent; anchors.margins: 8; clip: true
+            id: settingsScroll
+            contentWidth: availableWidth
+            ColumnLayout {
+                id: settingsContent
+                width: settingsScroll.availableWidth; spacing: 6
+                RowLayout {
+                    Layout.fillWidth: true
+                    Image { source: "qrc:/qml/NavoSmart/icons/gain.svg"; Layout.preferredWidth: 22; Layout.preferredHeight: 22 }
+                    Slider {
+                        Layout.fillWidth: true; from: .5; to: 3; stepSize: .05
+                        value: root.gain; onMoved: root.gain=value
+                        Accessible.name: "Sensibilitate ecogramă"
+                        ToolTip.visible: hovered || pressed; ToolTip.text: "Sensibilitate " + value.toFixed(2) + "×"
+                    }
+                    Label { text: root.gain.toFixed(2)+"×"; color: "#d9edf7"; Layout.preferredWidth: 46 }
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    Image { source: "qrc:/qml/NavoSmart/icons/filter.svg"; Layout.preferredWidth: 22; Layout.preferredHeight: 22 }
+                    Slider {
+                        Layout.fillWidth: true; from: 0; to: .5; stepSize: .01
+                        value: root.noiseFloor; onMoved: root.noiseFloor=value
+                        Accessible.name: "Prag zgomot ecogramă"
+                        ToolTip.visible: hovered || pressed; ToolTip.text: "Prag zgomot " + Math.round(value*100) + "%"
+                    }
+                    Label { text: Math.round(root.noiseFloor*100)+"%"; color: "#d9edf7"; Layout.preferredWidth: 46 }
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    IconButton { glyph: "filter"; hint: root.noiseFilterEnabled ? "Dezactivează filtrul de impulsuri" : "Activează filtrul de impulsuri"; checkable: true; checked: root.noiseFilterEnabled; onClicked: root.noiseFilterEnabled=!root.noiseFilterEnabled }
+                    Label { Layout.fillWidth: true; text: "Filtru impulsuri"; color: "#d9edf7" }
+                    IconButton { glyph: "undo"; hint: "Restabilește reglajele implicite"; onClicked: root.resetDisplaySettings() }
+                }
             }
         }
     }
