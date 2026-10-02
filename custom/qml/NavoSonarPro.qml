@@ -254,7 +254,7 @@ Rectangle {
     }
     Rectangle {
         anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 6
-        width: Math.max(0, Math.min(parent.width-toolbar.width-18, telemetry.implicitWidth+16)); height: root.buttonSize; radius: 7; color: "#cc0b1c2e"
+        width: Math.max(0, Math.min(parent.width-root.buttonSize-18, telemetry.implicitWidth+16)); height: root.buttonSize; radius: 7; color: "#cc0b1c2e"
         Label {
             id: telemetry; anchors.fill: parent; anchors.margins: 8; elide: Text.ElideRight
             color: root.connected ? "#21b7ff" : "#9db2c5"
@@ -286,7 +286,7 @@ Rectangle {
             anchors.fill: parent; anchors.margins: 8; clip: true
             contentWidth: availableWidth
             ColumnLayout {
-                id: menuColumn; width: parent.width; spacing: 5
+                id: menuColumn; width: menuPanel.width-16; spacing: 5
                 Button { Layout.fillWidth: true; text: root.mapEnabled ? "Ascunde harta" : "Activează harta"; onClicked: {root.mapEnabled=!root.mapEnabled;root.menuOpen=false} }
                 Button { Layout.fillWidth: true; text: root.paused ? "Continuă ecograma" : "Pauză ecogramă"; onClicked: root.paused=!root.paused }
                 Button { Layout.fillWidth: true; text: root.dayPalette ? "Paletă NAVO" : "Paletă de zi"; onClicked: root.dayPalette=!root.dayPalette }
