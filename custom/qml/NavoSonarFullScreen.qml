@@ -9,6 +9,11 @@ Popup {
  property bool menuOpen:false
  property bool mapEnabled:false
  property var boatTrack:[]
+ property var liveTrack:[]
+ property int maxLiveTrackPoints:1500
+ function appendLivePosition(){if(!isFinite(latitude)||!isFinite(longitude)||Math.abs(latitude)>90||Math.abs(longitude)>180)return;var p=QtPositioning.coordinate(latitude,longitude);var t=liveTrack.slice(0);if(t.length&&t[t.length-1].distanceTo(p)<1)return;t.push(p);if(t.length>maxLiveTrackPoints)t.splice(0,t.length-maxLiveTrackPoints);liveTrack=t}
+ onLatitudeChanged:appendLivePosition()
+ onLongitudeChanged:appendLivePosition()
  signal mapToggled(bool enabled)
  property bool connected:false
  property real depthM:NaN
@@ -41,7 +46,7 @@ Popup {
  function bottomColor(v){v=Math.max(0,Math.min(1,(v-root.noiseFloor)*root.gain));if(root.paletteMode==="DAY"){if(v>.72)return "#ffe44d";if(v>.42)return "#ef493d";return "#245fa8"}if(v>.78)return "#fff36a";if(v>.60)return "#f33b2f";if(v>.40)return "#ff8b28";if(v>.22)return "#55c85a";return "#1767a7"}
  function palette(v){v=Math.max(0,Math.min(1,v));if(root.paletteMode==="DAY"){if(v<.18)return "rgba(220,238,248,"+(0.30+v*2)+")";if(v<.42)return "rgba(48,150,205,"+(0.45+v)+")";if(v<.68)return "rgba(245,202,55,"+(0.60+v*.45)+")";return "rgba(215,55,38,"+(0.72+v*.28)+")"}if(v<.22)return "rgba(16,92,170,"+(0.25+v*2)+")";if(v<.48)return "rgba(28,205,225,"+(0.45+v)+")";if(v<.72)return "rgba(246,218,70,"+(0.55+v*.5)+")";return "rgba(244,75,46,"+(0.65+v*.35)+")"}
  modal:true;focus:true;visible:false;closePolicy:Popup.CloseOnEscape;padding:0
- onOpened:menuOpen=false
+ onOpened:{menuOpen=false;appendLivePosition()}
  width: parent ? Math.max(320,parent.width-8) : 960
  height: parent ? Math.max(320,parent.height-8) : 640
  anchors.centerIn: parent
@@ -90,11 +95,11 @@ Popup {
    Canvas{id:echogram;anchors.fill:parent
     onPaint:{
      var ctx=getContext("2d");ctx.reset();ctx.fillStyle="#020b12";ctx.fillRect(0,0,width,height)
-     ctx.strokeStyle="#18364a";ctx.lineWidth=1;for(var g=1;g<5;g++){var gy=g*height/5;ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(width,gy);ctx.stroke()}
+     ctx.strokeStyle="#18364a";ctx.lineWidth=1;for(var g=1;g<4;g++){var gy=g*height/4;ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(width,gy);ctx.stroke()}
      if(root.history&&root.history.length){var cw=width/root.historyColumns;for(var hx=0;hx<root.history.length;hx++){var entry=root.history[hx],col=entry.samples||entry,historyDepth=entry.depth,px=width-(root.history.length-hx)*cw;for(var hy=0;hy<col.length;hy++){var d=!isNaN(historyDepth)?hy*historyDepth/col.length:0;if(d<root.surfaceBlankM)continue;var v=Math.max(0,Math.min(1,(Number(col[hy])-(root.noiseFilter?root.noiseFloor:0))*root.gain));if(v<=0)continue;ctx.fillStyle=root.palette(v);ctx.fillRect(px,hy*height/col.length,Math.max(1,cw+0.5),Math.max(1,height/col.length+0.7))}}}
      if(root.showRawTrace&&root.echoSamples&&root.echoSamples.length>1){ctx.strokeStyle="#f2f7fb";ctx.lineWidth=1;ctx.beginPath();for(var i=0;i<root.echoSamples.length;i++){var x=i*width/(root.echoSamples.length-1),y=height-Math.max(0,Math.min(1,root.echoSamples[i]))*height;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}ctx.stroke()}
      if(root.fishIcons&&root.fishHotspots){ctx.font="bold 18px sans-serif";ctx.fillStyle="#f2f7fb";for(var f=0;f<root.fishHotspots.length;f++){var h=root.fishHotspots[f];if(!isNaN(root.depthM)&&root.depthM>0){var fy=Math.max(18,Math.min(height-8,h.minTargetDepth/root.depthM*height));ctx.fillText("F"+(h.count>1?h.count:""),width-70,fy)}}}
-     if(root.bottomDepthHistory.length){var bcw=width/root.historyColumns,maxD=0;for(var md=0;md<root.bottomDepthHistory.length;md++)if(isFinite(root.bottomDepthHistory[md]))maxD=Math.max(maxD,root.bottomDepthHistory[md]);if(maxD>0){ctx.beginPath();for(var bx=0;bx<root.bottomDepthHistory.length;bx++){var dep=Number(root.bottomDepthHistory[bx]);if(!isFinite(dep))continue;var bpx=width-(root.bottomDepthHistory.length-bx)*bcw,by=Math.min(height-1,(dep/maxD)*height);if(bx===0)ctx.moveTo(bpx,by);else ctx.lineTo(bpx,by)}ctx.lineTo(width,height);ctx.lineTo(Math.max(0,width-root.bottomDepthHistory.length*bcw),height);ctx.closePath();var bv=root.bottomEchoStrength;ctx.fillStyle=root.bottomColor(isNaN(bv)?0:bv);ctx.globalAlpha=.72;ctx.fill();ctx.globalAlpha=1}}}
+     if(root.bottomDepthHistory.length){var bcw=width/root.historyColumns,maxD=isFinite(root.depthM)&&root.depthM>0?root.depthM:0;if(maxD>0){ctx.beginPath();for(var bx=0;bx<root.bottomDepthHistory.length;bx++){var dep=Number(root.bottomDepthHistory[bx]);if(!isFinite(dep))continue;var bpx=width-(root.bottomDepthHistory.length-bx)*bcw,by=Math.min(height-1,(dep/maxD)*height);if(bx===0)ctx.moveTo(bpx,by);else ctx.lineTo(bpx,by)}ctx.lineTo(width,height);ctx.lineTo(Math.max(0,width-root.bottomDepthHistory.length*bcw),height);ctx.closePath();var bv=root.bottomEchoStrength;ctx.fillStyle=root.bottomColor(isNaN(bv)?0:bv);ctx.globalAlpha=.72;ctx.fill();ctx.globalAlpha=1}}}
     }
     Connections{target:root;function onEchoSamplesChanged(){root.pushHistory();echogram.requestPaint()}function onNoiseFilterChanged(){echogram.requestPaint()}function onGainChanged(){echogram.requestPaint()}function onNoiseFloorChanged(){echogram.requestPaint()}function onFishIconsChanged(){echogram.requestPaint()}function onShowRawTraceChanged(){echogram.requestPaint()}function onPaletteModeChanged(){echogram.requestPaint()}}
    }
@@ -104,7 +109,7 @@ Popup {
   Rectangle { visible:root.mapEnabled;Layout.fillHeight:true;Layout.fillWidth:true;Layout.minimumWidth:120;color:"#071b2b";border.color:"#1c4262"
     Map {id:liveSonarMap;anchors.fill:parent;plugin:Plugin{name:"osm"};zoomLevel:16
       center: isFinite(root.latitude)&&isFinite(root.longitude)?QtPositioning.coordinate(root.latitude,root.longitude):QtPositioning.coordinate(0,0)
-      MapPolyline {line.width:3;line.color:"#21b7ff";path:root.boatTrack}
+      MapPolyline {line.width:3;line.color:"#21b7ff";path:root.liveTrack.length?root.liveTrack:root.boatTrack}
       MapQuickItem {visible:isFinite(root.latitude)&&isFinite(root.longitude);coordinate:liveSonarMap.center;anchorPoint.x:12;anchorPoint.y:12
         sourceItem:Rectangle{width:24;height:24;radius:12;color:"#21b7ff";border.width:2;border.color:"white";Label{anchors.centerIn:parent;text:"▲";font.pixelSize:15;color:"#03101a"}}
       }
