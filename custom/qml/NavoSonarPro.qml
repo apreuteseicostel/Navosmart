@@ -71,7 +71,6 @@ Rectangle {
             depthM: root.depthM
             waterTempC: root.waterTempC
             echoSamples: root.samples
-            onOpenFullSonar: root.openFullSonar()
         }
         Label {
             Layout.fillWidth: true
