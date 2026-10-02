@@ -4,7 +4,7 @@
 #include "../../third_party/KoggerApp/src/dataset.h"
 
 // NAVO: remove upstream application-global Core dependency.
-#include "data_processor_defs.h"
+#include "../../third_party/KoggerApp/src/data_processor/data_processor_defs.h"
 
 #include <algorithm>
 #include <QDateTime>
