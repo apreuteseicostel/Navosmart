@@ -46,6 +46,46 @@ Rectangle {
     readonly property real bottomDepthEstimate: bottomResult.index >= 0 && isFinite(depthM)
         ? depthM * bottomResult.index / Math.max(1, samples.length - 1) : NaN
     signal openFullSonar()
+    onOpenFullSonar: proFullscreen.open()
+    Popup {
+        id: proFullscreen
+        parent: Overlay.overlay
+        modal: true
+        focus: true
+        padding: 12
+        x: 0
+        y: 0
+        width: parent ? parent.width : root.width
+        height: parent ? parent.height : root.height
+        background: Rectangle { color: "#0b1c2e" }
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 8
+            RowLayout {
+                Layout.fillWidth: true
+                Label { text: "SONAR PRO • FULLSCREEN"; color: "#21b7ff"; font.bold: true; font.pixelSize: 18 }
+                Item { Layout.fillWidth: true }
+                Label { text: root.connected ? "LIVE" : "OFFLINE"; color: root.connected ? "#65dca4" : "#f2bd72" }
+                Button { text: "✕"; accessible.name: "Închide Sonar PRO fullscreen"; onClicked: proFullscreen.close() }
+            }
+            NavoSonarCard {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                connected: root.connected
+                depthM: root.depthM
+                waterTempC: root.waterTempC
+                echoSamples: root.samples
+                onOpenFullSonar: proFullscreen.close()
+            }
+            Label {
+                Layout.fillWidth: true
+                color: "#a6bdd0"
+                text: root.samples.length > 0
+                    ? "CHART v" + root.chartVersion + " • " + root.samples.length + " eșantioane • Ecou relativ: " + (isNaN(root.bottomEcho) ? "—" : Math.round(root.bottomEcho * 100) + "%")
+                    : "CHART: aștept date valide"
+            }
+        }
+    }
     color: "#0b1c2e"
     radius: 10
     ColumnLayout {
