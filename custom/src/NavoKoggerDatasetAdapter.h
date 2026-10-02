@@ -66,8 +66,6 @@ public:
         records_.append(record);
         return true;
     }
-#ifdef NAVO_KOGGER_NATIVE_DATASET
-#endif
     // Construct an upstream Epoch without inventing a device timestamp or
     // channel UUID. Caller supplies the real connection/channel identity.
     // Kogger CHART v1 contains two-byte samples: decoding its amplitude
