@@ -34,6 +34,9 @@ Rectangle {
     property real noiseFloor: 0.10
     property bool noiseFilterEnabled: false
     property bool dayPalette: false
+    // Live bottom overlay uses the decoded Kogger depth telemetry, not the
+    // offline KoggerApp BottomTrackProcessor (which needs a Dataset adapter).
+    property bool showBottomTrack: true
     readonly property var displayedColumn: history.length ? history[history.length - 1] : null
     readonly property int buttonSize: width < 640 ? 36 : 40
     readonly property int echoWidth: width < 640 ? 44 : 58
@@ -47,7 +50,7 @@ Rectangle {
         if (paused || !available || !column || !column.length ||
                 !isFinite(offset) || !isFinite(range) || range <= 0) return
         var h = history.slice(0)
-        h.push({samples: column.slice(0), offset: offset, range: range})
+        h.push({samples: column.slice(0), offset: offset, range: range, bottom: isFinite(depthM) && depthM >= 0 ? depthM : NaN})
         if (h.length > historyColumns) h.splice(0, h.length - historyColumns)
         history = h
     }
@@ -86,6 +89,7 @@ Rectangle {
     onNoiseFloorChanged: repaint()
     onNoiseFilterEnabledChanged: repaint()
     onDayPaletteChanged: repaint()
+    onShowBottomTrackChanged: repaint()
     // Freeze scale together with the displayed history while paused.
     readonly property real scaleStart: displayedColumn ? displayedColumn.offset : 0
     readonly property real scaleRange: displayedColumn ? displayedColumn.range : 0
@@ -133,6 +137,18 @@ Rectangle {
                             ctx.fillStyle=root.echoColor(v)
                             ctx.fillRect(px,py,Math.max(1,cw+.5),Math.max(1,ph+.5))
                         }
+                    }
+                    if(root.showBottomTrack && root.scaleRange>0) {
+                        ctx.beginPath(); ctx.strokeStyle="#f6da46"; ctx.lineWidth=2
+                        var started=false
+                        for(var bx=0;bx<root.history.length;bx++) {
+                            var bottomEntry=root.history[bx]
+                            if(!isFinite(bottomEntry.bottom)){started=false;continue}
+                            var bottomY=(bottomEntry.bottom-root.scaleStart)/root.scaleRange*height
+                            var bottomX=width-(root.history.length-bx-.5)*cw
+                            if(!started){ctx.moveTo(bottomX,bottomY);started=true}else ctx.lineTo(bottomX,bottomY)
+                        }
+                        ctx.stroke();ctx.lineWidth=1
                     }
                     ctx.strokeStyle=root.dayPalette?"#bccbd4":"#40536a"; ctx.fillStyle=root.dayPalette?"#18364a":"#d9edf7"; ctx.font="12px sans-serif"
                     for (var n=0;n<=4;n++) {
@@ -291,6 +307,7 @@ Rectangle {
                 Button { Layout.fillWidth: true; text: root.paused ? "Continuă ecograma" : "Pauză ecogramă"; onClicked: root.paused=!root.paused }
                 Button { Layout.fillWidth: true; text: root.dayPalette ? "Paletă NAVO" : "Paletă de zi"; onClicked: root.dayPalette=!root.dayPalette }
                 Button { Layout.fillWidth: true; text: "Sensibilitate și filtre"; onClicked: {root.settingsVisible=!root.settingsVisible;root.menuOpen=false} }
+                Button { Layout.fillWidth: true; text: root.showBottomTrack ? "Ascunde linia fundului" : "Arată linia fundului"; onClicked: root.showBottomTrack=!root.showBottomTrack }
                 Button { Layout.fillWidth: true; text: "Reset reglaje"; onClicked: root.resetDisplaySettings() }
             }
         }
