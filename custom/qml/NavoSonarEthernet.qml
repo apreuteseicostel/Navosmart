@@ -31,6 +31,24 @@ QtObject {
  property var vehicle
  property int rxBytes: 0
  property int rxChunks: 0
+ readonly property int nativeChartRecords: chartBridge.recordCount
+ readonly property int nativeChartRejected: chartBridge.rejectedColumns
+ readonly property double nativeChartRawBytes: chartBridge.retainedRawBytes
+ onVehicleChanged: updateNativePosition()
+ function updateNativePosition(){
+  var c=vehicle && vehicle.coordinate ? vehicle.coordinate : null
+  chartBridge.setPosition(c && c.isValid ? c.latitude : NaN,
+                          c && c.isValid ? c.longitude : NaN)
+ }
+ property NavoKoggerChartBridge nativeBridge: NavoKoggerChartBridge {
+  id: chartBridge
+  Component.onCompleted: setDecoder(decoderObject)
+ }
+ property Connections gpsUpdates: Connections {
+  target: root.vehicle
+  ignoreUnknownSignals: true
+  function onCoordinateChanged(){root.updateNativePosition()}
+ }
  signal geoSample(var sample)
  function connectSonar(){ transportObject.connectEndpoint() }
  function disconnectSonar(){ transportObject.disconnectEndpoint(); decoderObject.reset() }
