@@ -3,6 +3,7 @@
 // and application reset are deliberately disabled until NAVO adapters exist.
 #include "../../third_party/KoggerApp/src/dataset.h"
 #include "../../third_party/KoggerApp/src/mosaic_index_provider.h"
+#include "navo_mosaic_provider.h"
 
 // NAVO: remove upstream application-global Core dependency.
 #include "../../third_party/KoggerApp/src/data_processor/data_processor_defs.h"
@@ -1615,8 +1616,7 @@ void Dataset::calcDimensionRects(uint64_t indx)
 {
     //qDebug() << "void Dataset::calcDimensionRects()";
 
-    static MosaicIndexProvider provider;
-    auto* mip = &provider;
+    auto* mip = navoMosaicIndexProvider();
     if (!mip) {
         return;
     }
