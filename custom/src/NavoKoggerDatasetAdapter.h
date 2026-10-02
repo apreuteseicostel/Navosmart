@@ -8,8 +8,8 @@
 #include <cstdint>
 // The original Epoch/Dataset API is isolated behind an opt-in build gate.
 // Raw CHART capture remains compilable without the full KoggerApp closure.
-#ifdef NAVO_KOGGER_NATIVE_DATASET
 #include "../../third_party/KoggerApp/src/epoch.h"
+#ifdef NAVO_KOGGER_NATIVE_DATASET
 #include "../../third_party/KoggerApp/src/dataset.h"
 #endif
 
@@ -67,6 +67,7 @@ public:
         return true;
     }
 #ifdef NAVO_KOGGER_NATIVE_DATASET
+#endif
     // Construct an upstream Epoch without inventing a device timestamp or
     // channel UUID. Caller supplies the real connection/channel identity.
     // Kogger CHART v1 contains two-byte samples: decoding its amplitude
@@ -91,6 +92,7 @@ public:
             epoch.setTemp(float(record.temperatureC));
         return true;
     }
+#ifdef NAVO_KOGGER_NATIVE_DATASET
     // Use the original Dataset ingestion API, which handles channel setup,
     // Epoch allocation and downstream DataProcessor notifications itself.
     // Only v0 is accepted until v1 amplitude encoding has been verified.
