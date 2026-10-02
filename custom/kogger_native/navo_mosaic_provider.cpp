@@ -1,9 +1,13 @@
 #include "navo_mosaic_provider.h"
-#include "../../third_party/KoggerApp/src/mosaic_index_provider.h"
+#include "NavoKoggerService.h"
+
+NavoKoggerService& NavoKoggerService::instance()
+{
+    static NavoKoggerService service;
+    return service;
+}
 
 MosaicIndexProvider* navoMosaicIndexProvider()
 {
-    // Match the original KoggerApp Core mosaic capacity (6,200 tiles).
-    static MosaicIndexProvider provider(6200);
-    return &provider;
+    return &NavoKoggerService::instance().mosaicIndexProvider();
 }
