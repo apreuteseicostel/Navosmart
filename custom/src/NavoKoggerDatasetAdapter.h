@@ -34,7 +34,10 @@ struct NavoKoggerChartRecord {
 
 class NavoKoggerDatasetAdapter {
 public:
-    // Bound raw CHART memory separately from the number of epochs. A long\n    // high-resolution scan must not retain gigabytes on the G20.\n    static constexpr int MaxRecords = 3000;\n    static constexpr qsizetype MaxRawBytes = 16 * 1024 * 1024;
+    // Bound raw CHART memory separately from the number of epochs. A long
+    // high-resolution scan must not retain gigabytes on the G20.
+    static constexpr int MaxRecords = 3000;
+    static constexpr qsizetype MaxRawBytes = 16 * 1024 * 1024;
     bool append(const NavoKoggerDecoder& decoder, double latitude, double longitude,
                 qint64 receivedAtMs = QDateTime::currentMSecsSinceEpoch()) {
         NavoKoggerChartRecord record;
