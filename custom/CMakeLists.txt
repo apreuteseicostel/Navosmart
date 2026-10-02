@@ -119,6 +119,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerChartBridge.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDatasetAdapter.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerTcpClient.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerTcpClient.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoMissionBridge.cc
