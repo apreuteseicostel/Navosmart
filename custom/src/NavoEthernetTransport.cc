@@ -14,10 +14,10 @@ NavoEthernetTransport::NavoEthernetTransport(QObject* p):QObject(p)
     _reconnectTimer.setSingleShot(true);
 }
 
-void NavoEthernetTransport::setHost(const QString& v){if(_host==v)return;_host=v;emit endpointChanged();}
-void NavoEthernetTransport::setPort(quint16 v){if(_port==v)return;_port=v;emit endpointChanged();}
+void NavoEthernetTransport::setHost(const QString& v){if(_host==v)return;_reconnectTimer.stop();_host=v;emit endpointChanged();}
+void NavoEthernetTransport::setPort(quint16 v){if(_port==v)return;_reconnectTimer.stop();_port=v;emit endpointChanged();}
 void NavoEthernetTransport::setUdp(bool v){if(_udp==v)return;_udp=v;emit endpointChanged();}
-void NavoEthernetTransport::setAutoReconnect(bool v){if(_autoReconnect==v)return;_autoReconnect=v;emit autoReconnectChanged();}
+void NavoEthernetTransport::setAutoReconnect(bool v){if(_autoReconnect==v)return;_autoReconnect=v;if(!v)_reconnectTimer.stop();emit autoReconnectChanged();}
 
 void NavoEthernetTransport::connectEndpoint()
 {
