@@ -85,7 +85,7 @@ Rectangle {
      CheckBox{id:sonarUdp;text:checked?"UDP":"TCP";checked:cfg.sonarUdp}
      Item{Layout.columnSpan:2;Layout.fillHeight:true}
      Label{Layout.columnSpan:2;Layout.fillWidth:true;wrapMode:Text.WordWrap;color:"#9db2c5";font.pixelSize:10;text:"Stare: "+(sonar?(sonar.dataAlive?"KOGGER LIVE":sonar.status):"--")}
-     RowLayout{Layout.columnSpan:2;Layout.fillWidth:true;Button{icon.source:"qrc:/qml/NavoSmart/icons/stop.svg";ToolTip.visible:hovered;ToolTip.text:"Deconectează sonar";onClicked:sonar.disconnectSonar()}Item{Layout.fillWidth:true}Button{Layout.preferredWidth:46;Layout.preferredHeight:42;padding:0;ToolTip.visible:hovered;ToolTip.text:"Conectează / reconectează sonar";background:Rectangle{radius:8;color:parent.hovered?"#123d50":"#101b25";border.color:"#21b7ff"}contentItem:Image{anchors.centerIn:parent;width:26;height:26;source:"qrc:/qml/NavoSmart/icons/sonar.svg";fillMode:Image.PreserveAspectFit}enabled:sonar&&sonarHost.text.trim().length>0&&(parseInt(sonarPort.text)||0)>0;onClicked:{if(root.saveEndpoints())sonar.connectSonar()}}}
+     RowLayout{Layout.columnSpan:2;Layout.fillWidth:true;Button{Layout.preferredWidth:46;Layout.preferredHeight:42;padding:0;ToolTip.visible:hovered;ToolTip.text:"Deconectează sonar";background:Rectangle{radius:8;color:parent.hovered?"#3a2025":"#101b25";border.color:"#ff6b6b"}contentItem:Image{anchors.centerIn:parent;width:23;height:23;source:"qrc:/qml/NavoSmart/icons/stop.svg";fillMode:Image.PreserveAspectFit}enabled:!!sonar;onClicked:sonar.disconnectSonar()}Item{Layout.fillWidth:true}Button{Layout.preferredWidth:46;Layout.preferredHeight:42;padding:0;ToolTip.visible:hovered;ToolTip.text:"Conectează / reconectează sonar";background:Rectangle{radius:8;color:parent.hovered?"#123d50":"#101b25";border.color:"#21b7ff"}contentItem:Image{anchors.centerIn:parent;width:26;height:26;source:"qrc:/qml/NavoSmart/icons/sonar.svg";fillMode:Image.PreserveAspectFit}enabled:sonar&&sonarHost.text.trim().length>0&&(parseInt(sonarPort.text)||0)>0;onClicked:{if(root.saveEndpoints())sonar.connectSonar()}}}
     }
    }
    GroupBox {
@@ -104,9 +104,9 @@ Rectangle {
       Label{text:"Protocol";color:"#d7e3ee"}
       ComboBox{id:protocol;Layout.fillWidth:true;textRole:"text";valueRole:"value";model:[{text:"AUTO",value:"auto"},{text:"RTSP",value:"rtsp"},{text:"MJPEG/HTTP",value:"mjpeg"}];Component.onCompleted:{var i=indexOfValue(cfg.cameraProtocol);if(i>=0)currentIndex=i}}
      }
-     NavoVideoPlayer{id:videoTest;Layout.fillWidth:true;Layout.fillHeight:true;Layout.minimumHeight:root.compact?54:80;streamUrl:streamUrl.text;protocol:protocol.currentValue;onVideoError:function(message){root.status("Video: "+message)}}
+     NavoVideoPlayer{id:videoTest;Layout.fillWidth:true;Layout.fillHeight:false;Layout.preferredHeight:root.compact?54:80;Layout.minimumHeight:root.compact?54:80;streamUrl:streamUrl.text;protocol:protocol.currentValue;onVideoError:function(message){root.status("Video: "+message)}}
      RowLayout {
-      Layout.fillWidth:true;Layout.topMargin:4;Layout.bottomMargin:4;spacing:8
+      Layout.fillWidth:true;Layout.topMargin:0;Layout.bottomMargin:0;spacing:8
       Item{Layout.fillWidth:true}
       Button{Layout.preferredWidth:46;Layout.preferredHeight:42;padding:0;ToolTip.visible:hovered;ToolTip.text:"Testează video";background:Rectangle{radius:8;color:parent.hovered?"#123d50":"#101b25";border.color:"#21b7ff"}contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/play.svg";fillMode:Image.PreserveAspectFit}enabled:streamUrl.text.trim().length>0;onClicked:{if(root.saveEndpoints())videoTest.start()}}
       Button{Layout.preferredWidth:46;Layout.preferredHeight:42;padding:0;ToolTip.visible:hovered;ToolTip.text:"Oprește test video";background:Rectangle{radius:8;color:parent.hovered?"#3a2025":"#101b25";border.color:"#ff6b6b"}contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/stop.svg";fillMode:Image.PreserveAspectFit}onClicked:videoTest.stop()}
