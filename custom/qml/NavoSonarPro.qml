@@ -70,7 +70,7 @@ Rectangle {
         if (paused || !available || !column || !column.length ||
                 !isFinite(offset) || !isFinite(range) || range <= 0) return
         var h = history.slice(0)
-        h.push({samples: column.slice(0), offset: offset, range: range, bottom: isFinite(depthM) && depthM >= 0 ? depthM : NaN})
+        h.push({samples: column.slice(0), offset: offset, range: range, bottom: isFinite(root.depthM) && root.depthM >= 0 ? root.depthM : NaN})
         if (h.length > historyColumns) h.splice(0, h.length - historyColumns)
         history = h
     }
