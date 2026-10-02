@@ -31,6 +31,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoBaitingPanel.qml
         qml/NavoHopperBridge.qml
         qml/NavoSonarCard.qml
+        qml/NavoSonarPro.qml
         qml/NavoSonarFullScreen.qml
         qml/NavoCameraPip.qml
         qml/NavoSafetyCard.qml
@@ -98,6 +99,10 @@ qt_add_qml_module(NavoSmartModule
         icons/edit.svg
         icons/delete.svg
         icons/save.svg
+        icons/pause.svg
+        icons/gain.svg
+        icons/filter.svg
+        icons/palette.svg
         icons/play.svg
         icons/stop.svg
         icons/close.svg
@@ -122,6 +127,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoPersistence.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoLanDiscovery.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoLanDiscovery.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoNanoTelemetry.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoNanoTelemetry.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoBathymetryMesh.cc

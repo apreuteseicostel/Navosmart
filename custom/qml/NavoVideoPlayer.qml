@@ -7,10 +7,21 @@ Item {
     property string streamUrl: ""
     property string protocol: "auto" // auto, rtsp, mjpeg
     readonly property bool playing: player.playbackState === MediaPlayer.PlayingState
+    property double lastFrameMs: 0
+    property double clockMs: 0
+    readonly property bool live: playing && lastFrameMs>0 && clockMs-lastFrameMs<3000
+    Timer {
+        interval: 500; repeat: true; running: root.desiredPlaying
+        onTriggered: { root.clockMs=Date.now(); if(root.lastFrameMs>0 && root.clockMs-root.lastFrameMs>6000) root.scheduleReconnect() }
+    }
+    Connections {
+        target: video.videoSink
+        function onVideoFrameChanged(frame) { if(root.playing && video.videoSink.videoSize.width>0) { root.lastFrameMs=Date.now(); root.clockMs=root.lastFrameMs } }
+    }
     readonly property string status: retryTimer.running
         ? "RECONNECT"
         : (player.error === MediaPlayer.NoError
-            ? (playing ? "LIVE" : (streamUrl.length ? "READY" : "NO URL"))
+            ? (live ? "LIVE" : (playing ? "WAITING VIDEO" : (streamUrl.length ? "READY" : "NO URL")))
             : player.errorString)
     property bool autoReconnect: true
     property bool desiredPlaying: false
@@ -31,6 +42,7 @@ Item {
 
     function start() {
         retryTimer.stop()
+        lastFrameMs=0
         desiredPlaying = true
         var u = normalizedUrl()
         if (!u.length)
@@ -43,6 +55,7 @@ Item {
     Component.onDestruction: stop()
 
     function stop() {
+        lastFrameMs=0
         desiredPlaying = false
         retryTimer.stop()
         player.stop()

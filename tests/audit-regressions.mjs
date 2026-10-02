@@ -155,4 +155,37 @@ test('Android workflow cancels superseded PR builds so UI fixes are tested in ba
   assert(workflow.includes('concurrency:'));
   assert(workflow.includes('cancel-in-progress: true'));
 });
+test('PRO history copies complete CHART columns, preserves scale and stays bounded',()=>{
+  const c=context('NavoSonarPro.qml',{paused:false,connected:true,chartSource:null,samples:[.1,.8],history:[],historyColumns:2,chartOffsetMeters:1,chartRangeMeters:4});
+  c.pushHistory();c.samples[0]=.9;
+  assert.equal(c.history[0].samples[0],.1);
+  assert.equal(c.history[0].offset,1);assert.equal(c.history[0].range,4);
+  c.chartOffsetMeters=2;c.pushHistory();c.pushHistory();assert.equal(c.history.length,2);
+  assert.equal(c.history[0].offset,2);
+  c.paused=true;c.samples=[.5];c.pushHistory();assert.equal(c.history[1].samples.length,2);
+  c.paused=false;c.connected=false;c.pushHistory();assert.equal(c.history[1].samples.length,2);
+});
+test('PRO rejects columns without physical range or offset',()=>{
+  const c=context('NavoSonarPro.qml',{paused:false,connected:true,chartSource:null,samples:[.2,.7],history:[],historyColumns:240,chartOffsetMeters:0,chartRangeMeters:NaN});
+  for(const range of [NaN,0,-1,Infinity]){c.chartRangeMeters=range;c.pushHistory();}
+  c.chartRangeMeters=10;c.chartOffsetMeters=NaN;c.pushHistory();
+  assert.equal(c.history.length,0);
+  c.chartOffsetMeters=2;c.pushHistory();assert.equal(c.history.length,1);
+});
+test('PRO captures every source column with its own metadata during a burst',()=>{
+  const source={connected:true,echoSamples:[.2,.8],chartOffsetMeters:1,chartRangeMeters:5};
+  const c=context('NavoSonarPro.qml',{chartSource:source,paused:false,connected:false,samples:[],history:[],historyColumns:240});
+  c.pushHistory();source.echoSamples=[.3,.9];source.chartOffsetMeters=2;source.chartRangeMeters=8;c.pushHistory();
+  assert.equal(c.history.length,2);assert.equal(c.history[0].range,5);assert.equal(c.history[1].range,8);
+  assert.equal(c.history[0].samples[1],.8);assert.equal(c.history[1].offset,2);
+  c.paused=true;source.chartRangeMeters=20;c.pushHistory();assert.equal(c.history.length,2);
+});
+test('PRO impulse filter removes an isolated spike and preserves sustained returns',()=>{
+  const c=context('NavoSonarPro.qml',{noiseFilterEnabled:false,noiseFloor:.1,gain:1});
+  assert.equal(c.sampleStrength([.1,.9,.1],1),.8);
+  c.noiseFilterEnabled=true;assert.equal(c.sampleStrength([.1,.9,.1],1),0);
+  assert.equal(c.sampleStrength([.8,.9,.8],1),.7000000000000001);
+  assert.equal(c.sampleStrength([.8,NaN,.8],1),0);
+  c.gain=3;assert.equal(c.sampleStrength([.8,.9,.8],1),1);
+});
 console.log(`${passed} regression scenarios passed`);

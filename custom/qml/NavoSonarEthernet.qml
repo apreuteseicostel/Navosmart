@@ -5,6 +5,7 @@ QtObject {
  property alias host: transportObject.host
  property alias port: transportObject.port
  property alias udp: transportObject.udp
+ property alias autoReconnect: transportObject.autoReconnect
  readonly property bool connected: transportObject.connected
  readonly property string status: transportObject.status
  property double lastDepthMs: 0
@@ -18,6 +19,13 @@ QtObject {
  property alias depthM: decoderObject.depthM
  property alias waterTempC: decoderObject.waterTempC
  property alias echoSamples: decoderObject.echoSamples
+ readonly property int chartRawByteCount: decoderObject.chartRawBytes.length
+ readonly property int chartResolution: decoderObject.chartResolution
+ readonly property int chartAbsoluteOffset: decoderObject.chartAbsoluteOffset
+ readonly property int chartVersion: decoderObject.chartVersion
+ readonly property real chartResolutionMeters: decoderObject.chartResolutionMeters
+ readonly property real chartOffsetMeters: decoderObject.chartOffsetMeters
+ readonly property real chartRangeMeters: decoderObject.chartRangeMeters
  property var vehicle
  property int rxBytes: 0
  property int rxChunks: 0
@@ -42,7 +50,13 @@ QtObject {
    root.geoSample({time:root.lastEchoMs,lat:root.vehicle.coordinate.latitude,
                    lon:root.vehicle.coordinate.longitude,
                    heading:root.vehicle.heading ? root.vehicle.heading.rawValue : NaN,
-                   depth:depthM,temp:waterTempC,bottomEcho:root.bottomEchoStrength})
+                   depth:depthM,temp:waterTempC,bottomEcho:root.bottomEchoStrength,
+                   chartResolution:decoderObject.chartResolution,
+                   chartAbsoluteOffset:decoderObject.chartAbsoluteOffset,
+                   chartVersion:decoderObject.chartVersion,
+                   chartResolutionMeters:decoderObject.chartResolutionMeters,
+                   chartOffsetMeters:decoderObject.chartOffsetMeters,
+                   chartRangeMeters:decoderObject.chartRangeMeters})
   }
   onDepthChanged: {
    if(!isFinite(depthM) || depthM<=0) return
