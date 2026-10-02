@@ -1,10 +1,37 @@
 #include "NavoKoggerDecoder.h"
 #include <QtCore/QtEndian>
 #include <cstring>
+#include <algorithm>
+#include <cmath>
 NavoKoggerDecoder::NavoKoggerDecoder(QObject* p):QObject(p){}
+void NavoKoggerDecoder::publishChart(){
+ QVariantList raw, compensated;
+ const int step=_chartVersion==1?2:1;
+ const float resolution=float(_chartResolution)*0.001f;
+ // KoggerApp Epoch::Echogram::compensateInPlace, retained as the original
+ // amplitude-compensation algorithm on our decoded 8-bit CHART samples.
+ float average=255.f;
+ for(int i=0, sample=0;i+step-1<_chart.size();i+=step,++sample){
+  const quint8 amplitude=quint8(_chart[i]);
+  raw.append(double(amplitude)/255.0);
+  float value=float(amplitude);
+  average+=(value-average)*(0.05f+average*0.0006f);
+  value=(value-average*0.55f)*(0.85f+float(sample)*resolution*0.006f)*2.f;
+  value=std::clamp(value,0.f,255.f);
+  compensated.append(double(quint8(value))/255.0);
+ }
+ if(raw.isEmpty())return;
+ _publishedChartResolution=_chartResolution;
+ _publishedChartAbsoluteOffset=_chartAbsoluteOffset;
+ _publishedChartVersion=_chartVersion;
+ _publishedChartRaw=_chart;
+ _echoSamples=raw;
+ _compensatedSamples=compensated;
+ emit echoSamplesChanged();
+}
 quint16 NavoKoggerDecoder::le16(const char* p){return qFromLittleEndian<quint16>(reinterpret_cast<const uchar*>(p));}
 quint32 NavoKoggerDecoder::le32(const char* p){return qFromLittleEndian<quint32>(reinterpret_cast<const uchar*>(p));}
-void NavoKoggerDecoder::reset(){_buffer.clear();_chart.clear();_publishedChartRaw.clear();_echoSamples.clear();_chartResolution=0;_chartAbsoluteOffset=0;_chartVersion=0;_publishedChartResolution=0;_publishedChartAbsoluteOffset=0;_publishedChartVersion=0;_connected=false;_depthM=qQNaN();_waterTempC=qQNaN();emit connectedChanged();emit depthChanged();emit temperatureChanged();emit echoSamplesChanged();}
+void NavoKoggerDecoder::reset(){_buffer.clear();_chart.clear();_publishedChartRaw.clear();_echoSamples.clear();_compensatedSamples.clear();_chartResolution=0;_chartAbsoluteOffset=0;_chartVersion=0;_publishedChartResolution=0;_publishedChartAbsoluteOffset=0;_publishedChartVersion=0;_connected=false;_depthM=qQNaN();_waterTempC=qQNaN();emit connectedChanged();emit depthChanged();emit temperatureChanged();emit echoSamplesChanged();}
 void NavoKoggerDecoder::feedBytes(const QByteArray& b){
  if(b.isEmpty())return;
  _buffer.append(b);
@@ -46,9 +73,7 @@ void NavoKoggerDecoder::process(){
    const bool newColumn=(seq==0&&!_chart.isEmpty())||
                         (!_chart.isEmpty()&&(res!=_chartResolution||off!=_chartAbsoluteOffset||version!=_chartVersion));
    if(newColumn){
-    QVariantList out;int step=version==1?2:1;
-    for(int i=0;i+step-1<_chart.size();i+=step)out.append(double(quint8(_chart[i]))/255.0);
-    if(!out.isEmpty()){_publishedChartResolution=_chartResolution;_publishedChartAbsoluteOffset=_chartAbsoluteOffset;_publishedChartVersion=_chartVersion;_publishedChartRaw=_chart;_echoSamples=out;emit echoSamplesChanged();}
+    publishChart();
     _chart.clear();
    }
    if(_chart.isEmpty()){_chartResolution=res;_chartAbsoluteOffset=off;_chartVersion=version;}
@@ -63,9 +88,7 @@ void NavoKoggerDecoder::process(){
     // A backwards seqOffset means the first fragment(s) of a new column
     // were lost. Publish what we assembled, then rebuild at the advertised
     // offset with zero-fill, as KoggerApp does.
-    QVariantList out;int step=version==1?2:1;
-    for(int i=0;i+step-1<_chart.size();i+=step)out.append(double(quint8(_chart[i]))/255.0);
-    if(!out.isEmpty()){_publishedChartResolution=_chartResolution;_publishedChartAbsoluteOffset=_chartAbsoluteOffset;_publishedChartVersion=_chartVersion;_publishedChartRaw=_chart;_echoSamples=out;emit echoSamplesChanged();}
+    publishChart();
     _chart=QByteArray(int(seq),char(0));_chart.append(part);
     _chartResolution=res;_chartAbsoluteOffset=off;_chartVersion=version;
    }
