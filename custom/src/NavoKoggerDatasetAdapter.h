@@ -34,7 +34,7 @@ struct NavoKoggerChartRecord {
 
 class NavoKoggerDatasetAdapter {
 public:
-    static constexpr int MaxRecords = 3000;
+    // Bound raw CHART memory separately from the number of epochs. A long\n    // high-resolution scan must not retain gigabytes on the G20.\n    static constexpr int MaxRecords = 3000;\n    static constexpr qsizetype MaxRawBytes = 16 * 1024 * 1024;
     bool append(const NavoKoggerDecoder& decoder, double latitude, double longitude,
                 qint64 receivedAtMs = QDateTime::currentMSecsSinceEpoch()) {
         NavoKoggerChartRecord record;
@@ -48,7 +48,14 @@ public:
         record.depthM = decoder.depthM();
         record.temperatureC = decoder.waterTempC();
         if (!record.hasValidChart()) return false;
-        if (records_.size() >= MaxRecords) records_.remove(0);
+        if (record.chart.size() > MaxRawBytes) return false;
+        while (!records_.isEmpty() &&
+               (records_.size() >= MaxRecords ||
+                rawBytes_ + record.chart.size() > MaxRawBytes)) {
+            rawBytes_ -= records_.first().chart.size();
+            records_.remove(0);
+        }
+        rawBytes_ += record.chart.size();
         records_.append(record);
         return true;
     }
@@ -98,7 +105,9 @@ public:
         return true;
     }
     const QVector<NavoKoggerChartRecord>& records() const { return records_; }
-    void clear() { records_.clear(); }
+    qsizetype retainedRawBytes() const { return rawBytes_; }
+    void clear() { records_.clear(); rawBytes_ = 0; }
 private:
     QVector<NavoKoggerChartRecord> records_;
+    qsizetype rawBytes_ = 0;
 };
