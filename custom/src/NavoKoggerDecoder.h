@@ -9,6 +9,7 @@ class NavoKoggerDecoder : public QObject {
  Q_PROPERTY(double depthM READ depthM NOTIFY depthChanged)
  Q_PROPERTY(double waterTempC READ waterTempC NOTIFY temperatureChanged)
  Q_PROPERTY(QVariantList echoSamples READ echoSamples NOTIFY echoSamplesChanged)
+ Q_PROPERTY(QVariantList compensatedSamples READ compensatedSamples NOTIFY echoSamplesChanged)
  Q_PROPERTY(QByteArray chartRawBytes READ chartRawBytes NOTIFY echoSamplesChanged)
  Q_PROPERTY(quint16 chartResolution READ chartResolution NOTIFY echoSamplesChanged)
  Q_PROPERTY(quint16 chartAbsoluteOffset READ chartAbsoluteOffset NOTIFY echoSamplesChanged)
@@ -22,6 +23,7 @@ public:
  double depthM() const { return _depthM; }
  double waterTempC() const { return _waterTempC; }
  QVariantList echoSamples() const { return _echoSamples; }
+ QVariantList compensatedSamples() const { return _compensatedSamples; }
  QByteArray chartRawBytes() const { return _publishedChartRaw; }
  quint16 chartResolution() const { return _publishedChartResolution; }
  quint16 chartAbsoluteOffset() const { return _publishedChartAbsoluteOffset; }
@@ -58,4 +60,6 @@ private:
  double _depthM=qQNaN();
  double _waterTempC=qQNaN();
  QVariantList _echoSamples;
+ QVariantList _compensatedSamples;
+ void publishChart();
 };
