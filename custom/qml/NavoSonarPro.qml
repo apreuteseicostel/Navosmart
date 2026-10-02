@@ -54,6 +54,7 @@ Rectangle {
     property real noiseFloor: 0.10
     property bool noiseFilterEnabled: false
     property bool dayPalette: false
+    property bool koggerCompensation: false
     // Live bottom overlay uses the decoded Kogger depth telemetry, not the
     // offline KoggerApp BottomTrackProcessor (which needs a Dataset adapter).
     property bool showBottomTrack: true
@@ -63,7 +64,7 @@ Rectangle {
     color: "#03101a"
     clip: true
     function pushHistory() {
-        var column = chartSource ? chartSource.echoSamples : samples
+        var column = chartSource ? (koggerCompensation ? chartSource.compensatedSamples : chartSource.echoSamples) : samples
         var offset = chartSource ? chartSource.chartOffsetMeters : chartOffsetMeters
         var range = chartSource ? chartSource.chartRangeMeters : chartRangeMeters
         var available = chartSource ? chartSource.connected : connected
@@ -109,6 +110,7 @@ Rectangle {
     onNoiseFloorChanged: repaint()
     onNoiseFilterEnabledChanged: repaint()
     onDayPaletteChanged: repaint()
+    onKoggerCompensationChanged: { history = []; pushHistory(); repaint() }
     onShowBottomTrackChanged: repaint()
     // Freeze scale together with the displayed history while paused.
     readonly property real scaleStart: displayedColumn ? displayedColumn.offset : 0
@@ -327,6 +329,7 @@ Rectangle {
                 Button { Layout.fillWidth: true; text: root.paused ? "Continuă ecograma" : "Pauză ecogramă"; onClicked: root.paused=!root.paused }
                 Button { Layout.fillWidth: true; text: root.dayPalette ? "Paletă NAVO" : "Paletă de zi"; onClicked: root.dayPalette=!root.dayPalette }
                 Button { Layout.fillWidth: true; text: "Sensibilitate și filtre"; onClicked: {root.settingsVisible=!root.settingsVisible;root.menuOpen=false} }
+                Button { Layout.fillWidth: true; text: root.koggerCompensation ? "Ecou brut" : "Compensare Kogger"; onClicked: root.koggerCompensation=!root.koggerCompensation }
                 Button { Layout.fillWidth: true; text: root.showBottomTrack ? "Ascunde linia fundului" : "Arată linia fundului"; onClicked: root.showBottomTrack=!root.showBottomTrack }
                 Button { Layout.fillWidth: true; text: "Reset reglaje"; onClicked: root.resetDisplaySettings() }
             }
