@@ -40,6 +40,8 @@ signals:
  void temperatureChanged();
  void echoSamplesChanged();
  void frameRejected();
+ // One event per completed raw CHART column, before QML presentation.
+ void chartColumnReady();
 private:
  void process();
  bool validFrame(const QByteArray& frame) const;
