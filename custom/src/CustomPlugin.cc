@@ -4,6 +4,7 @@
 #include "NavoPersistence.h"
 #include "NavoMissionBridge.h"
 #include "NavoEthernetTransport.h"
+#include "NavoLanDiscovery.h"
 #include "NavoNanoTelemetry.h"
 #include "NavoBathymetryMesh.h"
 #include "NavoBathymetryGeometry.h"
@@ -26,6 +27,7 @@ CustomPlugin::CustomPlugin(QObject* parent):QGCCorePlugin(parent),_options(new C
  qmlRegisterType<NavoPersistence>("NavoSmart.Backend",1,0,"NavoPersistence");
  qmlRegisterType<NavoMissionBridge>("NavoSmart.Backend",1,0,"NavoMissionBridge");
  qmlRegisterType<NavoEthernetTransport>("NavoSmart.Backend",1,0,"NavoEthernetTransport");
+ qmlRegisterType<NavoLanDiscovery>("NavoSmart.Backend",1,0,"NavoLanDiscovery");
  qmlRegisterType<NavoNanoTelemetry>("NavoSmart.Backend",1,0,"NavoNanoTelemetry");
  qmlRegisterType<NavoBathymetryMesh>("NavoSmart.Backend",1,0,"NavoBathymetryMesh");
  qmlRegisterType<NavoBathymetryGeometry>("NavoSmart.Backend",1,0,"NavoBathymetryGeometry");
