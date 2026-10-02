@@ -5,6 +5,7 @@ QtObject {
  property alias host: transportObject.host
  property alias port: transportObject.port
  property alias udp: transportObject.udp
+ property alias autoReconnect: transportObject.autoReconnect
  readonly property bool connected: transportObject.connected
  readonly property string status: transportObject.status
  property double lastDepthMs: 0
