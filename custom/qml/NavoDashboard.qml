@@ -254,6 +254,15 @@ Item {
     property real distanceToTarget: vehicle && vehicle.distanceToGoal ? vehicle.distanceToGoal.rawValue : 0
     property string boatId: "NAV0001"
     property int activePage: 0
+    property bool sonarProFullscreen: false
+    property bool sonarProMapActive: false
+    onActivePageChanged: {
+        if (activePage !== 10) {
+            sonarProFullscreen = false
+            sonarProMapActive = false
+            mapMaximized = false
+        }
+    }
     property bool hopperStatusExpanded: false
     property bool mapFullscreen: false
     property bool headingOverlayOpen: false
@@ -569,6 +578,7 @@ Item {
         id: header
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
         height: 64; color: "#101822"; border.color: root.line; z: 2000
+        visible: !root.sonarProFullscreen
         Flickable {
             anchors.fill: parent
             clip: false
@@ -615,7 +625,7 @@ Item {
     Rectangle {
         id: sidebar
         anchors.left: parent.left; anchors.top: header.bottom; anchors.bottom: parent.bottom
-        visible: !root.mapMaximized
+        visible: !root.mapMaximized && !root.sonarProFullscreen
         width: root.width < 1100 ? 64 : 72; color: root.panel; border.color: root.line
         Flickable {
             anchors.fill: parent
@@ -631,7 +641,7 @@ Item {
                 spacing: Math.max(3, Math.min(8, (sidebar.height - 44 - 10 * 36) / 11))
                 NavButton { text: "HARTA"; iconSource: "qrc:/qml/NavoSmart/icons/map.svg"; active: root.activePage === 0; onClicked: root.activePage = 0 }
                 NavButton { text: "SONAR"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 1; onClicked: root.activePage = 1 }
-                NavButton { text: "SONAR PRO"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 10; onClicked: root.activePage = 10 }
+                NavButton { text: "SONAR PRO"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; proBadge: true; active: root.activePage === 10; onClicked: { root.activePage = 10; root.sonarProMapActive = false; root.sonarProFullscreen = true; root.mapMaximized = true } }
                 NavButton { text: "AREA SCAN"; iconSource: "qrc:/qml/NavoSmart/icons/scan.svg"; active: root.activePage === 2; onClicked: root.activePage = 2 }
                 NavButton { text: "PUNCTE PESCUIT"; iconSource: "qrc:/qml/NavoSmart/icons/fish.svg"; active: root.activePage === 3; onClicked: root.activePage = 3 }
                 NavButton { text: "BALȚILE MELE"; iconSource: "qrc:/qml/NavoSmart/icons/lake.svg"; active: root.activePage === 4; onClicked: root.activePage = 4 }
@@ -647,13 +657,13 @@ Item {
 
     Rectangle {
         id: content
-        anchors.left: root.mapMaximized ? parent.left : sidebar.right; anchors.right: parent.right; anchors.top: header.bottom; anchors.bottom: parent.bottom
+        anchors.left: (root.mapMaximized || root.sonarProFullscreen) ? parent.left : sidebar.right; anchors.right: parent.right; anchors.top: root.sonarProFullscreen ? parent.top : header.bottom; anchors.bottom: parent.bottom
         color: root.bg
         Loader {
-            anchors.fill: parent; anchors.margins: 10
+            anchors.fill: parent; anchors.margins: root.sonarProFullscreen ? 0 : 10
             sourceComponent: root.activePage === 0 ? mapPage :
                              root.activePage === 1 ? sonarPage :
-                             root.activePage === 10 ? sonarProPage :
+                             root.activePage === 10 ? (root.sonarProMapActive ? sonarProMapPage : sonarProPage) :
                              root.activePage === 2 ? areaPage :
                              root.activePage === 3 ? fishingPage :
                              root.activePage === 4 ? lakesPage :
@@ -668,7 +678,7 @@ Item {
         id: persistentCameraPip
         parent: root
         z: 900
-        visible: root.cameraPipEnabled && root.cameraStreamUrl.length>0 && !root.cameraFullscreen && root.activePage!==5
+        visible: root.cameraPipEnabled && root.cameraStreamUrl.length>0 && !root.cameraFullscreen && root.activePage!==5 && !root.sonarProFullscreen
         anchors.right: parent.right
         anchors.top: header.bottom
         anchors.rightMargin: root.activePage===0 ? 88 : 16
@@ -800,7 +810,62 @@ Item {
             chartOffsetMeters: sonar.chartOffsetMeters
             chartRangeMeters: sonar.chartRangeMeters
             chartRawByteCount: sonar.chartRawByteCount
-            onOpenFullSonar: root.activePage = 1
+            fullscreen: root.sonarProFullscreen
+            onFullscreenRequested: function(enabled) {
+                root.sonarProFullscreen = enabled
+                root.mapMaximized = enabled
+            }
+            onMapRequested: {
+                root.sonarProMapActive = true
+                root.sonarProFullscreen = true
+                root.mapMaximized = true
+            }
+        }
+    }
+
+    Component {
+        id: sonarProMapPage
+        Item {
+            NavoMap {
+                id: sonarProLiveMap
+                anchors.fill: parent
+                vehicle: root.vehicle
+                planController: root.planController
+                waypointNames: root.waypointNames
+                fishModel: fishStore
+                fishingSpotsModel: fishingSpots
+                bathymetryCells: scanCoordinator.bathymetryCells
+                baitingController: baitingController
+                areaScanController: areaScanController
+                savedDepthM: root.depthM
+                savedWaterTempC: root.waterTempC
+                maximized: true
+                actualTrackEnabled: true
+            }
+            Rectangle {
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.margins: 12
+                z: 5000
+                radius: 8
+                color: "#101822ee"
+                border.color: "#31536c"
+                implicitWidth: mapActions.implicitWidth + 20
+                implicitHeight: mapActions.implicitHeight + 16
+                RowLayout {
+                    id: mapActions
+                    anchors.centerIn: parent
+                    Label { text: "HARTĂ LIVE • TRASEU ACTIV"; color: "#65dca4"; font.bold: true }
+                    Button { text: "ÎNAPOI LA SONAR PRO"; onClicked: root.sonarProMapActive = false }
+                    Button {
+                        text: root.sonarProFullscreen ? "IEȘIRE FULLSCREEN" : "FULLSCREEN"
+                        onClicked: {
+                            root.sonarProFullscreen = !root.sonarProFullscreen
+                            root.mapMaximized = root.sonarProFullscreen
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -1554,14 +1619,24 @@ Item {
     }
 
     component NavButton: Button {
+        id: navButton
         property bool active: false
         property url iconSource: ""
+        property bool proBadge: false
         ToolTip.visible: hovered
         ToolTip.text: text
         Layout.fillWidth: true
         Layout.preferredHeight: Math.max(38, Math.min(46, (sidebar.height - 58) / 9))
         background: Rectangle { radius: 6; color: parent.active ? "#183248" : "transparent"; border.color: parent.active ? root.accent : "transparent" }
-        contentItem: Image { anchors.centerIn: parent; width: 32; height: 32; source: parent.iconSource; fillMode: Image.PreserveAspectFit }
+        contentItem: Item {
+            Image { anchors.centerIn: parent; width: 32; height: 32; source: navButton.iconSource; fillMode: Image.PreserveAspectFit }
+            Rectangle {
+                visible: navButton.proBadge
+                anchors.right: parent.right; anchors.top: parent.top; anchors.rightMargin: 7; anchors.topMargin: 2
+                width: 20; height: 11; radius: 3; color: "#21b7ff"
+                Label { anchors.centerIn: parent; text: "PRO"; color: "#03101a"; font.pixelSize: 7; font.bold: true }
+            }
+        }
     }
 
     component DataLine: RowLayout {

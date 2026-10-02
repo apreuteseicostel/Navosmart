@@ -13,6 +13,7 @@ Rectangle {
     property real chartRangeMeters: NaN
     property var samples: []
     property bool connected: false
+    property bool fullscreen: false
     property real depthM: NaN
     property real waterTempC: NaN
     property real gain: 1.0
@@ -45,9 +46,10 @@ Rectangle {
     readonly property real bottomEcho: bottomResult.strength
     readonly property real bottomDepthEstimate: bottomResult.index >= 0 && isFinite(depthM)
         ? depthM * bottomResult.index / Math.max(1, samples.length - 1) : NaN
-    signal openFullSonar()
+    signal fullscreenRequested(bool enabled)
+    signal mapRequested()
     color: "#0b1c2e"
-    radius: 10
+    radius: fullscreen ? 0 : 10
     ColumnLayout {
         anchors.fill: parent
         anchors.margins: 12
@@ -57,11 +59,15 @@ Rectangle {
             Label { text: "SONAR PRO • EXPERIMENTAL"; color: "#21b7ff"; font.bold: true; font.pixelSize: 17 }
             Item { Layout.fillWidth: true }
             Label { text: root.connected ? "LIVE" : "OFFLINE"; color: root.connected ? "#65dca4" : "#f2bd72" }
+            Button { text: root.fullscreen ? "IEȘIRE FULLSCREEN" : "FULLSCREEN"; onClicked: root.fullscreenRequested(!root.fullscreen) }
         }
         NavoSonarCard {
             Layout.fillWidth: true
-            Layout.preferredHeight: 190
+            Layout.fillHeight: true
+            Layout.minimumHeight: 230
+            Layout.preferredHeight: 380
             connected: root.connected
+            onOpenFullSonar: root.fullscreenRequested(!root.fullscreen)
             depthM: root.depthM
             waterTempC: root.waterTempC
             echoSamples: root.samples
@@ -79,6 +85,11 @@ Rectangle {
                   + " • " + (root.chartVersion === 1 ? "2 canale" : "1 canal")
                   + " • rezoluție " + root.chartResolution + " mm • offset " + root.chartAbsoluteOffset + " eșantioane"
                 : "CHART: aștept date valide"
+        }
+        Button {
+            Layout.fillWidth: true
+            text: "ACTIVEAZĂ HARTA TRASEULUI"
+            onClicked: root.mapRequested()
         }
         RowLayout {
             Layout.fillWidth: true
@@ -104,6 +115,5 @@ Rectangle {
             wrapMode: Text.WordWrap
             color: "#a6bdd0"
         }
-        Item { Layout.fillHeight: true }
     }
 }

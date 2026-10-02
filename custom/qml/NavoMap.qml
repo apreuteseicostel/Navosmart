@@ -26,6 +26,7 @@ Item {
     property int lakeZoomLevel: 17
     property bool initialCenterApplied: false
     property bool autoFollowBoat: true
+    property bool actualTrackEnabled: false
     property bool autoZoomEnabled: true
     property real followMargin: 0.15
     readonly property var baitTargetCoordinate: baitingController && baitingController.targetWaypoint && baitingController.targetWaypoint.coordinate ? baitingController.targetWaypoint.coordinate : QtPositioning.coordinate()
@@ -179,6 +180,13 @@ Item {
         Behavior on bearing { NumberAnimation { duration: 250 } }
     }
 
+
+    NavoActualTrack {
+        map: liveMap
+        vehicle: root.vehicle
+        taskActive: root.actualTrackEnabled
+        keepCompletedTrack: true
+    }
 
     MapQuickItem {
         id: operatorMarker
