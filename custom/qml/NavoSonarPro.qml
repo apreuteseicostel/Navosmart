@@ -302,9 +302,10 @@ Rectangle {
     IconButton {
         id: menuButton
         anchors.left: parent.left; anchors.top: telemetry.bottom; anchors.margins: 6
-        z: 20; glyph: "settings"; hint: "Meniu Sonar PRO"
+        z: 100; visible: true; enabled: true
+        glyph: "settings"; hint: "Deschide / închide meniul Sonar PRO"
         checkable: true; checked: root.menuOpen
-        onClicked: root.menuOpen = !root.menuOpen
+        onClicked: { root.settingsVisible = false; root.menuOpen = !root.menuOpen }
     }
     IconButton {
         id: closeButton
@@ -337,6 +338,7 @@ Rectangle {
     }
     Rectangle {
         visible: root.settingsVisible
+        z: 21
         anchors.left: parent.left; anchors.top: menuButton.bottom; anchors.topMargin: 4; anchors.leftMargin: 6
         width: Math.min(360,parent.width-16)
         height: Math.min(settingsContent.implicitHeight+16, Math.max(0, parent.height-menuButton.height-55))
