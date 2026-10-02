@@ -25,6 +25,7 @@ Rectangle {
   property bool cameraUdp:false
   property string cameraStreamUrl:""
   property string cameraProtocol:"auto"
+  property bool connectOnStartup:true
  }
  function loadEndpoints(){
   if(sonar){sonar.host=cfg.sonarHost;sonar.port=cfg.sonarPort;sonar.udp=cfg.sonarUdp}
@@ -36,9 +37,11 @@ Rectangle {
   cfg.cameraStreamUrl=streamUrl.text.trim();cfg.cameraProtocol=protocol.currentValue;root.cameraStreamUrl=cfg.cameraStreamUrl;root.cameraProtocol=cfg.cameraProtocol
   loadEndpoints();status("Setări Ethernet/video salvate")
  }
- Component.onCompleted:{loadEndpoints();root.cameraStreamUrl=cfg.cameraStreamUrl;root.cameraProtocol=cfg.cameraProtocol}
+ Component.onCompleted:{loadEndpoints();root.cameraStreamUrl=cfg.cameraStreamUrl;root.cameraProtocol=cfg.cameraProtocol; if(cfg.connectOnStartup) startupConnections.start()}
+ Timer { id:startupConnections; interval:1200; repeat:false; onTriggered:{if(sonar && cfg.sonarHost.trim().length>0 && cfg.sonarPort>0) sonar.connectSonar(); if(camera && cfg.cameraHost.trim().length>0 && cfg.cameraPort>0) camera.connectCamera()} }
  ColumnLayout {
   anchors.fill:parent;anchors.margins:8;spacing:root.compact?5:8
+  CheckBox { text:"Conectare automată la pornire"; checked:cfg.connectOnStartup; onToggled:cfg.connectOnStartup=checked; palette.windowText:"#d7e3ee" }
   RowLayout{Layout.fillWidth:true;Layout.preferredHeight:40
    Label{text:"REȚEA BARCĂ • ETHERNET";color:"#21b7ff";font.bold:true;font.pixelSize:root.compact?13:14;verticalAlignment:Text.AlignVCenter}
    Item{Layout.fillWidth:true}
