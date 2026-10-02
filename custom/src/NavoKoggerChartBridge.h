@@ -1,5 +1,6 @@
 #pragma once
 #include "NavoKoggerDatasetAdapter.h"
+#include "../kogger_native/NavoKoggerService.h"
 #include <QObject>
 #include <QPointer>
 #include <QMetaObject>
@@ -14,6 +15,7 @@ class NavoKoggerChartBridge : public QObject {
     Q_PROPERTY(int rejectedColumns READ rejectedColumns NOTIFY recordsChanged)
     Q_PROPERTY(int unlocatedColumns READ unlocatedColumns NOTIFY recordsChanged)
     Q_PROPERTY(int epochConversionFailures READ epochConversionFailures NOTIFY recordsChanged)
+    Q_PROPERTY(int datasetColumns READ datasetColumns NOTIFY recordsChanged)
 public:
     explicit NavoKoggerChartBridge(QObject* parent = nullptr) : QObject(parent) {}
     int recordCount() const { return adapter_.records().size(); }
@@ -21,6 +23,7 @@ public:
     int rejectedColumns() const { return rejected_; }
     int unlocatedColumns() const { return unlocated_; }
     int epochConversionFailures() const { return epochFailures_; }
+    int datasetColumns() const { return datasetColumns_; }
     Q_INVOKABLE void setChannelIdentity(const QString& uuid, int address) {
         const QUuid parsed(uuid);
         channel_ = (!parsed.isNull() && address >= 0 && address <= 255)
@@ -42,6 +45,7 @@ public:
         rejected_ = 0;
         unlocated_ = 0;
         epochFailures_ = 0;
+        datasetColumns_ = 0;
         emit recordsChanged();
     }
 signals:
@@ -58,8 +62,12 @@ private:
             // identity has been supplied by connection configuration.
             if (channel_.isValid()) {
                 Epoch epoch;
-                if (!NavoKoggerDatasetAdapter::toKoggerEpoch(record, channel_, epoch))
+                if (!NavoKoggerDatasetAdapter::toKoggerEpoch(record, channel_, epoch)) {
                     ++epochFailures_;
+                } else if (NavoKoggerDatasetAdapter::appendToKoggerDataset(
+                               record, channel_, NavoKoggerService::instance().dataset())) {
+                    ++datasetColumns_;
+                }
             }
         }
         emit recordsChanged();
@@ -72,5 +80,6 @@ private:
     int rejected_ = 0;
     int unlocated_ = 0;
     int epochFailures_ = 0;
+    int datasetColumns_ = 0;
     ChannelId channel_;
 };
