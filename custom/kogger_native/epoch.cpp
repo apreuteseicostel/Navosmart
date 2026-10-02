@@ -1,6 +1,6 @@
 // Derived from KoggerApp src/epoch.cpp at 3a7f526 (GPL-3.0).
 // Only unused Core include and extern declaration removed for NAVO linking.
-#include "epoch.h"
+#include "../../third_party/KoggerApp/src/epoch.h"
 
 #include <QPainterPath>
 
