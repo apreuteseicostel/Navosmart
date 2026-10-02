@@ -299,8 +299,10 @@ Rectangle {
         }
     }
     Rectangle {
+        id: telemetryBar
         anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 6
         width: Math.max(0, Math.min(parent.width-root.buttonSize-18, telemetry.implicitWidth+16)); height: root.buttonSize; radius: 7; color: "#cc0b1c2e"
+        z: 101
         Label {
             id: telemetry; anchors.fill: parent; anchors.margins: 8; elide: Text.ElideRight
             color: root.connected ? "#21b7ff" : "#9db2c5"
@@ -309,7 +311,7 @@ Rectangle {
     }
     IconButton {
         id: menuButton
-        anchors.left: parent.left; anchors.top: telemetry.bottom; anchors.margins: 6
+        anchors.left: parent.left; anchors.top: telemetryBar.bottom; anchors.margins: 6
         z: 100; visible: true; enabled: true
         glyph: "settings"; hint: "Deschide / închide meniul Sonar PRO"
         checkable: true; checked: root.menuOpen
@@ -318,13 +320,13 @@ Rectangle {
     IconButton {
         id: closeButton
         anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 6
-        z: 25; glyph: "close"; hint: "Ieșire din Sonar PRO"
+        z: 102; glyph: "close"; hint: "Ieșire din Sonar PRO"
         onClicked: root.closed()
     }
     Rectangle {
         id: menuPanel
         visible: root.menuOpen
-        z: 19
+        z: 103
         anchors.left: parent.left; anchors.top: menuButton.bottom; anchors.topMargin: 4; anchors.leftMargin: 6
         width: Math.min(260,parent.width*.48)
         height: Math.min(menuColumn.implicitHeight+16,Math.max(0,parent.height-menuButton.height-55))
