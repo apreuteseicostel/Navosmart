@@ -644,7 +644,7 @@ Item {
                 spacing: Math.max(3, Math.min(8, (sidebar.height - 44 - 10 * 36) / 11))
                 NavButton { text: "HARTA"; iconSource: "qrc:/qml/NavoSmart/icons/map.svg"; active: root.activePage === 0; onClicked: root.activePage = 0 }
                 NavButton { text: "SONAR"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 1; onClicked: root.activePage = 1 }
-                NavButton { text: "SONAR PRO"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 10; onClicked: root.activePage = 10 }
+                NavButton { text: "SONAR PRO"; proBadge: true; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 10; onClicked: root.activePage = 10 }
                 NavButton { text: "AREA SCAN"; iconSource: "qrc:/qml/NavoSmart/icons/scan.svg"; active: root.activePage === 2; onClicked: root.activePage = 2 }
                 NavButton { text: "PUNCTE PESCUIT"; iconSource: "qrc:/qml/NavoSmart/icons/fish.svg"; active: root.activePage === 3; onClicked: root.activePage = 3 }
                 NavButton { text: "BALȚILE MELE"; iconSource: "qrc:/qml/NavoSmart/icons/lake.svg"; active: root.activePage === 4; onClicked: root.activePage = 4 }
@@ -1574,13 +1574,37 @@ Item {
 
     component NavButton: Button {
         property bool active: false
+        property bool proBadge: false
         property url iconSource: ""
         ToolTip.visible: hovered
         ToolTip.text: text
         Layout.fillWidth: true
         Layout.preferredHeight: Math.max(38, Math.min(46, (sidebar.height - 58) / 9))
         background: Rectangle { radius: 6; color: parent.active ? "#183248" : "transparent"; border.color: parent.active ? root.accent : "transparent" }
-        contentItem: Image { anchors.centerIn: parent; width: 32; height: 32; source: parent.iconSource; fillMode: Image.PreserveAspectFit }
+        contentItem: Item {
+            Image {
+                anchors.centerIn: parent
+                anchors.verticalCenterOffset: parent.parent.proBadge ? -5 : 0
+                width: parent.parent.proBadge ? 27 : 32
+                height: parent.parent.proBadge ? 27 : 32
+                source: parent.parent.iconSource
+                fillMode: Image.PreserveAspectFit
+            }
+            Rectangle {
+                visible: parent.parent.proBadge
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: 1
+                width: 31; height: 13; radius: 3
+                color: parent.parent.active ? "#21b7ff" : "#103c51"
+                border.color: "#21b7ff"
+                Label {
+                    anchors.centerIn: parent
+                    text: "PRO"; font.pixelSize: 9; font.bold: true
+                    color: parent.parent.active ? "#061824" : "#e1faff"
+                }
+            }
+        }
     }
 
     component DataLine: RowLayout {
