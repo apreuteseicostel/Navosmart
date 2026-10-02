@@ -1,3 +1,4 @@
+add_compile_definitions(NAVO_KOGGER_NATIVE_DATASET)
 message(STATUS "NAVO SMART: loading custom QGroundControl overlay")
 
 set_property(DIRECTORY ${CMAKE_SOURCE_DIR} APPEND PROPERTY COMPILE_DEFINITIONS
@@ -121,6 +122,7 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/KoggerApp/src/data_interpolator.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/KoggerApp/src/black_stripes_processor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/navo_mosaic_provider.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/NavoKoggerService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/KoggerApp/src/mosaic_index_provider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.h
