@@ -5,6 +5,8 @@
 #include <QVector>
 #include <QtGlobal>
 #include <cmath>
+#include <cstdint>
+#include "../../third_party/KoggerApp/src/epoch.h"
 
 // Native input records for the upstream KoggerApp Epoch/Dataset pipeline.
 // This transport boundary does not fabricate timestamps, channel IDs or GPS.
@@ -47,6 +49,30 @@ public:
         if (!record.hasValidChart()) return false;
         if (records_.size() >= MaxRecords) records_.remove(0);
         records_.append(record);
+        return true;
+    }
+    // Construct an upstream Epoch without inventing a device timestamp or
+    // channel UUID. Caller supplies the real connection/channel identity.
+    // Kogger CHART v1 contains two-byte samples: decoding its amplitude
+    // semantics must be validated before it can enter an 8-bit Echogram.
+    static bool toKoggerEpoch(const NavoKoggerChartRecord& record,
+                              const ChannelId& channel, Epoch& epoch) {
+        if (!record.hasValidChart() || !channel.isValid() || record.version != 0)
+            return false;
+        QVector<uint8_t> amplitude;
+        amplitude.reserve(record.chart.size());
+        for (const char byte : record.chart)
+            amplitude.append(static_cast<uint8_t>(byte));
+        const float resolutionM = float(record.resolutionMm) * 0.001f;
+        const float offsetM = float(record.absoluteOffset) * resolutionM;
+        epoch.setChart(channel, QVector<QVector<uint8_t>>{amplitude},
+                       resolutionM, offsetM);
+        if (record.hasPosition())
+            epoch.setPositionLLA(record.latitude, record.longitude);
+        if (std::isfinite(record.depthM) && record.depthM >= 0)
+            epoch.setDepth(float(record.depthM));
+        if (std::isfinite(record.temperatureC))
+            epoch.setTemp(float(record.temperatureC));
         return true;
     }
     const QVector<NavoKoggerChartRecord>& records() const { return records_; }
