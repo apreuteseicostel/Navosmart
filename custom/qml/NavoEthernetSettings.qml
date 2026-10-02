@@ -104,8 +104,13 @@ Rectangle {
       Label{text:"Protocol";color:"#d7e3ee"}
       ComboBox{id:protocol;Layout.fillWidth:true;textRole:"text";valueRole:"value";model:[{text:"AUTO",value:"auto"},{text:"RTSP",value:"rtsp"},{text:"MJPEG/HTTP",value:"mjpeg"}];Component.onCompleted:{var i=indexOfValue(cfg.cameraProtocol);if(i>=0)currentIndex=i}}
      }
-     NavoVideoPlayer{id:videoTest;Layout.fillWidth:true;Layout.fillHeight:false;Layout.preferredHeight:root.compact?54:80;Layout.minimumHeight:root.compact?54:80;streamUrl:streamUrl.text;protocol:protocol.currentValue;onVideoError:function(message){root.status("Video: "+message)}}
+     // Keep the preview and its controls in the same camera panel.
+     // The preview consumes remaining space, rather than pushing controls below the GroupBox.
+     NavoVideoPlayer{id:videoTest;Layout.fillWidth:true;Layout.fillHeight:true;Layout.minimumHeight:root.compact?36:44;streamUrl:streamUrl.text;protocol:protocol.currentValue;onVideoError:function(message){root.status("Video: "+message)}}
      RowLayout {
+      Layout.alignment:Qt.AlignRight
+      Layout.fillHeight:false
+      Layout.preferredHeight:42
       Layout.fillWidth:true;Layout.topMargin:0;Layout.bottomMargin:0;spacing:8
       Item{Layout.fillWidth:true}
       Button{Layout.preferredWidth:46;Layout.preferredHeight:42;padding:0;ToolTip.visible:hovered;ToolTip.text:"Testează video";background:Rectangle{radius:8;color:parent.hovered?"#123d50":"#101b25";border.color:"#21b7ff"}contentItem:Image{anchors.centerIn:parent;width:24;height:24;source:"qrc:/qml/NavoSmart/icons/play.svg";fillMode:Image.PreserveAspectFit}enabled:streamUrl.text.trim().length>0;onClicked:{if(root.saveEndpoints())videoTest.start()}}
