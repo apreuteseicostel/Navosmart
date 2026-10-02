@@ -1,7 +1,7 @@
 #include "mosaic_index_provider.h"
 
-#include "data_processor_defs.h"
-#include "surface_tile.h"
+#include "data_processor/data_processor_defs.h"
+#include "data_processor/surface_tile.h"
 #include <QPainterPath>
 #include <QPolygonF>
 #include <QtMath>
