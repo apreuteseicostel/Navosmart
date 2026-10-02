@@ -115,6 +115,7 @@ qt_add_qml_module(NavoSmartModule
 )
 
 set(CUSTOM_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/epoch.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.cc
