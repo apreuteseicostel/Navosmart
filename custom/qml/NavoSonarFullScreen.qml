@@ -1,11 +1,14 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtLocation
+import QtPositioning
 import NavoSmart.Backend 1.0
 Popup {
  id: root
  property bool menuOpen:false
  property bool mapEnabled:false
+ property var boatTrack:[]
  signal mapToggled(bool enabled)
  property bool connected:false
  property real depthM:NaN
@@ -38,6 +41,7 @@ Popup {
  function bottomColor(v){v=Math.max(0,Math.min(1,(v-root.noiseFloor)*root.gain));if(root.paletteMode==="DAY"){if(v>.72)return "#ffe44d";if(v>.42)return "#ef493d";return "#245fa8"}if(v>.78)return "#fff36a";if(v>.60)return "#f33b2f";if(v>.40)return "#ff8b28";if(v>.22)return "#55c85a";return "#1767a7"}
  function palette(v){v=Math.max(0,Math.min(1,v));if(root.paletteMode==="DAY"){if(v<.18)return "rgba(220,238,248,"+(0.30+v*2)+")";if(v<.42)return "rgba(48,150,205,"+(0.45+v)+")";if(v<.68)return "rgba(245,202,55,"+(0.60+v*.45)+")";return "rgba(215,55,38,"+(0.72+v*.28)+")"}if(v<.22)return "rgba(16,92,170,"+(0.25+v*2)+")";if(v<.48)return "rgba(28,205,225,"+(0.45+v)+")";if(v<.72)return "rgba(246,218,70,"+(0.55+v*.5)+")";return "rgba(244,75,46,"+(0.65+v*.35)+")"}
  modal:true;focus:true;visible:false;closePolicy:Popup.CloseOnEscape;padding:0
+ onOpened:menuOpen=false
  width: parent ? Math.max(320,parent.width-8) : 960
  height: parent ? Math.max(320,parent.height-8) : 640
  anchors.centerIn: parent
@@ -55,7 +59,7 @@ Popup {
    Label{text:isNaN(root.waterTempC)?"-- °C":root.waterTempC.toFixed(1)+" °C";color:"white";font.pixelSize:20;Layout.rightMargin:52}
   }
   RowLayout{Layout.fillWidth:true;Layout.fillHeight:true;Layout.minimumHeight:180;Layout.leftMargin:2;Layout.rightMargin:2;Layout.bottomMargin:2;spacing:4
-  Rectangle{Layout.fillWidth:true;Layout.fillHeight:true;Layout.minimumWidth:0;Layout.preferredWidth:Math.max(180,root.width-92);color:"#020b12"
+  Rectangle{Layout.fillWidth:true;Layout.fillHeight:true;Layout.minimumWidth:0;Layout.preferredWidth:root.mapEnabled?Math.max(180,root.width*0.52):Math.max(180,root.width-92);color:"#020b12"
 
    // Overlay controls: the sonar canvas retains the entire available height.
    Button { id:menuButton; z:30; anchors.left:parent.left;anchors.top:parent.top;anchors.margins:8;width:42;height:42
@@ -67,7 +71,7 @@ Popup {
    Rectangle {id:controlsOverlay;z:29;visible:root.menuOpen;anchors.left:parent.left;anchors.top:menuButton.bottom;anchors.topMargin:4;width:Math.min(265,parent.width*0.48);height:Math.min(parent.height-menuButton.height-12,controlsScroll.contentHeight+12);radius:8;color:"#ee0b1b29";border.color:"#42647a"
      ScrollView{id:controlsScroll;anchors.fill:parent;anchors.margins:6;clip:true;ScrollBar.horizontal.policy:ScrollBar.AlwaysOff
        ColumnLayout{width:controlsScroll.availableWidth;spacing:4
-         Button{text:root.mapEnabled?"▣ Hartă: ON":"▧ Hartă: OFF";Layout.fillWidth:true;onClicked:{root.mapEnabled=!root.mapEnabled;root.mapToggled(root.mapEnabled)}}
+         Button{text:root.mapEnabled?"▣ Hartă: ON":"▧ Hartă: OFF";Layout.fillWidth:true;onClicked:{root.mapEnabled=!root.mapEnabled;root.mapToggled(root.mapEnabled);root.menuOpen=false}}
          Label{text:"Sensibilitate  "+Math.round(root.gain*100)+"%";color:"white"}
          Slider{from:.5;to:2.2;value:root.gain;stepSize:.05;Layout.fillWidth:true;onMoved:root.gain=value}
          CheckBox{text:"Filtru zgomot";checked:root.noiseFilter;onToggled:root.noiseFilter=checked}
@@ -96,6 +100,16 @@ Popup {
    }
    Repeater{model:5;Label{z:12;anchors.right:parent.right;anchors.rightMargin:8;y:Math.max(0,Math.min(parent.height-height,index*(parent.height/4)-height/2));text:(index===0?"0.0":(isFinite(root.depthM)?(root.depthM*index/4).toFixed(1):"--"))+" m";color:"#e2f3ff";font.pixelSize:12}}
    Label{anchors.centerIn:parent;visible:!root.connected;text:"Aștept date reale de la Kogger\nEcograma nu este simulată";horizontalAlignment:Text.AlignHCenter;color:"#9db2c5";font.pixelSize:18}
+  }
+  Rectangle { visible:root.mapEnabled;Layout.fillHeight:true;Layout.fillWidth:true;Layout.minimumWidth:120;color:"#071b2b";border.color:"#1c4262"
+    Map {id:liveSonarMap;anchors.fill:parent;plugin:Plugin{name:"osm"};zoomLevel:16
+      center: isFinite(root.latitude)&&isFinite(root.longitude)?QtPositioning.coordinate(root.latitude,root.longitude):QtPositioning.coordinate(0,0)
+      MapPolyline {line.width:3;line.color:"#21b7ff";path:root.boatTrack}
+      MapQuickItem {visible:isFinite(root.latitude)&&isFinite(root.longitude);coordinate:liveSonarMap.center;anchorPoint.x:12;anchorPoint.y:12
+        sourceItem:Rectangle{width:24;height:24;radius:12;color:"#21b7ff";border.width:2;border.color:"white";Label{anchors.centerIn:parent;text:"▲";font.pixelSize:15;color:"#03101a"}}
+      }
+    }
+    Label{anchors.centerIn:parent;visible:!isFinite(root.latitude)||!isFinite(root.longitude);text:"Aștept GPS barcă";color:"white"}
   }
   Rectangle{Layout.preferredWidth:64;Layout.minimumWidth:64;Layout.maximumWidth:64;Layout.fillHeight:true;Layout.alignment:Qt.AlignRight;color:"#06131e";border.color:"#1c4262";radius:5;ToolTip.visible:legendMouse.containsMouse;ToolTip.text:"Putere ecou: puternic → slab"
    Label{id:echoStrong;anchors.top:parent.top;anchors.topMargin:5;anchors.horizontalCenter:parent.horizontalCenter;text:"PUTERNIC";color:"#d9edf7";font.pixelSize:8;font.bold:true}
