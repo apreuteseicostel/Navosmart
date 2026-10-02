@@ -28,6 +28,26 @@ Rectangle {
     property bool menuOpen: false
     property bool paused: false
     property var history: []
+    // Georeferenced input queue for the native KoggerApp Dataset adapter.
+    // Retain raw CHART bytes and their metadata; never feed display-filtered pixels
+    // to bottom tracking, mosaic, surface or isobath processing.
+    property var geoChartRecords: []
+    property int maxGeoChartRecords: 3000
+    property int unlocatedChartCount: 0
+    function captureGeoChart() {
+        if (!chartSource || !chartSource.chartRawBytes || !chartSource.chartRawByteCount) return
+        var coordinate = vehicle && vehicle.coordinate ? vehicle.coordinate : null
+        if (!coordinate || !coordinate.isValid) { unlocatedChartCount++; return }
+        var record = { latitude: coordinate.latitude, longitude: coordinate.longitude,
+                       timestampMs: Date.now(), depthM: depthM,
+                       resolution: chartSource.chartResolution,
+                       absoluteOffset: chartSource.chartAbsoluteOffset,
+                       version: chartSource.chartVersion,
+                       rawBytes: chartSource.chartRawBytes }
+        var next = geoChartRecords.slice(0); next.push(record)
+        if (next.length > maxGeoChartRecords) next.splice(0,next.length-maxGeoChartRecords)
+        geoChartRecords = next
+    }
     property int historyColumns: 240
     signal closed()
     property real gain: 1.0
@@ -80,7 +100,7 @@ Rectangle {
     // this signal. Capture every column even when one TCP chunk holds several.
     Connections {
         target: root.chartSource
-        function onEchoSamplesChanged() { root.pushHistory() }
+        function onEchoSamplesChanged() { root.captureGeoChart(); root.pushHistory() }
     }
     onSamplesChanged: if (!chartSource) Qt.callLater(pushHistory)
     Component.onCompleted: Qt.callLater(pushHistory)
