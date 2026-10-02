@@ -25,6 +25,7 @@ Rectangle {
     property var plannedTrack: []
     property bool mapEnabled: false
     property bool settingsVisible: false
+    property bool menuOpen: false
     property bool paused: false
     property var history: []
     property int historyColumns: 240
@@ -260,20 +261,45 @@ Rectangle {
             text: "PRO  •  " + (root.connected ? (root.paused ? "PAUZĂ" : "LIVE") : "OFFLINE") + "   " + (isFinite(root.depthM)?root.depthM.toFixed(1)+" m":"— m") + "   " + (isFinite(root.waterTempC)?root.waterTempC.toFixed(1)+" °C":"— °C")
         }
     }
-    Row {
-        id: toolbar
-        anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 6; spacing: 4
-        IconButton { glyph: "map"; hint: root.mapEnabled ? "Ascunde harta" : "Arată harta"; checkable: true; checked: root.mapEnabled; onClicked: root.mapEnabled=!root.mapEnabled }
-        IconButton { glyph: root.paused ? "play" : "pause"; hint: root.paused ? "Continuă ecograma" : "Pauză afișare ecogramă"; checkable: true; checked: root.paused; onClicked: root.paused=!root.paused }
-        IconButton { glyph: "palette"; hint: root.dayPalette ? "Paletă NAVO" : "Paletă de zi"; checkable: true; checked: root.dayPalette; onClicked: root.dayPalette=!root.dayPalette }
-        IconButton { glyph: "settings"; hint: "Reglaje sonar"; checkable: true; checked: root.settingsVisible; onClicked: root.settingsVisible=!root.settingsVisible }
-        IconButton { glyph: "close"; hint: "Închide Sonar PRO"; onClicked: root.closed() }
+    IconButton {
+        id: menuButton
+        anchors.left: parent.left; anchors.top: telemetry.bottom; anchors.margins: 6
+        z: 20; glyph: "settings"; hint: "Meniu Sonar PRO"
+        checkable: true; checked: root.menuOpen
+        onClicked: root.menuOpen = !root.menuOpen
+    }
+    IconButton {
+        id: closeButton
+        anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 6
+        z: 25; glyph: "close"; hint: "Ieșire din Sonar PRO"
+        onClicked: root.closed()
+    }
+    Rectangle {
+        id: menuPanel
+        visible: root.menuOpen
+        z: 19
+        anchors.left: parent.left; anchors.top: menuButton.bottom; anchors.topMargin: 4; anchors.leftMargin: 6
+        width: Math.min(260,parent.width*.48)
+        height: Math.min(menuColumn.implicitHeight+16,Math.max(0,parent.height-menuButton.height-55))
+        radius: 8; color: "#ee0b1c2e"; border.color: "#31536c"
+        ScrollView {
+            anchors.fill: parent; anchors.margins: 8; clip: true
+            contentWidth: availableWidth
+            ColumnLayout {
+                id: menuColumn; width: parent.width; spacing: 5
+                Button { Layout.fillWidth: true; text: root.mapEnabled ? "Ascunde harta" : "Activează harta"; onClicked: {root.mapEnabled=!root.mapEnabled;root.menuOpen=false} }
+                Button { Layout.fillWidth: true; text: root.paused ? "Continuă ecograma" : "Pauză ecogramă"; onClicked: root.paused=!root.paused }
+                Button { Layout.fillWidth: true; text: root.dayPalette ? "Paletă NAVO" : "Paletă de zi"; onClicked: root.dayPalette=!root.dayPalette }
+                Button { Layout.fillWidth: true; text: "Sensibilitate și filtre"; onClicked: {root.settingsVisible=!root.settingsVisible;root.menuOpen=false} }
+                Button { Layout.fillWidth: true; text: "Reset reglaje"; onClicked: root.resetDisplaySettings() }
+            }
+        }
     }
     Rectangle {
         visible: root.settingsVisible
-        anchors.left: parent.left; anchors.bottom: parent.bottom; anchors.margins: 8
+        anchors.left: parent.left; anchors.top: menuButton.bottom; anchors.topMargin: 4; anchors.leftMargin: 6
         width: Math.min(360,parent.width-16)
-        height: Math.min(settingsContent.implicitHeight+16, Math.max(0, parent.height-root.buttonSize-28))
+        height: Math.min(settingsContent.implicitHeight+16, Math.max(0, parent.height-menuButton.height-55))
         radius: 8; color: "#ed0b1c2e"; border.color: "#31536c"
         ScrollView {
             anchors.fill: parent; anchors.margins: 8; clip: true
