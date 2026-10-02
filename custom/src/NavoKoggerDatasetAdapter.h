@@ -6,8 +6,12 @@
 #include <QtGlobal>
 #include <cmath>
 #include <cstdint>
+// The original Epoch/Dataset API is isolated behind an opt-in build gate.
+// Raw CHART capture remains compilable without the full KoggerApp closure.
+#ifdef NAVO_KOGGER_NATIVE_DATASET
 #include "../../third_party/KoggerApp/src/epoch.h"
 #include "../../third_party/KoggerApp/src/dataset.h"
+#endif
 
 // Native input records for the upstream KoggerApp Epoch/Dataset pipeline.
 // This transport boundary does not fabricate timestamps, channel IDs or GPS.
@@ -62,6 +66,7 @@ public:
         records_.append(record);
         return true;
     }
+#ifdef NAVO_KOGGER_NATIVE_DATASET
     // Construct an upstream Epoch without inventing a device timestamp or
     // channel UUID. Caller supplies the real connection/channel identity.
     // Kogger CHART v1 contains two-byte samples: decoding its amplitude
@@ -107,6 +112,7 @@ public:
             dataset.addDepth(float(record.depthM));
         return true;
     }
+#endif
     const QVector<NavoKoggerChartRecord>& records() const { return records_; }
     qsizetype retainedRawBytes() const { return rawBytes_; }
     void clear() { records_.clear(); rawBytes_ = 0; }
