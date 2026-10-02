@@ -27,6 +27,7 @@ void NavoKoggerDecoder::publishChart(){
  _publishedChartRaw=_chart;
  _echoSamples=raw;
  _compensatedSamples=compensated;
+ emit chartColumnReady();
  emit echoSamplesChanged();
 }
 quint16 NavoKoggerDecoder::le16(const char* p){return qFromLittleEndian<quint16>(reinterpret_cast<const uchar*>(p));}
