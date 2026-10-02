@@ -155,4 +155,14 @@ test('Android workflow cancels superseded PR builds so UI fixes are tested in ba
   assert(workflow.includes('concurrency:'));
   assert(workflow.includes('cancel-in-progress: true'));
 });
+test('PRO history copies complete CHART columns, preserves scale and stays bounded',()=>{
+  const c=context('NavoSonarPro.qml',{paused:false,connected:true,samples:[.1,.8],history:[],historyColumns:2,chartOffsetMeters:1,chartRangeMeters:4});
+  c.pushHistory();c.samples[0]=.9;
+  assert.equal(c.history[0].samples[0],.1);
+  assert.equal(c.history[0].offset,1);assert.equal(c.history[0].range,4);
+  c.chartOffsetMeters=2;c.pushHistory();c.pushHistory();assert.equal(c.history.length,2);
+  assert.equal(c.history[0].offset,2);
+  c.paused=true;c.samples=[.5];c.pushHistory();assert.equal(c.history[1].samples.length,2);
+  c.paused=false;c.connected=false;c.pushHistory();assert.equal(c.history[1].samples.length,2);
+});
 console.log(`${passed} regression scenarios passed`);

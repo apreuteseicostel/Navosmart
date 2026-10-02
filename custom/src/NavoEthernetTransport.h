@@ -59,11 +59,12 @@ private:
     bool _connected = false;
     bool _dataAlive = false;
     bool _autoReconnect = true;
-    bool _manualDisconnect = false;
+    bool _manualDisconnect = true;
     QString _status = QStringLiteral("OFFLINE");
     QTcpSocket _tcp;
     QUdpSocket _udpSocket;
     QTimer _healthTimer;
+    QTimer _connectTimeout;
     QTimer _reconnectTimer;
     QElapsedTimer _lastData;
 };

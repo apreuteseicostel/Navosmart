@@ -1,6 +1,9 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtPositioning
+import QtLocation
+import QGroundControl.FlightDisplay
 
 Rectangle {
     id: root
@@ -15,6 +18,16 @@ Rectangle {
     property bool connected: false
     property real depthM: NaN
     property real waterTempC: NaN
+    property var vehicle: null
+    property var planController: null
+    property var boatTrack: []
+    property var plannedTrack: []
+    property bool mapEnabled: false
+    property bool settingsVisible: false
+    property bool paused: false
+    property var history: []
+    property int historyColumns: 240
+    signal closed()
     property real gain: 1.0
     property real noiseFloor: 0.10
     property bool bottomTrackEnabled: true
@@ -44,106 +57,196 @@ Rectangle {
     }
     readonly property real bottomEcho: bottomResult.strength
     readonly property real bottomDepthEstimate: bottomResult.index >= 0 && isFinite(depthM)
-        ? depthM * bottomResult.index / Math.max(1, samples.length - 1) : NaN
-    signal openFullSonar()
-    onOpenFullSonar: proFullscreen.open()
-    Popup {
-        id: proFullscreen
-        parent: Overlay.overlay
-        modal: true
-        focus: true
-        padding: 12
-        x: 0
-        y: 0
-        width: parent ? parent.width : root.width
-        height: parent ? parent.height : root.height
-        background: Rectangle { color: "#0b1c2e" }
-        ColumnLayout {
-            anchors.fill: parent
-            spacing: 8
-            RowLayout {
-                Layout.fillWidth: true
-                Label { text: "SONAR PRO • FULLSCREEN"; color: "#21b7ff"; font.bold: true; font.pixelSize: 18 }
-                Item { Layout.fillWidth: true }
-                Label { text: root.connected ? "LIVE" : "OFFLINE"; color: root.connected ? "#65dca4" : "#f2bd72" }
-                Button { text: "✕"; accessible.name: "Închide Sonar PRO fullscreen"; onClicked: proFullscreen.close() }
-            }
-            NavoSonarCard {
-                Layout.fillWidth: true
-                Layout.fillHeight: true
-                connected: root.connected
-                depthM: root.depthM
-                waterTempC: root.waterTempC
-                echoSamples: root.samples
-                onOpenFullSonar: proFullscreen.close()
+        ? chartOffsetMeters + chartResolutionMeters * bottomResult.index : NaN
+    color: "#03101a"
+    clip: true
+    function pushHistory() {
+        if (paused || !connected || !samples || !samples.length) return
+        var h = history.slice(0)
+        h.push({samples: samples.slice(0), offset: chartOffsetMeters, range: chartRangeMeters})
+        if (h.length > historyColumns) h.shift()
+        history = h
+    }
+    onSamplesChanged: pushHistory()
+    onHistoryChanged: echogram.requestPaint()
+    onGainChanged: echogram.requestPaint()
+    onNoiseFloorChanged: echogram.requestPaint()
+    readonly property real scaleStart: isFinite(chartOffsetMeters) ? chartOffsetMeters : 0
+    readonly property real scaleRange: isFinite(chartRangeMeters) && chartRangeMeters > 0 ? chartRangeMeters : 0
+    onScaleStartChanged: echogram.requestPaint()
+    onScaleRangeChanged: echogram.requestPaint()
+
+    component IconButton: Button {
+        id: control
+        property string glyph
+        property string hint
+        implicitWidth: 40; implicitHeight: 40; padding: 8
+        Accessible.name: hint
+        ToolTip.visible: hovered || pressed
+        ToolTip.text: hint
+        background: Rectangle { radius: 8; color: control.checked ? "#18536a" : "#cc0b1c2e"; border.color: "#31536c" }
+        contentItem: Image { source: "qrc:/qml/NavoSmart/icons/" + control.glyph + ".svg"; fillMode: Image.PreserveAspectFit }
+    }
+    Row {
+        anchors.fill: parent
+        spacing: root.mapEnabled ? 2 : 0
+        Item {
+            id: echoPanel
+            width: root.mapEnabled ? Math.floor((parent.width - 2) * 0.55) : parent.width
+            height: parent.height
+            clip: true
+            Canvas {
+                id: echogram
+                anchors.fill: parent
+                onWidthChanged: requestPaint()
+                onHeightChanged: requestPaint()
+                onPaint: {
+                    var ctx = getContext("2d")
+                    ctx.reset(); ctx.fillStyle = "#03101a"; ctx.fillRect(0,0,width,height)
+                    var cw = width / root.historyColumns
+                    for (var x=0; x<root.history.length; x++) {
+                        var entry=root.history[x], col=entry.samples
+                        if (!root.scaleRange || !isFinite(entry.range) || entry.range<=0) continue
+                        var px=width-(root.history.length-x)*cw
+                        for (var y=0; y<col.length; y++) {
+                            var v=Math.max(0,Math.min(1,(Number(col[y])-root.noiseFloor)*root.gain))
+                            if (!isFinite(v) || v<=0) continue
+                            var py=(entry.offset+y*entry.range/col.length-root.scaleStart)/root.scaleRange*height
+                            var ph=entry.range/col.length/root.scaleRange*height
+                            ctx.fillStyle=v>.72?"#f44b2e":v>.48?"#f6da46":v>.24?"#1ccde1":"#105caa"
+                            ctx.fillRect(px,py,Math.max(1,cw+.5),Math.max(1,ph+.5))
+                        }
+                    }
+                    ctx.strokeStyle="#40536a"; ctx.fillStyle="#d9edf7"; ctx.font="12px sans-serif"
+                    for (var n=0;n<=4;n++) {
+                        var gy=n*height/4
+                        ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(width,gy);ctx.stroke()
+                        if(root.scaleRange) ctx.fillText((root.scaleStart+n*root.scaleRange/4).toFixed(1)+" m",6,Math.max(62,Math.min(height-8,gy+15)))
+                    }
+                }
             }
             Label {
-                Layout.fillWidth: true
-                color: "#a6bdd0"
-                text: root.samples.length > 0
-                    ? "CHART v" + root.chartVersion + " • " + root.samples.length + " eșantioane • Ecou relativ: " + (isNaN(root.bottomEcho) ? "—" : Math.round(root.bottomEcho * 100) + "%")
-                    : "CHART: aștept date valide"
+                anchors.centerIn: parent
+                visible: !root.connected || !root.history.length
+                text: root.connected ? "Aștept coloane CHART" : "Aștept date Kogger"
+                color: "#9db2c5"
+            }
+            Rectangle {
+                anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom
+                width: 8
+                gradient: Gradient {
+                    GradientStop { position: 0; color: "#f44b2e" }
+                    GradientStop { position: .3; color: "#f6da46" }
+                    GradientStop { position: .65; color: "#1ccde1" }
+                    GradientStop { position: 1; color: "#105caa" }
+                }
+            }
+        }
+        Loader {
+            id: mapLoader
+            width: root.mapEnabled ? parent.width-echoPanel.width-2 : 0
+            height: parent.height
+            active: root.mapEnabled
+            visible: active
+            sourceComponent: Component {
+                Item {
+                    clip: true
+                    FlyViewMap {
+                        id: liveMap
+                        anchors.fill: parent
+                        planMasterController: root.planController
+                        rightPanelWidth: 0
+                        zoomLevel: 17
+                        toolInsets: QtObject {
+                            readonly property real leftEdgeTopInset: 0
+                            readonly property real leftEdgeCenterInset: 0
+                            readonly property real leftEdgeBottomInset: 0
+                            readonly property real rightEdgeTopInset: 0
+                            readonly property real rightEdgeCenterInset: 0
+                            readonly property real rightEdgeBottomInset: 0
+                            readonly property real topEdgeLeftInset: 0
+                            readonly property real topEdgeCenterInset: 0
+                            readonly property real topEdgeRightInset: 0
+                            readonly property real bottomEdgeLeftInset: 0
+                            readonly property real bottomEdgeCenterInset: 0
+                            readonly property real bottomEdgeRightInset: 0
+                        }
+                        function followBoat() {
+                            if(root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid)
+                                center=root.vehicle.coordinate
+                        }
+                        Component.onCompleted: followBoat()
+                        Connections { target: root.vehicle; function onCoordinateChanged() { liveMap.followBoat() } }
+                    }
+                    MapPolyline {
+                        parent: liveMap
+                        line.width: 2; line.color: "#f6da46"
+                        path: root.plannedTrack
+                        Component.onCompleted: liveMap.addMapItem(this)
+                        Component.onDestruction: liveMap.removeMapItem(this)
+                    }
+                    MapPolyline {
+                        parent: liveMap
+                        line.width: 3; line.color: "#21b7ff"
+                        path: root.boatTrack
+                        Component.onCompleted: liveMap.addMapItem(this)
+                        Component.onDestruction: liveMap.removeMapItem(this)
+                    }
+                    MapQuickItem {
+                        parent: liveMap
+                        coordinate: root.vehicle ? root.vehicle.coordinate : QtPositioning.coordinate()
+                        visible: coordinate.isValid
+                        anchorPoint.x: 18; anchorPoint.y: 18
+                        sourceItem: Image {
+                            width: 36; height: 36
+                            source: "qrc:/qml/NavoSmart/icons/boat.svg"
+                            rotation: root.vehicle && root.vehicle.heading ? root.vehicle.heading.rawValue-liveMap.bearing : 0
+                        }
+                        Component.onCompleted: liveMap.addMapItem(this)
+                        Component.onDestruction: liveMap.removeMapItem(this)
+                    }
+                    Row {
+                        anchors.right: parent.right; anchors.bottom: parent.bottom; anchors.margins: 8; spacing: 4
+                        IconButton { glyph: "zoom-out"; hint: "Micșorează harta"; onClicked: liveMap.zoomLevel-- }
+                        IconButton { glyph: "zoom-in"; hint: "Mărește harta"; onClicked: liveMap.zoomLevel++ }
+                    }
+                }
             }
         }
     }
-    color: "#0b1c2e"
-    radius: 10
-    ColumnLayout {
-        anchors.fill: parent
-        anchors.margins: 12
-        spacing: 10
-        RowLayout {
-            Layout.fillWidth: true
-            Label { text: "SONAR PRO • EXPERIMENTAL"; color: "#21b7ff"; font.bold: true; font.pixelSize: 17 }
-            Item { Layout.fillWidth: true }
-            Label { text: root.connected ? "LIVE" : "OFFLINE"; color: root.connected ? "#65dca4" : "#f2bd72" }
-        }
-        NavoSonarCard {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 190
-            connected: root.connected
-            depthM: root.depthM
-            waterTempC: root.waterTempC
-            echoSamples: root.samples
-            onOpenFullSonar: root.openFullSonar()
-        }
+    Rectangle {
+        anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 6
+        width: Math.min(parent.width-150, telemetry.implicitWidth+16); height: 38; radius: 7; color: "#cc0b1c2e"
         Label {
-            Layout.fillWidth: true
-            color: "#a6bdd0"
-            font.pixelSize: 13
-            wrapMode: Text.WordWrap
-            text: root.samples.length > 0 && root.chartResolution > 0
-                ? "CHART v" + root.chartVersion + " • scală " + root.chartResolutionMeters.toFixed(3) + " m/eșantion"
-                  + " • offset " + root.chartOffsetMeters.toFixed(3) + " m • lungime " + root.chartRangeMeters.toFixed(2) + " m\n"
-                  + "Raw: " + root.chartRawByteCount + " B • " + root.samples.length + " eșantioane/canal"
-                  + " • " + (root.chartVersion === 1 ? "2 canale" : "1 canal")
-                  + " • rezoluție " + root.chartResolution + " mm • offset " + root.chartAbsoluteOffset + " eșantioane"
-                : "CHART: aștept date valide"
+            id: telemetry; anchors.fill: parent; anchors.margins: 8; elide: Text.ElideRight
+            color: root.connected ? "#21b7ff" : "#9db2c5"
+            text: "PRO  •  " + (root.connected ? "LIVE" : "OFFLINE") + "   " + (isFinite(root.depthM)?root.depthM.toFixed(1)+" m":"— m") + "   " + (isFinite(root.waterTempC)?root.waterTempC.toFixed(1)+" °C":"— °C")
         }
-        RowLayout {
-            Layout.fillWidth: true
-            CheckBox { text: "Bottom Track"; checked: root.bottomTrackEnabled; onToggled: root.bottomTrackEnabled = checked }
-            Label { text: isNaN(root.bottomEcho) ? "Ecou: —" : "Ecou relativ: " + Math.round(root.bottomEcho * 100) + "%"; color: "#a6bdd0" }
+    }
+    Row {
+        anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 6; spacing: 4
+        IconButton { glyph: "map"; hint: root.mapEnabled ? "Ascunde harta" : "Arată harta"; checkable: true; checked: root.mapEnabled; onClicked: root.mapEnabled=!root.mapEnabled }
+        IconButton { glyph: "settings"; hint: "Reglaje sonar"; checkable: true; checked: root.settingsVisible; onClicked: root.settingsVisible=!root.settingsVisible }
+        IconButton { glyph: "close"; hint: "Închide Sonar PRO"; onClicked: root.closed() }
+    }
+    Rectangle {
+        visible: root.settingsVisible
+        anchors.left: parent.left; anchors.bottom: parent.bottom; anchors.margins: 8
+        width: Math.min(360,parent.width-16); height: 138; radius: 8; color: "#ed0b1c2e"; border.color: "#31536c"
+        ColumnLayout {
+            anchors.fill: parent; anchors.margins: 8
+            RowLayout {
+                Label { text: "Sensibilitate"; color: "#d9edf7" }
+                Slider { Layout.fillWidth: true; from: .5; to: 3; value: root.gain; onMoved: root.gain=value }
+            }
+            RowLayout {
+                Label { text: "Zgomot"; color: "#d9edf7" }
+                Slider { Layout.fillWidth: true; from: 0; to: .5; value: root.noiseFloor; onMoved: root.noiseFloor=value }
+            }
+            RowLayout {
+                IconButton { glyph: root.paused?"play":"stop"; hint: root.paused?"Continuă ecograma":"Pauză ecogramă"; onClicked: root.paused=!root.paused }
+                Label { text: "CHART v"+root.chartVersion+" • "+root.chartRawByteCount+" B"; color: "#9db2c5" }
+            }
         }
-        Label { Layout.fillWidth: true; color: "#a6bdd0"; text: root.bottomResult.index < 0 ? "Profil fund: indisponibil" : "Vârf ecou: eșantion " + root.bottomResult.index + " / " + root.samples.length + " • încredere relativă " + Math.round(root.bottomResult.confidence * 100) + "%" }
-        RowLayout {
-            Layout.fillWidth: true
-            Label { text: "Sensibilitate"; color: "#a6bdd0" }
-            Slider { Layout.fillWidth: true; from: 0.5; to: 3; value: root.gain; onMoved: root.gain = value }
-            Label { text: root.gain.toFixed(1) + "×"; color: "white" }
-        }
-        RowLayout {
-            Layout.fillWidth: true
-            Label { text: "Zgomot"; color: "#a6bdd0" }
-            Slider { Layout.fillWidth: true; from: 0; to: 0.5; value: root.noiseFloor; onMoved: root.noiseFloor = value }
-            Label { text: Math.round(root.noiseFloor * 100) + "%"; color: "white" }
-        }
-        Label {
-            Layout.fillWidth: true
-            text: "Mod de test izolat • aceeași conexiune Kogger, fără al doilea client TCP. Ecoul este relativ, nu o măsurătoare calibrată a durității."
-            wrapMode: Text.WordWrap
-            color: "#a6bdd0"
-        }
-        Item { Layout.fillHeight: true }
     }
 }

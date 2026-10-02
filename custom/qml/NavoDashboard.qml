@@ -26,6 +26,17 @@ Item {
     readonly property int responsiveMargin: compactUi ? 7 : 12
     readonly property int responsiveGap: compactUi ? 5 : 8
 
+    property var proBoatTrack: []
+    Connections {
+        target: root.vehicle
+        function onCoordinateChanged() {
+            if(!root.vehicle || !root.vehicle.coordinate || !root.vehicle.coordinate.isValid) return
+            var c=root.vehicle.coordinate, points=root.proBoatTrack
+            if(!points.length || points[points.length-1].distanceTo(c)>=1) {
+                points=points.slice(-3999); points.push(c); root.proBoatTrack=points
+            }
+        }
+    }
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
     property var planController: _planController
 
@@ -51,6 +62,7 @@ Item {
         property string sonarHost: ""
         property int sonarPort: 0
         property bool sonarUdp: false
+        property bool connectOnStartup: true
         property string cameraStreamUrl: ""
         property string cameraProtocol: "auto"
     }
@@ -73,6 +85,7 @@ Item {
     Component.onCompleted: {
         sonar.host=endpointSettings.sonarHost; sonar.port=endpointSettings.sonarPort; sonar.udp=endpointSettings.sonarUdp
         root.cameraStreamUrl=endpointSettings.cameraStreamUrl; root.cameraProtocol=endpointSettings.cameraProtocol
+        if(endpointSettings.connectOnStartup && sonar.host.length && sonar.port>0) sonar.connectSonar()
         for(var i=0;i<persistence.lakes.length;i++) {
             var lake=persistence.lakes[i]
             if(lake.id===sessionSettings.activeLakeId) { scanCoordinator.activateLake(lake.id,lake.name); break }
@@ -226,7 +239,7 @@ Item {
     }
     property bool awaitingMissionStart: false
     property string areaScanFinishAction: "HOLD"
-    onVehicleChanged: { awaitingMissionStart=false; if(baitingController && baitingController.enabled) baitingController.abortCycle("Autopilot schimbat"); if(scanCoordinator && scanCoordinator.state==="SCANNING") scanCoordinator.pause("Autopilot schimbat") }
+    onVehicleChanged: { proBoatTrack=[]; awaitingMissionStart=false; if(baitingController && baitingController.enabled) baitingController.abortCycle("Autopilot schimbat"); if(scanCoordinator && scanCoordinator.state==="SCANNING") scanCoordinator.pause("Autopilot schimbat") }
     property string pendingMode: ""
     property string pendingModeLabel: ""
     Timer {
@@ -647,10 +660,11 @@ Item {
 
     Rectangle {
         id: content
-        anchors.left: root.mapMaximized ? parent.left : sidebar.right; anchors.right: parent.right; anchors.top: header.bottom; anchors.bottom: parent.bottom
+        anchors.left: root.mapMaximized || root.activePage === 10 ? parent.left : sidebar.right; anchors.right: parent.right; anchors.top: root.activePage === 10 ? parent.top : header.bottom; anchors.bottom: parent.bottom
+        z: root.activePage === 10 ? 1000 : 0
         color: root.bg
         Loader {
-            anchors.fill: parent; anchors.margins: 10
+            anchors.fill: parent; anchors.margins: root.activePage === 10 ? 0 : 10
             sourceComponent: root.activePage === 0 ? mapPage :
                              root.activePage === 1 ? sonarPage :
                              root.activePage === 10 ? sonarProPage :
@@ -789,6 +803,11 @@ Item {
     Component {
         id: sonarProPage
         NavoSonarPro {
+            vehicle: root.vehicle
+            planController: root.planController
+            boatTrack: root.proBoatTrack
+            plannedTrack: areaScanController.generatedPoints
+            onClosed: root.activePage = 0
             connected: root.sonarConnected
             depthM: root.depthM
             waterTempC: root.waterTempC
@@ -1504,7 +1523,7 @@ Item {
                     NavoEthernetSettings {
                         id: ethernetSettings
                         Layout.fillWidth: true
-                        Layout.preferredHeight: root.compactUi ? 470 : Math.max(410, settingsPage.height - 70)
+                        Layout.preferredHeight: implicitHeight
                         sonar: sonar
                         camera: cameraEthernet
                         onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
