@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdint>
 #include "../../third_party/KoggerApp/src/epoch.h"
+#include "../../third_party/KoggerApp/src/dataset.h"
 
 // Native input records for the upstream KoggerApp Epoch/Dataset pipeline.
 // This transport boundary does not fabricate timestamps, channel IDs or GPS.
@@ -73,6 +74,27 @@ public:
             epoch.setDepth(float(record.depthM));
         if (std::isfinite(record.temperatureC))
             epoch.setTemp(float(record.temperatureC));
+        return true;
+    }
+    // Use the original Dataset ingestion API, which handles channel setup,
+    // Epoch allocation and downstream DataProcessor notifications itself.
+    // Only v0 is accepted until v1 amplitude encoding has been verified.
+    static bool appendToKoggerDataset(const NavoKoggerChartRecord& record,
+                                     const ChannelId& channel, Dataset& dataset) {
+        if (!record.hasValidChart() || !channel.isValid() || record.version != 0)
+            return false;
+        QVector<uint8_t> amplitude;
+        amplitude.reserve(record.chart.size());
+        for (const char byte : record.chart)
+            amplitude.append(static_cast<uint8_t>(byte));
+        const float resolutionM = float(record.resolutionMm) * 0.001f;
+        const float offsetM = float(record.absoluteOffset) * resolutionM;
+        dataset.addChart(channel, ChartParameters{},
+                         QVector<QVector<uint8_t>>{amplitude}, resolutionM, offsetM);
+        if (record.hasPosition())
+            dataset.addPosition(record.latitude, record.longitude);
+        if (std::isfinite(record.depthM) && record.depthM >= 0)
+            dataset.addDepth(float(record.depthM));
         return true;
     }
     const QVector<NavoKoggerChartRecord>& records() const { return records_; }
