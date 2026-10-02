@@ -35,9 +35,15 @@ void NavoLanDiscovery::probe(const QString& host,int port){
  if(host.trimmed().isEmpty()||port<1||port>65535){emit probeResult(host,port,false);return;}
  auto* socket=new QTcpSocket(this);
  auto* timeout=new QTimer(socket);timeout->setSingleShot(true);
- connect(timeout,&QTimer::timeout,socket,[this,socket,host,port]{emit probeResult(host,port,false);socket->abort();socket->deleteLater();});
- connect(socket,&QTcpSocket::connected,socket,[this,socket,timeout,host,port]{timeout->stop();emit probeResult(host,port,true);socket->abort();socket->deleteLater();});
- connect(socket,&QTcpSocket::errorOccurred,socket,[this,socket,timeout,host,port](QAbstractSocket::SocketError){if(timeout->isActive()){timeout->stop();emit probeResult(host,port,false);}socket->deleteLater();});
+ auto* completed=new bool(false);
+ auto finish=[this,socket,timeout,completed,host,port](bool ok){
+  if(*completed)return;
+  *completed=true;timeout->stop();emit probeResult(host,port,ok);
+  socket->abort();socket->deleteLater();delete completed;
+ };
+ connect(timeout,&QTimer::timeout,socket,[finish]{finish(false);});
+ connect(socket,&QTcpSocket::connected,socket,[finish]{finish(true);});
+ connect(socket,&QTcpSocket::errorOccurred,socket,[finish](QAbstractSocket::SocketError){finish(false);});
  timeout->start(1500);socket->connectToHost(host,quint16(port));
 }
 void NavoLanDiscovery::pump(){
