@@ -174,7 +174,7 @@ test('PRO rejects columns without physical range or offset',()=>{
 });
 test('PRO captures every source column with its own metadata during a burst',()=>{
   const source={connected:true,echoSamples:[.2,.8],chartOffsetMeters:1,chartRangeMeters:5};
-  const c=context('NavoSonarPro.qml',{chartSource:source,paused:false,connected:false,samples:[],history:[],historyColumns:240});
+  const c=context('NavoSonarPro.qml',{chartSource:source,koggerCompensation:false,paused:false,connected:false,samples:[],history:[],historyColumns:240});
   c.pushHistory();source.echoSamples=[.3,.9];source.chartOffsetMeters=2;source.chartRangeMeters=8;c.pushHistory();
   assert.equal(c.history.length,2);assert.equal(c.history[0].range,5);assert.equal(c.history[1].range,8);
   assert.equal(c.history[0].samples[1],.8);assert.equal(c.history[1].offset,2);
