@@ -42,7 +42,7 @@ QtObject {
  }
  property NavoKoggerChartBridge nativeBridge: NavoKoggerChartBridge {
   id: chartBridge
-  Component.onCompleted: setDecoder(decoderObject)
+  Component.onCompleted: { setDecoder(decoderObject); root.updateNativePosition() }
  }
  property Connections gpsUpdates: Connections {
   target: root.vehicle
