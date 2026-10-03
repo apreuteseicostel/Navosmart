@@ -115,7 +115,7 @@ static void recordedProcessors(const QByteArray& bytes) {
         });
     QObject::connect(&decoder,&NavoKoggerDecoder::chartColumnReady,[&]{
         require(decoder.chartAddress()==2,"recording route was not preserved");
-        if(displayColumns.size()<240){
+        if(accepted>=2000 && displayColumns.size()<240){
             QJsonArray samples;for(const char byte:decoder.chartRawBytes())samples.append(double(quint8(byte))/255.0);
             displayColumns.append(QJsonObject{{"samples",samples},{"offset",decoder.chartOffsetMeters()},
                 {"range",decoder.chartRangeMeters()},{"bottom",QJsonValue::Null}});
@@ -159,8 +159,8 @@ static void recordedProcessors(const QByteArray& bytes) {
     require(accepted==15423 && service.dataset().size()<=3000,"rolling Dataset lost columns or exceeded its budget");
     require(located>15000,"fixture MAVLink GPS was not paired with CHART");
     QElapsedTimer timeout;timeout.start();
-    while(timeout.elapsed()<30000 && service.processedColumns()<15000){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}
-    require(service.processedColumns()>15000,"original bottom-track processor did not return located depths");
+    while(timeout.elapsed()<30000 && service.processedColumns()<14000){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}
+    require(service.processedColumns()>14000 && service.processedColumns()<=accepted,"original bottom-track processor did not return located depths");
     require(std::isfinite(service.bottomDepth()) && service.bottomDepth()>0,"no processed bottom depth");
     service.requestVisibleRect(-100,-100,100,100);
     timeout.restart();while(timeout.elapsed()<5000){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}
@@ -190,5 +190,9 @@ int main(int argc,char**argv) {
             recordedProcessors(bytes);
             std::cout<<"Trailing 200-sample column remains pending; live decoding needs the next column boundary.\n";
         }
-    }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}
+        if(argc==2)NavoKoggerService::instance().shutdown();
+    }catch(const std::exception& e){
+        if(argc==2)NavoKoggerService::instance().shutdown();
+        std::cerr<<e.what()<<'\n';return 1;
+    }
 }

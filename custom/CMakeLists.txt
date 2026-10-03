@@ -118,12 +118,12 @@ qt_add_qml_module(NavoSmartModule
 set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/epoch.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/dataset.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/KoggerApp/src/dataset.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/KoggerApp/src/data_interpolator.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/KoggerApp/src/black_stripes_processor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/KoggerApp/src/dataset.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/KoggerApp/src/data_interpolator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/KoggerApp/src/black_stripes_processor.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/navo_mosaic_provider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/NavoKoggerService.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../third_party/KoggerApp/src/mosaic_index_provider.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/KoggerApp/src/mosaic_index_provider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.cc

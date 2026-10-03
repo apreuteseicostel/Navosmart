@@ -12,6 +12,8 @@
 #include <QFileInfo>
 #include <QTimer>
 #include <QEventLoop>
+#include <QTest>
+#include <QSignalSpy>
 #include <iostream>
 #include <stdexcept>
 static void check(bool ok,const char* message){if(!ok)throw std::runtime_error(message);}
@@ -38,12 +40,23 @@ int main(int argc,char**argv){
   };
   root->setProperty("connected",true);root->setProperty("history",columns.toVariantList());
   view.show();events();verifyControls();
+  auto* menu=root->findChild<QQuickItem*>("sonarProMenuButton");
+  const auto menuPoint=menu->mapToScene(QPointF(menu->width()/2,menu->height()/2)).toPoint();
+  QTest::mouseClick(&view,Qt::LeftButton,Qt::NoModifier,menuPoint);events();
+  check(root->property("menuOpen").toBool(),"menu button did not open menu");
+  check(view.grabWindow().save("kogger-sonar-pro-menu.png"),"cannot save menu screenshot");
+  QTest::mouseClick(&view,Qt::LeftButton,Qt::NoModifier,menuPoint);events();
+  check(!root->property("menuOpen").toBool(),"menu button did not close menu");
   const QImage night=view.grabWindow();check(!night.isNull(),"empty night screenshot");
   check(night.save("kogger-sonar-pro-night.png"),"cannot save night screenshot");
   root->setProperty("dayPalette",true);events();const QImage day=view.grabWindow();
   check(!day.isNull() && day!=night,"DAY palette did not change the rendered ecogram");
   check(day.save("kogger-sonar-pro-day.png"),"cannot save day screenshot");
   view.resize(540,960);events();verifyControls();check(view.grabWindow().save("kogger-sonar-pro-portrait.png"),"cannot save portrait screenshot");
+  QSignalSpy closeSignal(root,SIGNAL(closed()));
+  auto* close=root->findChild<QQuickItem*>("sonarProCloseButton");
+  QTest::mouseClick(&view,Qt::LeftButton,Qt::NoModifier,close->mapToScene(QPointF(close->width()/2,close->height()/2)).toPoint());events();
+  check(closeSignal.count()==1,"close button did not emit closed signal");
   check(root->property("mapEnabled").toBool()==false,"map mock unexpectedly active");
   std::cout<<"PASS production Sonar PRO QML: 240 actual columns, DAY/NAVO palettes, landscape/portrait rendering\n";
  }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

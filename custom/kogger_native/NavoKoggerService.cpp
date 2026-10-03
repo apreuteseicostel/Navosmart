@@ -17,11 +17,14 @@ NavoKoggerService::NavoKoggerService(QObject* parent):QObject(parent){
     connect(&horizon_,&DataHorizon::sonarPosCanCalc,&dataset_,&Dataset::onSonarPosCanCalc);
     connect(&horizon_,&DataHorizon::dimRectsCanCalc,&dataset_,&Dataset::onDimensionRectCanCalc);
     connect(&dataset_,&Dataset::bottomTrackUpdated,this,&NavoKoggerService::onBottomUpdated);
+    qRegisterMetaType<BottomTrack*>("BottomTrack*");
+    connect(QCoreApplication::instance(),&QCoreApplication::aboutToQuit,this,&NavoKoggerService::shutdown);
     rolloverTimer_.setInterval(20);
     connect(&rolloverTimer_,&QTimer::timeout,this,&NavoKoggerService::rollBatch);
     startProcessor();
 }
-NavoKoggerService::~NavoKoggerService(){if(processor_)processor_->shutdown();}
+NavoKoggerService::~NavoKoggerService(){shutdown();}
+void NavoKoggerService::shutdown(){rolloverTimer_.stop();if(processor_)processor_->shutdown();}
 void NavoKoggerService::startProcessor(){
     processor_=std::make_unique<DataProcessor>(nullptr,&dataset_);
     auto* p=processor_.get();

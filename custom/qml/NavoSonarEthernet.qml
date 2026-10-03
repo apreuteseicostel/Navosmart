@@ -11,8 +11,8 @@ QtObject {
  property double lastDepthMs: 0
  property double lastEchoMs: 0
  property double clockMs: 0
- readonly property bool dataAlive: transportObject.dataAlive && lastDepthMs>0 && clockMs-lastDepthMs<3000
- readonly property bool echoFresh: lastEchoMs>0 && clockMs-lastEchoMs<1500
+ readonly property bool dataAlive: transportObject.dataAlive && echoFresh
+ readonly property bool echoFresh: connected && decoderObject.chartRawBytes.length>0 && lastEchoMs>0 && clockMs-lastEchoMs<1500
  readonly property real bottomEchoStrength: computeBottomEchoStrength(decoderObject.echoSamples)
  function computeBottomEchoStrength(samples){ if(!echoFresh||!samples||!samples.length)return NaN; var n=Math.max(3,Math.floor(samples.length*0.10)),sum=0,cnt=0; for(var i=Math.max(0,samples.length-n);i<samples.length;i++){var v=Number(samples[i]);if(isFinite(v)){sum+=v;cnt++}} return cnt?sum/cnt:NaN }
  property Timer freshness: Timer { interval:500; repeat:true; running:true; onTriggered:root.clockMs=Date.now() }
@@ -77,6 +77,7 @@ QtObject {
  property NavoKoggerDecoder decoder: NavoKoggerDecoder {
   id: decoderObject
   onEchoSamplesChanged: {
+   if(!chartRawBytes.length){root.lastEchoMs=0;return}
    root.lastEchoMs=Date.now(); root.clockMs=root.lastEchoMs
    // Publish only completed CHART columns paired with recent depth and valid GPS.
    if(!isFinite(depthM) || depthM<=0 || root.lastDepthMs<=0 ||

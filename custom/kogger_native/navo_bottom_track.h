@@ -20,3 +20,5 @@ private:
     QVector<QVector3D> points_;
     QHash<int,int> indices_;
 };
+
+Q_DECLARE_METATYPE(BottomTrack*)

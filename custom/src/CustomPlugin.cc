@@ -52,7 +52,7 @@ QQmlApplicationEngine* CustomPlugin::createQmlApplicationEngine(QObject* parent)
  _engine->addUrlInterceptor(_selector);
  return _engine;
 }
-void CustomPlugin::cleanup(){if(_engine&&_selector)_engine->removeUrlInterceptor(_selector);delete _selector;_selector=nullptr;}
+void CustomPlugin::cleanup(){NavoKoggerService::instance().shutdown();if(_engine&&_selector)_engine->removeUrlInterceptor(_selector);delete _selector;_selector=nullptr;}
 QUrl CustomOverrideInterceptor::intercept(const QUrl& url,DataType type){
  if((type==DataType::QmlFile||type==DataType::UrlString)&&url.scheme()=="qrc"){
   // QML_FILES are declared as qml/<file> under URI NavoSmart, so the

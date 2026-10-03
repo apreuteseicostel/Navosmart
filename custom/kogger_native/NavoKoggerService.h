@@ -17,6 +17,7 @@ public:
     MosaicIndexProvider& mosaicIndexProvider(){return processor_->mosaicIndexProvider();}
     bool ingest(const NavoKoggerChartRecord& record, const ChannelId& channel, double heading,double pitch=qQNaN(),double roll=qQNaN());
     void clear();
+    void shutdown();
     int processedColumns() const {return processedColumns_;}
     int tileCount() const {return tiles_.size();}
     bool capacityFull() const {return capacityFull_;}
