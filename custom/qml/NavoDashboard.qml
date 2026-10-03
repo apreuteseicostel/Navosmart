@@ -809,8 +809,8 @@ Item {
             boatTrack: root.proBoatTrack
             plannedTrack: areaScanController.generatedPoints
             onClosed: root.activePage = 0
-            connected: root.sonarConnected
-            depthM: root.depthM
+            connected: sonar.connected
+            depthM: sonar.depthM
             waterTempC: root.waterTempC
             samples: sonar.echoSamples
             chartResolution: sonar.chartResolution
