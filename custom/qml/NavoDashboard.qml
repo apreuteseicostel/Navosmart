@@ -51,6 +51,13 @@ Item {
     NavoFishingSpots { id: fishingSpots; onSpotSaved: scanCoordinator.checkpoint("spot-save"); onSpotRemoved: scanCoordinator.checkpoint("spot-delete"); onSpotUpdated: scanCoordinator.checkpoint("spot-update") }
     NavoFishDetections { id: fishStore }
     NavoBathymetryModel { id: bathymetryModel }
+    NavoBathymetryModel { id: replayBathymetryModel }
+    NavoSonarMapping { id: replayMapping; visible:false; externalSampleIngestion:true; sonarConnected:true; scanning:true }
+    readonly property var displayBathymetryCells: sonar.replayMode ? replayBathymetryModel.cells : scanCoordinator.bathymetryCells
+    Timer {
+        interval:2000; repeat:true; running:sonar.replayMode
+        onTriggered: if(replayMapping.rawSamples.length>=3)replayBathymetryModel.rebuild(replayMapping.rawSamples)
+    }
     Settings {
         id: sessionSettings
         category: "NavoSession"
@@ -321,7 +328,12 @@ Item {
     NavoSonarEthernet {
         id: sonar
         vehicle: root.vehicle
+        onReplayModeChanged: {
+            replayMapping.rawSamples=[]; replayMapping.trackCoordinates=[]
+            replayBathymetryModel.rebuild([])
+        }
         onGeoSample: function(sample) {
+            if(sample.replay) { replayMapping.ingestSample(sample); return }
             // Preserve the echo metric captured with this georeferenced CHART column.
             var echo = (sample.bottomEcho !== undefined && isFinite(Number(sample.bottomEcho)))
                        ? Number(sample.bottomEcho) : NaN
@@ -719,7 +731,7 @@ Item {
                 waypointNames: root.waypointNames
                 fishModel: fishStore
                 fishingSpotsModel: fishingSpots
-                bathymetryCells: scanCoordinator.bathymetryCells
+                bathymetryCells: root.displayBathymetryCells
                 baitingController: baitingController
                 areaScanController: areaScanController
                 savedDepthM: root.depthM
@@ -936,7 +948,7 @@ Item {
                             waypointNames: root.waypointNames
                             fishModel: fishStore
                             fishingSpotsModel: fishingSpots
-                            bathymetryCells: scanCoordinator.bathymetryCells
+                            bathymetryCells: root.displayBathymetryCells
                             baitingController: baitingController
                             areaScanController: areaScanController
                             savedDepthM: root.depthM
@@ -1022,7 +1034,7 @@ Item {
                         property real targetAspect: 16/9
                         property real availableAspect: width / Math.max(1,height)
                         vehicle:root.vehicle; planController:root.planController; waypointNames:root.waypointNames
-                        fishModel:fishStore; fishingSpotsModel:fishingSpots; bathymetryCells:scanCoordinator.bathymetryCells
+                        fishModel:fishStore; fishingSpotsModel:fishingSpots; bathymetryCells:root.displayBathymetryCells
                         baitingController:baitingController; areaScanController:areaScanController
                         savedDepthM:root.depthM; savedWaterTempC:root.waterTempC; showStatusHint:false
                         maximized:fishingPageRoot.mapExpanded
@@ -1311,7 +1323,7 @@ Item {
                         waypointNames: root.waypointNames
                         fishModel: fishStore
                         fishingSpotsModel: fishingSpots
-                        bathymetryCells: scanCoordinator.bathymetryCells
+                        bathymetryCells: root.displayBathymetryCells
                         baitingController: baitingController
                         areaScanController: areaScanController
                         savedDepthM: root.depthM

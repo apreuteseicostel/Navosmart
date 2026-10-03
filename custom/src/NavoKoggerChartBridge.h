@@ -44,6 +44,17 @@ public:
         if(previous!=linkUuid_)clear();
         emit recordsChanged();
     }
+    Q_INVOKABLE void requestReplaySurface() {
+        auto& service=NavoKoggerService::instance();
+        float n0=INFINITY,e0=INFINITY,n1=-INFINITY,e1=-INFINITY;
+        for(int i=0;i<service.dataset().size();++i) {
+            const auto p=service.dataset().fromIndexCopy(i).getSonarPosition();
+            if(!p.ned.isCoordinatesValid())continue;
+            n0=std::min(n0,float(p.ned.n));n1=std::max(n1,float(p.ned.n));
+            e0=std::min(e0,float(p.ned.e));e1=std::max(e1,float(p.ned.e));
+        }
+        if(std::isfinite(n0))service.requestVisibleRect(n0-20,e0-20,n1+20,e1+20);
+    }
     int recordCount() const { return adapter_.records().size(); }
     qint64 retainedRawBytes() const { return adapter_.retainedRawBytes(); }
     int rejectedColumns() const { return rejected_; }

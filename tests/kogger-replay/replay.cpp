@@ -316,6 +316,67 @@ QtObject {
     std::cout<<"PASS production SonarEthernet QML: real localhost TCP -> decoder -> channel bridge -> Dataset, CHART-only heartbeat and GPS fix/loss gating\n";
 }
 
+static void qmlRecordedReplay(const QString& source,const QString& fixture) {
+    QQmlEngine engine;
+    QQmlComponent component(&engine,QUrl::fromLocalFile(QFileInfo(source).absoluteFilePath()));
+    if(component.isError())std::cerr<<component.errorString().toStdString();
+    std::unique_ptr<QObject> sonar(component.create());
+    require(bool(sonar),"production replay QML failed to load");
+    sonar->setProperty("autoReconnect",false);
+    QVariant opened;
+    require(QMetaObject::invokeMethod(sonar.get(),"startReplay",Q_RETURN_ARG(QVariant,opened),
+        Q_ARG(QVariant,QVariant(QUrl::fromLocalFile(QFileInfo(fixture).absoluteFilePath())))) && opened.toBool(),"cannot start actual file replay");
+    auto* replay=qobject_cast<NavoKoggerReplay*>(sonar->property("replay").value<QObject*>());
+    require(replay,"actual replay object missing");
+    QVariantList samples;
+    auto* bridge=qobject_cast<NavoKoggerChartBridge*>(sonar->property("nativeBridge").value<QObject*>());
+    require(bridge,"actual replay bridge missing");
+    // Capture only the real QML-published signal, including replay tagging.
+    QQmlComponent sinkComponent(&engine);
+    sinkComponent.setData(R"(import QtQuick
+QtObject {
+ id: sink
+ property var sonar
+ property var samples: []
+ property Connections connection: Connections {
+  target: sink.sonar
+  function onGeoSample(sample) { var copy=sink.samples.slice();copy.push(sample);sink.samples=copy }
+ }
+})",QUrl());
+    std::unique_ptr<QObject> sink(sinkComponent.create());
+    require(bool(sink),"replay signal sink failed to load");
+    sink->setProperty("sonar",QVariant::fromValue(sonar.get()));
+    replay->setPaused(true);const auto before=replay->position();
+    require(QMetaObject::invokeMethod(replay,"tick"),"replay pump missing");
+    require(replay->position()==before,"paused replay advanced");
+    replay->setPaused(false);
+    QElapsedTimer timer;timer.start();
+    while(replay->active() && timer.elapsed()<180000) {
+        require(QMetaObject::invokeMethod(replay,"tick"),"cannot pump production replay");
+        QCoreApplication::processEvents(QEventLoop::AllEvents,5);
+    }
+    require(!replay->active(),"actual replay did not reach EOF");
+    auto& service=NavoKoggerService::instance();
+    timer.restart();
+    while(service.processedColumns()<14000 && timer.elapsed()<30000){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}
+    samples=sink->property("samples").toList();
+    require(service.processedColumns()>14000 && samples.size()>14000,"actual QML replay failed to publish located bottom samples");
+    require(sonar->property("nativeChannelReady").toBool(),"replay native channel disabled");
+    require(!sonar->property("dataAlive").toBool(),"replay claimed live telemetry");
+    for(const auto& sample:samples) {
+        const auto s=sample.toMap();
+        require(s.value("replay").toBool(),"QML replay sample not tagged");
+        require(std::abs(s.value("lat").toDouble()-40.16)<0.01,"replay GPS differs from recorded track");
+    }
+    bridge->requestReplaySurface();
+    timer.restart();while(timer.elapsed()<6000){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}
+    require(service.tileCount()>0,"actual file replay generated no native surface tiles");
+    qmlBathymetryPipeline(QFileInfo(source).absolutePath(),samples);
+    require(QMetaObject::invokeMethod(sonar.get(),"stopReplay"),"cannot stop actual replay");
+    require(!sonar->property("replayMode").toBool() && service.dataset().size()==0,"explicit replay stop retained native session");
+    std::cout<<"PASS actual file replay -> recorded GPS -> production QML bridge -> native bottom/tiles -> mapping/persistence/HD; pause, EOF and stop\n";
+}
+
 int main(int argc,char**argv) {
     qputenv("QT_QPA_PLATFORM","offscreen");
     QGuiApplication app(argc,argv);
@@ -338,6 +399,7 @@ int main(int argc,char**argv) {
             if(argc>=3){
                 qmlBathymetryPipeline(QFileInfo(QString::fromLocal8Bit(argv[2])).absolutePath(),recordedGeoSamples);
                 qmlTransportRoundTrip(QString::fromLocal8Bit(argv[2]));
+                qmlRecordedReplay(QString::fromLocal8Bit(argv[2]),QString::fromLocal8Bit(argv[1]));
             }
             std::cout<<"Trailing 200-sample column remains pending; live decoding needs the next column boundary.\n";
         }
