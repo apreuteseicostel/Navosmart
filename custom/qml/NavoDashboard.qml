@@ -677,7 +677,8 @@ Item {
     Rectangle {
         id: content
         anchors.left: root.mapMaximized || root.activePage === 10 ? parent.left : sidebar.right; anchors.right: parent.right; anchors.top: root.activePage === 10 ? parent.top : header.bottom; anchors.bottom: parent.bottom
-        z: root.activePage === 10 ? 1000 : 0
+        // Fullscreen sonar controls must render above the Dashboard header (z: 2000).
+        z: root.activePage === 10 ? 3000 : 0
         color: root.bg
         Loader {
             anchors.fill: parent; anchors.margins: root.activePage === 10 ? 0 : 10

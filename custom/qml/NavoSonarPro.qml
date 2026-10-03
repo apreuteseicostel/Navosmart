@@ -93,7 +93,7 @@ Rectangle {
         var column = chartSource ? (koggerCompensation ? chartSource.compensatedSamples : chartSource.echoSamples) : samples
         var offset = chartSource ? chartSource.chartOffsetMeters : chartOffsetMeters
         var range = chartSource ? chartSource.chartRangeMeters : chartRangeMeters
-        var available = chartSource ? chartSource.connected : connected
+        var available = chartSource ? (chartSource.connected || root.replayMode) : connected
         if (paused || !available || !column || !column.length ||
                 !isFinite(offset) || !isFinite(range) || range <= 0) return
         var h = history.slice(0)
@@ -220,8 +220,8 @@ Rectangle {
                     for (var n=0;n<=4;n++) {
                         var gy=n*height/4
                         ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(width,gy);ctx.stroke()
-                        if(root.scaleRange > 0) {
-                            var depthLabel=(root.scaleStart+n*root.scaleRange/4).toFixed(1)+" m"
+                        {
+                            var depthLabel=root.scaleRange > 0 ? (root.scaleStart+n*root.scaleRange/4).toFixed(1)+" m" : "— m"
                             var labelY=Math.max(14,Math.min(height-6,gy+(n===4?-5:14)))
                             var labelWidth=ctx.measureText(depthLabel).width+10
                             ctx.fillStyle=root.dayPalette?"#e5edf2":"#102b3b"
@@ -234,7 +234,7 @@ Rectangle {
             }
             Label {
                 anchors.centerIn: parent
-                visible: !root.connected || !root.history.length
+                visible: !root.history.length
                 text: root.connected ? "Aștept coloane CHART" : "Aștept date Kogger"
                 color: "#9db2c5"
             }
@@ -246,7 +246,7 @@ Rectangle {
                 border.color: "#31536c"
                 Canvas {
                     id: liveEcho
-                    anchors.fill: parent; anchors.margins: 2
+                    anchors.fill: parent; anchors.margins: 2; anchors.rightMargin: 20; anchors.bottomMargin: 22
                     onWidthChanged: requestPaint()
                     onHeightChanged: requestPaint()
                     onPaint: {
@@ -261,6 +261,32 @@ Rectangle {
                             ctx.fillRect(0, i * height / col.length, v * width, Math.max(1, height / col.length))
                         }
                     }
+                }
+                // Strength key remains visible when the live return is empty.
+                Rectangle {
+                    objectName: "sonarProEchoStrengthLegend"
+                    anchors.right: parent.right; anchors.rightMargin: 3
+                    anchors.top: parent.top; anchors.topMargin: 30
+                    anchors.bottom: parent.bottom; anchors.bottomMargin: 30
+                    width: 10
+                    gradient: Gradient {
+                        GradientStop { position: 0; color: root.echoColor(1) }
+                        GradientStop { position: .3; color: root.echoColor(.6) }
+                        GradientStop { position: .65; color: root.echoColor(.3) }
+                        GradientStop { position: 1; color: root.echoColor(0) }
+                    }
+                }
+                Label {
+                    anchors.right: parent.right; anchors.rightMargin: 2
+                    anchors.top: parent.top; anchors.topMargin: 8
+                    text: "100%"; font.pixelSize: 10
+                    color: root.dayPalette ? "#18364a" : "#d9edf7"
+                }
+                Label {
+                    anchors.right: parent.right; anchors.rightMargin: 2
+                    anchors.bottom: parent.bottom; anchors.bottomMargin: 19
+                    text: "0%"; font.pixelSize: 10
+                    color: root.dayPalette ? "#18364a" : "#d9edf7"
                 }
                 Label {
                     anchors.horizontalCenter: parent.horizontalCenter
@@ -337,7 +363,7 @@ Rectangle {
         width: Math.max(0, Math.min(parent.width-root.buttonSize-18, telemetry.implicitWidth+16)); height: root.buttonSize; radius: 7; color: "#cc0b1c2e"
         z: 101
         Label {
-            id: telemetry; anchors.fill: parent; anchors.margins: 8; elide: Text.ElideRight
+            id: telemetry; objectName: "sonarProTelemetry"; font.pixelSize: 14; anchors.fill: parent; anchors.margins: 8; elide: Text.ElideRight
             color: root.connected ? "#21b7ff" : "#9db2c5"
             text: "PRO  •  " + (root.connected ? (root.replayActive ? "TEST REPLAY" : (root.paused ? "PAUZĂ" : "LIVE")) : "OFFLINE") + "   " + (isFinite(root.depthM)?root.depthM.toFixed(1)+" m":"— m") + "   " + (isFinite(root.waterTempC)?root.waterTempC.toFixed(1)+" °C":"— °C")
         }
