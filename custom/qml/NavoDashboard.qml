@@ -39,6 +39,8 @@ Item {
     }
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
     property var planController: _planController
+    readonly property var mapBaitingController: baitingController
+    readonly property var mapAreaScanController: areaScanController
 
     PlanMasterController {
         id: _planController
@@ -51,6 +53,14 @@ Item {
     NavoFishingSpots { id: fishingSpots; onSpotSaved: scanCoordinator.checkpoint("spot-save"); onSpotRemoved: scanCoordinator.checkpoint("spot-delete"); onSpotUpdated: scanCoordinator.checkpoint("spot-update") }
     NavoFishDetections { id: fishStore }
     NavoBathymetryModel { id: bathymetryModel }
+    property string replaySaveStatus: ""
+    NavoBathymetryModel { id: replayBathymetryModel }
+    NavoSonarMapping { id: replayMapping; visible:false; externalSampleIngestion:true; sonarConnected:true; scanning:true }
+    readonly property var displayBathymetryCells: sonar.replayMode ? replayBathymetryModel.cells : scanCoordinator.bathymetryCells
+    Timer {
+        interval:2000; repeat:true; running:sonar.replayMode
+        onTriggered: if(replayMapping.rawSamples.length>=3)replayBathymetryModel.rebuild(replayMapping.rawSamples)
+    }
     Settings {
         id: sessionSettings
         category: "NavoSession"
@@ -211,7 +221,7 @@ Item {
     }
     property var battery: vehicle && vehicle.batteries.count > 0 ? vehicle.batteries.get(0) : null
     property var waypointNames: persistence.waypointNames
-    readonly property real depthM: sonar.depthM
+    readonly property real depthM: isFinite(sonar.depthM) ? sonar.depthM : (sonar.echoFresh ? sonar.processedBottomDepthM : NaN)
     readonly property real waterTempC: sonar.waterTempC
     readonly property bool sonarConnected: sonar.connected && sonar.dataAlive
     readonly property real bottomEchoStrength: sonar.bottomEchoStrength
@@ -321,11 +331,17 @@ Item {
     NavoSonarEthernet {
         id: sonar
         vehicle: root.vehicle
+        onReplayModeChanged: {
+            root.replaySaveStatus=""
+            replayMapping.rawSamples=[]; replayMapping.trackCoordinates=[]
+            replayBathymetryModel.rebuild([])
+        }
         onGeoSample: function(sample) {
+            if(sample.replay) { replayMapping.ingestSample(sample); return }
             // Preserve the echo metric captured with this georeferenced CHART column.
             var echo = (sample.bottomEcho !== undefined && isFinite(Number(sample.bottomEcho)))
                        ? Number(sample.bottomEcho) : NaN
-            var enriched = {time:sample.time, lat:sample.lat, lon:sample.lon,
+            var enriched = {time:sample.time, sequence:sample.sequence, source:sample.source, lat:sample.lat, lon:sample.lon,
                             heading:sample.heading, depth:sample.depth, temp:sample.temp,
                             bottomEcho:echo,
                             chartResolution:sample.chartResolution,
@@ -644,7 +660,7 @@ Item {
                 spacing: Math.max(3, Math.min(8, (sidebar.height - 44 - 10 * 36) / 11))
                 NavButton { text: "HARTA"; iconSource: "qrc:/qml/NavoSmart/icons/map.svg"; active: root.activePage === 0; onClicked: root.activePage = 0 }
                 NavButton { text: "SONAR"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 1; onClicked: root.activePage = 1 }
-                NavButton { text: "SONAR PRO"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 10; onClicked: root.activePage = 10 }
+                NavButton { text: "SONAR PRO"; proBadge: true; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 10; onClicked: root.activePage = 10 }
                 NavButton { text: "AREA SCAN"; iconSource: "qrc:/qml/NavoSmart/icons/scan.svg"; active: root.activePage === 2; onClicked: root.activePage = 2 }
                 NavButton { text: "PUNCTE PESCUIT"; iconSource: "qrc:/qml/NavoSmart/icons/fish.svg"; active: root.activePage === 3; onClicked: root.activePage = 3 }
                 NavButton { text: "BALȚILE MELE"; iconSource: "qrc:/qml/NavoSmart/icons/lake.svg"; active: root.activePage === 4; onClicked: root.activePage = 4 }
@@ -661,7 +677,8 @@ Item {
     Rectangle {
         id: content
         anchors.left: root.mapMaximized || root.activePage === 10 ? parent.left : sidebar.right; anchors.right: parent.right; anchors.top: root.activePage === 10 ? parent.top : header.bottom; anchors.bottom: parent.bottom
-        z: root.activePage === 10 ? 1000 : 0
+        // Fullscreen sonar controls must render above the Dashboard header (z: 2000).
+        z: root.activePage === 10 ? 3000 : 0
         color: root.bg
         Loader {
             anchors.fill: parent; anchors.margins: root.activePage === 10 ? 0 : 10
@@ -719,9 +736,11 @@ Item {
                 waypointNames: root.waypointNames
                 fishModel: fishStore
                 fishingSpotsModel: fishingSpots
-                bathymetryCells: scanCoordinator.bathymetryCells
-                baitingController: baitingController
-                areaScanController: areaScanController
+                bathymetryCells: root.displayBathymetryCells
+                        replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
+                        replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
+                baitingController: root.mapBaitingController
+                areaScanController: root.mapAreaScanController
                 savedDepthM: root.depthM
                 savedWaterTempC: root.waterTempC
                 maximized: root.mapMaximized
@@ -806,11 +825,18 @@ Item {
             chartSource: sonar
             vehicle: root.vehicle
             planController: root.planController
-            boatTrack: root.proBoatTrack
+            boatTrack: sonar.replayMode ? replayMapping.trackCoordinates : root.proBoatTrack
             plannedTrack: areaScanController.generatedPoints
+            replaySaveStatus: root.replaySaveStatus
+            replaySampleCount: replayMapping.rawSamples.length
+            onSaveReplayRequested: function(name) {
+                replayBathymetryModel.rebuild(replayMapping.rawSamples)
+                var id=persistence.saveReplayLake(name,replayMapping.rawSamples,replayBathymetryModel.cells)
+                root.replaySaveStatus=id ? "Salvat în Bălțile mele: "+name : "Salvarea a eșuat; sunt necesare probe GPS și fund valid."
+            }
             onClosed: root.activePage = 0
-            connected: root.sonarConnected
-            depthM: root.depthM
+            connected: sonar.connected || sonar.replayMode
+            depthM: sonar.depthM
             waterTempC: root.waterTempC
             samples: sonar.echoSamples
             chartResolution: sonar.chartResolution
@@ -936,9 +962,11 @@ Item {
                             waypointNames: root.waypointNames
                             fishModel: fishStore
                             fishingSpotsModel: fishingSpots
-                            bathymetryCells: scanCoordinator.bathymetryCells
-                            baitingController: baitingController
-                            areaScanController: areaScanController
+                            bathymetryCells: root.displayBathymetryCells
+                        replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
+                        replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
+                            baitingController: root.mapBaitingController
+                            areaScanController: root.mapAreaScanController
                             savedDepthM: root.depthM
                             savedWaterTempC: root.waterTempC
                             maximized: root.mapMaximized
@@ -1022,8 +1050,10 @@ Item {
                         property real targetAspect: 16/9
                         property real availableAspect: width / Math.max(1,height)
                         vehicle:root.vehicle; planController:root.planController; waypointNames:root.waypointNames
-                        fishModel:fishStore; fishingSpotsModel:fishingSpots; bathymetryCells:scanCoordinator.bathymetryCells
-                        baitingController:baitingController; areaScanController:areaScanController
+                        fishModel:fishStore; fishingSpotsModel:fishingSpots; bathymetryCells:root.displayBathymetryCells
+                        replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
+                        replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
+                        baitingController: root.mapBaitingController; areaScanController: root.mapAreaScanController
                         savedDepthM:root.depthM; savedWaterTempC:root.waterTempC; showStatusHint:false
                         maximized:fishingPageRoot.mapExpanded
                         onMaximizeRequested:fishingPageRoot.mapExpanded=!fishingPageRoot.mapExpanded
@@ -1311,9 +1341,11 @@ Item {
                         waypointNames: root.waypointNames
                         fishModel: fishStore
                         fishingSpotsModel: fishingSpots
-                        bathymetryCells: scanCoordinator.bathymetryCells
-                        baitingController: baitingController
-                        areaScanController: areaScanController
+                        bathymetryCells: root.displayBathymetryCells
+                        replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
+                        replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
+                        baitingController: root.mapBaitingController
+                        areaScanController: root.mapAreaScanController
                         savedDepthM: root.depthM
                         savedWaterTempC: root.waterTempC
                         maximized: root.mapMaximized
@@ -1458,8 +1490,8 @@ Item {
                 anchors.fill: parent
                 // Use the active/restored lake session, not the global sonar history.
                 // restoreLake() repopulates rawSamples from the selected lake checkpoint.
-                samples: sonarMapping.rawSamples
-                boatTrack: sonarMapping.trackCoordinates.length ? sonarMapping.trackCoordinates : root.coordinatesFromSonarSamples(sonarMapping.rawSamples)
+                samples: sonar.replayMode ? replayMapping.rawSamples : sonarMapping.rawSamples
+                boatTrack: sonar.replayMode ? replayMapping.trackCoordinates : (sonarMapping.trackCoordinates.length ? sonarMapping.trackCoordinates : root.coordinatesFromSonarSamples(sonarMapping.rawSamples))
                 fishingSpots: fishingSpots.fishingSpots
                 fishDetections: root.fishDetections
                 onOpenSonarRequested: root.activePage = 1
@@ -1574,13 +1606,37 @@ Item {
 
     component NavButton: Button {
         property bool active: false
+        property bool proBadge: false
         property url iconSource: ""
         ToolTip.visible: hovered
         ToolTip.text: text
         Layout.fillWidth: true
         Layout.preferredHeight: Math.max(38, Math.min(46, (sidebar.height - 58) / 9))
         background: Rectangle { radius: 6; color: parent.active ? "#183248" : "transparent"; border.color: parent.active ? root.accent : "transparent" }
-        contentItem: Image { anchors.centerIn: parent; width: 32; height: 32; source: parent.iconSource; fillMode: Image.PreserveAspectFit }
+        contentItem: Item {
+            Image {
+                anchors.centerIn: parent
+                anchors.verticalCenterOffset: parent.parent.proBadge ? -5 : 0
+                width: parent.parent.proBadge ? 27 : 32
+                height: parent.parent.proBadge ? 27 : 32
+                source: parent.parent.iconSource
+                fillMode: Image.PreserveAspectFit
+            }
+            Rectangle {
+                visible: parent.parent.proBadge
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: 1
+                width: 31; height: 13; radius: 3
+                color: parent.parent.active ? "#21b7ff" : "#103c51"
+                border.color: "#21b7ff"
+                Label {
+                    anchors.centerIn: parent
+                    text: "PRO"; font.pixelSize: 9; font.bold: true
+                    color: parent.parent.active ? "#061824" : "#e1faff"
+                }
+            }
+        }
     }
 
     component DataLine: RowLayout {

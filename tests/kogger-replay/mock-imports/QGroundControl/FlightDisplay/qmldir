@@ -1,0 +1,2 @@
+module QGroundControl.FlightDisplay
+FlyViewMap 1.0 FlyViewMap.qml

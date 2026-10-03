@@ -5,7 +5,7 @@ import QtQuick.Controls
 
 import QGroundControl
 import QGroundControl.Controllers
-import QGroundControl.FlightDisplay
+import QGroundControl.FlightMap
 
 Item {
     id: root
@@ -17,6 +17,18 @@ Item {
     property var fishModel
     property var fishingSpotsModel
     property var bathymetryCells: []
+    property bool replayPreview: false
+    property var replayTrack: []
+    function followReplay() {
+        if (!replayPreview || !replayTrack.length) return
+        if (!initialCenterApplied || autoFollowBoat) {
+            liveMap.center = replayTrack[replayTrack.length-1]
+            if (!initialCenterApplied) liveMap.zoomLevel = lakeZoomLevel
+            initialCenterApplied = true
+        }
+    }
+    onReplayTrackChanged: followReplay()
+    onReplayPreviewChanged: { initialCenterApplied=false; if(replayPreview) followReplay(); else centerOnBoatOnce() }
     property bool bathymetryHDEnabled: false
     property var baitingController
     property var areaScanController
@@ -96,13 +108,14 @@ Item {
         return false
     }
     function followBoat() {
+        if (replayPreview) { autoFollowBoat=true; followReplay(); return }
         if (!vehicle || !vehicle.coordinate || !vehicle.coordinate.isValid) return
         autoFollowBoat = true
         liveMap.center = vehicle.coordinate
         adjustBoatFraming()
     }
     function adjustBoatFraming() {
-        if (!autoFollowBoat || !autoZoomEnabled || !vehicle || !vehicle.coordinate || !vehicle.coordinate.isValid || liveMap.width < 100 || liveMap.height < 100) return
+        if (replayPreview || !autoFollowBoat || !autoZoomEnabled || !vehicle || !vehicle.coordinate || !vehicle.coordinate.isValid || liveMap.width < 100 || liveMap.height < 100) return
         var boatPoint = liveMap.fromCoordinate(vehicle.coordinate, false)
         if (!isFinite(boatPoint.x) || !isFinite(boatPoint.y)) return
         var m = followMargin
@@ -156,25 +169,9 @@ Item {
         updateInterval: 2000
     }
 
-    FlyViewMap {
+    FlightMap {
         id: liveMap
         anchors.fill: parent
-        planMasterController: root.planController
-        rightPanelWidth: 0
-        toolInsets: QtObject {
-            readonly property real leftEdgeTopInset: 0
-            readonly property real leftEdgeCenterInset: 0
-            readonly property real leftEdgeBottomInset: 0
-            readonly property real rightEdgeTopInset: 0
-            readonly property real rightEdgeCenterInset: 0
-            readonly property real rightEdgeBottomInset: 0
-            readonly property real topEdgeLeftInset: 0
-            readonly property real topEdgeCenterInset: 0
-            readonly property real topEdgeRightInset: 0
-            readonly property real bottomEdgeLeftInset: 0
-            readonly property real bottomEdgeCenterInset: 0
-            readonly property real bottomEdgeRightInset: 0
-        }
         bearing: root.headingUp && isFinite(root.boatHeadingDeg) ? root.boatHeadingDeg : 0
         Behavior on bearing { NumberAnimation { duration: 250 } }
     }
@@ -226,7 +223,7 @@ Item {
     MapQuickItem {
         id: navoBoatMarker
         parent: liveMap
-        visible: !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
+        visible: !root.replayPreview && !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
         coordinate: visible ? root.vehicle.coordinate : QtPositioning.coordinate()
         anchorPoint.x: 24; anchorPoint.y: 42
         z: 100
@@ -246,6 +243,14 @@ Item {
     MapPolyline {
         id:rulerLine; parent:liveMap; visible:root.rulerPoints.length>1; path:root.rulerPoints; line.width:3; line.color:"#ffc857"
         Component.onCompleted:liveMap.addMapItem(this); Component.onDestruction:liveMap.removeMapItem(this)
+    }
+    MapPolyline {
+        parent: liveMap
+        visible: root.replayPreview
+        path: root.replayTrack
+        line.width: 3; line.color: "#21b7ff"
+        Component.onCompleted: liveMap.addMapItem(this)
+        Component.onDestruction: liveMap.removeMapItem(this)
     }
     NavoActualTrack { id: actualTrack; map: liveMap; vehicle: root.vehicle; taskActive: !!root.vehicle }
     NavoAreaScanOverlay { map: liveMap; areaScan: root.areaScanController }
@@ -511,6 +516,7 @@ Item {
     }
 
     function centerOnBoatOnce() {
+        if(replayPreview) { followReplay(); return }
         if(initialCenterApplied)return
         if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid) {
             liveMap.center=vehicle.coordinate
@@ -528,7 +534,7 @@ Item {
     Connections {
         target: QGroundControl.multiVehicleManager
         function onActiveVehicleChanged(activeVehicle) {
-            if (activeVehicle) {
+            if (activeVehicle && !root.replayPreview) {
                 if (activeVehicle.coordinate && activeVehicle.coordinate.isValid) {
                     liveMap.center = activeVehicle.coordinate
                     liveMap.zoomLevel = Math.max(liveMap.zoomLevel, root.lakeZoomLevel)

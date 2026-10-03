@@ -1,9 +1,10 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Dialogs
 import QtPositioning
 import QtLocation
-import QGroundControl.FlightDisplay
+import QGroundControl.FlightMap
 
 Rectangle {
     id: root
@@ -17,6 +18,9 @@ Rectangle {
     property var chartSource: null
     property var samples: []
     property bool connected: false
+    readonly property bool replayMode: chartSource ? chartSource.replayMode : false
+    readonly property bool replayActive: chartSource ? chartSource.replayActive : false
+    FileDialog { id: replayPicker; title: 'Încarcă înregistrare Kogger'; nameFilters: ['Kogger (*.klf)', 'Toate fișierele (*)']; onAccepted: { if(root.chartSource) {root.history=[];root.chartSource.startReplay(selectedFile)} } }
     property real depthM: NaN
     property real waterTempC: NaN
     property var vehicle: null
@@ -37,9 +41,12 @@ Rectangle {
     function captureGeoChart() {
         if (!chartSource || !chartSource.chartRawBytes || !chartSource.chartRawByteCount) return
         var coordinate = vehicle && vehicle.coordinate ? vehicle.coordinate : null
-        if (!coordinate || !coordinate.isValid) { unlocatedChartCount++; return }
+        var fixValid = vehicle && vehicle.gps && vehicle.gps.lock.rawValue >= 3 &&
+                       vehicle.vehicleLinkManager && !vehicle.vehicleLinkManager.communicationLost
+        if (!fixValid || !coordinate || !coordinate.isValid) { unlocatedChartCount++; return }
         var record = { latitude: coordinate.latitude, longitude: coordinate.longitude,
-                       timestampMs: Date.now(), depthM: depthM,
+                       timestampMs: Date.now(), sequence:chartSource.chartSequence,
+                       depthM: chartSource.nativeChannelReady ? NaN : depthM,
                        resolution: chartSource.chartResolution,
                        absoluteOffset: chartSource.chartAbsoluteOffset,
                        version: chartSource.chartVersion,
@@ -49,17 +56,36 @@ Rectangle {
         geoChartRecords = next
     }
     property int historyColumns: 240
+    property int replaySampleCount: 0
+    property string replaySaveStatus: ""
+    signal saveReplayRequested(string name)
     signal closed()
+    Dialog {
+        id: replaySaveDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        modal: true
+        title: "Salvează înregistrarea ca baltă separată"
+        standardButtons: Dialog.Save | Dialog.Cancel
+        TextField {
+            id: replayLakeName
+            width: Math.min(300,root.width-40)
+            placeholderText: "Numele bălții"
+            text: "Înregistrare DownView"
+        }
+        onAccepted: root.saveReplayRequested(replayLakeName.text.trim())
+    }
     property real gain: 1.0
     property real noiseFloor: 0.10
     property bool noiseFilterEnabled: false
     property bool dayPalette: false
     property bool koggerCompensation: false
-    // Live bottom overlay uses the decoded Kogger depth telemetry, not the
-    // offline KoggerApp BottomTrackProcessor (which needs a Dataset adapter).
+    // Native bottom results update their matching completed CHART column.
     property bool showBottomTrack: true
     readonly property var displayedColumn: history.length ? history[history.length - 1] : null
     readonly property int buttonSize: width < 640 ? 36 : 40
+    readonly property color selectedMenuColor: "#176b86"
+    readonly property color selectedMenuBorder: "#45d5f5"
     readonly property int echoWidth: width < 640 ? 44 : 58
     color: "#03101a"
     clip: true
@@ -67,13 +93,29 @@ Rectangle {
         var column = chartSource ? (koggerCompensation ? chartSource.compensatedSamples : chartSource.echoSamples) : samples
         var offset = chartSource ? chartSource.chartOffsetMeters : chartOffsetMeters
         var range = chartSource ? chartSource.chartRangeMeters : chartRangeMeters
-        var available = chartSource ? chartSource.connected : connected
+        var available = chartSource ? (chartSource.connected || root.replayMode) : connected
         if (paused || !available || !column || !column.length ||
                 !isFinite(offset) || !isFinite(range) || range <= 0) return
         var h = history.slice(0)
-        h.push({samples: column.slice(0), offset: offset, range: range, bottom: isFinite(root.depthM) && root.depthM >= 0 ? root.depthM : NaN})
+        h.push({samples: column.slice(0), offset: offset, range: range, sequence: chartSource ? chartSource.chartSequence : 0,
+                bottom: chartSource && chartSource.nativeChannelReady ? NaN : (isFinite(root.depthM) && root.depthM >= 0 ? root.depthM : NaN)})
         if (h.length > historyColumns) h.splice(0, h.length - historyColumns)
         history = h
+    }
+    function updateHistoryBottom(sequence, depth) {
+        if (!isFinite(depth) || depth <= 0) return
+        var next = history.slice(0), changed = false
+        for (var i=0; i<next.length; ++i) {
+            if (next[i].sequence !== sequence) continue
+            var entry = Object.assign({},next[i]); entry.bottom = depth; next[i] = entry; changed = true
+        }
+        if (changed) { history = next; repaint() }
+        var geoNext=geoChartRecords.slice(0), geoChanged=false
+        for(var g=0;g<geoNext.length;++g){
+            if(geoNext[g].sequence!==sequence)continue
+            var record=Object.assign({},geoNext[g]);record.depthM=depth;geoNext[g]=record;geoChanged=true
+        }
+        if(geoChanged)geoChartRecords=geoNext
     }
     function sampleStrength(column, index) {
         var value = Number(column[index])
@@ -102,6 +144,7 @@ Rectangle {
     Connections {
         target: root.chartSource
         function onEchoSamplesChanged() { root.captureGeoChart(); root.pushHistory() }
+        function onBottomColumnReady(sequence,depth) { root.updateHistoryBottom(sequence,depth) }
     }
     onSamplesChanged: if (!chartSource) Qt.callLater(pushHistory)
     Component.onCompleted: Qt.callLater(pushHistory)
@@ -110,11 +153,12 @@ Rectangle {
     onNoiseFloorChanged: repaint()
     onNoiseFilterEnabledChanged: repaint()
     onDayPaletteChanged: repaint()
+    onReplayActiveChanged: { history=[]; root.menuOpen=false }
     onKoggerCompensationChanged: { history = []; pushHistory(); repaint() }
     onShowBottomTrackChanged: repaint()
     // Freeze scale together with the displayed history while paused.
-    readonly property real scaleStart: displayedColumn ? displayedColumn.offset : 0
-    readonly property real scaleRange: displayedColumn ? displayedColumn.range : 0
+    readonly property real scaleStart: displayedColumn ? displayedColumn.offset : (isFinite(chartOffsetMeters) ? chartOffsetMeters : 0)
+    readonly property real scaleRange: displayedColumn ? displayedColumn.range : (isFinite(chartRangeMeters) && chartRangeMeters > 0 ? chartRangeMeters : 0)
     onScaleStartChanged: repaint()
     onScaleRangeChanged: repaint()
 
@@ -126,7 +170,7 @@ Rectangle {
         Accessible.name: hint
         ToolTip.visible: hovered || pressed
         ToolTip.text: hint
-        background: Rectangle { radius: 8; color: control.checked ? "#18536a" : "#cc0b1c2e"; opacity: control.enabled ? 1 : .4; border.color: "#31536c" }
+        background: Rectangle { radius: 8; color: control.checked ? root.selectedMenuColor : "#cc0b1c2e"; opacity: control.enabled ? 1 : .4; border.color: control.checked ? root.selectedMenuBorder : "#31536c"; border.width: control.checked ? 2 : 1 }
         contentItem: Image { source: "qrc:/qml/NavoSmart/icons/" + control.glyph + ".svg"; fillMode: Image.PreserveAspectFit }
     }
     Row {
@@ -176,13 +220,21 @@ Rectangle {
                     for (var n=0;n<=4;n++) {
                         var gy=n*height/4
                         ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(width,gy);ctx.stroke()
-                        if(root.scaleRange) ctx.fillText((root.scaleStart+n*root.scaleRange/4).toFixed(1)+" m",6,Math.max(62,Math.min(height-8,gy+15)))
+                        {
+                            var depthLabel=root.scaleRange > 0 ? (root.scaleStart+n*root.scaleRange/4).toFixed(1)+" m" : "— m"
+                            var labelY=Math.max(14,Math.min(height-6,gy+(n===4?-5:14)))
+                            var labelWidth=ctx.measureText(depthLabel).width+10
+                            ctx.fillStyle=root.dayPalette?"#e5edf2":"#102b3b"
+                            ctx.fillRect(3,labelY-12,labelWidth,16)
+                            ctx.fillStyle=root.dayPalette?"#18364a":"#d9edf7"
+                            ctx.fillText(depthLabel,8,labelY)
+                        }
                     }
                 }
             }
             Label {
                 anchors.centerIn: parent
-                visible: !root.connected || !root.history.length
+                visible: !root.history.length
                 text: root.connected ? "Aștept coloane CHART" : "Aștept date Kogger"
                 color: "#9db2c5"
             }
@@ -194,7 +246,7 @@ Rectangle {
                 border.color: "#31536c"
                 Canvas {
                     id: liveEcho
-                    anchors.fill: parent; anchors.margins: 2
+                    anchors.fill: parent; anchors.margins: 2; anchors.rightMargin: 20; anchors.bottomMargin: 22
                     onWidthChanged: requestPaint()
                     onHeightChanged: requestPaint()
                     onPaint: {
@@ -209,6 +261,32 @@ Rectangle {
                             ctx.fillRect(0, i * height / col.length, v * width, Math.max(1, height / col.length))
                         }
                     }
+                }
+                // Strength key remains visible when the live return is empty.
+                Rectangle {
+                    objectName: "sonarProEchoStrengthLegend"
+                    anchors.right: parent.right; anchors.rightMargin: 3
+                    anchors.top: parent.top; anchors.topMargin: 30
+                    anchors.bottom: parent.bottom; anchors.bottomMargin: 30
+                    width: 10
+                    gradient: Gradient {
+                        GradientStop { position: 0; color: root.echoColor(1) }
+                        GradientStop { position: .3; color: root.echoColor(.6) }
+                        GradientStop { position: .65; color: root.echoColor(.3) }
+                        GradientStop { position: 1; color: root.echoColor(0) }
+                    }
+                }
+                Label {
+                    anchors.right: parent.right; anchors.rightMargin: 2
+                    anchors.top: parent.top; anchors.topMargin: 8
+                    text: "100%"; font.pixelSize: 10
+                    color: root.dayPalette ? "#18364a" : "#d9edf7"
+                }
+                Label {
+                    anchors.right: parent.right; anchors.rightMargin: 2
+                    anchors.bottom: parent.bottom; anchors.bottomMargin: 19
+                    text: "0%"; font.pixelSize: 10
+                    color: root.dayPalette ? "#18364a" : "#d9edf7"
                 }
                 Label {
                     anchors.horizontalCenter: parent.horizontalCenter
@@ -227,31 +305,20 @@ Rectangle {
             sourceComponent: Component {
                 Item {
                     clip: true
-                    FlyViewMap {
+                    FlightMap {
                         id: liveMap
                         anchors.fill: parent
-                        planMasterController: root.planController
-                        rightPanelWidth: 0
                         zoomLevel: 17
-                        toolInsets: QtObject {
-                            readonly property real leftEdgeTopInset: 0
-                            readonly property real leftEdgeCenterInset: 0
-                            readonly property real leftEdgeBottomInset: 0
-                            readonly property real rightEdgeTopInset: 0
-                            readonly property real rightEdgeCenterInset: 0
-                            readonly property real rightEdgeBottomInset: 0
-                            readonly property real topEdgeLeftInset: 0
-                            readonly property real topEdgeCenterInset: 0
-                            readonly property real topEdgeRightInset: 0
-                            readonly property real bottomEdgeLeftInset: 0
-                            readonly property real bottomEdgeCenterInset: 0
-                            readonly property real bottomEdgeRightInset: 0
-                        }
                         function followBoat() {
+                            if(root.replayMode && root.boatTrack.length) {
+                                center=root.boatTrack[root.boatTrack.length-1]
+                                return
+                            }
                             if(root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid)
                                 center=root.vehicle.coordinate
                         }
                         Component.onCompleted: followBoat()
+                        Connections { target: root; function onBoatTrackChanged() { if(root.replayMode) liveMap.followBoat() } }
                         Connections { target: root.vehicle; function onCoordinateChanged() { liveMap.followBoat() } }
                     }
                     MapPolyline {
@@ -270,13 +337,13 @@ Rectangle {
                     }
                     MapQuickItem {
                         parent: liveMap
-                        coordinate: root.vehicle ? root.vehicle.coordinate : QtPositioning.coordinate()
+                        coordinate: root.replayMode && root.boatTrack.length ? root.boatTrack[root.boatTrack.length-1] : (root.vehicle ? root.vehicle.coordinate : QtPositioning.coordinate())
                         visible: coordinate.isValid
                         anchorPoint.x: 18; anchorPoint.y: 18
                         sourceItem: Image {
                             width: 36; height: 36
                             source: "qrc:/qml/NavoSmart/icons/boat.svg"
-                            rotation: root.vehicle && root.vehicle.heading ? root.vehicle.heading.rawValue-liveMap.bearing : 0
+                            rotation: !root.replayMode && root.vehicle && root.vehicle.heading ? root.vehicle.heading.rawValue-liveMap.bearing : 0
                         }
                         Component.onCompleted: liveMap.addMapItem(this)
                         Component.onDestruction: liveMap.removeMapItem(this)
@@ -291,52 +358,75 @@ Rectangle {
         }
     }
     Rectangle {
+        id: telemetryBar
         anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 6
         width: Math.max(0, Math.min(parent.width-root.buttonSize-18, telemetry.implicitWidth+16)); height: root.buttonSize; radius: 7; color: "#cc0b1c2e"
+        z: 101
         Label {
-            id: telemetry; anchors.fill: parent; anchors.margins: 8; elide: Text.ElideRight
+            id: telemetry; objectName: "sonarProTelemetry"; font.pixelSize: 14; anchors.fill: parent; anchors.margins: 8; elide: Text.ElideRight
             color: root.connected ? "#21b7ff" : "#9db2c5"
-            text: "PRO  •  " + (root.connected ? (root.paused ? "PAUZĂ" : "LIVE") : "OFFLINE") + "   " + (isFinite(root.depthM)?root.depthM.toFixed(1)+" m":"— m") + "   " + (isFinite(root.waterTempC)?root.waterTempC.toFixed(1)+" °C":"— °C")
+            text: "PRO  •  " + (root.connected ? (root.replayActive ? "TEST REPLAY" : (root.paused ? "PAUZĂ" : "LIVE")) : "OFFLINE") + "   " + (isFinite(root.depthM)?root.depthM.toFixed(1)+" m":"— m") + "   " + (isFinite(root.waterTempC)?root.waterTempC.toFixed(1)+" °C":"— °C")
         }
     }
     IconButton {
         id: menuButton
-        anchors.left: parent.left; anchors.top: telemetry.bottom; anchors.margins: 6
-        z: 20; glyph: "settings"; hint: "Meniu Sonar PRO"
+        objectName: "sonarProMenuButton"
+        anchors.left: parent.left; anchors.top: telemetryBar.bottom; anchors.leftMargin: 10; anchors.topMargin: 18
+        implicitWidth: 34; implicitHeight: 34; padding: 6
+        z: 100; visible: true; enabled: true
+        glyph: "settings"; hint: "Deschide / închide meniul Sonar PRO"
         checkable: true; checked: root.menuOpen
-        onClicked: root.menuOpen = !root.menuOpen
+        onClicked: { root.settingsVisible = false; root.menuOpen = !root.menuOpen }
     }
     IconButton {
         id: closeButton
+        objectName: "sonarProCloseButton"
         anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 6
-        z: 25; glyph: "close"; hint: "Ieșire din Sonar PRO"
+        z: 102; glyph: "close"; hint: "Ieșire din Sonar PRO"
         onClicked: root.closed()
     }
     Rectangle {
         id: menuPanel
         visible: root.menuOpen
-        z: 19
+        z: 103
         anchors.left: parent.left; anchors.top: menuButton.bottom; anchors.topMargin: 4; anchors.leftMargin: 6
-        width: Math.min(260,parent.width*.48)
+        width: Math.min(222,parent.width*.48)
         height: Math.min(menuColumn.implicitHeight+16,Math.max(0,parent.height-menuButton.height-55))
         radius: 8; color: "#ee0b1c2e"; border.color: "#31536c"
         ScrollView {
             anchors.fill: parent; anchors.margins: 8; clip: true
             contentWidth: availableWidth
             ColumnLayout {
-                id: menuColumn; width: menuPanel.width-16; spacing: 5
-                Button { Layout.fillWidth: true; text: root.mapEnabled ? "Ascunde harta" : "Activează harta"; onClicked: {root.mapEnabled=!root.mapEnabled;root.menuOpen=false} }
-                Button { Layout.fillWidth: true; text: root.paused ? "Continuă ecograma" : "Pauză ecogramă"; onClicked: root.paused=!root.paused }
-                Button { Layout.fillWidth: true; text: root.dayPalette ? "Paletă NAVO" : "Paletă de zi"; onClicked: root.dayPalette=!root.dayPalette }
-                Button { Layout.fillWidth: true; text: "Sensibilitate și filtre"; onClicked: {root.settingsVisible=!root.settingsVisible;root.menuOpen=false} }
-                Button { Layout.fillWidth: true; text: root.koggerCompensation ? "Ecou brut" : "Compensare Kogger"; onClicked: root.koggerCompensation=!root.koggerCompensation }
-                Button { Layout.fillWidth: true; text: root.showBottomTrack ? "Ascunde linia fundului" : "Arată linia fundului"; onClicked: root.showBottomTrack=!root.showBottomTrack }
-                Button { Layout.fillWidth: true; text: "Reset reglaje"; onClicked: root.resetDisplaySettings() }
+                id: menuColumn; width: menuPanel.width-16; spacing: 3
+                component MenuAction: Button {
+                    id: action
+                    property bool selected: false
+                    Layout.fillWidth: true
+                    implicitHeight: 32
+                    font.pixelSize: 12
+                    padding: 5
+                    palette.buttonText: selected ? "#ffffff" : "#d7e7f1"
+                    background: Rectangle { radius: 5; color: action.selected ? root.selectedMenuColor : (action.hovered ? "#183c51" : "#102435"); border.color: action.selected ? root.selectedMenuBorder : "#31536c"; border.width: action.selected ? 2 : 1 }
+                }
+                MenuAction { text: 'Deschide KLF (TEST)'; onClicked: {root.menuOpen=false; replayPicker.open()} }
+                MenuAction { visible:root.replayActive; selected:root.chartSource && root.chartSource.replayPaused; text:root.chartSource && root.chartSource.replayPaused ? 'Continuă replay' : 'Pauză replay'; onClicked:root.chartSource.pauseReplay(!root.chartSource.replayPaused) }
+                MenuAction { visible:root.replayActive; selected:root.replayActive; text:'Viteză replay: '+(root.chartSource ? root.chartSource.replaySpeed : 1)+'×'; onClicked:root.chartSource.setReplaySpeed(root.chartSource.replaySpeed>=5 ? 0.5 : root.chartSource.replaySpeed*2) }
+                MenuAction { visible:root.replayMode; enabled:root.replaySampleCount>=3; text:"Salvează replay în Bălțile mele"; onClicked:{root.menuOpen=false;replaySaveDialog.open()} }
+                Label { visible:root.replaySaveStatus.length>0; Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.replaySaveStatus; color:"#d7e7f1"; font.pixelSize:11 }
+                MenuAction { visible:root.replayActive; text:'Oprește replay'; onClicked:root.chartSource.stopReplay() }
+                MenuAction { selected:root.mapEnabled; text: root.mapEnabled ? "Ascunde harta" : "Activează harta"; onClicked: {root.mapEnabled=!root.mapEnabled;root.menuOpen=false} }
+                MenuAction { selected:root.paused; text: root.paused ? "Continuă ecograma" : "Pauză ecogramă"; onClicked: root.paused=!root.paused }
+                MenuAction { selected:root.dayPalette; text: root.dayPalette ? "Paletă NAVO" : "Paletă de zi"; onClicked: root.dayPalette=!root.dayPalette }
+                MenuAction { selected:root.settingsVisible; text: "Sensibilitate și filtre"; onClicked: {root.settingsVisible=!root.settingsVisible;root.menuOpen=false} }
+                MenuAction { selected:root.koggerCompensation; text: root.koggerCompensation ? "Ecou brut" : "Compensare Kogger"; onClicked: root.koggerCompensation=!root.koggerCompensation }
+                MenuAction { selected:root.showBottomTrack; text: root.showBottomTrack ? "Ascunde linia fundului" : "Arată linia fundului"; onClicked: root.showBottomTrack=!root.showBottomTrack }
+                MenuAction { text: "Reset reglaje"; onClicked: root.resetDisplaySettings() }
             }
         }
     }
     Rectangle {
         visible: root.settingsVisible
+        z: 21
         anchors.left: parent.left; anchors.top: menuButton.bottom; anchors.topMargin: 4; anchors.leftMargin: 6
         width: Math.min(360,parent.width-16)
         height: Math.min(settingsContent.implicitHeight+16, Math.max(0, parent.height-menuButton.height-55))

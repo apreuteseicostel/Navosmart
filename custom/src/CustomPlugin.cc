@@ -1,5 +1,7 @@
 #include "CustomPlugin.h"
 #include "NavoKoggerDecoder.h"
+#include "NavoKoggerReplay.h"
+#include "NavoKoggerChartBridge.h"
 #include "NavoKoggerTcpClient.h"
 #include "NavoPersistence.h"
 #include "NavoMissionBridge.h"
@@ -22,7 +24,9 @@ Q_APPLICATION_STATIC(CustomPlugin, _customPluginInstance);
 
 CustomFlyViewOptions::CustomFlyViewOptions(CustomOptions* options,QObject* parent):QGCFlyViewOptions(options,parent){}
 CustomPlugin::CustomPlugin(QObject* parent):QGCCorePlugin(parent),_options(new CustomOptions(this)){
+ qmlRegisterType<NavoKoggerReplay>("NavoSmart.Backend",1,0,"NavoKoggerReplay");
  qmlRegisterType<NavoKoggerDecoder>("NavoSmart.Backend",1,0,"NavoKoggerDecoder");
+ qmlRegisterType<NavoKoggerChartBridge>("NavoSmart.Backend",1,0,"NavoKoggerChartBridge");
  qmlRegisterType<NavoKoggerTcpClient>("NavoSmart.Backend",1,0,"NavoKoggerTcpClient");
  qmlRegisterType<NavoPersistence>("NavoSmart.Backend",1,0,"NavoPersistence");
  qmlRegisterType<NavoMissionBridge>("NavoSmart.Backend",1,0,"NavoMissionBridge");
@@ -50,7 +54,7 @@ QQmlApplicationEngine* CustomPlugin::createQmlApplicationEngine(QObject* parent)
  _engine->addUrlInterceptor(_selector);
  return _engine;
 }
-void CustomPlugin::cleanup(){if(_engine&&_selector)_engine->removeUrlInterceptor(_selector);delete _selector;_selector=nullptr;}
+void CustomPlugin::cleanup(){NavoKoggerService::instance().shutdown();if(_engine&&_selector)_engine->removeUrlInterceptor(_selector);delete _selector;_selector=nullptr;}
 QUrl CustomOverrideInterceptor::intercept(const QUrl& url,DataType type){
  if((type==DataType::QmlFile||type==DataType::UrlString)&&url.scheme()=="qrc"){
   // QML_FILES are declared as qml/<file> under URI NavoSmart, so the

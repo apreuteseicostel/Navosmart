@@ -28,6 +28,7 @@ jobs:
           git clone --depth 1 --branch v5.0.7 --recurse-submodules --shallow-submodules https://github.com/mavlink/qgroundcontrol.git qgc
           rm -rf qgc/custom
           cp -a custom qgc/custom
+          cp -a third_party qgc/third_party
           sed -i '/import NavoSmart.Backend 1.0/i import NavoSmart 1.0' qgc/custom/qml/NavoDashboard.qml
           sed -i 's/QGroundControl\.FlyView/QGroundControl.FlightDisplay/g' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
           sed -i '/QGroundControl\.PlanView/d' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
@@ -218,7 +219,7 @@ jobs:
           adb -s emulator-5554 shell settings put global transition_animation_scale 0.0 || true
           adb -s emulator-5554 shell settings put global animator_duration_scale 0.0 || true
 
-          adb -s emulator-5554 install --no-streaming -r build-x86/NAVO_SMART-x86.apk
+          adb -s emulator-5554 install --no-streaming -r -g build-x86/NAVO_SMART-x86.apk
 
           AAPT2="$ANDROID_HOME/build-tools/35.0.0/aapt2"
           test -x "$AAPT2"
@@ -235,6 +236,8 @@ jobs:
           adb -s emulator-5554 shell settings put system user_rotation 1 || true
           adb -s emulator-5554 shell input keyevent KEYCODE_WAKEUP || true
           adb -s emulator-5554 shell wm dismiss-keyguard || true
+          # Suppress the Android first-run immersive tutorial in this disposable emulator.
+          adb -s emulator-5554 shell settings put secure immersive_mode_confirmations confirmed
           adb -s emulator-5554 shell am start -W -n "$PACKAGE/$ACTIVITY"
 
           sleep 5
