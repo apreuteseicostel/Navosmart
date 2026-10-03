@@ -4,6 +4,7 @@
 #include <QQmlEngine>
 #include <QQmlContext>
 #include <QSignalSpy>
+#include <QJSValue>
 #include <QTemporaryDir>
 #include <QSettings>
 #include "../../custom/src/NavoPersistence.h"
@@ -349,7 +350,14 @@ static void qmlRecordedReplay(const QString& source,const QString& fixture) {
     auto& service=NavoKoggerService::instance();
     timer.restart();
     while(service.processedColumns()<14000 && timer.elapsed()<30000){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}
-    for(const auto& arguments:published)samples.append(arguments.at(0));
+    for(const auto& arguments:published) {
+        const QVariant value=arguments.at(0);
+        // The QML signal carries a JS object owned by its engine. Materialize
+        // it before delivering it to the independent mapping test engine.
+        const QVariant plain=value.metaType()==QMetaType::fromType<QJSValue>()
+            ?value.value<QJSValue>().toVariant():value;
+        samples.append(plain.toMap());
+    }
     std::cout<<"Replay diagnostics: processed="<<service.processedColumns()<<", samples="<<samples.size()<<", records="<<bridge->datasetColumns()<<", unlocated="<<bridge->unlocatedColumns()<<std::endl;
     require(service.processedColumns()>14000 && samples.size()>14000,"actual QML replay failed to publish located bottom samples");
     require(sonar->property("nativeChannelReady").toBool(),"replay native channel disabled");
