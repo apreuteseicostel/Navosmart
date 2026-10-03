@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Dialogs
 import QtPositioning
 import QtLocation
 import QGroundControl.FlightDisplay
@@ -17,6 +18,8 @@ Rectangle {
     property var chartSource: null
     property var samples: []
     property bool connected: false
+    readonly property bool replayActive: chartSource ? chartSource.replayActive : false
+    FileDialog { id: replayPicker; title: 'Încarcă înregistrare Kogger'; nameFilters: ['Kogger (*.klf)', 'Toate fișierele (*)']; onAccepted: { if(root.chartSource) {root.history=[];root.chartSource.startReplay(selectedFile)} } }
     property real depthM: NaN
     property real waterTempC: NaN
     property var vehicle: null
@@ -129,6 +132,7 @@ Rectangle {
     onNoiseFloorChanged: repaint()
     onNoiseFilterEnabledChanged: repaint()
     onDayPaletteChanged: repaint()
+    onReplayActiveChanged: { history=[]; root.menuOpen=false }
     onKoggerCompensationChanged: { history = []; pushHistory(); repaint() }
     onShowBottomTrackChanged: repaint()
     // Freeze scale together with the displayed history while paused.
@@ -325,7 +329,7 @@ Rectangle {
         Label {
             id: telemetry; anchors.fill: parent; anchors.margins: 8; elide: Text.ElideRight
             color: root.connected ? "#21b7ff" : "#9db2c5"
-            text: "PRO  •  " + (root.connected ? (root.paused ? "PAUZĂ" : "LIVE") : "OFFLINE") + "   " + (isFinite(root.depthM)?root.depthM.toFixed(1)+" m":"— m") + "   " + (isFinite(root.waterTempC)?root.waterTempC.toFixed(1)+" °C":"— °C")
+            text: "PRO  •  " + (root.connected ? (root.replayActive ? "TEST REPLAY" : (root.paused ? "PAUZĂ" : "LIVE")) : "OFFLINE") + "   " + (isFinite(root.depthM)?root.depthM.toFixed(1)+" m":"— m") + "   " + (isFinite(root.waterTempC)?root.waterTempC.toFixed(1)+" °C":"— °C")
         }
     }
     IconButton {
@@ -357,6 +361,10 @@ Rectangle {
             contentWidth: availableWidth
             ColumnLayout {
                 id: menuColumn; width: menuPanel.width-16; spacing: 5
+                Button { Layout.fillWidth: true; text: 'Deschide KLF (TEST)'; onClicked: {root.menuOpen=false; replayPicker.open()} }
+                Button { Layout.fillWidth: true; visible:root.replayActive; text:root.chartSource && root.chartSource.replayPaused ? 'Continuă replay' : 'Pauză replay'; onClicked:root.chartSource.pauseReplay(!root.chartSource.replayPaused) }
+                Button { Layout.fillWidth: true; visible:root.replayActive; text:'Viteză replay: '+(root.chartSource ? root.chartSource.replaySpeed : 1)+'×'; onClicked:root.chartSource.setReplaySpeed(root.chartSource.replaySpeed>=5 ? 0.5 : root.chartSource.replaySpeed*2) }
+                Button { Layout.fillWidth: true; visible:root.replayActive; text:'Oprește replay'; onClicked:root.chartSource.stopReplay() }
                 Button { Layout.fillWidth: true; text: root.mapEnabled ? "Ascunde harta" : "Activează harta"; onClicked: {root.mapEnabled=!root.mapEnabled;root.menuOpen=false} }
                 Button { Layout.fillWidth: true; text: root.paused ? "Continuă ecograma" : "Pauză ecogramă"; onClicked: root.paused=!root.paused }
                 Button { Layout.fillWidth: true; text: root.dayPalette ? "Paletă NAVO" : "Paletă de zi"; onClicked: root.dayPalette=!root.dayPalette }
