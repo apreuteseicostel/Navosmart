@@ -311,6 +311,7 @@ Rectangle {
     }
     IconButton {
         id: menuButton
+        objectName: "sonarProMenuButton"
         anchors.left: parent.left; anchors.top: telemetryBar.bottom; anchors.margins: 6
         z: 100; visible: true; enabled: true
         glyph: "settings"; hint: "Deschide / închide meniul Sonar PRO"
@@ -319,6 +320,7 @@ Rectangle {
     }
     IconButton {
         id: closeButton
+        objectName: "sonarProCloseButton"
         anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 6
         z: 102; glyph: "close"; hint: "Ieșire din Sonar PRO"
         onClicked: root.closed()

@@ -31,6 +31,7 @@ signals:
     void tilesChanged();
 private:
     void startProcessor();
+    void rollBatch();
     void onBottomUpdated(const ChannelId& channel,int from,int to,bool manual,bool redraw);
     Dataset dataset_;
     DataHorizon horizon_;
@@ -42,4 +43,11 @@ private:
     int processedColumns_=0;
     bool capacityFull_=false;
     double bottomDepth_=qQNaN();
+    QTimer rolloverTimer_;
+    struct PendingInput {QByteArray chart;quint16 resolution,offset;quint8 version; qint64 time;double lat,lon,depth,temp,heading,pitch,roll;ChannelId channel;};
+    QVector<PendingInput> pending_;
+    qsizetype pendingBytes_=0;
+    bool rolling_=false;
+    int epochOffset_=0;
+    QSet<int> processedEpochs_;
 };

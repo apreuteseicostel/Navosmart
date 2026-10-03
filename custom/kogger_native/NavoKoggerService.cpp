@@ -17,6 +17,8 @@ NavoKoggerService::NavoKoggerService(QObject* parent):QObject(parent){
     connect(&horizon_,&DataHorizon::sonarPosCanCalc,&dataset_,&Dataset::onSonarPosCanCalc);
     connect(&horizon_,&DataHorizon::dimRectsCanCalc,&dataset_,&Dataset::onDimensionRectCanCalc);
     connect(&dataset_,&Dataset::bottomTrackUpdated,this,&NavoKoggerService::onBottomUpdated);
+    rolloverTimer_.setInterval(20);
+    connect(&rolloverTimer_,&QTimer::timeout,this,&NavoKoggerService::rollBatch);
     startProcessor();
 }
 NavoKoggerService::~NavoKoggerService(){if(processor_)processor_->shutdown();}
@@ -60,7 +62,15 @@ void NavoKoggerService::startProcessor(){
 bool NavoKoggerService::ingest(const NavoKoggerChartRecord& record,const ChannelId& channel,double heading,double pitch,double roll){
     if(!record.hasValidChart()||!channel.isValid()||record.version!=0)return false;
     if(channel_.isValid()&&channel_!=channel)clear();
-    if(dataset_.size()>=3000||rawBytes_+record.chart.size()>16*1024*1024){capacityFull_=true;emit processingChanged();return false;}
+    if(rolling_ || capacityFull_ || dataset_.size()>=3000 || rawBytes_+record.chart.size()>16*1024*1024){
+        capacityFull_=true;
+        if(pending_.size()>=64 || pendingBytes_+record.chart.size()>1024*1024){emit processingChanged();return false;}
+        pending_.append(PendingInput{record.chart,record.resolutionMm,record.absoluteOffset,record.version,
+            record.receivedAtMs,record.latitude,record.longitude,record.depthM,record.temperatureC,heading,pitch,roll,channel});
+        pendingBytes_+=record.chart.size();
+        if(!rolloverTimer_.isActive())rolloverTimer_.start();
+        emit processingChanged();return true;
+    }
     if(!channel_.isValid()){
         channel_=channel;
         // Side-scan channels are intentionally unconfigured for DownView.
@@ -70,7 +80,33 @@ bool NavoKoggerService::ingest(const NavoKoggerChartRecord& record,const Channel
     if(std::isfinite(heading))dataset_.addAtt(heading,pitch,roll);
     return true;
 }
+void NavoKoggerService::rollBatch(){
+    if(rolling_ || dataset_.getLastBottomTrackEpoch()<dataset_.size())return;
+    rolling_=true;rolloverTimer_.stop();
+    // The original live scene deliberately trails three epochs. At the closed
+    // batch boundary these already processed tail depths can be published.
+    onBottomUpdated(channel_,std::max(0,dataset_.size()-3),dataset_.size(),false,false);
+    const int previousSize=dataset_.size();const auto reference=dataset_.getLlaRef();
+    processor_->setSuppressResults(true);
+    QObject::disconnect(processor_.get(),nullptr,&dataset_,nullptr);
+    QObject::disconnect(processor_.get(),nullptr,this,nullptr);
+    processor_->shutdown();processor_.reset();
+    dataset_.resetDataset();horizon_.clear();bottomTrack_.clear();
+    if(reference.isInit)dataset_.setLlaRef(reference,Dataset::LlaRefState::kSettings);
+    epochOffset_+=previousSize;processedEpochs_.clear();rawBytes_=0;
+    startProcessor();
+    const auto pending=std::move(pending_);pending_.clear();pendingBytes_=0;
+    rolling_=false;capacityFull_=false;
+    for(const auto& input:pending){
+        NavoKoggerChartRecord record;
+        record.chart=input.chart;record.resolutionMm=input.resolution;record.absoluteOffset=input.offset;record.version=input.version;
+        record.receivedAtMs=input.time;record.latitude=input.lat;record.longitude=input.lon;record.depthM=input.depth;record.temperatureC=input.temp;
+        ingest(record,input.channel,input.heading,input.pitch,input.roll);
+    }
+    emit processingChanged();
+}
 void NavoKoggerService::clear(){
+    rolloverTimer_.stop();pending_.clear();pendingBytes_=0;rolling_=false;epochOffset_=0;processedEpochs_.clear();
     // Stop workers before clearing the shared Dataset; reconnect starts a new
     // generation, so queued results cannot mutate epochs from another scan.
     processor_->setSuppressResults(true);
@@ -87,13 +123,14 @@ void NavoKoggerService::onBottomUpdated(const ChannelId& channel,int from,int to
         Epoch epoch=dataset_.fromIndexCopy(index);
         const double depth=epoch.distProccesing(channel);
         if(!std::isfinite(depth)||depth<=0)continue;
-        bottomDepth_=depth;++processedColumns_;
+        bottomDepth_=depth;
+        if(!processedEpochs_.contains(index)){processedEpochs_.insert(index);++processedColumns_;}
         const auto position=epoch.getSonarPosition();
         if(position.ned.isCoordinatesValid()){
             epochs.append(index);vertices.append(bottomTrack_.put(index,QVector3D(position.ned.n,position.ned.e,-depth)));
         }
         const auto gps=epoch.getPositionGNSS();
-        if(gps.lla.isCoordinatesValid())emit bottomSampleReady(index,gps.lla.latitude,gps.lla.longitude,depth,epoch.temperature());
+        if(gps.lla.isCoordinatesValid())emit bottomSampleReady(epochOffset_+index,gps.lla.latitude,gps.lla.longitude,depth,epoch.temperature());
     }
     if(!epochs.isEmpty())horizon_.onAddedBottomTrack3D(epochs,vertices,manual);
     emit processingChanged();

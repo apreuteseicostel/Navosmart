@@ -20,12 +20,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Qt Core build tools
-        run: sudo apt-get update && sudo apt-get install -y qt6-base-dev
+        run: sudo apt-get update && sudo apt-get install -y qt6-base-dev qt6-declarative-dev qt6-svg-dev qml6-module-qtqml qml6-module-qtqml-models qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-layouts qml6-module-qtquick-window qml6-module-qtquick-templates qml6-module-qtqml-workerscript
       - name: Build actual NAVO decoder
         run: cmake -S tests/kogger-replay -B /tmp/navo-replay && cmake --build /tmp/navo-replay -j2
+      - name: Package runnable Qt test environments
+        run: python3 tests/kogger-replay/bundle-runtime.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: navo-qt-core-runner
+          path: /tmp/navo-qt-runtime/core.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: navo-qt-ui-runner
+          path: /tmp/navo-qt-runtime/ui.tar.gz
       - name: Test protocol regressions
         run: /tmp/navo-replay/navo-kogger-replay
+      - uses: actions/cache@v4
+        id: fixture-cache
+        with:
+          path: /tmp/00028_DownView.klf
+          key: kogger-downview-1ff5e23abbdd37e31eeacd7875c4e8a457ccb927641e47ea77c861151ab2ace0
       - name: Fetch original Kogger recording
+        if: steps.fixture-cache.outputs.cache-hit != 'true' 
         run: curl --fail --location --retry 3 --max-time 180 https://kogger.tech/wp-content/uploads/00028_DownView.klf -o /tmp/00028_DownView.klf
       - name: Replay verified fixture through actual NAVO decoder
         run: /tmp/navo-replay/navo-kogger-replay /tmp/00028_DownView.klf
+
+      - name: Render actual Sonar PRO component from recorded columns
+        run: /tmp/navo-replay/navo-sonar-ui-replay custom/qml/NavoSonarPro.qml tests/kogger-replay/mock-imports kogger-columns.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kogger-recorded-evidence
+          path: |
+            kogger-sonar-pro-*.png
+            kogger-bottom-track.csv
+          if-no-files-found: ignore

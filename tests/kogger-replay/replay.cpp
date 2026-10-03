@@ -3,6 +3,9 @@
 #include "../../custom/src/NavoKoggerDatasetAdapter.h"
 #include <QCryptographicHash>
 #include <QFile>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QElapsedTimer>
 #include <QThread>
 #include <QEventLoop>
@@ -102,12 +105,21 @@ static void recordedProcessors(const QByteArray& bytes) {
     const ChannelId channel(QUuid("{52202375-23b1-44cb-83a8-d2b8611efbab}"),2);
     double lat=qQNaN(),lon=qQNaN(),yaw=qQNaN(),pitch=qQNaN(),roll=qQNaN();
     int accepted=0,located=0,depths=0;
+    QJsonArray displayColumns;
+    QFile points("kogger-bottom-track.csv");require(points.open(QIODevice::WriteOnly),"cannot save bottom-track evidence");
+    points.write("epoch,latitude,longitude,depth_m\n");
     const auto sampleConnection=QObject::connect(&service,&NavoKoggerService::bottomSampleReady,
-        [&](int,double la,double lo,double depth,double){
+        [&](int epoch,double la,double lo,double depth,double){
             require(std::isfinite(la)&&std::isfinite(lo)&&depth>0&&depth<50,"invalid processed georeferenced depth");++depths;
+            points.write(QString("%1,%2,%3,%4\n").arg(epoch).arg(la,0,'f',7).arg(lo,0,'f',7).arg(depth,0,'f',3).toUtf8());
         });
     QObject::connect(&decoder,&NavoKoggerDecoder::chartColumnReady,[&]{
         require(decoder.chartAddress()==2,"recording route was not preserved");
+        if(displayColumns.size()<240){
+            QJsonArray samples;for(const char byte:decoder.chartRawBytes())samples.append(double(quint8(byte))/255.0);
+            displayColumns.append(QJsonObject{{"samples",samples},{"offset",decoder.chartOffsetMeters()},
+                {"range",decoder.chartRangeMeters()},{"bottom",QJsonValue::Null}});
+        }
         NavoKoggerDatasetAdapter adapter;
         require(adapter.append(decoder,lat,lon,0),"recorded pipeline adapter failed");
         if(service.ingest(adapter.records().last(),channel,yaw,pitch,roll)){
@@ -138,17 +150,25 @@ static void recordedProcessors(const QByteArray& bytes) {
             }
         }
         if((++frames%1024)==0)QCoreApplication::processEvents(QEventLoop::AllEvents,1);
+        if(service.capacityFull()){
+            QElapsedTimer drain;drain.start();
+            while(service.capacityFull() && drain.elapsed()<10000){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}
+            require(!service.capacityFull(),"rolling Dataset did not drain its previous batch");
+        }
     }
-    require(accepted==3000 && service.capacityFull(),"production Dataset budget did not stop at 3000 epochs");
-    require(located>2900,"fixture MAVLink GPS was not paired with CHART");
+    require(accepted==15423 && service.dataset().size()<=3000,"rolling Dataset lost columns or exceeded its budget");
+    require(located>15000,"fixture MAVLink GPS was not paired with CHART");
     QElapsedTimer timeout;timeout.start();
-    while(timeout.elapsed()<30000 && depths<2900){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}
-    require(depths>2900,"original bottom-track processor did not return located depths");
+    while(timeout.elapsed()<30000 && service.processedColumns()<15000){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}
+    require(service.processedColumns()>15000,"original bottom-track processor did not return located depths");
     require(std::isfinite(service.bottomDepth()) && service.bottomDepth()>0,"no processed bottom depth");
     service.requestVisibleRect(-100,-100,100,100);
     timeout.restart();while(timeout.elapsed()<5000){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}
     std::cout<<"PASS native processors: "<<accepted<<" recorded epochs, "<<located<<" with original GPS, "<<depths
              <<" processed depth updates, "<<service.tileCount()<<" visible bathymetry tiles\n";
+    QFile display("kogger-columns.json");require(display.open(QIODevice::WriteOnly),"cannot save visual fixture");
+    display.write(QJsonDocument(displayColumns).toJson(QJsonDocument::Compact));
+    points.close();
     QObject::disconnect(sampleConnection);
     service.clear();
 }
