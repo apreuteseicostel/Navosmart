@@ -1,5 +1,6 @@
 #include "CustomPlugin.h"
 #include "NavoKoggerDecoder.h"
+#include "NavoKoggerReplay.h"
 #include "NavoKoggerChartBridge.h"
 #include "NavoKoggerTcpClient.h"
 #include "NavoPersistence.h"
@@ -23,6 +24,7 @@ Q_APPLICATION_STATIC(CustomPlugin, _customPluginInstance);
 
 CustomFlyViewOptions::CustomFlyViewOptions(CustomOptions* options,QObject* parent):QGCFlyViewOptions(options,parent){}
 CustomPlugin::CustomPlugin(QObject* parent):QGCCorePlugin(parent),_options(new CustomOptions(this)){
+ qmlRegisterType<NavoKoggerReplay>("NavoSmart.Backend",1,0,"NavoKoggerReplay");
  qmlRegisterType<NavoKoggerDecoder>("NavoSmart.Backend",1,0,"NavoKoggerDecoder");
  qmlRegisterType<NavoKoggerChartBridge>("NavoSmart.Backend",1,0,"NavoKoggerChartBridge");
  qmlRegisterType<NavoKoggerTcpClient>("NavoSmart.Backend",1,0,"NavoKoggerTcpClient");
