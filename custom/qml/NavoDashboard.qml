@@ -325,7 +325,7 @@ Item {
             // Preserve the echo metric captured with this georeferenced CHART column.
             var echo = (sample.bottomEcho !== undefined && isFinite(Number(sample.bottomEcho)))
                        ? Number(sample.bottomEcho) : NaN
-            var enriched = {time:sample.time, lat:sample.lat, lon:sample.lon,
+            var enriched = {time:sample.time, sequence:sample.sequence, source:sample.source, lat:sample.lat, lon:sample.lon,
                             heading:sample.heading, depth:sample.depth, temp:sample.temp,
                             bottomEcho:echo,
                             chartResolution:sample.chartResolution,

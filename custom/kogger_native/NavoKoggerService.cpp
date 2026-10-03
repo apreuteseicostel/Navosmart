@@ -74,7 +74,7 @@ bool NavoKoggerService::ingest(const NavoKoggerChartRecord& record,const Channel
         capacityFull_=true;
         if(pending_.size()>=64 || pendingBytes_+record.chart.size()>1024*1024){emit processingChanged();return false;}
         pending_.append(PendingInput{record.chart,record.resolutionMm,record.absoluteOffset,record.version,
-            record.receivedAtMs,record.latitude,record.longitude,record.depthM,record.temperatureC,heading,pitch,roll,channel});
+            record.receivedAtMs,record.latitude,record.longitude,record.depthM,record.temperatureC,heading,pitch,roll,channel,record.sequence});
         pendingBytes_+=record.chart.size();
         if(!rolloverTimer_.isActive())rolloverTimer_.start();
         emit processingChanged();return true;
@@ -84,6 +84,7 @@ bool NavoKoggerService::ingest(const NavoKoggerChartRecord& record,const Channel
         // Side-scan channels are intentionally unconfigured for DownView.
     }
     if(!NavoKoggerDatasetAdapter::appendToKoggerDataset(record,channel,dataset_))return false;
+    metadata_.insert(dataset_.endIndex(),ColumnMetadata{record.receivedAtMs,record.sequence,heading,record.resolutionMm,record.absoluteOffset,record.version,int(record.chart.size())});
     rawBytes_+=record.chart.size();
     if(std::isfinite(heading))dataset_.addAtt(heading,pitch,roll);
     return true;
@@ -101,20 +102,20 @@ void NavoKoggerService::rollBatch(){
     processor_->shutdown();processor_.reset();
     dataset_.resetDataset();horizon_.clear();bottomTrack_.clear();
     if(reference.isInit)dataset_.setLlaRef(reference,Dataset::LlaRefState::kSettings);
-    epochOffset_+=previousSize;processedEpochs_.clear();rawBytes_=0;
+    epochOffset_+=previousSize;processedEpochs_.clear();metadata_.clear();publishedDepths_.clear();publishedGeoDepths_.clear();rawBytes_=0;
     startProcessor();
     const auto pending=std::move(pending_);pending_.clear();pendingBytes_=0;
     rolling_=false;capacityFull_=false;
     for(const auto& input:pending){
         NavoKoggerChartRecord record;
         record.chart=input.chart;record.resolutionMm=input.resolution;record.absoluteOffset=input.offset;record.version=input.version;
-        record.receivedAtMs=input.time;record.latitude=input.lat;record.longitude=input.lon;record.depthM=input.depth;record.temperatureC=input.temp;
+        record.sequence=input.sequence;record.receivedAtMs=input.time;record.latitude=input.lat;record.longitude=input.lon;record.depthM=input.depth;record.temperatureC=input.temp;
         ingest(record,input.channel,input.heading,input.pitch,input.roll);
     }
     emit processingChanged();
 }
 void NavoKoggerService::clear(){
-    rolloverTimer_.stop();pending_.clear();pendingBytes_=0;rolling_=false;epochOffset_=0;processedEpochs_.clear();
+    rolloverTimer_.stop();pending_.clear();pendingBytes_=0;rolling_=false;epochOffset_=0;processedEpochs_.clear();metadata_.clear();publishedDepths_.clear();publishedGeoDepths_.clear();
     // Stop workers before clearing the shared Dataset; reconnect starts a new
     // generation, so queued results cannot mutate epochs from another scan.
     processor_->setSuppressResults(true);
@@ -138,7 +139,28 @@ void NavoKoggerService::onBottomUpdated(const ChannelId& channel,int from,int to
             epochs.append(index);vertices.append(bottomTrack_.put(index,QVector3D(position.ned.n,position.ned.e,-depth)));
         }
         const auto gps=epoch.getPositionGNSS();
-        if(gps.lla.isCoordinatesValid())emit bottomSampleReady(epochOffset_+index,gps.lla.latitude,gps.lla.longitude,depth,epoch.temperature());
+        const auto meta=metadata_.constFind(index);
+        if(meta!=metadata_.cend() && publishedDepths_.value(index,qQNaN())!=depth){
+            publishedDepths_[index]=depth;
+            emit bottomColumnReady(meta->sequence,depth);
+        }
+        if(gps.lla.isCoordinatesValid() && meta!=metadata_.cend() && publishedGeoDepths_.value(index,qQNaN())!=depth){
+            publishedGeoDepths_[index]=depth;
+            double echo=qQNaN();
+            if(const auto* chart=epoch.chart(channel,0);chart && chart->resolution>0){
+                const int center=int(std::round((depth-chart->offset)/chart->resolution));
+                double sum=0;int count=0;
+                for(int i=std::max(0,center-2);i<std::min(int(chart->amplitude.size()),center+3);++i){sum+=chart->amplitude[i]/255.0;++count;}
+                if(count)echo=sum/count;
+            }
+            emit bottomSampleReady(epochOffset_+index,gps.lla.latitude,gps.lla.longitude,depth,epoch.temperature());
+            emit geoSampleReady(QVariantMap{{"time",meta->time},{"sequence",QVariant::fromValue(meta->sequence)},
+                {"lat",gps.lla.latitude},{"lon",gps.lla.longitude},{"depth",depth},{"temp",epoch.temperature()},
+                {"heading",meta->heading},{"bottomEcho",echo},{"source",QStringLiteral("kogger-bottom-track")},
+                {"chartResolution",meta->resolution},{"chartAbsoluteOffset",meta->offset},{"chartVersion",meta->version},
+                {"chartResolutionMeters",meta->resolution*0.001},{"chartOffsetMeters",meta->offset*meta->resolution*0.001},
+                {"chartRangeMeters",meta->samples*meta->resolution*0.001}});
+        }
     }
     if(!epochs.isEmpty())horizon_.onAddedBottomTrack3D(epochs,vertices,manual);
     emit processingChanged();

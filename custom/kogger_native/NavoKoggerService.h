@@ -30,6 +30,8 @@ signals:
     void processingChanged();
     void bottomSampleReady(int epoch,double latitude,double longitude,double depth,double temperature);
     void tilesChanged();
+    void bottomColumnReady(quint64 sequence,double depth);
+    void geoSampleReady(const QVariantMap& sample);
 private:
     void startProcessor();
     void rollBatch();
@@ -45,10 +47,14 @@ private:
     bool capacityFull_=false;
     double bottomDepth_=qQNaN();
     QTimer rolloverTimer_;
-    struct PendingInput {QByteArray chart;quint16 resolution,offset;quint8 version; qint64 time;double lat,lon,depth,temp,heading,pitch,roll;ChannelId channel;};
+    struct PendingInput {QByteArray chart;quint16 resolution,offset;quint8 version; qint64 time;double lat,lon,depth,temp,heading,pitch,roll;ChannelId channel;quint64 sequence;};
     QVector<PendingInput> pending_;
     qsizetype pendingBytes_=0;
     bool rolling_=false;
     int epochOffset_=0;
     QSet<int> processedEpochs_;
+    struct ColumnMetadata {qint64 time;quint64 sequence;double heading;quint16 resolution,offset;quint8 version;int samples;};
+    QHash<int,ColumnMetadata> metadata_;
+    QHash<int,double> publishedDepths_;
+    QHash<int,double> publishedGeoDepths_;
 };

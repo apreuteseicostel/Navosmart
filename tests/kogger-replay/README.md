@@ -24,25 +24,53 @@ seven trailing bytes. The last column remains pending until the next boundary;
 no synthetic boundary or depth is inserted. There are no non-proxy DIST v0
 measurements in this fixture. Bottom depth needs a CHART bottom-track processor.
 
-Build against Qt6 Core/Gui and run the actual production decoder:
+Build with Qt6 Core/Gui/Concurrent/Sql/Quick/Qml/Test:
 
 ```sh
 cmake -S tests/kogger-replay -B /tmp/navo-replay
 cmake --build /tmp/navo-replay -j2
 /tmp/navo-replay/navo-kogger-replay /path/to/00028_DownView.klf
+/tmp/navo-replay/navo-sonar-ui-replay custom/qml/NavoSonarPro.qml tests/kogger-replay/mock-imports kogger-columns.json
 ```
 
-Tests compare full-read and irregular fragmented replay against both count and
-raw byte digest, then cover KP1/KP2 byte-by-byte input, missing fragments,
-checksum recovery, measurement type filtering and reset.
+The decoder tests compare full-read and irregular fragmented replay against the
+count and raw-byte digest, and cover KP1/KP2 fragmentation, missing samples,
+checksum recovery, measurement filtering and reset. Dataset/Epoch conversion
+must preserve every amplitude and the physical scale. Adapter retention is
+bounded to 3,000 records/16 MB.
 
-The integration extension feeds each real column into the NAVO adapter and
-upstream Epoch/Dataset sources. It compares all raw amplitudes and physical
-resolution and exercises the adapter's 3,000-record/16 MB retention budget.
-A fixed test-only channel UUID is used; missing fixture GPS remains missing.
-Dataset is cleared in 128-column batches to bound this test. This does not
-validate production Dataset eviction or live channel identity wiring.
+The processor integration walks the actual upstream FrameParser, reads recorded
+MAVLink GPS and attitude, then feeds all completed columns into the production
+NavoKoggerService and original bottom/surface algorithms. Native Dataset batches
+roll at 3,000 epochs/16 MB and workers stop before clearing shared data. A
+fixed test-only link UUID is combined with the recorded route 2.
 
-This test does not validate Android rendering, GPS/CHART temporal alignment,
-bottom-track, mosaic or bathymetry. Those require separate integration tests. The dedicated GitHub workflow installs real Qt6 and
-fetches the original fixture; hash mismatch fails the run.
+GPS_RAW_INT fix_type must be at least 3 before recording positions. Initial
+GLOBAL_POSITION_INT messages contain (0,0) before a fix; accepting them creates
+an incorrect local origin millions of metres from the actual track and breaks
+triangulation. Missing fixes remain unlocated. Production input likewise requires
+the boat GPS fix and a healthy vehicle link; host arrival is not a device clock.
+
+Processed results retain their own column sequence, host arrival time, heading,
+GPS and echo around the detected bottom. Position refreshes do not duplicate
+unchanged geo samples. Sequence counters survive decoder reset so delayed
+results cannot attach to a new scan's columns. Sonar PRO updates the matching
+history column when its delayed bottom result arrives.
+
+The surface test requests the remaining track's actual local bounds, requires
+visible tiles and validates positive finite depth cells with triangulation marks.
+CSV evidence preserves native height types, including extrapolated cells. These
+interpolated/extrapolated surface cells are not additional measured soundings.
+DownView has no validated lateral channel geometry, so side-scan mosaic stays
+disabled rather than projecting a fabricated swath.
+
+The visual test loads production Sonar PRO with 240 actual columns, checks
+DAY/NAVO and landscape/portrait rendering, delayed bottom association and actual
+menu/close mouse clicks. Map dependencies are mocked and disabled. Evidence is
+exported as PNG and CSV by the dedicated GitHub workflow.
+
+This validates native algorithms and the isolated production ecogram component.
+It does not establish GPS/device-clock synchronization, installed Android
+end-to-end behavior, live hardware performance, side-scan mosaic geometry or
+that the native surface tiles are rendered by the full app's map/3D viewer.
+Keep the PR draft until those applicable integration checks are complete.

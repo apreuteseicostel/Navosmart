@@ -10,6 +10,7 @@ class NavoKoggerDecoder : public QObject {
  Q_PROPERTY(double waterTempC READ waterTempC NOTIFY temperatureChanged)
  Q_PROPERTY(QVariantList echoSamples READ echoSamples NOTIFY echoSamplesChanged)
  Q_PROPERTY(QVariantList compensatedSamples READ compensatedSamples NOTIFY echoSamplesChanged)
+ Q_PROPERTY(quint64 chartSequence READ chartSequence NOTIFY echoSamplesChanged)
  Q_PROPERTY(QByteArray chartRawBytes READ chartRawBytes NOTIFY echoSamplesChanged)
  Q_PROPERTY(quint16 chartResolution READ chartResolution NOTIFY echoSamplesChanged)
  Q_PROPERTY(quint16 chartAbsoluteOffset READ chartAbsoluteOffset NOTIFY echoSamplesChanged)
@@ -25,6 +26,7 @@ public:
  double waterTempC() const { return _waterTempC; }
  QVariantList echoSamples() const { return _echoSamples; }
  QVariantList compensatedSamples() const { return _compensatedSamples; }
+ quint64 chartSequence() const { return _chartSequence; }
  QByteArray chartRawBytes() const { return _publishedChartRaw; }
  quint16 chartResolution() const { return _publishedChartResolution; }
  quint16 chartAbsoluteOffset() const { return _publishedChartAbsoluteOffset; }
@@ -53,6 +55,7 @@ private:
  static constexpr int MaxChartBytes=128*1024;
  QByteArray _buffer;
  QByteArray _chart;
+ quint64 _chartSequence=0; // Monotonic across resets so delayed results cannot match a new scan.
  QByteArray _publishedChartRaw;
  int _chartAddress=-1;
  int _publishedChartAddress=-1;

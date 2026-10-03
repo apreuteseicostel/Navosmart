@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'custom/src/NavoKogger*'
+      - 'custom/qml/NavoSonar*.qml'
+      - 'custom/CMakeLists.txt'
       - 'custom/kogger_native/**'
       - 'third_party/KoggerApp/**'
       - 'tests/kogger-replay/**'
@@ -55,4 +57,5 @@ jobs:
           path: |
             kogger-sonar-pro-*.png
             kogger-bottom-track.csv
+            kogger-bathymetry-cells.csv
           if-no-files-found: ignore

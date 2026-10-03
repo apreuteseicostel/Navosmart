@@ -55,8 +55,7 @@ Rectangle {
     property bool noiseFilterEnabled: false
     property bool dayPalette: false
     property bool koggerCompensation: false
-    // Live bottom overlay uses the decoded Kogger depth telemetry, not the
-    // offline KoggerApp BottomTrackProcessor (which needs a Dataset adapter).
+    // Native bottom results update their matching completed CHART column.
     property bool showBottomTrack: true
     readonly property var displayedColumn: history.length ? history[history.length - 1] : null
     readonly property int buttonSize: width < 640 ? 36 : 40
@@ -71,9 +70,19 @@ Rectangle {
         if (paused || !available || !column || !column.length ||
                 !isFinite(offset) || !isFinite(range) || range <= 0) return
         var h = history.slice(0)
-        h.push({samples: column.slice(0), offset: offset, range: range, bottom: isFinite(root.depthM) && root.depthM >= 0 ? root.depthM : NaN})
+        h.push({samples: column.slice(0), offset: offset, range: range, sequence: chartSource ? chartSource.chartSequence : 0,
+                bottom: chartSource && chartSource.nativeChannelReady ? NaN : (isFinite(root.depthM) && root.depthM >= 0 ? root.depthM : NaN)})
         if (h.length > historyColumns) h.splice(0, h.length - historyColumns)
         history = h
+    }
+    function updateHistoryBottom(sequence, depth) {
+        if (!isFinite(depth) || depth <= 0) return
+        var next = history.slice(0), changed = false
+        for (var i=0; i<next.length; ++i) {
+            if (next[i].sequence !== sequence) continue
+            var entry = Object.assign({},next[i]); entry.bottom = depth; next[i] = entry; changed = true
+        }
+        if (changed) { history = next; repaint() }
     }
     function sampleStrength(column, index) {
         var value = Number(column[index])
@@ -102,6 +111,7 @@ Rectangle {
     Connections {
         target: root.chartSource
         function onEchoSamplesChanged() { root.captureGeoChart(); root.pushHistory() }
+        function onBottomColumnReady(sequence,depth) { root.updateHistoryBottom(sequence,depth) }
     }
     onSamplesChanged: if (!chartSource) Qt.callLater(pushHistory)
     Component.onCompleted: Qt.callLater(pushHistory)

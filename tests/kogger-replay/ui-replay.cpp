@@ -39,6 +39,14 @@ int main(int argc,char**argv){
       }
   };
   root->setProperty("connected",true);root->setProperty("history",columns.toVariantList());
+  // Delayed depth must update its own completed column, not the newest one.
+  auto associationColumns=columns.toVariantList();
+  for(int i=0;i<associationColumns.size();++i){auto entry=associationColumns[i].toMap();entry["sequence"]=i+1;associationColumns[i]=entry;}
+  root->setProperty("history",associationColumns);
+  check(QMetaObject::invokeMethod(root,"updateHistoryBottom",Q_ARG(QVariant,QVariant(43)),Q_ARG(QVariant,QVariant(8.25))),"cannot deliver delayed bottom result");
+  const auto updated=root->property("history").toList();
+  check(updated[42].toMap().value("bottom").toDouble()==8.25 && updated[43].toMap().value("bottom")==associationColumns[43].toMap().value("bottom"),"delayed depth changed the wrong ecogram column");
+  root->setProperty("history",columns.toVariantList());
   view.show();events();verifyControls();
   auto* menu=root->findChild<QQuickItem*>("sonarProMenuButton");
   const auto menuPoint=menu->mapToScene(QPointF(menu->width()/2,menu->height()/2)).toPoint();
@@ -58,6 +66,6 @@ int main(int argc,char**argv){
   QTest::mouseClick(&view,Qt::LeftButton,Qt::NoModifier,close->mapToScene(QPointF(close->width()/2,close->height()/2)).toPoint());events();
   check(closeSignal.count()==1,"close button did not emit closed signal");
   check(root->property("mapEnabled").toBool()==false,"map mock unexpectedly active");
-  std::cout<<"PASS production Sonar PRO QML: 240 actual columns, DAY/NAVO palettes, landscape/portrait rendering\n";
+  std::cout<<"PASS production Sonar PRO QML: 240 actual columns, DAY/NAVO palettes, landscape/portrait rendering, delayed bottom association and menu/close clicks\n";
  }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}
 }

@@ -104,7 +104,18 @@ static void recordedProcessors(const QByteArray& bytes) {
     NavoKoggerDecoder decoder;
     const ChannelId channel(QUuid("{52202375-23b1-44cb-83a8-d2b8611efbab}"),2);
     double lat=qQNaN(),lon=qQNaN(),yaw=qQNaN(),pitch=qQNaN(),roll=qQNaN();
-    int accepted=0,located=0,depths=0;
+    bool gpsFix=false;
+    int accepted=0,located=0,depths=0,geosamples=0;
+    QHash<quint64,qint64> arrivalTimes;
+    QSet<quint64> emittedSequences;
+    const auto geoConnection=QObject::connect(&service,&NavoKoggerService::geoSampleReady,[&](const QVariantMap& sample){
+        const auto sequence=sample.value("sequence").toULongLong();
+        require(arrivalTimes.contains(sequence) && sample.value("time").toLongLong()==arrivalTimes.value(sequence),"processed sample lost original column arrival time");
+        require(!emittedSequences.contains(sequence),"position refresh duplicated a processed geo sample");
+        require(sample.value("chartResolution").toInt()==10 && std::abs(sample.value("chartRangeMeters").toDouble()-50)<1e-6,"processed geo sample lost its physical scale");
+        require(std::isfinite(sample.value("bottomEcho").toDouble()),"processed sample lost its own bottom echo");
+        emittedSequences.insert(sequence);++geosamples;
+    });
     QJsonArray displayColumns;
     QFile points("kogger-bottom-track.csv");require(points.open(QIODevice::WriteOnly),"cannot save bottom-track evidence");
     points.write("epoch,latitude,longitude,depth_m\n");
@@ -121,7 +132,8 @@ static void recordedProcessors(const QByteArray& bytes) {
                 {"range",decoder.chartRangeMeters()},{"bottom",QJsonValue::Null}});
         }
         NavoKoggerDatasetAdapter adapter;
-        require(adapter.append(decoder,lat,lon,0),"recorded pipeline adapter failed");
+        require(adapter.append(decoder,lat,lon,100000+accepted),"recorded pipeline adapter failed");
+        arrivalTimes.insert(decoder.chartSequence(),100000+accepted);
         if(service.ingest(adapter.records().last(),channel,yaw,pitch,roll)){
             ++accepted;if(adapter.records().last().hasPosition())++located;
         }
@@ -139,7 +151,11 @@ static void recordedProcessors(const QByteArray& bytes) {
             auto& mav=static_cast<Parsers::ProtoMAVLink&>(parser);
             const auto* raw=parser.frame();const int header=parser.proto()==Parsers::FrameParser::ProtoMAVLink2?10:6;
             const auto* payload=raw+header;const int length=raw[1];
-            if(mav.msgId()==33 && length>=28){
+            if(mav.msgId()==24 && length>=30){
+                gpsFix=payload[28]>=3;
+                lat=gpsFix?double(qFromLittleEndian<qint32>(payload+8))*1e-7:qQNaN();
+                lon=gpsFix?double(qFromLittleEndian<qint32>(payload+12))*1e-7:qQNaN();
+            }else if(mav.msgId()==33 && length>=28 && gpsFix){
                 lat=double(qFromLittleEndian<qint32>(payload+4))*1e-7;
                 lon=double(qFromLittleEndian<qint32>(payload+8))*1e-7;
                 const auto heading=qFromLittleEndian<quint16>(payload+26);
@@ -157,6 +173,7 @@ static void recordedProcessors(const QByteArray& bytes) {
         }
     }
     require(accepted==15423 && service.dataset().size()<=3000,"rolling Dataset lost columns or exceeded its budget");
+    require(service.dataset().getLlaRef().isInit && std::abs(service.dataset().getLlaRef().refLla.latitude-40.16)<0.01,"invalid GPS initialized the local bathymetry origin");
     require(located>15000,"fixture MAVLink GPS was not paired with CHART");
     QElapsedTimer timeout;timeout.start();
     while(timeout.elapsed()<30000 && service.processedColumns()<14000){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}
@@ -169,7 +186,7 @@ static void recordedProcessors(const QByteArray& bytes) {
         minN=std::min(minN,float(position.ned.n));maxN=std::max(maxN,float(position.ned.n));
         minE=std::min(minE,float(position.ned.e));maxE=std::max(maxE,float(position.ned.e));
     }
-    require(std::isfinite(minN),"no located sonar positions for bathymetry");
+    require(std::isfinite(minN) && std::abs(minN)<5000 && std::abs(maxN)<5000 && std::abs(minE)<5000 && std::abs(maxE)<5000,"no located sonar positions for bathymetry");
     std::cout<<"Surface viewport N="<<minN<<":"<<maxN<<" E="<<minE<<":"<<maxE<<std::endl;
     QObject::connect(&service.processor(),&DataProcessor::pipelineStats,[](const QVariantMap& stats){
         std::cout<<"Surface diagnostics: "<<QJsonDocument(QJsonObject::fromVariantMap(stats)).toJson(QJsonDocument::Compact).constData()<<std::endl;
@@ -179,12 +196,31 @@ static void recordedProcessors(const QByteArray& bytes) {
     service.processor().requestPipelineStats();
     timeout.restart();while(timeout.elapsed()<1000){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}
     require(service.tileCount()>0,"surface processor returned no bathymetry tiles for the recorded track");
+    QFile cells("kogger-bathymetry-cells.csv");require(cells.open(QIODevice::WriteOnly),"cannot save surface evidence");
+    cells.write("north_m,east_m,depth_m,height_type\n");
+    int surfaceCells=0,triangulated=0;
+    for(const auto& tile:service.tiles()){
+        const auto& vertices=tile.getHeightVerticesCRef();const auto& marks=tile.getHeightMarkVerticesCRef();
+        require(vertices.size()==marks.size(),"surface height marks do not match vertices");
+        for(int i=0;i<vertices.size();++i){
+            if(marks[i]==HeightType::kUndefined)continue;
+            const auto& point=vertices[i];const double depth=-point.z();
+            require(std::isfinite(depth)&&depth>0&&depth<50,"invalid native bathymetry cell depth");
+            cells.write(QString("%1,%2,%3,%4\n").arg(point.x(),0,'f',3).arg(point.y(),0,'f',3).arg(depth,0,'f',3).arg(int(marks[i])).toUtf8());
+            ++surfaceCells;if(marks[i]==HeightType::kTriangulation)++triangulated;
+        }
+    }
+    require(surfaceCells>0 && triangulated>0,"native tiles contain no triangulated depth cells");
+    cells.close();
+    std::cout<<"PASS surface height evidence: "<<surfaceCells<<" cells, "<<triangulated<<" triangulated cells\n";
     std::cout<<"PASS native processors: "<<accepted<<" recorded epochs, "<<located<<" with original GPS, "<<depths
              <<" processed depth updates, "<<service.tileCount()<<" visible bathymetry tiles\n";
     QFile display("kogger-columns.json");require(display.open(QIODevice::WriteOnly),"cannot save visual fixture");
     display.write(QJsonDocument(displayColumns).toJson(QJsonDocument::Compact));
     points.close();
+    require(geosamples>14000,"processed column metadata was not published");
     QObject::disconnect(sampleConnection);
+    QObject::disconnect(geoConnection);
     service.clear();
 }
 int main(int argc,char**argv) {

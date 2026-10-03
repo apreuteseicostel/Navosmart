@@ -17,6 +17,7 @@ struct NavoKoggerChartRecord {
     quint16 resolutionMm = 0;
     quint16 absoluteOffset = 0;
     quint8 version = 0;
+    quint64 sequence = 0;
     qint64 receivedAtMs = 0; // Host arrival time; not a sonar-device timestamp.
     double latitude = qQNaN();
     double longitude = qQNaN();
@@ -46,6 +47,7 @@ public:
         record.resolutionMm = decoder.chartResolution();
         record.absoluteOffset = decoder.chartAbsoluteOffset();
         record.version = decoder.chartVersion();
+        record.sequence = decoder.chartSequence();
         record.receivedAtMs = receivedAtMs;
         record.latitude = latitude;
         record.longitude = longitude;

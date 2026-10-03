@@ -26,7 +26,8 @@ public:
     explicit NavoKoggerChartBridge(QObject* parent = nullptr) : QObject(parent) {
         auto& service=NavoKoggerService::instance();
         QObject::connect(&service,&NavoKoggerService::processingChanged,this,&NavoKoggerChartBridge::recordsChanged);
-        QObject::connect(&service,&NavoKoggerService::bottomSampleReady,this,&NavoKoggerChartBridge::bottomSampleReady);
+        QObject::connect(&service,&NavoKoggerService::geoSampleReady,this,&NavoKoggerChartBridge::geoSampleReady);
+        QObject::connect(&service,&NavoKoggerService::bottomColumnReady,this,&NavoKoggerChartBridge::bottomColumnReady);
     }
     bool channelReady() const {return !linkUuid_.isNull() && decoder_ && decoder_->chartAddress()>=0;}
     double bottomDepthM() const {return NavoKoggerService::instance().bottomDepth();}
@@ -35,10 +36,12 @@ public:
     int bathymetryTileCount() const {return NavoKoggerService::instance().tileCount();}
     bool capacityFull() const {return NavoKoggerService::instance().capacityFull();}
     Q_INVOKABLE void setConnectionEndpoint(const QString& host,int port,bool udp) {
+        const QUuid previous=linkUuid_;
         const QString name=host.trimmed().toLower();
         linkUuid_=(name.isEmpty()||port<1||port>65535)?QUuid():QUuid::createUuidV5(
             QUuid("{6ba7b811-9dad-11d1-80b4-00c04fd430c8}"),
             QString("navo-kogger+%1://%2:%3").arg(udp?"udp":"tcp",name).arg(port).toUtf8());
+        if(previous!=linkUuid_)clear();
         emit recordsChanged();
     }
     int recordCount() const { return adapter_.records().size(); }
@@ -71,7 +74,8 @@ public:
     }
 signals:
     void recordsChanged();
-    void bottomSampleReady(int epoch,double latitude,double longitude,double depth,double temperature);
+    void geoSampleReady(const QVariantMap& sample);
+    void bottomColumnReady(quint64 sequence,double depth);
 private:
     void capture() {
         if (!decoder_) return;

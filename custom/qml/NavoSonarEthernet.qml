@@ -24,6 +24,7 @@ QtObject {
  readonly property int chartRawByteCount: decoderObject.chartRawBytes.length
  readonly property int chartResolution: decoderObject.chartResolution
  readonly property int chartAbsoluteOffset: decoderObject.chartAbsoluteOffset
+ readonly property double chartSequence: decoderObject.chartSequence
  readonly property int chartVersion: decoderObject.chartVersion
  readonly property real chartResolutionMeters: decoderObject.chartResolutionMeters
  readonly property real chartOffsetMeters: decoderObject.chartOffsetMeters
@@ -42,7 +43,9 @@ QtObject {
  readonly property double nativeChartRawBytes: chartBridge.retainedRawBytes
  onVehicleChanged: updateNativePosition()
  function updateNativePosition(){
-  var c=vehicle && vehicle.coordinate ? vehicle.coordinate : null
+  var fixValid=vehicle && vehicle.gps && vehicle.gps.lock.rawValue>=3 &&
+               vehicle.vehicleLinkManager && !vehicle.vehicleLinkManager.communicationLost
+  var c=fixValid && vehicle.coordinate ? vehicle.coordinate : null
   chartBridge.setPosition(c && c.isValid ? c.latitude : NaN,
                           c && c.isValid ? c.longitude : NaN,
                           vehicle && vehicle.heading ? vehicle.heading.rawValue : NaN,
@@ -52,18 +55,21 @@ QtObject {
  property NavoKoggerChartBridge nativeBridge: NavoKoggerChartBridge {
   id: chartBridge
   Component.onCompleted: { setConnectionEndpoint(root.host,root.port,root.udp); setDecoder(decoderObject); root.updateNativePosition() }
-  onBottomSampleReady: function(epoch,latitude,longitude,depth,temperature){
-   root.geoSample({time:Date.now(),lat:latitude,lon:longitude,depth:depth,temp:temperature,
-                   heading:root.vehicle && root.vehicle.heading ? root.vehicle.heading.rawValue : NaN,
-                   bottomEcho:root.bottomEchoStrength,source:"kogger-bottom-track"})
-  }
+  onGeoSampleReady: function(sample){root.geoSample(sample)}
+  onBottomColumnReady: function(sequence,depth){root.bottomColumnReady(sequence,depth)}
  }
  property Connections gpsUpdates: Connections {
   target: root.vehicle
   ignoreUnknownSignals: true
   function onCoordinateChanged(){root.updateNativePosition()}
  }
+ property Connections fixUpdates: Connections {
+  target: root.vehicle && root.vehicle.gps ? root.vehicle.gps.lock : null
+  ignoreUnknownSignals: true
+  function onRawValueChanged(){root.updateNativePosition()}
+ }
  signal geoSample(var sample)
+ signal bottomColumnReady(double sequence,real depth)
  function connectSonar(){ transportObject.connectEndpoint() }
  function disconnectSonar(){ transportObject.disconnectEndpoint(); decoderObject.reset() }
  function connectToSonar(){ connectSonar() }
@@ -79,6 +85,7 @@ QtObject {
   onEchoSamplesChanged: {
    if(!chartRawBytes.length){root.lastEchoMs=0;return}
    root.lastEchoMs=Date.now(); root.clockMs=root.lastEchoMs
+   if(root.nativeChannelReady && decoderObject.chartVersion===0)return
    // Publish only completed CHART columns paired with recent depth and valid GPS.
    if(!isFinite(depthM) || depthM<=0 || root.lastDepthMs<=0 ||
       root.lastEchoMs-root.lastDepthMs>1500 || !root.vehicle ||

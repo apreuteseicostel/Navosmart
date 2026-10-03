@@ -21,6 +21,7 @@ void NavoKoggerDecoder::publishChart(){
   compensated.append(double(quint8(value))/255.0);
  }
  if(raw.isEmpty())return;
+ ++_chartSequence;
  _publishedChartAddress=_chartAddress;
  _publishedChartResolution=_chartResolution;
  _publishedChartAbsoluteOffset=_chartAbsoluteOffset;
