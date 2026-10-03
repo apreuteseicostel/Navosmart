@@ -28,3 +28,5 @@ add_executable(navo-sonar-ui-replay ui-replay.cpp)
 target_link_libraries(navo-sonar-ui-replay PRIVATE Qt6::Quick Qt6::Qml Qt6::Test)
 file(GLOB NAVO_TEST_ICONS "../../custom/icons/*.svg")
 qt_add_resources(navo-sonar-ui-replay navo-test-icons PREFIX "/qml/NavoSmart" BASE "../../custom" FILES ${NAVO_TEST_ICONS})
+
+target_link_libraries(navo-kogger-replay PRIVATE Qt6::Test)
