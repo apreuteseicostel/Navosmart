@@ -1,6 +1,7 @@
 # Shared source closure for Android and the real Qt replay tests.
 set(NAVO_KOGGER_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../third_party/KoggerApp/src")
 set(NAVO_KOGGER_PROCESSOR_SOURCES
+    ${NAVO_KOGGER_ROOT}/dataset_defs.h
     ${NAVO_KOGGER_ROOT}/data_horizon.cpp
     ${NAVO_KOGGER_ROOT}/data_horizon.h
     ${NAVO_KOGGER_ROOT}/data_processor/data_processor.cpp
