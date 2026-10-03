@@ -170,8 +170,14 @@ static void recordedProcessors(const QByteArray& bytes) {
         minE=std::min(minE,float(position.ned.e));maxE=std::max(maxE,float(position.ned.e));
     }
     require(std::isfinite(minN),"no located sonar positions for bathymetry");
+    std::cout<<"Surface viewport N="<<minN<<":"<<maxN<<" E="<<minE<<":"<<maxE<<std::endl;
+    QObject::connect(&service.processor(),&DataProcessor::pipelineStats,[](const QVariantMap& stats){
+        std::cout<<"Surface diagnostics: "<<QJsonDocument(QJsonObject::fromVariantMap(stats)).toJson(QJsonDocument::Compact).constData()<<std::endl;
+    });
     service.requestVisibleRect(minN-20,minE-20,maxN+20,maxE+20);
     timeout.restart();while(timeout.elapsed()<5000){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}
+    service.processor().requestPipelineStats();
+    timeout.restart();while(timeout.elapsed()<1000){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}
     require(service.tileCount()>0,"surface processor returned no bathymetry tiles for the recorded track");
     std::cout<<"PASS native processors: "<<accepted<<" recorded epochs, "<<located<<" with original GPS, "<<depths
              <<" processed depth updates, "<<service.tileCount()<<" visible bathymetry tiles\n";
