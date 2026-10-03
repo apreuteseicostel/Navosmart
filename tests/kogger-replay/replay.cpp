@@ -2,6 +2,7 @@
 #include "../../custom/src/NavoKoggerReplay.h"
 #include <QGuiApplication>
 #include <QQmlEngine>
+#include <QQmlContext>
 #include <QTemporaryDir>
 #include <QSettings>
 #include "../../custom/src/NavoPersistence.h"
@@ -332,20 +333,20 @@ static void qmlRecordedReplay(const QString& source,const QString& fixture) {
     auto* bridge=qobject_cast<NavoKoggerChartBridge*>(sonar->property("nativeBridge").value<QObject*>());
     require(bridge,"actual replay bridge missing");
     // Capture only the real QML-published signal, including replay tagging.
+    engine.rootContext()->setContextProperty("replaySource",sonar.get());
     QQmlComponent sinkComponent(&engine);
     sinkComponent.setData(R"(import QtQuick
 QtObject {
  id: sink
- property var sonar
  property var samples: []
  property Connections connection: Connections {
-  target: sink.sonar
+  target: replaySource
   function onGeoSample(sample) { var copy=sink.samples.slice();copy.push(sample);sink.samples=copy }
  }
 })",QUrl());
     std::unique_ptr<QObject> sink(sinkComponent.create());
     require(bool(sink),"replay signal sink failed to load");
-    sink->setProperty("sonar",QVariant::fromValue(sonar.get()));
+
     replay->setPaused(true);const auto before=replay->position();
     require(QMetaObject::invokeMethod(replay,"tick"),"replay pump missing");
     require(replay->position()==before,"paused replay advanced");
@@ -360,6 +361,7 @@ QtObject {
     timer.restart();
     while(service.processedColumns()<14000 && timer.elapsed()<30000){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}
     samples=sink->property("samples").toList();
+    std::cout<<"Replay diagnostics: processed="<<service.processedColumns()<<", samples="<<samples.size()<<", records="<<bridge->datasetColumns()<<", unlocated="<<bridge->unlocatedColumns()<<std::endl;
     require(service.processedColumns()>14000 && samples.size()>14000,"actual QML replay failed to publish located bottom samples");
     require(sonar->property("nativeChannelReady").toBool(),"replay native channel disabled");
     require(!sonar->property("dataAlive").toBool(),"replay claimed live telemetry");
