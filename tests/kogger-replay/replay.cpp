@@ -1,5 +1,6 @@
 #include "../../custom/src/NavoKoggerDecoder.h"
-#include <QCoreApplication>
+#include <QGuiApplication>
+#include "../../custom/src/NavoKoggerDatasetAdapter.h"
 #include <QCryptographicHash>
 #include <QFile>
 #include <iostream>
@@ -49,10 +50,32 @@ static void synthetic() {
 struct Result { qint64 columns=0; QByteArray hash; };
 static Result replay(const QByteArray& bytes, bool fragmented) {
     NavoKoggerDecoder d; Result result; QCryptographicHash hash(QCryptographicHash::Sha256);
+    NavoKoggerDatasetAdapter adapter;
+    Dataset dataset;
+    // Test-only channel identity for this fixture, never a live connection UUID.
+    const ChannelId channel(QUuid("{52202375-23b1-44cb-83a8-d2b8611efbab}"),0);
     QObject::connect(&d,&NavoKoggerDecoder::chartColumnReady,[&]{
         require(d.chartVersion()==0,"unexpected published version");
         require(d.chartResolution()==10 && d.chartAbsoluteOffset()==0,"unexpected CHART metadata");
         require(d.chartRawBytes().size()==5000,"unexpected column length");
+        require(adapter.append(d,qQNaN(),qQNaN(),0),"adapter rejected fixture column");
+        const auto& record=adapter.records().last();
+        require(!record.hasPosition(),"replay fabricated GPS");
+        Epoch epoch;
+        require(!NavoKoggerDatasetAdapter::toKoggerEpoch(record,ChannelId(),epoch),"invalid channel was accepted");
+        require(NavoKoggerDatasetAdapter::toKoggerEpoch(record,channel,epoch),"Epoch conversion failed");
+        const auto* chart=epoch.chart(channel,0);
+        require(chart && chart->amplitude.size()==5000 && std::abs(chart->resolution-0.01f)<1e-6f,
+                "Epoch lost chart samples or physical scale");
+        for(int i=0;i<5000;++i)
+            require(chart->amplitude[i]==quint8(record.chart[i]),"Epoch modified raw amplitude");
+        require(NavoKoggerDatasetAdapter::appendToKoggerDataset(record,channel,dataset),"Dataset ingestion failed");
+        const auto latest=dataset.fromIndexCopy(dataset.endIndex());
+        Epoch copy=latest;
+        const auto* stored=copy.chart(channel,0);
+        require(stored && stored->amplitude==chart->amplitude,"Dataset/Epoch chart differs");
+        // Bound test Dataset batches; this does not claim production eviction.
+        if(dataset.size()>=128)dataset.resetDataset();
         hash.addData(d.chartRawBytes()); ++result.columns;
     });
     if(!fragmented)d.feedBytes(bytes);
@@ -63,10 +86,13 @@ static Result replay(const QByteArray& bytes, bool fragmented) {
             d.feedBytes(bytes.mid(offset,size));offset+=size;
         }
     }
+    require(adapter.records().size()==3000 && adapter.retainedRawBytes()==15000000,
+            "adapter retention budget failed");
     result.hash=hash.result().toHex();return result;
 }
 int main(int argc,char**argv) {
-    QCoreApplication app(argc,argv);
+    qputenv("QT_QPA_PLATFORM","offscreen");
+    QGuiApplication app(argc,argv);
     try {
         synthetic();
         if(argc==2) {
@@ -78,7 +104,7 @@ int main(int argc,char**argv) {
             require(whole.columns==15423 && split.columns==whole.columns,"recorded column count mismatch");
             require(whole.hash=="f597aee532fadf5ec71e48b4fd2f8890ee32c63927023e66d15516dfef745055" && split.hash==whole.hash,
                 "recorded CHART bytes differ from fixture reference");
-            std::cout<<"PASS KLF: "<<whole.columns<<" completed columns, 5000 samples, 10 mm, byte-identical chunked replay\n";
+            std::cout<<"PASS KLF: "<<whole.columns<<" completed columns, 5000 samples, 10 mm, byte-identical chunked replay, Dataset/Epoch ingestion and bounded adapter retention\n";
             std::cout<<"Trailing 200-sample column remains pending; live decoding needs the next column boundary.\n";
         }
     }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

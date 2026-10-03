@@ -24,7 +24,7 @@ seven trailing bytes. The last column remains pending until the next boundary;
 no synthetic boundary or depth is inserted. There are no non-proxy DIST v0
 measurements in this fixture. Bottom depth needs a CHART bottom-track processor.
 
-Build against Qt6 Core and run the actual production decoder:
+Build against Qt6 Core/Gui and run the actual production decoder:
 
 ```sh
 cmake -S tests/kogger-replay -B /tmp/navo-replay
@@ -36,7 +36,13 @@ Tests compare full-read and irregular fragmented replay against both count and
 raw byte digest, then cover KP1/KP2 byte-by-byte input, missing fragments,
 checksum recovery, measurement type filtering and reset.
 
-This test validates decoder output, not Android rendering, Dataset/Epoch
-alignment, GPS associations, bottom-track, mosaic or bathymetry. Those require
-separate integration tests. The dedicated GitHub workflow installs real Qt6 and
+The integration extension feeds each real column into the NAVO adapter and
+upstream Epoch/Dataset sources. It compares all raw amplitudes and physical
+resolution and exercises the adapter's 3,000-record/16 MB retention budget.
+A fixed test-only channel UUID is used; missing fixture GPS remains missing.
+Dataset is cleared in 128-column batches to bound this test. This does not
+validate production Dataset eviction or live channel identity wiring.
+
+This test does not validate Android rendering, GPS/CHART temporal alignment,
+bottom-track, mosaic or bathymetry. Those require separate integration tests. The dedicated GitHub workflow installs real Qt6 and
 fetches the original fixture; hash mismatch fails the run.
