@@ -3,6 +3,12 @@
 #include "../../custom/src/NavoKoggerDatasetAdapter.h"
 #include <QCryptographicHash>
 #include <QFile>
+#include <QElapsedTimer>
+#include <QThread>
+#include <QEventLoop>
+#include <QtEndian>
+#include <cstring>
+#include "../../custom/kogger_native/NavoKoggerService.h"
 #include <iostream>
 #include <stdexcept>
 #include <algorithm>
@@ -90,6 +96,61 @@ static Result replay(const QByteArray& bytes, bool fragmented) {
             "adapter retention budget failed");
     result.hash=hash.result().toHex();return result;
 }
+static void recordedProcessors(const QByteArray& bytes) {
+    auto& service=NavoKoggerService::instance();service.clear();
+    NavoKoggerDecoder decoder;
+    const ChannelId channel(QUuid("{52202375-23b1-44cb-83a8-d2b8611efbab}"),2);
+    double lat=qQNaN(),lon=qQNaN(),yaw=qQNaN(),pitch=qQNaN(),roll=qQNaN();
+    int accepted=0,located=0,depths=0;
+    const auto sampleConnection=QObject::connect(&service,&NavoKoggerService::bottomSampleReady,
+        [&](int,double la,double lo,double depth,double){
+            require(std::isfinite(la)&&std::isfinite(lo)&&depth>0&&depth<50,"invalid processed georeferenced depth");++depths;
+        });
+    QObject::connect(&decoder,&NavoKoggerDecoder::chartColumnReady,[&]{
+        require(decoder.chartAddress()==2,"recording route was not preserved");
+        NavoKoggerDatasetAdapter adapter;
+        require(adapter.append(decoder,lat,lon,0),"recorded pipeline adapter failed");
+        if(service.ingest(adapter.records().last(),channel,yaw,pitch,roll)){
+            ++accepted;if(adapter.records().last().hasPosition())++located;
+        }
+    });
+    // The fixture includes original MAVLink inside KP2 proxy packets. Read its
+    // actual GPS/attitude, never invent a track for the DownView recording.
+    Parsers::FrameParser parser;
+    QByteArray mutableBytes=bytes;
+    parser.setContext(reinterpret_cast<uint8_t*>(mutableBytes.data()),mutableBytes.size());
+    while(parser.availContext()>0){
+        parser.process();
+        if(parser.completeAsKBP2())decoder.feedBytes(QByteArray(reinterpret_cast<const char*>(parser.frame()),parser.frameLen()));
+        else if(parser.isCompleteAsMAVLink()){
+            auto& mav=static_cast<Parsers::ProtoMAVLink&>(parser);
+            const auto* raw=parser.frame();const int header=parser.proto()==Parsers::FrameParser::ProtoMAVLink2?10:6;
+            const auto* payload=raw+header;const int length=raw[1];
+            if(mav.msgId()==33 && length>=28){
+                lat=double(qFromLittleEndian<qint32>(payload+4))*1e-7;
+                lon=double(qFromLittleEndian<qint32>(payload+8))*1e-7;
+                const auto heading=qFromLittleEndian<quint16>(payload+26);
+                if(heading!=65535)yaw=double(heading)*0.01;
+            }else if(mav.msgId()==30 && length>=16){
+                float values[3];for(int i=0;i<3;++i){const quint32 bits=qFromLittleEndian<quint32>(payload+4+i*4);std::memcpy(&values[i],&bits,4);}
+                roll=values[0]*180.0/M_PI;pitch=values[1]*180.0/M_PI;yaw=values[2]*180.0/M_PI;
+            }
+        }
+        if(accepted>0 && accepted%100==0)QCoreApplication::processEvents(QEventLoop::AllEvents,1);
+    }
+    require(accepted==3000 && service.capacityFull(),"production Dataset budget did not stop at 3000 epochs");
+    require(located>2900,"fixture MAVLink GPS was not paired with CHART");
+    QElapsedTimer timeout;timeout.start();
+    while(timeout.elapsed()<30000 && depths<2900){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}
+    require(depths>2900,"original bottom-track processor did not return located depths");
+    require(std::isfinite(service.bottomDepth()) && service.bottomDepth()>0,"no processed bottom depth");
+    service.requestVisibleRect(-1000,-1000,1000,1000);
+    timeout.restart();while(timeout.elapsed()<5000){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}
+    std::cout<<"PASS native processors: "<<accepted<<" recorded epochs, "<<located<<" with original GPS, "<<depths
+             <<" processed depth updates, "<<service.tileCount()<<" visible mosaic tiles\n";
+    QObject::disconnect(sampleConnection);
+    service.clear();
+}
 int main(int argc,char**argv) {
     qputenv("QT_QPA_PLATFORM","offscreen");
     QGuiApplication app(argc,argv);
@@ -105,6 +166,7 @@ int main(int argc,char**argv) {
             require(whole.hash=="f597aee532fadf5ec71e48b4fd2f8890ee32c63927023e66d15516dfef745055" && split.hash==whole.hash,
                 "recorded CHART bytes differ from fixture reference");
             std::cout<<"PASS KLF: "<<whole.columns<<" completed columns, 5000 samples, 10 mm, byte-identical chunked replay, Dataset/Epoch ingestion and bounded adapter retention\n";
+            recordedProcessors(bytes);
             std::cout<<"Trailing 200-sample column remains pending; live decoding needs the next column boundary.\n";
         }
     }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

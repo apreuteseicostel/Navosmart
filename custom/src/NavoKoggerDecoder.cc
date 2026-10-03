@@ -21,6 +21,7 @@ void NavoKoggerDecoder::publishChart(){
   compensated.append(double(quint8(value))/255.0);
  }
  if(raw.isEmpty())return;
+ _publishedChartAddress=_chartAddress;
  _publishedChartResolution=_chartResolution;
  _publishedChartAbsoluteOffset=_chartAbsoluteOffset;
  _publishedChartVersion=_chartVersion;
@@ -32,7 +33,7 @@ void NavoKoggerDecoder::publishChart(){
 }
 quint16 NavoKoggerDecoder::le16(const char* p){return qFromLittleEndian<quint16>(reinterpret_cast<const uchar*>(p));}
 quint32 NavoKoggerDecoder::le32(const char* p){return qFromLittleEndian<quint32>(reinterpret_cast<const uchar*>(p));}
-void NavoKoggerDecoder::reset(){_buffer.clear();_chart.clear();_publishedChartRaw.clear();_echoSamples.clear();_compensatedSamples.clear();_chartResolution=0;_chartAbsoluteOffset=0;_chartVersion=0;_publishedChartResolution=0;_publishedChartAbsoluteOffset=0;_publishedChartVersion=0;_connected=false;_depthM=qQNaN();_waterTempC=qQNaN();emit connectedChanged();emit depthChanged();emit temperatureChanged();emit echoSamplesChanged();}
+void NavoKoggerDecoder::reset(){_buffer.clear();_chart.clear();_publishedChartRaw.clear();_echoSamples.clear();_compensatedSamples.clear();_chartAddress=-1;_publishedChartAddress=-1;_chartResolution=0;_chartAbsoluteOffset=0;_chartVersion=0;_publishedChartResolution=0;_publishedChartAbsoluteOffset=0;_publishedChartVersion=0;_connected=false;_depthM=qQNaN();_waterTempC=qQNaN();emit connectedChanged();emit depthChanged();emit temperatureChanged();emit echoSamplesChanged();}
 void NavoKoggerDecoder::feedBytes(const QByteArray& b){
  if(b.isEmpty())return;
  for(qsizetype offset=0;offset<b.size();){
@@ -69,13 +70,14 @@ void NavoKoggerDecoder::process(){
   int payloadStart=6;
   quint8 version=0, type=0;
   quint16 id=0;
+  int address=-1;
   if(extended){
    const int optionsLen=quint8(f[4]);
    const int header=4+optionsLen;
    if(optionsLen<3||header+3>total-2){emit frameRejected();continue;}
    const quint16 flags=le16(f.constData()+5);
    int required=3; // length byte and option flags
-   if(flags&2)required+=2; // destination and source addresses
+   if(flags&2){required+=2;address=quint8(f[7]);} // destination and source addresses
    if(flags&4)required+=7; // stream flags, id and offset
    if(flags&8)required+=4; // local time
    if((flags>>4)&3)required+=8; // global time
@@ -88,7 +90,7 @@ void NavoKoggerDecoder::process(){
    payloadStart=header+3;
   }else{
    const quint8 mode=quint8(f[3]);
-   type=mode&3;version=(mode>>3)&7;id=quint8(f[4]);
+   type=mode&3;version=(mode>>3)&7;id=quint8(f[4]);address=quint8(f[2]);
   }
   if(!_connected){_connected=true;emit connectedChanged();}
   // SETTING/GETTING responses must not enter the measurement stream.
@@ -105,12 +107,12 @@ void NavoKoggerDecoder::process(){
    // previous column when a new sequence starts (seqOffset == 0) or the
    // resolution/absolute-offset metadata changes.
    const bool newColumn=(seq==0&&!_chart.isEmpty())||
-                        (!_chart.isEmpty()&&(res!=_chartResolution||off!=_chartAbsoluteOffset||version!=_chartVersion));
+                        (!_chart.isEmpty()&&(res!=_chartResolution||off!=_chartAbsoluteOffset||version!=_chartVersion||address!=_chartAddress));
    if(newColumn){
     publishChart();
     _chart.clear();
    }
-   if(_chart.isEmpty()){_chartResolution=res;_chartAbsoluteOffset=off;_chartVersion=version;}
+   if(_chart.isEmpty()){_chartAddress=address;_chartResolution=res;_chartAbsoluteOffset=off;_chartVersion=version;}
    if(int(seq)+part.size()>MaxChartBytes){_chart.clear();_chartResolution=0;_chartAbsoluteOffset=0;_chartVersion=0;emit frameRejected();continue;}
    if(seq==_chart.size()) { _chart.append(part); }
    else if(seq>_chart.size()) {
@@ -124,7 +126,7 @@ void NavoKoggerDecoder::process(){
     // offset with zero-fill, as KoggerApp does.
     publishChart();
     _chart=QByteArray(int(seq),char(0));_chart.append(part);
-    _chartResolution=res;_chartAbsoluteOffset=off;_chartVersion=version;
+    _chartAddress=address;_chartResolution=res;_chartAbsoluteOffset=off;_chartVersion=version;
    }
   }
  }

@@ -2,13 +2,9 @@ name: Kogger recorded CHART replay
 on:
   pull_request:
     paths:
-      - 'custom/src/NavoKoggerDecoder.*'
-      - 'tests/kogger-replay/**'
-      - '.github/workflows/kogger-replay.yml'
-  push:
-    branches: ['feature/kogger-native-dataset-adapter-20261002']
-    paths:
-      - 'custom/src/NavoKoggerDecoder.*'
+      - 'custom/src/NavoKogger*'
+      - 'custom/kogger_native/**'
+      - 'third_party/KoggerApp/**'
       - 'tests/kogger-replay/**'
       - '.github/workflows/kogger-replay.yml'
   workflow_dispatch:

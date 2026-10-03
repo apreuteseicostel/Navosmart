@@ -1,18 +1,45 @@
 #pragma once
+#include <QObject>
+#include <QPointer>
+#include <memory>
 #include "../../third_party/KoggerApp/src/dataset.h"
-#include "../../third_party/KoggerApp/src/mosaic_index_provider.h"
-
-// Central NAVO owner for the native Kogger dataset and mosaic geometry.
-// Constructed once; the QML bridge and Dataset mosaic hook share its lifetime.
-class NavoKoggerService final {
+#include "../../third_party/KoggerApp/src/data_horizon.h"
+#include "../../third_party/KoggerApp/src/data_processor/data_processor.h"
+#include "navo_bottom_track.h"
+struct NavoKoggerChartRecord;
+class NavoKoggerService final : public QObject {
+    Q_OBJECT
 public:
     static NavoKoggerService& instance();
-    Dataset& dataset() { return dataset_; }
-    MosaicIndexProvider& mosaicIndexProvider() { return mosaicIndexProvider_; }
-    NavoKoggerService(const NavoKoggerService&) = delete;
-    NavoKoggerService& operator=(const NavoKoggerService&) = delete;
+    explicit NavoKoggerService(QObject* parent=nullptr);
+    ~NavoKoggerService() override;
+    Dataset& dataset(){return dataset_;}
+    MosaicIndexProvider& mosaicIndexProvider(){return processor_->mosaicIndexProvider();}
+    bool ingest(const NavoKoggerChartRecord& record, const ChannelId& channel, double heading,double pitch=qQNaN(),double roll=qQNaN());
+    void clear();
+    int processedColumns() const {return processedColumns_;}
+    int tileCount() const {return tiles_.size();}
+    bool capacityFull() const {return capacityFull_;}
+    double bottomDepth() const {return bottomDepth_;}
+    void requestVisibleRect(float n0,float e0,float n1,float e1);
+    const TileMap& tiles() const {return tiles_;}
+    DataProcessor& processor(){return *processor_;}
+    DataHorizon& horizon(){return horizon_;}
+signals:
+    void processingChanged();
+    void bottomSampleReady(int epoch,double latitude,double longitude,double depth,double temperature);
+    void tilesChanged();
 private:
-    NavoKoggerService() : mosaicIndexProvider_(6200) {}
+    void startProcessor();
+    void onBottomUpdated(const ChannelId& channel,int from,int to,bool manual,bool redraw);
     Dataset dataset_;
-    MosaicIndexProvider mosaicIndexProvider_;
+    DataHorizon horizon_;
+    BottomTrack bottomTrack_;
+    std::unique_ptr<DataProcessor> processor_;
+    TileMap tiles_;
+    ChannelId channel_;
+    qsizetype rawBytes_=0;
+    int processedColumns_=0;
+    bool capacityFull_=false;
+    double bottomDepth_=qQNaN();
 };

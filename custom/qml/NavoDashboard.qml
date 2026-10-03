@@ -211,7 +211,7 @@ Item {
     }
     property var battery: vehicle && vehicle.batteries.count > 0 ? vehicle.batteries.get(0) : null
     property var waypointNames: persistence.waypointNames
-    readonly property real depthM: sonar.depthM
+    readonly property real depthM: isFinite(sonar.depthM) ? sonar.depthM : (sonar.echoFresh ? sonar.processedBottomDepthM : NaN)
     readonly property real waterTempC: sonar.waterTempC
     readonly property bool sonarConnected: sonar.connected && sonar.dataAlive
     readonly property real bottomEchoStrength: sonar.bottomEchoStrength

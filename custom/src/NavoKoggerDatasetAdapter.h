@@ -106,6 +106,8 @@ public:
             dataset.addPosition(record.latitude, record.longitude);
         if (std::isfinite(record.depthM) && record.depthM >= 0)
             dataset.addDepth(float(record.depthM));
+        if (std::isfinite(record.temperatureC))
+            dataset.addTemp(float(record.temperatureC));
         return true;
     }
     const QVector<NavoKoggerChartRecord>& records() const { return records_; }

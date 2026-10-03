@@ -37,6 +37,8 @@ public:
     ~DataProcessor() override;
 
     void setDatasetPtr(Dataset* datasetPtr);
+    // NAVO: Dataset spatial indexing shares the processor-owned provider.
+    MosaicIndexProvider& mosaicIndexProvider() { return mosaicIndexProvider_; }
     inline bool isCancelRequested() const noexcept {
         return cancelRequested_.load() || suppressResults_.load()
             || QThread::currentThread()->isInterruptionRequested();

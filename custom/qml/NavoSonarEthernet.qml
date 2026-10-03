@@ -28,6 +28,11 @@ QtObject {
  readonly property real chartResolutionMeters: decoderObject.chartResolutionMeters
  readonly property real chartOffsetMeters: decoderObject.chartOffsetMeters
  readonly property real chartRangeMeters: decoderObject.chartRangeMeters
+ readonly property real processedBottomDepthM: chartBridge.bottomDepthM
+ readonly property int processedColumns: chartBridge.processedColumns
+ readonly property int mosaicTileCount: chartBridge.mosaicTileCount
+ readonly property bool nativeChannelReady: chartBridge.channelReady
+ readonly property bool nativeCapacityFull: chartBridge.capacityFull
  property var vehicle
  property int rxBytes: 0
  property int rxChunks: 0
@@ -38,11 +43,19 @@ QtObject {
  function updateNativePosition(){
   var c=vehicle && vehicle.coordinate ? vehicle.coordinate : null
   chartBridge.setPosition(c && c.isValid ? c.latitude : NaN,
-                          c && c.isValid ? c.longitude : NaN)
+                          c && c.isValid ? c.longitude : NaN,
+                          vehicle && vehicle.heading ? vehicle.heading.rawValue : NaN,
+                          vehicle && vehicle.pitch ? vehicle.pitch.rawValue : NaN,
+                          vehicle && vehicle.roll ? vehicle.roll.rawValue : NaN)
  }
  property NavoKoggerChartBridge nativeBridge: NavoKoggerChartBridge {
   id: chartBridge
-  Component.onCompleted: { setDecoder(decoderObject); root.updateNativePosition() }
+  Component.onCompleted: { setConnectionEndpoint(root.host,root.port,root.udp); setDecoder(decoderObject); root.updateNativePosition() }
+  onBottomSampleReady: function(epoch,latitude,longitude,depth,temperature){
+   root.geoSample({time:Date.now(),lat:latitude,lon:longitude,depth:depth,temp:temperature,
+                   heading:root.vehicle && root.vehicle.heading ? root.vehicle.heading.rawValue : NaN,
+                   bottomEcho:root.bottomEchoStrength,source:"kogger-bottom-track"})
+  }
  }
  property Connections gpsUpdates: Connections {
   target: root.vehicle
@@ -57,6 +70,7 @@ QtObject {
  property NavoEthernetTransport transport: NavoEthernetTransport {
   id: transportObject
   onConnectedChanged: if(!connected) { root.lastDepthMs=0; root.lastEchoMs=0; decoderObject.reset() }
+  onEndpointChanged: { decoderObject.reset(); chartBridge.setConnectionEndpoint(host,port,udp) }
   onBytesReceived: function(data){ root.rxBytes += data.length; root.rxChunks += 1; decoderObject.feedBytes(data) }
  }
  property NavoKoggerDecoder decoder: NavoKoggerDecoder {
