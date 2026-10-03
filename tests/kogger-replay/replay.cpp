@@ -262,13 +262,32 @@ static void qmlBathymetryPipeline(const QString& directory,const QVariantList& s
     QTemporaryDir settings;require(settings.isValid(),"cannot isolate persistence settings");
     QCoreApplication::setOrganizationName("NavoRecordedReplay");QCoreApplication::setApplicationName("BathymetryValidation");
     QSettings::setDefaultFormat(QSettings::IniFormat);QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,settings.path());
-    {NavoPersistence persistence;for(const auto& sample:mapped)persistence.addSonarSample(sample.toMap());}
-    NavoPersistence restored;const auto loaded=restored.sonarSamples();require(loaded.size()==mapped.size(),"persistence did not restore recorded sample count");
-    for(int i=0;i<loaded.size();++i){
-        const auto a=mapped[i].toMap(),b=loaded[i].toMap();
-        for(const char* field:{"lat","lon","depth","time","sequence","chartResolution","chartRangeMeters"})
-            require(std::abs(a.value(field).toDouble()-b.value(field).toDouble())<1e-9,"persistence changed georeferenced column metadata");
+    QString replayLakeId,liveLakeId;
+    const QVariantMap liveState{{"state","PAUSED"},{"sonarSamples",QVariantList{mapped.first()}}};
+    {
+        NavoPersistence persistence;
+        liveLakeId=persistence.saveLake({{"name","Live lake"}});
+        require(persistence.saveLakeState(liveLakeId,liveState),"cannot prepare active lake");
+        require(persistence.saveReplayLake(" ",mapped,cells).isEmpty(),"unnamed replay should not be saved");
+        replayLakeId=persistence.saveReplayLake("Recorded DownView",mapped,cells);
+        require(!replayLakeId.isEmpty() && replayLakeId!=liveLakeId,"recording must have a separate lake identity");
+        require(persistence.lakeState(liveLakeId)==liveState,"replay save changed live lake");
+        for(const auto& sample:mapped)persistence.addSonarSample(sample.toMap());
     }
+    NavoPersistence restored;const auto loaded=restored.sonarSamples();require(loaded.size()==mapped.size(),"persistence did not restore recorded sample count");
+    const auto replayState=restored.lakeState(replayLakeId);
+    require(replayState.value("recordedReplay").toBool() && replayState.value("state").toString()=="COMPLETE","recorded lake provenance/state lost");
+    require(replayState.value("sonarSamples").toList().size()==mapped.size(),"recorded lake samples did not reload");
+    require(replayState.value("bathymetryCells").toList().size()==cells.size(),"recorded lake cells did not reload");
+    require(replayState.value("missionLanes").toList().isEmpty(),"recording acquired an autopilot mission");
+    require(restored.lakeState(liveLakeId)==liveState,"reloaded replay changed live lake");
+    const auto lakeSamples=replayState.value("sonarSamples").toList();
+    for(int i=0;i<loaded.size();++i){
+        const auto a=mapped[i].toMap(),b=loaded[i].toMap(),c=lakeSamples[i].toMap();
+        for(const char* field:{"lat","lon","depth","time","sequence","chartResolution","chartRangeMeters"})
+            require(std::abs(a.value(field).toDouble()-b.value(field).toDouble())<1e-9 && std::abs(a.value(field).toDouble()-c.value(field).toDouble())<1e-9,"persistence changed georeferenced column metadata");
+    }
+    std::cout<<"PASS recorded lake save/reopen: isolated from live lake, complete samples/cells, no autopilot mission\n";
     std::cout<<"PASS production mapping -> persistence reload -> bathymetry/HD: "<<mapped.size()<<" samples, "<<cells.size()<<" grid cells, "<<grid.size()<<" HD cells, "<<contours.size()<<" contour segments\n";
 }
 

@@ -53,6 +53,7 @@ Item {
     NavoFishingSpots { id: fishingSpots; onSpotSaved: scanCoordinator.checkpoint("spot-save"); onSpotRemoved: scanCoordinator.checkpoint("spot-delete"); onSpotUpdated: scanCoordinator.checkpoint("spot-update") }
     NavoFishDetections { id: fishStore }
     NavoBathymetryModel { id: bathymetryModel }
+    property string replaySaveStatus: ""
     NavoBathymetryModel { id: replayBathymetryModel }
     NavoSonarMapping { id: replayMapping; visible:false; externalSampleIngestion:true; sonarConnected:true; scanning:true }
     readonly property var displayBathymetryCells: sonar.replayMode ? replayBathymetryModel.cells : scanCoordinator.bathymetryCells
@@ -331,6 +332,7 @@ Item {
         id: sonar
         vehicle: root.vehicle
         onReplayModeChanged: {
+            root.replaySaveStatus=""
             replayMapping.rawSamples=[]; replayMapping.trackCoordinates=[]
             replayBathymetryModel.rebuild([])
         }
@@ -734,8 +736,8 @@ Item {
                 fishModel: fishStore
                 fishingSpotsModel: fishingSpots
                 bathymetryCells: root.displayBathymetryCells
-                        replayPreview: sonar.replayMode
-                        replayTrack: replayMapping.trackCoordinates
+                        replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
+                        replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
                 baitingController: root.mapBaitingController
                 areaScanController: root.mapAreaScanController
                 savedDepthM: root.depthM
@@ -824,6 +826,13 @@ Item {
             planController: root.planController
             boatTrack: sonar.replayMode ? replayMapping.trackCoordinates : root.proBoatTrack
             plannedTrack: areaScanController.generatedPoints
+            replaySaveStatus: root.replaySaveStatus
+            replaySampleCount: replayMapping.rawSamples.length
+            onSaveReplayRequested: function(name) {
+                replayBathymetryModel.rebuild(replayMapping.rawSamples)
+                var id=persistence.saveReplayLake(name,replayMapping.rawSamples,replayBathymetryModel.cells)
+                root.replaySaveStatus=id ? "Salvat în Bălțile mele: "+name : "Salvarea a eșuat; sunt necesare probe GPS și fund valid."
+            }
             onClosed: root.activePage = 0
             connected: sonar.connected || sonar.replayMode
             depthM: sonar.depthM
@@ -953,8 +962,8 @@ Item {
                             fishModel: fishStore
                             fishingSpotsModel: fishingSpots
                             bathymetryCells: root.displayBathymetryCells
-                        replayPreview: sonar.replayMode
-                        replayTrack: replayMapping.trackCoordinates
+                        replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
+                        replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
                             baitingController: root.mapBaitingController
                             areaScanController: root.mapAreaScanController
                             savedDepthM: root.depthM
@@ -1041,8 +1050,8 @@ Item {
                         property real availableAspect: width / Math.max(1,height)
                         vehicle:root.vehicle; planController:root.planController; waypointNames:root.waypointNames
                         fishModel:fishStore; fishingSpotsModel:fishingSpots; bathymetryCells:root.displayBathymetryCells
-                        replayPreview: sonar.replayMode
-                        replayTrack: replayMapping.trackCoordinates
+                        replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
+                        replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
                         baitingController: root.mapBaitingController; areaScanController: root.mapAreaScanController
                         savedDepthM:root.depthM; savedWaterTempC:root.waterTempC; showStatusHint:false
                         maximized:fishingPageRoot.mapExpanded
@@ -1332,8 +1341,8 @@ Item {
                         fishModel: fishStore
                         fishingSpotsModel: fishingSpots
                         bathymetryCells: root.displayBathymetryCells
-                        replayPreview: sonar.replayMode
-                        replayTrack: replayMapping.trackCoordinates
+                        replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
+                        replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
                         baitingController: root.mapBaitingController
                         areaScanController: root.mapAreaScanController
                         savedDepthM: root.depthM
@@ -1480,8 +1489,8 @@ Item {
                 anchors.fill: parent
                 // Use the active/restored lake session, not the global sonar history.
                 // restoreLake() repopulates rawSamples from the selected lake checkpoint.
-                samples: sonarMapping.rawSamples
-                boatTrack: sonarMapping.trackCoordinates.length ? sonarMapping.trackCoordinates : root.coordinatesFromSonarSamples(sonarMapping.rawSamples)
+                samples: sonar.replayMode ? replayMapping.rawSamples : sonarMapping.rawSamples
+                boatTrack: sonar.replayMode ? replayMapping.trackCoordinates : (sonarMapping.trackCoordinates.length ? sonarMapping.trackCoordinates : root.coordinatesFromSonarSamples(sonarMapping.rawSamples))
                 fishingSpots: fishingSpots.fishingSpots
                 fishDetections: root.fishDetections
                 onOpenSonarRequested: root.activePage = 1

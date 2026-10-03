@@ -56,7 +56,25 @@ Rectangle {
         geoChartRecords = next
     }
     property int historyColumns: 240
+    property int replaySampleCount: 0
+    property string replaySaveStatus: ""
+    signal saveReplayRequested(string name)
     signal closed()
+    Dialog {
+        id: replaySaveDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        modal: true
+        title: "Salvează înregistrarea ca baltă separată"
+        standardButtons: Dialog.Save | Dialog.Cancel
+        TextField {
+            id: replayLakeName
+            width: Math.min(300,root.width-40)
+            placeholderText: "Numele bălții"
+            text: "Înregistrare DownView"
+        }
+        onAccepted: root.saveReplayRequested(replayLakeName.text.trim())
+    }
     property real gain: 1.0
     property real noiseFloor: 0.10
     property bool noiseFilterEnabled: false
@@ -367,6 +385,8 @@ Rectangle {
                 MenuAction { text: 'Deschide KLF (TEST)'; onClicked: {root.menuOpen=false; replayPicker.open()} }
                 MenuAction { visible:root.replayActive; selected:root.chartSource && root.chartSource.replayPaused; text:root.chartSource && root.chartSource.replayPaused ? 'Continuă replay' : 'Pauză replay'; onClicked:root.chartSource.pauseReplay(!root.chartSource.replayPaused) }
                 MenuAction { visible:root.replayActive; selected:root.replayActive; text:'Viteză replay: '+(root.chartSource ? root.chartSource.replaySpeed : 1)+'×'; onClicked:root.chartSource.setReplaySpeed(root.chartSource.replaySpeed>=5 ? 0.5 : root.chartSource.replaySpeed*2) }
+                MenuAction { visible:root.replayMode; enabled:root.replaySampleCount>=3; text:"Salvează replay în Bălțile mele"; onClicked:{root.menuOpen=false;replaySaveDialog.open()} }
+                Label { visible:root.replaySaveStatus.length>0; Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.replaySaveStatus; color:"#d7e7f1"; font.pixelSize:11 }
                 MenuAction { visible:root.replayActive; text:'Oprește replay'; onClicked:root.chartSource.stopReplay() }
                 MenuAction { selected:root.mapEnabled; text: root.mapEnabled ? "Ascunde harta" : "Activează harta"; onClicked: {root.mapEnabled=!root.mapEnabled;root.menuOpen=false} }
                 MenuAction { selected:root.paused; text: root.paused ? "Continuă ecograma" : "Pauză ecogramă"; onClicked: root.paused=!root.paused }
