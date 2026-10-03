@@ -65,6 +65,8 @@ Rectangle {
     property bool showBottomTrack: true
     readonly property var displayedColumn: history.length ? history[history.length - 1] : null
     readonly property int buttonSize: width < 640 ? 36 : 40
+    readonly property color selectedMenuColor: "#176b86"
+    readonly property color selectedMenuBorder: "#45d5f5"
     readonly property int echoWidth: width < 640 ? 44 : 58
     color: "#03101a"
     clip: true
@@ -149,7 +151,7 @@ Rectangle {
         Accessible.name: hint
         ToolTip.visible: hovered || pressed
         ToolTip.text: hint
-        background: Rectangle { radius: 8; color: control.checked ? "#18536a" : "#cc0b1c2e"; opacity: control.enabled ? 1 : .4; border.color: "#31536c" }
+        background: Rectangle { radius: 8; color: control.checked ? root.selectedMenuColor : "#cc0b1c2e"; opacity: control.enabled ? 1 : .4; border.color: control.checked ? root.selectedMenuBorder : "#31536c"; border.width: control.checked ? 2 : 1 }
         contentItem: Image { source: "qrc:/qml/NavoSmart/icons/" + control.glyph + ".svg"; fillMode: Image.PreserveAspectFit }
     }
     Row {
@@ -335,7 +337,8 @@ Rectangle {
     IconButton {
         id: menuButton
         objectName: "sonarProMenuButton"
-        anchors.left: parent.left; anchors.top: telemetryBar.bottom; anchors.margins: 6
+        anchors.left: parent.left; anchors.top: telemetryBar.bottom; anchors.leftMargin: 10; anchors.topMargin: 18
+        implicitWidth: 34; implicitHeight: 34; padding: 6
         z: 100; visible: true; enabled: true
         glyph: "settings"; hint: "Deschide / închide meniul Sonar PRO"
         checkable: true; checked: root.menuOpen
@@ -353,25 +356,35 @@ Rectangle {
         visible: root.menuOpen
         z: 103
         anchors.left: parent.left; anchors.top: menuButton.bottom; anchors.topMargin: 4; anchors.leftMargin: 6
-        width: Math.min(260,parent.width*.48)
+        width: Math.min(222,parent.width*.48)
         height: Math.min(menuColumn.implicitHeight+16,Math.max(0,parent.height-menuButton.height-55))
         radius: 8; color: "#ee0b1c2e"; border.color: "#31536c"
         ScrollView {
             anchors.fill: parent; anchors.margins: 8; clip: true
             contentWidth: availableWidth
             ColumnLayout {
-                id: menuColumn; width: menuPanel.width-16; spacing: 5
-                Button { Layout.fillWidth: true; text: 'Deschide KLF (TEST)'; onClicked: {root.menuOpen=false; replayPicker.open()} }
-                Button { Layout.fillWidth: true; visible:root.replayActive; text:root.chartSource && root.chartSource.replayPaused ? 'Continuă replay' : 'Pauză replay'; onClicked:root.chartSource.pauseReplay(!root.chartSource.replayPaused) }
-                Button { Layout.fillWidth: true; visible:root.replayActive; text:'Viteză replay: '+(root.chartSource ? root.chartSource.replaySpeed : 1)+'×'; onClicked:root.chartSource.setReplaySpeed(root.chartSource.replaySpeed>=5 ? 0.5 : root.chartSource.replaySpeed*2) }
-                Button { Layout.fillWidth: true; visible:root.replayActive; text:'Oprește replay'; onClicked:root.chartSource.stopReplay() }
-                Button { Layout.fillWidth: true; text: root.mapEnabled ? "Ascunde harta" : "Activează harta"; onClicked: {root.mapEnabled=!root.mapEnabled;root.menuOpen=false} }
-                Button { Layout.fillWidth: true; text: root.paused ? "Continuă ecograma" : "Pauză ecogramă"; onClicked: root.paused=!root.paused }
-                Button { Layout.fillWidth: true; text: root.dayPalette ? "Paletă NAVO" : "Paletă de zi"; onClicked: root.dayPalette=!root.dayPalette }
-                Button { Layout.fillWidth: true; text: "Sensibilitate și filtre"; onClicked: {root.settingsVisible=!root.settingsVisible;root.menuOpen=false} }
-                Button { Layout.fillWidth: true; text: root.koggerCompensation ? "Ecou brut" : "Compensare Kogger"; onClicked: root.koggerCompensation=!root.koggerCompensation }
-                Button { Layout.fillWidth: true; text: root.showBottomTrack ? "Ascunde linia fundului" : "Arată linia fundului"; onClicked: root.showBottomTrack=!root.showBottomTrack }
-                Button { Layout.fillWidth: true; text: "Reset reglaje"; onClicked: root.resetDisplaySettings() }
+                id: menuColumn; width: menuPanel.width-16; spacing: 3
+                component MenuAction: Button {
+                    id: action
+                    property bool selected: false
+                    Layout.fillWidth: true
+                    implicitHeight: 32
+                    font.pixelSize: 12
+                    padding: 5
+                    palette.buttonText: selected ? "#ffffff" : "#d7e7f1"
+                    background: Rectangle { radius: 5; color: action.selected ? root.selectedMenuColor : (action.hovered ? "#183c51" : "#102435"); border.color: action.selected ? root.selectedMenuBorder : "#31536c"; border.width: action.selected ? 2 : 1 }
+                }
+                MenuAction { text: 'Deschide KLF (TEST)'; onClicked: {root.menuOpen=false; replayPicker.open()} }
+                MenuAction { visible:root.replayActive; selected:root.chartSource && root.chartSource.replayPaused; text:root.chartSource && root.chartSource.replayPaused ? 'Continuă replay' : 'Pauză replay'; onClicked:root.chartSource.pauseReplay(!root.chartSource.replayPaused) }
+                MenuAction { visible:root.replayActive; selected:root.replayActive; text:'Viteză replay: '+(root.chartSource ? root.chartSource.replaySpeed : 1)+'×'; onClicked:root.chartSource.setReplaySpeed(root.chartSource.replaySpeed>=5 ? 0.5 : root.chartSource.replaySpeed*2) }
+                MenuAction { visible:root.replayActive; text:'Oprește replay'; onClicked:root.chartSource.stopReplay() }
+                MenuAction { selected:root.mapEnabled; text: root.mapEnabled ? "Ascunde harta" : "Activează harta"; onClicked: {root.mapEnabled=!root.mapEnabled;root.menuOpen=false} }
+                MenuAction { selected:root.paused; text: root.paused ? "Continuă ecograma" : "Pauză ecogramă"; onClicked: root.paused=!root.paused }
+                MenuAction { selected:root.dayPalette; text: root.dayPalette ? "Paletă NAVO" : "Paletă de zi"; onClicked: root.dayPalette=!root.dayPalette }
+                MenuAction { selected:root.settingsVisible; text: "Sensibilitate și filtre"; onClicked: {root.settingsVisible=!root.settingsVisible;root.menuOpen=false} }
+                MenuAction { selected:root.koggerCompensation; text: root.koggerCompensation ? "Ecou brut" : "Compensare Kogger"; onClicked: root.koggerCompensation=!root.koggerCompensation }
+                MenuAction { selected:root.showBottomTrack; text: root.showBottomTrack ? "Ascunde linia fundului" : "Arată linia fundului"; onClicked: root.showBottomTrack=!root.showBottomTrack }
+                MenuAction { text: "Reset reglaje"; onClicked: root.resetDisplaySettings() }
             }
         }
     }
