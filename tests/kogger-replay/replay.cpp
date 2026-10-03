@@ -1,5 +1,11 @@
 #include "../../custom/src/NavoKoggerDecoder.h"
 #include <QGuiApplication>
+#include <QQmlEngine>
+#include <QQmlComponent>
+#include <QFileInfo>
+#include <QTcpServer>
+#include "../../custom/src/NavoEthernetTransport.h"
+#include "../../custom/src/NavoKoggerChartBridge.h"
 #include "../../custom/src/NavoKoggerDatasetAdapter.h"
 #include <QCryptographicHash>
 #include <QFile>
@@ -223,12 +229,61 @@ static void recordedProcessors(const QByteArray& bytes) {
     QObject::disconnect(geoConnection);
     service.clear();
 }
+static void qmlTransportRoundTrip(const QString& source) {
+    qmlRegisterType<NavoKoggerDecoder>("NavoSmart.Backend",1,0,"NavoKoggerDecoder");
+    qmlRegisterType<NavoKoggerChartBridge>("NavoSmart.Backend",1,0,"NavoKoggerChartBridge");
+    qmlRegisterType<NavoEthernetTransport>("NavoSmart.Backend",1,0,"NavoEthernetTransport");
+    QQmlEngine engine;
+    QQmlComponent vehicleComponent(&engine);
+    vehicleComponent.setData(R"(import QtQuick
+QtObject {
+ property QtObject coordinate: QtObject {property bool isValid:true;property real latitude:40.1616;property real longitude:44.4743}
+ property QtObject gps: QtObject {property QtObject lock: QtObject {property int rawValue:0}}
+ property QtObject vehicleLinkManager: QtObject {property bool communicationLost:false}
+ property QtObject heading: QtObject {property real rawValue:12}
+ property QtObject pitch: QtObject {property real rawValue:0}
+ property QtObject roll: QtObject {property real rawValue:0}
+})",QUrl());
+    std::unique_ptr<QObject> vehicle(vehicleComponent.create());require(bool(vehicle),"GPS fixture QML failed to load");
+    QQmlComponent component(&engine,QUrl::fromLocalFile(QFileInfo(source).absoluteFilePath()));
+    if(component.isError())std::cerr<<component.errorString().toStdString();
+    std::unique_ptr<QObject> sonar(component.create());require(bool(sonar),"production SonarEthernet QML failed to load");
+    sonar->setProperty("autoReconnect",false);sonar->setProperty("vehicle",QVariant::fromValue(vehicle.get()));
+    QTcpServer server;require(server.listen(QHostAddress::LocalHost),"local sonar TCP source failed to listen");
+    sonar->setProperty("host",QStringLiteral("127.0.0.1"));sonar->setProperty("port",server.serverPort());
+    require(QMetaObject::invokeMethod(sonar.get(),"connectSonar"),"cannot connect production sonar transport");
+    auto wait=[&](auto ready){QElapsedTimer timer;timer.start();while(!ready()&&timer.elapsed()<3000){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}return ready();};
+    require(wait([&]{return server.hasPendingConnections();}),"production sonar did not establish TCP");
+    std::unique_ptr<QTcpSocket> socket(server.nextPendingConnection());
+    const auto send=[&]{socket->write(frame(false,0,QByteArray(32,char(90))));socket->flush();};
+    send();send();
+    require(wait([&]{return sonar->property("nativeChartRecords").toInt()>=1;}),"TCP CHART did not reach production bridge");
+    require(sonar->property("dataAlive").toBool() && sonar->property("echoFresh").toBool(),"CHART-only TCP heartbeat is not live");
+    require(sonar->property("chartRawByteCount").toInt()==32,"production QML lost raw byte count");
+    auto& service=NavoKoggerService::instance();
+    require(!service.dataset().getLlaRef().isInit,"QML accepted a coordinate without GPS fix");
+    auto* gps=vehicle->property("gps").value<QObject*>();auto* lock=gps->property("lock").value<QObject*>();lock->setProperty("rawValue",3);
+    send();
+    require(wait([&]{return sonar->property("nativeChartRecords").toInt()>=2;}),"located column did not reach bridge");
+    require(service.dataset().getLlaRef().isInit && std::abs(service.dataset().getLlaRef().refLla.latitude-40.1616)<1e-6,"QML did not establish origin after GPS fix");
+    lock->setProperty("rawValue",1);send();
+    require(wait([&]{return sonar->property("nativeChartRecords").toInt()>=3;}),"GPS-loss column did not reach bridge");
+    require(!service.dataset().fromIndexCopy(service.dataset().endIndex()).getPositionGNSS().lla.isCoordinatesValid(),"QML retained located samples after GPS fix loss");
+    require(QMetaObject::invokeMethod(sonar.get(),"disconnectSonar"),"cannot disconnect production transport");
+    require(!sonar->property("dataAlive").toBool(),"sonar heartbeat remained live after disconnect");
+    service.clear();
+    std::cout<<"PASS production SonarEthernet QML: real localhost TCP -> decoder -> channel bridge -> Dataset, CHART-only heartbeat and GPS fix/loss gating\n";
+}
+
 int main(int argc,char**argv) {
     qputenv("QT_QPA_PLATFORM","offscreen");
     QGuiApplication app(argc,argv);
     try {
+        if(argc==3 && QString::fromLocal8Bit(argv[1])==QStringLiteral("--transport")){
+            qmlTransportRoundTrip(QString::fromLocal8Bit(argv[2]));NavoKoggerService::instance().shutdown();return 0;
+        }
         synthetic();
-        if(argc==2) {
+        if(argc>=2) {
             QFile file(QString::fromLocal8Bit(argv[1])); require(file.open(QIODevice::ReadOnly),"cannot open KLF");
             const QByteArray bytes=file.readAll();
             require(QCryptographicHash::hash(bytes,QCryptographicHash::Sha256).toHex()==
@@ -239,11 +294,12 @@ int main(int argc,char**argv) {
                 "recorded CHART bytes differ from fixture reference");
             std::cout<<"PASS KLF: "<<whole.columns<<" completed columns, 5000 samples, 10 mm, byte-identical chunked replay, Dataset/Epoch ingestion and bounded adapter retention\n";
             recordedProcessors(bytes);
+            if(argc>=3)qmlTransportRoundTrip(QString::fromLocal8Bit(argv[2]));
             std::cout<<"Trailing 200-sample column remains pending; live decoding needs the next column boundary.\n";
         }
-        if(argc==2)NavoKoggerService::instance().shutdown();
+        if(argc>=2)NavoKoggerService::instance().shutdown();
     }catch(const std::exception& e){
-        if(argc==2)NavoKoggerService::instance().shutdown();
+        if(argc>=2)NavoKoggerService::instance().shutdown();
         std::cerr<<e.what()<<'\n';return 1;
     }
 }

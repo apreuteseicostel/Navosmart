@@ -11,6 +11,7 @@ class NavoKoggerDecoder : public QObject {
  Q_PROPERTY(QVariantList echoSamples READ echoSamples NOTIFY echoSamplesChanged)
  Q_PROPERTY(QVariantList compensatedSamples READ compensatedSamples NOTIFY echoSamplesChanged)
  Q_PROPERTY(quint64 chartSequence READ chartSequence NOTIFY echoSamplesChanged)
+ Q_PROPERTY(int chartRawByteCount READ chartRawByteCount NOTIFY echoSamplesChanged)
  Q_PROPERTY(QByteArray chartRawBytes READ chartRawBytes NOTIFY echoSamplesChanged)
  Q_PROPERTY(quint16 chartResolution READ chartResolution NOTIFY echoSamplesChanged)
  Q_PROPERTY(quint16 chartAbsoluteOffset READ chartAbsoluteOffset NOTIFY echoSamplesChanged)
@@ -27,6 +28,7 @@ public:
  QVariantList echoSamples() const { return _echoSamples; }
  QVariantList compensatedSamples() const { return _compensatedSamples; }
  quint64 chartSequence() const { return _chartSequence; }
+ int chartRawByteCount() const { return _publishedChartRaw.size(); }
  QByteArray chartRawBytes() const { return _publishedChartRaw; }
  quint16 chartResolution() const { return _publishedChartResolution; }
  quint16 chartAbsoluteOffset() const { return _publishedChartAbsoluteOffset; }

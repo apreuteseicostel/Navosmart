@@ -46,7 +46,7 @@ jobs:
         if: steps.fixture-cache.outputs.cache-hit != 'true' 
         run: curl --fail --location --retry 3 --max-time 180 https://kogger.tech/wp-content/uploads/00028_DownView.klf -o /tmp/00028_DownView.klf
       - name: Replay verified fixture through actual NAVO decoder
-        run: /tmp/navo-replay/navo-kogger-replay /tmp/00028_DownView.klf
+        run: /tmp/navo-replay/navo-kogger-replay /tmp/00028_DownView.klf custom/qml/NavoSonarEthernet.qml
 
       - name: Render actual Sonar PRO component from recorded columns
         run: /tmp/navo-replay/navo-sonar-ui-replay custom/qml/NavoSonarPro.qml tests/kogger-replay/mock-imports kogger-columns.json

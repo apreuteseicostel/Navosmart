@@ -12,7 +12,7 @@ QtObject {
  property double lastEchoMs: 0
  property double clockMs: 0
  readonly property bool dataAlive: transportObject.dataAlive && echoFresh
- readonly property bool echoFresh: connected && decoderObject.chartRawBytes.length>0 && lastEchoMs>0 && clockMs-lastEchoMs<1500
+ readonly property bool echoFresh: connected && decoderObject.chartRawByteCount>0 && lastEchoMs>0 && clockMs-lastEchoMs<1500
  readonly property real bottomEchoStrength: computeBottomEchoStrength(decoderObject.echoSamples)
  function computeBottomEchoStrength(samples){ if(!echoFresh||!samples||!samples.length)return NaN; var n=Math.max(3,Math.floor(samples.length*0.10)),sum=0,cnt=0; for(var i=Math.max(0,samples.length-n);i<samples.length;i++){var v=Number(samples[i]);if(isFinite(v)){sum+=v;cnt++}} return cnt?sum/cnt:NaN }
  property Timer freshness: Timer { interval:500; repeat:true; running:true; onTriggered:root.clockMs=Date.now() }
@@ -21,7 +21,7 @@ QtObject {
  property alias echoSamples: decoderObject.echoSamples
  property alias compensatedSamples: decoderObject.compensatedSamples
  property alias chartRawBytes: decoderObject.chartRawBytes
- readonly property int chartRawByteCount: decoderObject.chartRawBytes.length
+ readonly property int chartRawByteCount: decoderObject.chartRawByteCount
  readonly property int chartResolution: decoderObject.chartResolution
  readonly property int chartAbsoluteOffset: decoderObject.chartAbsoluteOffset
  readonly property double chartSequence: decoderObject.chartSequence
@@ -59,7 +59,7 @@ QtObject {
   onBottomColumnReady: function(sequence,depth){root.bottomColumnReady(sequence,depth)}
  }
  property Connections gpsUpdates: Connections {
-  target: root.vehicle
+  target: root.vehicle || null
   ignoreUnknownSignals: true
   function onCoordinateChanged(){root.updateNativePosition()}
  }
@@ -67,6 +67,11 @@ QtObject {
   target: root.vehicle && root.vehicle.gps ? root.vehicle.gps.lock : null
   ignoreUnknownSignals: true
   function onRawValueChanged(){root.updateNativePosition()}
+ }
+ property Connections linkUpdates: Connections {
+  target: root.vehicle ? root.vehicle.vehicleLinkManager : null
+  ignoreUnknownSignals: true
+  function onCommunicationLostChanged(){root.updateNativePosition()}
  }
  signal geoSample(var sample)
  signal bottomColumnReady(double sequence,real depth)
@@ -83,7 +88,7 @@ QtObject {
  property NavoKoggerDecoder decoder: NavoKoggerDecoder {
   id: decoderObject
   onEchoSamplesChanged: {
-   if(!chartRawBytes.length){root.lastEchoMs=0;return}
+   if(!chartRawByteCount){root.lastEchoMs=0;return}
    root.lastEchoMs=Date.now(); root.clockMs=root.lastEchoMs
    if(root.nativeChannelReady && decoderObject.chartVersion===0)return
    // Publish only completed CHART columns paired with recent depth and valid GPS.

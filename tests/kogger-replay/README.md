@@ -29,7 +29,7 @@ Build with Qt6 Core/Gui/Concurrent/Sql/Quick/Qml/Test:
 ```sh
 cmake -S tests/kogger-replay -B /tmp/navo-replay
 cmake --build /tmp/navo-replay -j2
-/tmp/navo-replay/navo-kogger-replay /path/to/00028_DownView.klf
+/tmp/navo-replay/navo-kogger-replay /path/to/00028_DownView.klf custom/qml/NavoSonarEthernet.qml
 /tmp/navo-replay/navo-sonar-ui-replay custom/qml/NavoSonarPro.qml tests/kogger-replay/mock-imports kogger-columns.json
 ```
 
@@ -63,6 +63,12 @@ CSV evidence preserves native height types, including extrapolated cells. These
 interpolated/extrapolated surface cells are not additional measured soundings.
 DownView has no validated lateral channel geometry, so side-scan mosaic stays
 disabled rather than projecting a fabricated swath.
+
+The TCP integration test loads production SonarEthernet with the real C++
+transport, decoder and channel bridge. It verifies CHART-only heartbeat, raw
+byte count and GPS fix acquisition/loss gating through an actual localhost
+socket. Raw QByteArray length is exposed through an explicit C++ property;
+JavaScript `.length` on the QByteArray value is undefined in this Qt runtime.
 
 The visual test loads production Sonar PRO with 240 actual columns, checks
 DAY/NAVO and landscape/portrait rendering, delayed bottom association and actual
