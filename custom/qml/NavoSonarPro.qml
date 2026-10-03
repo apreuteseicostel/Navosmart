@@ -4,7 +4,7 @@ import QtQuick.Layouts
 import QtQuick.Dialogs
 import QtPositioning
 import QtLocation
-import QGroundControl.FlightDisplay
+import QGroundControl.FlightMap
 
 Rectangle {
     id: root
@@ -18,6 +18,7 @@ Rectangle {
     property var chartSource: null
     property var samples: []
     property bool connected: false
+    readonly property bool replayMode: chartSource ? chartSource.replayMode : false
     readonly property bool replayActive: chartSource ? chartSource.replayActive : false
     FileDialog { id: replayPicker; title: 'Încarcă înregistrare Kogger'; nameFilters: ['Kogger (*.klf)', 'Toate fișierele (*)']; onAccepted: { if(root.chartSource) {root.history=[];root.chartSource.startReplay(selectedFile)} } }
     property real depthM: NaN
@@ -260,31 +261,20 @@ Rectangle {
             sourceComponent: Component {
                 Item {
                     clip: true
-                    FlyViewMap {
+                    FlightMap {
                         id: liveMap
                         anchors.fill: parent
-                        planMasterController: root.planController
-                        rightPanelWidth: 0
                         zoomLevel: 17
-                        toolInsets: QtObject {
-                            readonly property real leftEdgeTopInset: 0
-                            readonly property real leftEdgeCenterInset: 0
-                            readonly property real leftEdgeBottomInset: 0
-                            readonly property real rightEdgeTopInset: 0
-                            readonly property real rightEdgeCenterInset: 0
-                            readonly property real rightEdgeBottomInset: 0
-                            readonly property real topEdgeLeftInset: 0
-                            readonly property real topEdgeCenterInset: 0
-                            readonly property real topEdgeRightInset: 0
-                            readonly property real bottomEdgeLeftInset: 0
-                            readonly property real bottomEdgeCenterInset: 0
-                            readonly property real bottomEdgeRightInset: 0
-                        }
                         function followBoat() {
+                            if(root.replayMode && root.boatTrack.length) {
+                                center=root.boatTrack[root.boatTrack.length-1]
+                                return
+                            }
                             if(root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid)
                                 center=root.vehicle.coordinate
                         }
                         Component.onCompleted: followBoat()
+                        Connections { target: root; function onBoatTrackChanged() { if(root.replayMode) liveMap.followBoat() } }
                         Connections { target: root.vehicle; function onCoordinateChanged() { liveMap.followBoat() } }
                     }
                     MapPolyline {
@@ -303,13 +293,13 @@ Rectangle {
                     }
                     MapQuickItem {
                         parent: liveMap
-                        coordinate: root.vehicle ? root.vehicle.coordinate : QtPositioning.coordinate()
+                        coordinate: root.replayMode && root.boatTrack.length ? root.boatTrack[root.boatTrack.length-1] : (root.vehicle ? root.vehicle.coordinate : QtPositioning.coordinate())
                         visible: coordinate.isValid
                         anchorPoint.x: 18; anchorPoint.y: 18
                         sourceItem: Image {
                             width: 36; height: 36
                             source: "qrc:/qml/NavoSmart/icons/boat.svg"
-                            rotation: root.vehicle && root.vehicle.heading ? root.vehicle.heading.rawValue-liveMap.bearing : 0
+                            rotation: !root.replayMode && root.vehicle && root.vehicle.heading ? root.vehicle.heading.rawValue-liveMap.bearing : 0
                         }
                         Component.onCompleted: liveMap.addMapItem(this)
                         Component.onDestruction: liveMap.removeMapItem(this)

@@ -734,6 +734,8 @@ Item {
                 fishModel: fishStore
                 fishingSpotsModel: fishingSpots
                 bathymetryCells: root.displayBathymetryCells
+                        replayPreview: sonar.replayMode
+                        replayTrack: replayMapping.trackCoordinates
                 baitingController: root.mapBaitingController
                 areaScanController: root.mapAreaScanController
                 savedDepthM: root.depthM
@@ -820,10 +822,10 @@ Item {
             chartSource: sonar
             vehicle: root.vehicle
             planController: root.planController
-            boatTrack: root.proBoatTrack
+            boatTrack: sonar.replayMode ? replayMapping.trackCoordinates : root.proBoatTrack
             plannedTrack: areaScanController.generatedPoints
             onClosed: root.activePage = 0
-            connected: sonar.connected
+            connected: sonar.connected || sonar.replayMode
             depthM: sonar.depthM
             waterTempC: root.waterTempC
             samples: sonar.echoSamples
@@ -951,6 +953,8 @@ Item {
                             fishModel: fishStore
                             fishingSpotsModel: fishingSpots
                             bathymetryCells: root.displayBathymetryCells
+                        replayPreview: sonar.replayMode
+                        replayTrack: replayMapping.trackCoordinates
                             baitingController: root.mapBaitingController
                             areaScanController: root.mapAreaScanController
                             savedDepthM: root.depthM
@@ -1037,6 +1041,8 @@ Item {
                         property real availableAspect: width / Math.max(1,height)
                         vehicle:root.vehicle; planController:root.planController; waypointNames:root.waypointNames
                         fishModel:fishStore; fishingSpotsModel:fishingSpots; bathymetryCells:root.displayBathymetryCells
+                        replayPreview: sonar.replayMode
+                        replayTrack: replayMapping.trackCoordinates
                         baitingController: root.mapBaitingController; areaScanController: root.mapAreaScanController
                         savedDepthM:root.depthM; savedWaterTempC:root.waterTempC; showStatusHint:false
                         maximized:fishingPageRoot.mapExpanded
@@ -1326,6 +1332,8 @@ Item {
                         fishModel: fishStore
                         fishingSpotsModel: fishingSpots
                         bathymetryCells: root.displayBathymetryCells
+                        replayPreview: sonar.replayMode
+                        replayTrack: replayMapping.trackCoordinates
                         baitingController: root.mapBaitingController
                         areaScanController: root.mapAreaScanController
                         savedDepthM: root.depthM
