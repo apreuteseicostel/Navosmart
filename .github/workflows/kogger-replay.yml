@@ -1,0 +1,32 @@
+name: Kogger recorded CHART replay
+on:
+  pull_request:
+    paths:
+      - 'custom/src/NavoKoggerDecoder.*'
+      - 'tests/kogger-replay/**'
+      - '.github/workflows/kogger-replay.yml'
+  push:
+    branches: ['feature/kogger-native-dataset-adapter-20261002']
+    paths:
+      - 'custom/src/NavoKoggerDecoder.*'
+      - 'tests/kogger-replay/**'
+      - '.github/workflows/kogger-replay.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt Core build tools
+        run: sudo apt-get update && sudo apt-get install -y qt6-base-dev
+      - name: Build actual NAVO decoder
+        run: cmake -S tests/kogger-replay -B /tmp/navo-replay && cmake --build /tmp/navo-replay -j2
+      - name: Test protocol regressions
+        run: /tmp/navo-replay/navo-kogger-replay
+      - name: Fetch original Kogger recording
+        run: curl --fail --location --retry 3 --max-time 180 https://kogger.tech/wp-content/uploads/00028_DownView.klf -o /tmp/00028_DownView.klf
+      - name: Replay verified fixture through actual NAVO decoder
+        run: /tmp/navo-replay/navo-kogger-replay /tmp/00028_DownView.klf
