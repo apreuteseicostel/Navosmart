@@ -30,6 +30,7 @@ QtObject {
  readonly property real chartRangeMeters: decoderObject.chartRangeMeters
  readonly property real processedBottomDepthM: chartBridge.bottomDepthM
  readonly property int processedColumns: chartBridge.processedColumns
+ readonly property int bathymetryTileCount: chartBridge.bathymetryTileCount
  readonly property int mosaicTileCount: chartBridge.mosaicTileCount
  readonly property bool nativeChannelReady: chartBridge.channelReady
  readonly property bool nativeCapacityFull: chartBridge.capacityFull

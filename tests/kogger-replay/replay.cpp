@@ -119,6 +119,7 @@ static void recordedProcessors(const QByteArray& bytes) {
     Parsers::FrameParser parser;
     QByteArray mutableBytes=bytes;
     parser.setContext(reinterpret_cast<uint8_t*>(mutableBytes.data()),mutableBytes.size());
+    int frames=0;
     while(parser.availContext()>0){
         parser.process();
         if(parser.completeAsKBP2())decoder.feedBytes(QByteArray(reinterpret_cast<const char*>(parser.frame()),parser.frameLen()));
@@ -136,7 +137,7 @@ static void recordedProcessors(const QByteArray& bytes) {
                 roll=values[0]*180.0/M_PI;pitch=values[1]*180.0/M_PI;yaw=values[2]*180.0/M_PI;
             }
         }
-        if(accepted>0 && accepted%100==0)QCoreApplication::processEvents(QEventLoop::AllEvents,1);
+        if((++frames%1024)==0)QCoreApplication::processEvents(QEventLoop::AllEvents,1);
     }
     require(accepted==3000 && service.capacityFull(),"production Dataset budget did not stop at 3000 epochs");
     require(located>2900,"fixture MAVLink GPS was not paired with CHART");
@@ -144,10 +145,10 @@ static void recordedProcessors(const QByteArray& bytes) {
     while(timeout.elapsed()<30000 && depths<2900){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}
     require(depths>2900,"original bottom-track processor did not return located depths");
     require(std::isfinite(service.bottomDepth()) && service.bottomDepth()>0,"no processed bottom depth");
-    service.requestVisibleRect(-1000,-1000,1000,1000);
+    service.requestVisibleRect(-100,-100,100,100);
     timeout.restart();while(timeout.elapsed()<5000){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}
     std::cout<<"PASS native processors: "<<accepted<<" recorded epochs, "<<located<<" with original GPS, "<<depths
-             <<" processed depth updates, "<<service.tileCount()<<" visible mosaic tiles\n";
+             <<" processed depth updates, "<<service.tileCount()<<" visible bathymetry tiles\n";
     QObject::disconnect(sampleConnection);
     service.clear();
 }

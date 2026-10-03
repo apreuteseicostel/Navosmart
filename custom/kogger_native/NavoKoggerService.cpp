@@ -50,9 +50,10 @@ void NavoKoggerService::startProcessor(){
     });
     p->setBottomTrackPtr(&bottomTrack_);
     p->setUpdateBottomTrack(true);
-    p->setUpdateMosaic(true);
-    // DownView provides one downward beam; surface awaits real located points.
-    p->setUpdateSurface(false);
+    p->setUpdateMosaic(false);
+    // DownView is a downward beam. Derive bathymetry from located depths;
+    // never project its samples as a fabricated lateral side-scan swath.
+    p->setUpdateSurface(true);
     p->setUpdateIsobaths(false);
     dataset_.setState(Dataset::DatasetState::kConnection);
 }
@@ -62,7 +63,7 @@ bool NavoKoggerService::ingest(const NavoKoggerChartRecord& record,const Channel
     if(dataset_.size()>=3000||rawBytes_+record.chart.size()>16*1024*1024){capacityFull_=true;emit processingChanged();return false;}
     if(!channel_.isValid()){
         channel_=channel;
-        processor_->setMosaicChannels(channel,0,ChannelId(),0);
+        // Side-scan channels are intentionally unconfigured for DownView.
     }
     if(!NavoKoggerDatasetAdapter::appendToKoggerDataset(record,channel,dataset_))return false;
     rawBytes_+=record.chart.size();

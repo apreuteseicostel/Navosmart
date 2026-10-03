@@ -13,6 +13,7 @@ class NavoKoggerChartBridge : public QObject {
     Q_PROPERTY(bool channelReady READ channelReady NOTIFY recordsChanged)
     Q_PROPERTY(double bottomDepthM READ bottomDepthM NOTIFY recordsChanged)
     Q_PROPERTY(int processedColumns READ processedColumns NOTIFY recordsChanged)
+    Q_PROPERTY(int bathymetryTileCount READ bathymetryTileCount NOTIFY recordsChanged)
     Q_PROPERTY(int mosaicTileCount READ mosaicTileCount NOTIFY recordsChanged)
     Q_PROPERTY(bool capacityFull READ capacityFull NOTIFY recordsChanged)
     Q_PROPERTY(int recordCount READ recordCount NOTIFY recordsChanged)
@@ -30,7 +31,8 @@ public:
     bool channelReady() const {return !linkUuid_.isNull() && decoder_ && decoder_->chartAddress()>=0;}
     double bottomDepthM() const {return NavoKoggerService::instance().bottomDepth();}
     int processedColumns() const {return NavoKoggerService::instance().processedColumns();}
-    int mosaicTileCount() const {return NavoKoggerService::instance().tileCount();}
+    int mosaicTileCount() const {return 0;}
+    int bathymetryTileCount() const {return NavoKoggerService::instance().tileCount();}
     bool capacityFull() const {return NavoKoggerService::instance().capacityFull();}
     Q_INVOKABLE void setConnectionEndpoint(const QString& host,int port,bool udp) {
         const QString name=host.trimmed().toLower();
