@@ -39,6 +39,8 @@ Item {
     }
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
     property var planController: _planController
+    readonly property var mapBaitingController: baitingController
+    readonly property var mapAreaScanController: areaScanController
 
     PlanMasterController {
         id: _planController
@@ -732,8 +734,8 @@ Item {
                 fishModel: fishStore
                 fishingSpotsModel: fishingSpots
                 bathymetryCells: root.displayBathymetryCells
-                baitingController: baitingController
-                areaScanController: areaScanController
+                baitingController: root.mapBaitingController
+                areaScanController: root.mapAreaScanController
                 savedDepthM: root.depthM
                 savedWaterTempC: root.waterTempC
                 maximized: root.mapMaximized
@@ -949,8 +951,8 @@ Item {
                             fishModel: fishStore
                             fishingSpotsModel: fishingSpots
                             bathymetryCells: root.displayBathymetryCells
-                            baitingController: baitingController
-                            areaScanController: areaScanController
+                            baitingController: root.mapBaitingController
+                            areaScanController: root.mapAreaScanController
                             savedDepthM: root.depthM
                             savedWaterTempC: root.waterTempC
                             maximized: root.mapMaximized
@@ -1035,7 +1037,7 @@ Item {
                         property real availableAspect: width / Math.max(1,height)
                         vehicle:root.vehicle; planController:root.planController; waypointNames:root.waypointNames
                         fishModel:fishStore; fishingSpotsModel:fishingSpots; bathymetryCells:root.displayBathymetryCells
-                        baitingController:baitingController; areaScanController:areaScanController
+                        baitingController: root.mapBaitingController; areaScanController: root.mapAreaScanController
                         savedDepthM:root.depthM; savedWaterTempC:root.waterTempC; showStatusHint:false
                         maximized:fishingPageRoot.mapExpanded
                         onMaximizeRequested:fishingPageRoot.mapExpanded=!fishingPageRoot.mapExpanded
@@ -1324,8 +1326,8 @@ Item {
                         fishModel: fishStore
                         fishingSpotsModel: fishingSpots
                         bathymetryCells: root.displayBathymetryCells
-                        baitingController: baitingController
-                        areaScanController: areaScanController
+                        baitingController: root.mapBaitingController
+                        areaScanController: root.mapAreaScanController
                         savedDepthM: root.depthM
                         savedWaterTempC: root.waterTempC
                         maximized: root.mapMaximized

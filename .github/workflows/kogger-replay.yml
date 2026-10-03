@@ -4,6 +4,9 @@ on:
     paths:
       - 'custom/src/NavoKogger*'
       - 'custom/qml/NavoSonar*.qml'
+      - 'custom/qml/NavoDashboard.qml'
+      - 'custom/qml/NavoMap.qml'
+      - '.github/workflows/android.yml'
       - 'custom/CMakeLists.txt'
       - 'custom/kogger_native/**'
       - 'third_party/KoggerApp/**'
