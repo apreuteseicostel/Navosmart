@@ -17,6 +17,11 @@ NavoKoggerService::NavoKoggerService(QObject* parent):QObject(parent){
     connect(&horizon_,&DataHorizon::sonarPosCanCalc,&dataset_,&Dataset::onSonarPosCanCalc);
     connect(&horizon_,&DataHorizon::dimRectsCanCalc,&dataset_,&Dataset::onDimensionRectCanCalc);
     connect(&dataset_,&Dataset::bottomTrackUpdated,this,&NavoKoggerService::onBottomUpdated);
+    // Position calculation and depth processing finish independently. Refresh
+    // vertices when positions become available after a bottom result.
+    connect(&dataset_,&Dataset::sonarPositionsUpdated,this,[this](int from,int to){
+        if(channel_.isValid())onBottomUpdated(channel_,from,to,false,false);
+    });
     qRegisterMetaType<BottomTrack*>("BottomTrack*");
     connect(QCoreApplication::instance(),&QCoreApplication::aboutToQuit,this,&NavoKoggerService::shutdown);
     rolloverTimer_.setInterval(20);

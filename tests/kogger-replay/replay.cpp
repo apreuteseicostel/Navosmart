@@ -162,8 +162,17 @@ static void recordedProcessors(const QByteArray& bytes) {
     while(timeout.elapsed()<30000 && service.processedColumns()<14000){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}
     require(service.processedColumns()>14000 && service.processedColumns()<=accepted,"original bottom-track processor did not return located depths");
     require(std::isfinite(service.bottomDepth()) && service.bottomDepth()>0,"no processed bottom depth");
-    service.requestVisibleRect(-100,-100,100,100);
+    float minN=INFINITY,minE=INFINITY,maxN=-INFINITY,maxE=-INFINITY;
+    for(int i=0;i<service.dataset().size();++i){
+        const auto position=service.dataset().fromIndexCopy(i).getSonarPosition();
+        if(!position.ned.isCoordinatesValid())continue;
+        minN=std::min(minN,float(position.ned.n));maxN=std::max(maxN,float(position.ned.n));
+        minE=std::min(minE,float(position.ned.e));maxE=std::max(maxE,float(position.ned.e));
+    }
+    require(std::isfinite(minN),"no located sonar positions for bathymetry");
+    service.requestVisibleRect(minN-20,minE-20,maxN+20,maxE+20);
     timeout.restart();while(timeout.elapsed()<5000){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}
+    require(service.tileCount()>0,"surface processor returned no bathymetry tiles for the recorded track");
     std::cout<<"PASS native processors: "<<accepted<<" recorded epochs, "<<located<<" with original GPS, "<<depths
              <<" processed depth updates, "<<service.tileCount()<<" visible bathymetry tiles\n";
     QFile display("kogger-columns.json");require(display.open(QIODevice::WriteOnly),"cannot save visual fixture");
