@@ -1,6 +1,9 @@
 #include "../../custom/src/NavoKoggerDecoder.h"
 #include <QGuiApplication>
 #include <QQmlEngine>
+#include <QTemporaryDir>
+#include <QSettings>
+#include "../../custom/src/NavoPersistence.h"
 #include <QQmlComponent>
 #include <QFileInfo>
 #include <QTcpServer>
@@ -22,6 +25,7 @@
 #include <stdexcept>
 #include <algorithm>
 
+static QVariantList recordedGeoSamples;
 static void require(bool ok, const char* message) {
     if (!ok) throw std::runtime_error(message);
 }
@@ -120,7 +124,7 @@ static void recordedProcessors(const QByteArray& bytes) {
         require(!emittedSequences.contains(sequence),"position refresh duplicated a processed geo sample");
         require(sample.value("chartResolution").toInt()==10 && std::abs(sample.value("chartRangeMeters").toDouble()-50)<1e-6,"processed geo sample lost its physical scale");
         require(std::isfinite(sample.value("bottomEcho").toDouble()),"processed sample lost its own bottom echo");
-        emittedSequences.insert(sequence);++geosamples;
+        emittedSequences.insert(sequence);recordedGeoSamples.append(sample);++geosamples;
     });
     QJsonArray displayColumns;
     QFile points("kogger-bottom-track.csv");require(points.open(QIODevice::WriteOnly),"cannot save bottom-track evidence");
@@ -229,6 +233,41 @@ static void recordedProcessors(const QByteArray& bytes) {
     QObject::disconnect(geoConnection);
     service.clear();
 }
+static void qmlBathymetryPipeline(const QString& directory,const QVariantList& samples) {
+    require(samples.size()>14000,"recorded bathymetry samples missing");
+    QQmlEngine engine;
+    const auto load=[&](const QString& name){
+        QQmlComponent component(&engine,QUrl::fromLocalFile(directory+"/"+name));
+        if(component.isError())std::cerr<<component.errorString().toStdString();
+        auto object=std::unique_ptr<QObject>(component.create());require(bool(object),"production bathymetry QML failed to load");return object;
+    };
+    auto mapping=load("NavoSonarMapping.qml");
+    mapping->setProperty("scanning",true);mapping->setProperty("sonarConnected",true);mapping->setProperty("externalSampleIngestion",true);
+    for(const auto& sample:samples)require(QMetaObject::invokeMethod(mapping.get(),"ingestSample",Q_ARG(QVariant,sample)),"mapping did not accept native sample");
+    const auto mapped=mapping->property("rawSamples").toList();
+    require(mapped.size()==samples.size(),"production mapping lost processed samples");
+    require(mapped.last().toMap().value("sequence").toULongLong()==samples.last().toMap().value("sequence").toULongLong(),"mapping lost column identity");
+    auto model=load("NavoBathymetryModel.qml");
+    require(QMetaObject::invokeMethod(model.get(),"rebuild",Q_ARG(QVariant,QVariant(mapped))),"cannot rebuild production bathymetry grid");
+    const auto cells=model->property("cells").toList();require(cells.size()>3,"production bathymetry grid is empty");
+    auto hd=load("NavoBathymetryHDModel.qml");hd->setProperty("sourceCells",cells);
+    require(QMetaObject::invokeMethod(hd.get(),"rebuild"),"cannot rebuild HD interpolation");
+    const auto grid=hd->property("gridCells").toList();const auto contours=hd->property("contourSegments").toList();
+    require(hd->property("ready").toBool() && !grid.isEmpty() && !contours.isEmpty(),"production HD bathymetry/contours are empty");
+    for(const auto& cell:cells){const auto depth=cell.toMap().value("depth").toDouble();require(std::isfinite(depth)&&depth>0&&depth<50,"invalid mapped bathymetry depth");}
+    QTemporaryDir settings;require(settings.isValid(),"cannot isolate persistence settings");
+    QCoreApplication::setOrganizationName("NavoRecordedReplay");QCoreApplication::setApplicationName("BathymetryValidation");
+    QSettings::setDefaultFormat(QSettings::IniFormat);QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,settings.path());
+    {NavoPersistence persistence;for(const auto& sample:mapped)persistence.addSonarSample(sample.toMap());}
+    NavoPersistence restored;const auto loaded=restored.sonarSamples();require(loaded.size()==mapped.size(),"persistence did not restore recorded sample count");
+    for(int i=0;i<loaded.size();++i){
+        const auto a=mapped[i].toMap(),b=loaded[i].toMap();
+        for(const char* field:{"lat","lon","depth","time","sequence","chartResolution","chartRangeMeters"})
+            require(std::abs(a.value(field).toDouble()-b.value(field).toDouble())<1e-9,"persistence changed georeferenced column metadata");
+    }
+    std::cout<<"PASS production mapping -> persistence reload -> bathymetry/HD: "<<mapped.size()<<" samples, "<<cells.size()<<" grid cells, "<<grid.size()<<" HD cells, "<<contours.size()<<" contour segments\n";
+}
+
 static void qmlTransportRoundTrip(const QString& source) {
     qmlRegisterType<NavoKoggerDecoder>("NavoSmart.Backend",1,0,"NavoKoggerDecoder");
     qmlRegisterType<NavoKoggerChartBridge>("NavoSmart.Backend",1,0,"NavoKoggerChartBridge");
@@ -294,7 +333,10 @@ int main(int argc,char**argv) {
                 "recorded CHART bytes differ from fixture reference");
             std::cout<<"PASS KLF: "<<whole.columns<<" completed columns, 5000 samples, 10 mm, byte-identical chunked replay, Dataset/Epoch ingestion and bounded adapter retention\n";
             recordedProcessors(bytes);
-            if(argc>=3)qmlTransportRoundTrip(QString::fromLocal8Bit(argv[2]));
+            if(argc>=3){
+                qmlBathymetryPipeline(QFileInfo(QString::fromLocal8Bit(argv[2])).absolutePath(),recordedGeoSamples);
+                qmlTransportRoundTrip(QString::fromLocal8Bit(argv[2]));
+            }
             std::cout<<"Trailing 200-sample column remains pending; live decoding needs the next column boundary.\n";
         }
         if(argc>=2)NavoKoggerService::instance().shutdown();

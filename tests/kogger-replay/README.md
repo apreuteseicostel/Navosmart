@@ -70,6 +70,12 @@ byte count and GPS fix acquisition/loss gating through an actual localhost
 socket. Raw QByteArray length is exposed through an explicit C++ property;
 JavaScript `.length` on the QByteArray value is undefined in this Qt runtime.
 
+The recorded sample integration also executes the production SonarMapping,
+BathymetryModel and BathymetryHDModel components with real QtPositioning. It
+requires a populated measured grid, HD interpolation and contour segments, then
+saves all processed samples through NavoPersistence and reopens it to verify
+count, position, depth, time, sequence and physical scale in isolated settings.
+
 The visual test loads production Sonar PRO with 240 actual columns, checks
 DAY/NAVO and landscape/portrait rendering, delayed bottom association and actual
 menu/close mouse clicks. Map dependencies are mocked and disabled. Evidence is

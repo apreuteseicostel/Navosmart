@@ -37,9 +37,12 @@ Rectangle {
     function captureGeoChart() {
         if (!chartSource || !chartSource.chartRawBytes || !chartSource.chartRawByteCount) return
         var coordinate = vehicle && vehicle.coordinate ? vehicle.coordinate : null
-        if (!coordinate || !coordinate.isValid) { unlocatedChartCount++; return }
+        var fixValid = vehicle && vehicle.gps && vehicle.gps.lock.rawValue >= 3 &&
+                       vehicle.vehicleLinkManager && !vehicle.vehicleLinkManager.communicationLost
+        if (!fixValid || !coordinate || !coordinate.isValid) { unlocatedChartCount++; return }
         var record = { latitude: coordinate.latitude, longitude: coordinate.longitude,
-                       timestampMs: Date.now(), depthM: depthM,
+                       timestampMs: Date.now(), sequence:chartSource.chartSequence,
+                       depthM: chartSource.nativeChannelReady ? NaN : depthM,
                        resolution: chartSource.chartResolution,
                        absoluteOffset: chartSource.chartAbsoluteOffset,
                        version: chartSource.chartVersion,
@@ -83,6 +86,12 @@ Rectangle {
             var entry = Object.assign({},next[i]); entry.bottom = depth; next[i] = entry; changed = true
         }
         if (changed) { history = next; repaint() }
+        var geoNext=geoChartRecords.slice(0), geoChanged=false
+        for(var g=0;g<geoNext.length;++g){
+            if(geoNext[g].sequence!==sequence)continue
+            var record=Object.assign({},geoNext[g]);record.depthM=depth;geoNext[g]=record;geoChanged=true
+        }
+        if(geoChanged)geoChartRecords=geoNext
     }
     function sampleStrength(column, index) {
         var value = Number(column[index])

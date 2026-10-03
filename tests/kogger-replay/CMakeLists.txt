@@ -5,6 +5,8 @@ set(CMAKE_AUTOMOC ON)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Concurrent Sql Network Qml)
 add_executable(navo-kogger-replay replay.cpp ../../custom/src/NavoKoggerDecoder.cc ../../custom/src/NavoKoggerDecoder.h)
 target_sources(navo-kogger-replay PRIVATE
+    ../../custom/src/NavoPersistence.cc
+    ../../custom/src/NavoPersistence.h
     ../../custom/src/NavoEthernetTransport.cc
     ../../custom/src/NavoEthernetTransport.h
     ../../custom/src/NavoKoggerChartBridge.h

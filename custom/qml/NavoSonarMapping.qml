@@ -81,7 +81,7 @@ Rectangle {
     }
 
     Connections {
-        target: root.vehicle
+        target: root.vehicle || null
         function onCoordinateChanged(){ root.addCurrentSample() }
     }
 
