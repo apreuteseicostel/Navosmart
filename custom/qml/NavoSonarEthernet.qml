@@ -80,7 +80,7 @@ QtObject {
  property NavoKoggerChartBridge nativeBridge: NavoKoggerChartBridge {
   id: chartBridge
   Component.onCompleted: { setConnectionEndpoint(root.host,root.port,root.udp); setDecoder(decoderObject); root.updateNativePosition() }
-  onGeoSampleReady: function(sample){if(!root.replayActive)root.geoSample(sample)}
+  onGeoSampleReady: function(sample){ var published={}; for(var key in sample)published[key]=sample[key]; published.replay=root.replayMode; root.geoSample(published) }
   onBottomColumnReady: function(sequence,depth){root.bottomColumnReady(sequence,depth)}
  }
  property Timer replaySurfaceRefresh: Timer {
@@ -110,7 +110,7 @@ QtObject {
  function disconnectFromSonar(){ disconnectSonar() }
  property NavoEthernetTransport transport: NavoEthernetTransport {
   id: transportObject
-  onConnectedChanged: if(!connected && !root.replayActive) { root.lastDepthMs=0; root.lastEchoMs=0; decoderObject.reset() }
+  onConnectedChanged: if(!connected && !root.replayMode) { root.lastDepthMs=0; root.lastEchoMs=0; decoderObject.reset() }
   onEndpointChanged: { decoderObject.reset(); chartBridge.setConnectionEndpoint(host,port,udp) }
   onBytesReceived: function(data){ if(root.replayMode)return; root.rxBytes += data.length; root.rxChunks += 1; decoderObject.feedBytes(data) }
  }
