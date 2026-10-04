@@ -243,6 +243,7 @@ test('Recorded replay refuses live geometry changes and new navigation or missio
  c.checkpoint=()=>{writes.push(1);return true};
  assert.equal(c.prepareRectangle(coord(52,0),coord(52.001,.001)).length,0);
  assert.equal(c.preparePolygon([coord(52,0),coord(52.001,0),coord(52.001,.001)]).length,0);
+ assert.equal(c.prepareMission(false).length,0);c.state="PAUSED";assert.equal(c.resume().length,0);assert.equal(c.state,"PAUSED");
  assert.deepEqual(c.areaScan.generatedPoints,[1]);assert.equal(writes.length,0);
  let commands=0;const d=context('NavoDashboard.qml',{sonarController:{replayMode:true},vehicle:{guidedModeGotoLocation(){commands++}},lastNavigationStatus:''});
  assert.equal(d.navigateToCoordinate(coord(52,0)),false);assert.equal(d.startMission(),false);assert.equal(d.startUploadedMission(),false);assert.equal(commands,0);
