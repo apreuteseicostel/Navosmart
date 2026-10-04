@@ -624,11 +624,16 @@ Item {
         RowLayout {
             id: headerItems
             x: 16; height: parent.height; spacing: 8
-            ColumnLayout {
+            Item {
                 Layout.preferredWidth: 150
-                spacing: 0
-                Label { text: "NAVO SMART"; color: root.text; font.pixelSize: 22; font.bold: true }
-                Label { text: "Pescarul lu Peste"; color: root.muted; font.pixelSize: 11 }
+                Layout.preferredHeight: titleLabels.implicitHeight
+                ColumnLayout {
+                    id: titleLabels
+                    anchors.fill: parent
+                    spacing: 0
+                    Label { text: "NAVO SMART"; color: root.text; font.pixelSize: 22; font.bold: true }
+                    Label { text: "Pescarul lu Peste"; color: root.muted; font.pixelSize: 11 }
+                }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.mapMaximized=false; root.activePage=0 } }
             }
             StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/satellite.svg"; title: "SATELIȚI"; value: vehicle && vehicle.gps ? String(vehicle.gps.count.rawValue) : "--"; good: vehicle && vehicle.gps }

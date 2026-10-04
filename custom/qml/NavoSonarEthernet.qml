@@ -19,7 +19,7 @@ QtObject {
  property alias depthM: decoderObject.depthM
  property alias waterTempC: decoderObject.waterTempC
  property alias echoSamples: decoderObject.echoSamples
- readonly property int chartRawByteCount: decoderObject.chartRawBytes.length
+ readonly property int chartRawByteCount: decoderObject.chartRawByteCount
  readonly property int chartResolution: decoderObject.chartResolution
  readonly property int chartAbsoluteOffset: decoderObject.chartAbsoluteOffset
  readonly property int chartVersion: decoderObject.chartVersion
