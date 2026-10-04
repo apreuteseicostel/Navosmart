@@ -221,7 +221,7 @@ Item {
     }
     property var battery: vehicle && vehicle.batteries.count > 0 ? vehicle.batteries.get(0) : null
     property var waypointNames: persistence.waypointNames
-    readonly property real depthM: isFinite(sonar.depthM) ? sonar.depthM : (sonar.echoFresh ? sonar.processedBottomDepthM : NaN)
+    readonly property real depthM: isFinite(sonar.depthM) ? sonar.depthM : ((sonar.echoFresh || sonar.replayMode) ? sonar.processedBottomDepthM : NaN)
     readonly property real waterTempC: sonar.waterTempC
     readonly property bool sonarConnected: sonar.connected && sonar.dataAlive
     readonly property real bottomEchoStrength: sonar.bottomEchoStrength
@@ -249,7 +249,7 @@ Item {
     }
     property bool awaitingMissionStart: false
     property string areaScanFinishAction: "HOLD"
-    onVehicleChanged: { proBoatTrack=[]; awaitingMissionStart=false; if(baitingController && baitingController.enabled) baitingController.abortCycle("Autopilot schimbat"); if(scanCoordinator && scanCoordinator.state==="SCANNING") scanCoordinator.pause("Autopilot schimbat") }
+    onVehicleChanged: { nanoMissingSinceMs=0; nanoHopperFallback=false; proBoatTrack=[]; awaitingMissionStart=false; if(baitingController && baitingController.enabled) baitingController.abortCycle("Autopilot schimbat"); if(scanCoordinator && scanCoordinator.state==="SCANNING") scanCoordinator.pause("Autopilot schimbat") }
     property string pendingMode: ""
     property string pendingModeLabel: ""
     Timer {
@@ -380,28 +380,56 @@ Item {
         }
     }
 
+    function recordLiveFishDetection(targetDepthM, strength) {
+        if (sonar.replayMode || !root.linkAlive || !root.vehicle || !root.vehicle.gps || root.vehicle.gps.lock.rawValue<3 ||
+            !root.vehicle || !root.vehicle.coordinate || !root.vehicle.coordinate.isValid) return false
+        var detection = fishStore.addDetection(root.vehicle.coordinate, targetDepthM, sonar.depthM, strength, Date.now())
+        if (!detection) return false
+        scanCoordinator.checkpoint("fish-detection")
+        return true
+    }
     NavoFishDetector {
         id: fishDetector
         onTargetDetected: function(targetDepthM, strength) {
-            if (!root.vehicle || !root.vehicle.coordinate || !root.vehicle.coordinate.isValid) return
-            fishStore.addDetection(root.vehicle.coordinate, targetDepthM, sonar.depthM, strength, Date.now())
-            scanCoordinator.checkpoint("fish-detection")
+            root.recordLiveFishDetection(targetDepthM, strength)
             // NavoFishDetections owns bounded history and hotspot rebuilding.
         }
     }
     Connections {
         target: sonar.decoder
-        function onEchoSamplesChanged() { fishDetector.analyze(sonar.echoSamples, sonar.depthM) }
+        function onEchoSamplesChanged() { if (!sonar.replayMode) fishDetector.analyze(sonar.echoSamples, root.depthM, sonar.chartOffsetMeters, sonar.chartRangeMeters) }
     }
 
     NavoNanoTelemetry {
         id: nanoTelemetry
         vehicle: root.vehicle
     }
+    // A missing Nano never removes H743 control: wait once, then permit
+    // calibrated servo commands. This does not issue a release automatically.
+    property double nanoMissingSinceMs: 0
+    property bool nanoHopperFallback: false
+    function updateNanoHopperAvailability(nowMs) {
+        if (!root.vehicle || !root.linkAlive) {
+            nanoMissingSinceMs = 0
+            nanoHopperFallback = false
+            return
+        }
+        if (nanoTelemetry.lastUpdateMs > 0) nanoMissingSinceMs = nanoTelemetry.lastUpdateMs
+        else if (!nanoMissingSinceMs) nanoMissingSinceMs = nowMs
+        nanoHopperFallback = nowMs - nanoMissingSinceMs >= 2000
+    }
+    Timer {
+        interval: 100; repeat: true; running: true
+        onTriggered: root.updateNanoHopperAvailability(Date.now())
+    }
+    Connections {
+        target: nanoTelemetry
+        function onTelemetryChanged() { root.updateNanoHopperAvailability(Date.now()) }
+    }
     NavoHopperBridge {
         id: hopperBridge
         vehicle: root.vehicle
-        calibrated: hopperSettings.confirmed && hopperSettings.leftOutput!==hopperSettings.rightOutput && root.linkAlive && nanoTelemetry.connected
+        calibrated: hopperSettings.confirmed && hopperSettings.leftOutput!==hopperSettings.rightOutput && root.linkAlive && (nanoTelemetry.connected || root.nanoHopperFallback)
         leftServoOutput: hopperSettings.leftOutput
         rightServoOutput: hopperSettings.rightOutput
         leftClosedPwm: hopperSettings.leftClosed
@@ -443,7 +471,7 @@ Item {
             return
         }
         if(action==="AUTO") {
-            if(vehicle && vehicle.missionFlightMode) { vehicle.flightMode=vehicle.missionFlightMode; pendingMode=vehicle.missionFlightMode; pendingModeLabel="AUTO"; lastNavigationStatus="G20 • AUTO selectat • misiunea NU pornește automat" }
+            lastNavigationStatus="G20 • AUTO selectat • folosește START pentru pornirea misiunii"
             return
         }
         if(action==="FAR") { commandNanoLight(1,2,"Far"); return }

@@ -23,6 +23,8 @@ QtObject {
  function setServo(output,pwm){
   if(!vehicle){commandRejected("H743/MAVLink indisponibil");return false}
   if(!calibrated){commandRejected("Cuve necalibrate");return false}
+  if(!vehicle.vehicleLinkManager || vehicle.vehicleLinkManager.communicationLost){commandRejected("Legătura H743 este pierdută");return false}
+  if(!Number.isInteger(output) || output<1 || output>16 || !Number.isInteger(pwm) || pwm<900 || pwm>2100){commandRejected("Ieșire/PWM cuvă invalidă");return false}
   if(!vehicle.sendCommand){commandRejected("Interfața MAVLink nu poate trimite comenzi");return false}
   vehicle.sendCommand(mavCompAutopilot1,mavCmdDoSetServo,true,output,pwm,0,0,0,0,0)
   commandPending=true

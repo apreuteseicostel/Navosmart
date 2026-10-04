@@ -109,7 +109,8 @@ test('NAVO starts as ArduPilot Rover Boat without vehicle-selection prompt',()=>
   const srcDir=path.resolve(import.meta.dirname,'../custom/src');
   const h=fs.readFileSync(path.join(srcDir,'CustomPlugin.h'),'utf8');
   const cc=fs.readFileSync(path.join(srcDir,'CustomPlugin.cc'),'utf8');
-  assert(h.includes('firstRunPromptStdIds() final { return QList<int>({ kUnitsFirstRunPromptId }); }'));
+  assert(h.includes('firstRunPromptStdIds() final { return {}; }'));
+  assert(cc.includes('if(!units.contains(it.key()))units.setValue(it.key(),it.value())'));
   assert(cc.includes('QGCMAVLink::FirmwareClassArduPilot'));
   assert(cc.includes('QGCMAVLink::VehicleClassRoverBoat'));
 });
@@ -187,5 +188,40 @@ test('PRO impulse filter removes an isolated spike and preserves sustained retur
   assert.equal(c.sampleStrength([.8,.9,.8],1),.7000000000000001);
   assert.equal(c.sampleStrength([.8,NaN,.8],1),0);
   c.gain=3;assert.equal(c.sampleStrength([.8,.9,.8],1),1);
+});
+test('Nano absence permits calibrated H743 control after two seconds, with reconnect/link reset',()=>{
+  const c=context('NavoDashboard.qml',{vehicle:{},linkAlive:true,nanoTelemetry:{lastUpdateMs:0},nanoMissingSinceMs:0,nanoHopperFallback:false});
+  c.updateNanoHopperAvailability(10000);assert.equal(c.nanoHopperFallback,false);
+  c.updateNanoHopperAvailability(11999);assert.equal(c.nanoHopperFallback,false);
+  c.updateNanoHopperAvailability(12000);assert.equal(c.nanoHopperFallback,true);
+  c.nanoTelemetry.lastUpdateMs=12000;c.updateNanoHopperAvailability(12001);assert.equal(c.nanoHopperFallback,false);
+  c.updateNanoHopperAvailability(14000);assert.equal(c.nanoHopperFallback,true);
+  c.linkAlive=false;c.updateNanoHopperAvailability(14001);assert.equal(c.nanoHopperFallback,false);assert.equal(c.nanoMissingSinceMs,0);
+});
+test('Replay cannot create live fish detections or checkpoints, including delayed detection events',()=>{
+  let added=0,saved=0;const c=context('NavoDashboard.qml',{sonar:{replayMode:true,depthM:5},linkAlive:true,vehicle:{coordinate:coord(52,0),gps:{lock:{rawValue:3}}},fishStore:{addDetection(){added++;return {}}},scanCoordinator:{checkpoint(){saved++}}});
+  assert.equal(c.recordLiveFishDetection(2,.7),false);assert.equal(added,0);assert.equal(saved,0);
+  c.sonar.replayMode=false;assert.equal(c.recordLiveFishDetection(2,.7),true);assert.equal(added,1);assert.equal(saved,1);
+  c.linkAlive=false;assert.equal(c.recordLiveFishDetection(2,.7),false);assert.equal(added,1);
+});
+test('PRO replay never captures the connected live vehicle GPS as recording metadata',()=>{
+  const c=context('NavoSonarPro.qml',{chartSource:{replayMode:true,chartRawBytes:[1],chartRawByteCount:1},vehicle:{coordinate:coord(52,0),gps:{lock:{rawValue:3}},vehicleLinkManager:{communicationLost:false}},geoChartRecords:[],unlocatedChartCount:0});
+  c.captureGeoChart();assert.equal(c.geoChartRecords.length,0);
+});
+test('Selecting G20 AUTO does not switch an armed vehicle into mission mode',()=>{
+  const c=context('NavoDashboard.qml',{vehicle:{armed:true,flightMode:'Hold',missionFlightMode:'Auto'}});
+  c.dispatchG20Action('MODE3','AUTO');assert.equal(c.vehicle.flightMode,'Hold');
+});
+test('Nano fallback does not bypass missing H743 link or invalid PWM',()=>{
+  let sent=0;const c=context('NavoHopperBridge.qml',{vehicle:{vehicleLinkManager:{communicationLost:true},sendCommand(){sent++}},calibrated:true,commandRejected:noop,mavCompAutopilot1:1,mavCmdDoSetServo:183});
+  assert.equal(c.setServo(9,1900),false);assert.equal(sent,0);
+  c.vehicle.vehicleLinkManager.communicationLost=false;assert.equal(c.setServo(9,3000),false);assert.equal(sent,0);
+  assert.equal(c.setServo(9,1900),true);assert.equal(sent,1);
+});
+test('Fish depth uses physical CHART range and offset, excluding echoes beyond the bottom',()=>{
+  const found=[];const c=context('NavoFishDetector.qml',{surfaceIgnoreM:.35,bottomGuardM:.45,lastDetectionTime:0,cooldownMs:900,sensitivity:.72,minimumRunBins:2,targetDetected:(depth)=>found.push(depth)});
+  const samples=Array(500).fill(0);samples[25]=.9;samples[26]=.9;samples[100]=.9;samples[101]=.9;
+  c.analyze(samples,6,2,50);assert.equal(found.length,1);assert.equal(found[0],4.550000000000001);
+  c.lastDetectionTime=0;c.analyze(samples,6,2,NaN);assert.equal(found.length,1);
 });
 console.log(`${passed} regression scenarios passed`);

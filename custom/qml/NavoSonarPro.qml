@@ -39,7 +39,7 @@ Rectangle {
     property int maxGeoChartRecords: 3000
     property int unlocatedChartCount: 0
     function captureGeoChart() {
-        if (!chartSource || !chartSource.chartRawBytes || !chartSource.chartRawByteCount) return
+        if (!chartSource || chartSource.replayMode || !chartSource.chartRawBytes || !chartSource.chartRawByteCount) return
         var coordinate = vehicle && vehicle.coordinate ? vehicle.coordinate : null
         var fixValid = vehicle && vehicle.gps && vehicle.gps.lock.rawValue >= 3 &&
                        vehicle.vehicleLinkManager && !vehicle.vehicleLinkManager.communicationLost
