@@ -52,6 +52,7 @@ private:
     qsizetype pendingBytes_=0;
     bool rolling_=false;
     int epochOffset_=0;
+    quint64 generation_=0;
     QSet<int> processedEpochs_;
     struct ColumnMetadata {qint64 time;quint64 sequence;double heading;quint16 resolution,offset;quint8 version;int samples;};
     QHash<int,ColumnMetadata> metadata_;

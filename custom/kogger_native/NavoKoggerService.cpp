@@ -33,31 +33,40 @@ void NavoKoggerService::shutdown(){rolloverTimer_.stop();if(processor_)processor
 void NavoKoggerService::startProcessor(){
     processor_=std::make_unique<DataProcessor>(nullptr,&dataset_);
     auto* p=processor_.get();
+    const auto generation=generation_;
     connect(&horizon_,&DataHorizon::chartAdded,p,&DataProcessor::onChartsAdded,Qt::QueuedConnection);
     connect(&horizon_,&DataHorizon::epochAdded,p,&DataProcessor::onEpochAdded,Qt::QueuedConnection);
     connect(&horizon_,&DataHorizon::mosaicCanCalc,p,&DataProcessor::onMosaicCanCalc,Qt::QueuedConnection);
     connect(&horizon_,&DataHorizon::bottomTrack3DAdded,p,&DataProcessor::onBottomTrack3DAdded,Qt::QueuedConnection);
     connect(&dataset_,&Dataset::sendTilesByZoom,p,&DataProcessor::onSendTilesByZoom,Qt::QueuedConnection);
     connect(&dataset_,&Dataset::datasetStateChanged,p,&DataProcessor::onDatasetStateChanged,Qt::QueuedConnection);
-    connect(p,&DataProcessor::distCompletedByProcessing,&dataset_,&Dataset::onDistCompleted);
-    connect(p,&DataProcessor::distCompletedByProcessingBatch,&dataset_,&Dataset::onDistCompletedBatch);
-    connect(p,&DataProcessor::lastBottomTrackEpochChanged,&dataset_,&Dataset::onLastBottomTrackEpochChanged);
-    connect(p,&DataProcessor::sendSurfaceTiles,this,[this](const TileMap& tiles,bool){
+    connect(p,&DataProcessor::distCompletedByProcessing,this,[this,generation](int index,const ChannelId& channel,float depth){
+        if(generation==generation_)dataset_.onDistCompleted(index,channel,depth);
+    },Qt::QueuedConnection);
+    connect(p,&DataProcessor::distCompletedByProcessingBatch,this,[this,generation](const QVector<BottomTrackUpdate>& updates){
+        if(generation==generation_)dataset_.onDistCompletedBatch(updates);
+    },Qt::QueuedConnection);
+    connect(p,&DataProcessor::lastBottomTrackEpochChanged,this,[this,generation](const ChannelId& channel,int index,const BottomTrackParam& param,bool manual,bool redraw){
+        if(generation==generation_)dataset_.onLastBottomTrackEpochChanged(channel,index,param,manual,redraw);
+    },Qt::QueuedConnection);
+    connect(p,&DataProcessor::sendSurfaceTiles,this,[this,generation](const TileMap& tiles,bool){
+        if(generation!=generation_)return;
         // Only retain a bounded visible tile set, not an unbounded scan archive.
         for(auto it=tiles.cbegin();it!=tiles.cend();++it){
             if(tiles_.size()>=128&&!tiles_.contains(it.key()))tiles_.erase(tiles_.begin());
             tiles_.insert(it.key(),it.value());
         }
         emit tilesChanged();emit processingChanged();
-    });
-    connect(p,&DataProcessor::sendSurfaceTilesIncremental,this,[this](const TileMap& upserts,const QSet<TileKey>& visible){
+    },Qt::QueuedConnection);
+    connect(p,&DataProcessor::sendSurfaceTilesIncremental,this,[this,generation](const TileMap& upserts,const QSet<TileKey>& visible){
+        if(generation!=generation_)return;
         for(auto it=tiles_.begin();it!=tiles_.end();)if(!visible.contains(it.key()))it=tiles_.erase(it);else ++it;
         for(auto it=upserts.cbegin();it!=upserts.cend();++it){
             if(tiles_.size()>=128&&!tiles_.contains(it.key()))tiles_.erase(tiles_.begin());
             tiles_.insert(it.key(),it.value());
         }
         emit tilesChanged();emit processingChanged();
-    });
+    },Qt::QueuedConnection);
     p->setBottomTrackPtr(&bottomTrack_);
     p->setUpdateBottomTrack(true);
     p->setUpdateMosaic(false);
@@ -96,6 +105,7 @@ void NavoKoggerService::rollBatch(){
     // batch boundary these already processed tail depths can be published.
     onBottomUpdated(channel_,std::max(0,dataset_.size()-3),dataset_.size(),false,false);
     const int previousSize=dataset_.size();const auto reference=dataset_.getLlaRef();
+    ++generation_;
     processor_->setSuppressResults(true);
     QObject::disconnect(processor_.get(),nullptr,&dataset_,nullptr);
     QObject::disconnect(processor_.get(),nullptr,this,nullptr);
@@ -118,6 +128,7 @@ void NavoKoggerService::clear(){
     rolloverTimer_.stop();pending_.clear();pendingBytes_=0;rolling_=false;epochOffset_=0;processedEpochs_.clear();metadata_.clear();publishedDepths_.clear();publishedGeoDepths_.clear();
     // Stop workers before clearing the shared Dataset; reconnect starts a new
     // generation, so queued results cannot mutate epochs from another scan.
+    ++generation_;
     processor_->setSuppressResults(true);
     QObject::disconnect(processor_.get(),nullptr,&dataset_,nullptr);
     QObject::disconnect(processor_.get(),nullptr,this,nullptr);

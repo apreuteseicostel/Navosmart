@@ -224,4 +224,18 @@ test('Fish depth uses physical CHART range and offset, excluding echoes beyond t
   c.analyze(samples,6,2,50);assert.equal(found.length,1);assert.equal(found[0],4.550000000000001);
   c.lastDetectionTime=0;c.analyze(samples,6,2,NaN);assert.equal(found.length,1);
 });
+test('Both hopper outputs are validated before any opening command',()=>{
+ let sent=0;const c=context('NavoHopperBridge.qml',{vehicle:{vehicleLinkManager:{communicationLost:false},sendCommand(){sent++}},calibrated:true,releaseAllowed:true,commandPending:false,leftServoOutput:9,rightServoOutput:10,leftOpenPwm:1900,leftClosedPwm:1500,rightOpenPwm:3000,rightClosedPwm:1500,commandRejected:noop,mavCompAutopilot1:1,mavCmdDoSetServo:183});
+ assert.equal(c.release(3),false);assert.equal(sent,0);
+ c.rightOpenPwm=1900;c.releaseAllowed=false;assert.equal(c.release(3),false);assert.equal(sent,0);
+});
+test('Nano loss cannot block closing; H743 loss preserves open state and retries',()=>{
+ let sent=0,retried=0;const c=context('NavoHopperBridge.qml',{vehicle:{vehicleLinkManager:{communicationLost:true},sendCommand(){sent++}},calibrated:true,releaseAllowed:false,commandPending:true,pendingHopper:3,leftOpen:true,rightOpen:true,leftServoOutput:9,rightServoOutput:10,leftClosedPwm:1500,rightClosedPwm:1500,closeTimer:{restart(){retried++}},commandRejected:noop,commandSent:noop,mavCompAutopilot1:1,mavCmdDoSetServo:183});
+ assert.equal(c.closePending(),false);assert.equal(sent,0);assert.equal(c.leftOpen,true);assert.equal(c.commandPending,true);assert.equal(retried,1);
+ c.vehicle.vehicleLinkManager.communicationLost=false;assert.equal(c.closePending(),true);assert.equal(sent,2);assert.equal(c.leftOpen,false);assert.equal(c.rightOpen,false);assert.equal(c.commandPending,false);
+});
+test('Replay point saves cannot write into the currently active live lake',()=>{
+ const c=context('NavoDashboard.qml',{sonar:{replayMode:true},scanCoordinator:{lakeId:'live-lake'}});
+ assert.equal(c.requireActiveLakeForPointSave(),false);c.sonar.replayMode=false;assert.equal(c.requireActiveLakeForPointSave(),true);
+});
 console.log(`${passed} regression scenarios passed`);

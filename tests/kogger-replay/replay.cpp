@@ -235,7 +235,19 @@ static void recordedProcessors(const QByteArray& bytes) {
     require(geosamples>14000,"processed column metadata was not published");
     QObject::disconnect(sampleConnection);
     QObject::disconnect(geoConnection);
+    // Deliver results queued by the old worker only after the session reset.
+    // They must never repopulate a live/replay session with the old data.
+    const TileMap staleTiles=service.tiles();
+    service.processor().distCompletedByProcessing(0,channel,99.0f);
+    service.processor().sendSurfaceTiles(staleTiles,false);
     service.clear();
+    require(service.ingest(adapter.records().last(),channel,0),"cannot seed new session isolation test");
+    QCoreApplication::processEvents(QEventLoop::AllEvents,20);
+    require(service.dataset().size()==1 && service.tileCount()==0 && service.dataset().fromIndexCopy(0).distProccesing(channel)!=99.0f,
+            "queued worker results crossed the replay/live generation boundary");
+    std::cout<<"PASS queued worker results are isolated across session reset\n";
+    service.clear();
+
 }
 static void qmlBathymetryPipeline(const QString& directory,const QVariantList& samples) {
     require(samples.size()>14000,"recorded bathymetry samples missing");
