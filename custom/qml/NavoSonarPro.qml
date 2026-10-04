@@ -38,31 +38,47 @@ Rectangle {
     function displayRaster(entry, pixelHeight) {
         var rows = Math.max(1, Math.ceil(pixelHeight))
         var col = entry.samples
-        var key = [rows, scaleStart, scaleRange, entry.offset, entry.range,
-                   gain, noiseFloor, noiseFilterEnabled].join(":")
+        var geometryKey = [rows, scaleStart, scaleRange, entry.offset, entry.range,
+                           noiseFilterEnabled].join(":")
+        var key = [geometryKey, gain, noiseFloor].join(":")
         var cache = rasterCache, slot = -1, cached = null
         for (var c = 0; c < cache.length; ++c)
             if (cache[c].samples === col) { slot = c; cached = cache[c]; break }
         if (cached && cached.key === key) return cached
-        var strengths = new Float32Array(rows), bins = new Uint8Array(rows)
-        if (scaleRange > 0 && entry.range > 0 && col.length) {
-            var step = entry.range / col.length / scaleRange * rows
-            var top = (entry.offset - scaleStart) / scaleRange * rows
-            for (var i = 0; i < col.length; ++i) {
-                var first = Math.max(0, Math.floor(top + i * step))
-                var end = Math.min(rows, Math.ceil(top + (i + 1) * step))
-                if (first >= end) continue
-                var value = sampleStrength(col, i)
-                if (!isFinite(value) || value <= 0) continue
-                for (var y = first; y < end; ++y)
-                    if (value > strengths[y]) strengths[y] = value
-            }
-            for (var y = 0; y < rows; ++y) {
-                var v = strengths[y]
-                bins[y] = v <= 0 ? 0 : v > .72 ? 4 : v > .48 ? 3 : v > .24 ? 2 : 1
+        var peaks = cached && cached.geometryKey === geometryKey ? cached.peaks : null
+        if (!peaks) {
+            peaks = new Float32Array(rows)
+            peaks.fill(-Infinity)
+            if (scaleRange > 0 && entry.range > 0 && col.length) {
+                var step = entry.range / col.length / scaleRange * rows
+                var top = (entry.offset - scaleStart) / scaleRange * rows
+                var filter = noiseFilterEnabled
+                for (var i = 0; i < col.length; ++i) {
+                    var first = Math.max(0, Math.floor(top + i * step))
+                    var end = Math.min(rows, Math.ceil(top + (i + 1) * step))
+                    if (first >= end) continue
+                    var value = Number(col[i])
+                    if (!isFinite(value)) continue
+                    if (filter && i > 0 && i < col.length - 1) {
+                        var left = Number(col[i - 1]), right = Number(col[i + 1])
+                        if (isFinite(left) && isFinite(right))
+                            value = Math.max(Math.min(left, value), Math.min(Math.max(left, value), right))
+                    }
+                    for (var y = first; y < end; ++y)
+                        if (value > peaks[y]) peaks[y] = value
+                }
             }
         }
-        cached = {samples:col, key:key, strengths:strengths, bins:bins}
+        // Gain/floor are monotonic: apply them to row peaks without rescanning raw data.
+        var strengths = new Float32Array(rows), bins = new Uint8Array(rows)
+        var displayGain = gain, floor = noiseFloor
+        for (var y = 0; y < rows; ++y) {
+            var v = isFinite(peaks[y]) ? Math.max(0, Math.min(1, (peaks[y] - floor) * displayGain)) : 0
+            if (!isFinite(v)) v = 0
+            strengths[y] = v
+            bins[y] = v <= 0 ? 0 : v > .72 ? 4 : v > .48 ? 3 : v > .24 ? 2 : 1
+        }
+        cached = {samples:col, key:key, geometryKey:geometryKey, peaks:peaks, strengths:strengths, bins:bins}
         if (slot >= 0) cache[slot] = cached
         else {
             cache.push(cached)
