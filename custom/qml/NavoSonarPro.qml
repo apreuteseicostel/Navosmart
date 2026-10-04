@@ -35,7 +35,7 @@ Rectangle {
     property int maxGeoChartRecords: 3000
     property int unlocatedChartCount: 0
     function captureGeoChart() {
-        if (!chartSource || !chartSource.chartRawBytes || !chartSource.chartRawByteCount) return
+        if (!chartSource || chartSource.replayMode || !chartSource.chartRawBytes || !chartSource.chartRawByteCount) return
         var coordinate = vehicle && vehicle.coordinate ? vehicle.coordinate : null
         if (!coordinate || !coordinate.isValid) { unlocatedChartCount++; return }
         var record = { latitude: coordinate.latitude, longitude: coordinate.longitude,

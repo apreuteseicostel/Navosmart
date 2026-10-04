@@ -23,7 +23,7 @@ public:
  static QGCCorePlugin* instance();
  QGCOptions* options() final { return _options; }
  bool adjustSettingMetaData(const QString& settingsGroup, FactMetaData& metaData) final;
- QList<int> firstRunPromptStdIds() final { return QList<int>({ kUnitsFirstRunPromptId }); }
+ QList<int> firstRunPromptStdIds() final { return {}; }
  QQmlApplicationEngine* createQmlApplicationEngine(QObject* parent) final;
  void cleanup() final;
 private:

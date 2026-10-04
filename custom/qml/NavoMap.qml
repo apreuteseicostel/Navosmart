@@ -234,10 +234,7 @@ Item {
             width:48; height:84
             rotation: isFinite(root.boatHeadingDeg) ? root.boatHeadingDeg - liveMap.bearing : 0
             Behavior on rotation { RotationAnimation { duration:240; direction:RotationAnimation.Shortest } }
-            Canvas {
-                anchors.fill:parent
-                onPaint:{var p=getContext("2d");p.reset();p.fillStyle="#d9ff19";p.strokeStyle="#07131d";p.lineWidth=2;p.beginPath();p.moveTo(width/2,1);p.quadraticCurveTo(width-2,15,width-3,52);p.lineTo(width-8,height-3);p.lineTo(8,height-3);p.lineTo(3,52);p.quadraticCurveTo(2,15,width/2,1);p.closePath();p.fill();p.stroke();p.fillStyle="#101820";p.fillRect(7,34,9,22);p.fillRect(width-16,34,9,22);p.fillStyle="#18232d";p.fillRect(11,15,width-22,16)}
-            }
+            NavoBoatVisual { anchors.fill: parent }
         }
         Component.onCompleted: liveMap.addMapItem(this)
         Component.onDestruction: liveMap.removeMapItem(this)

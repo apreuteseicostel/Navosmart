@@ -64,6 +64,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoEnergyGuard.qml
         qml/NavoActionSequence.qml
         qml/NavoSafetyManager.qml
+        qml/NavoBoatVisual.qml
         qml/NavoBoatStatus.qml
         qml/NavoHeadingCompass.qml
         qml/NavoG20Settings.qml
