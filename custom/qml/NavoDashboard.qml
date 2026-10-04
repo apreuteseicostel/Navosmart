@@ -413,7 +413,8 @@ Item {
     NavoHopperBridge {
         id: hopperBridge
         vehicle: root.vehicle
-        calibrated: hopperSettings.confirmed && hopperSettings.leftOutput!==hopperSettings.rightOutput && root.linkAlive && (nanoTelemetry.connected || root.nanoHopperFallback)
+        calibrated: hopperSettings.confirmed && hopperSettings.leftOutput!==hopperSettings.rightOutput && root.linkAlive
+        releaseAllowed: nanoTelemetry.connected || root.nanoHopperFallback
         leftServoOutput: hopperSettings.leftOutput
         rightServoOutput: hopperSettings.rightOutput
         leftClosedPwm: hopperSettings.leftClosed
@@ -573,6 +574,10 @@ Item {
         return true
     }
     function requireActiveLakeForPointSave() {
+        if (sonar.replayMode) {
+            root.lastNavigationStatus = "Salvează replay-ul într-o baltă separată înainte de a adăuga puncte"
+            return false
+        }
         if (scanCoordinator.lakeId.length) return true
         root.lastNavigationStatus = "Selectează sau creează o baltă pentru a păstra acest punct"
         noActiveLakeDialog.open()
