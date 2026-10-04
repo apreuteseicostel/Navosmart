@@ -152,6 +152,7 @@ Item {
     }
     NavoScanCoordinator {
         id: scanCoordinator
+        readOnlyReplay: root.sonarController.replayMode
         areaScan: areaScanController
         persistence: root.lakePersistence
         fishingSpots: root.fishingSpotsController
@@ -328,6 +329,7 @@ Item {
 
     NavoSonarEthernet {
         id: sonar
+        onReplayModeChanged: { root.pendingAreaDrawMode="none"; root.pendingBaitPointPick=false }
         vehicle: root.vehicle
         onGeoSample: function(sample) {
             // Preserve the echo metric captured with this georeferenced CHART column.
@@ -498,7 +500,15 @@ Item {
     function closeHoppers() {
         root.selectedHopper = "none"
     }
+    function allowLiveAction() {
+        if(root.sonarController.replayMode) {
+            root.lastNavigationStatus="Replay activ: oprește redarea pentru editare sau navigare live"
+            return false
+        }
+        return true
+    }
     function startMission() {
+        if(!root.allowLiveAction()) return false
         if (!root.vehicle) {
             root.lastNavigationStatus = "START blocat: autopilot neconectat"
             return false
@@ -515,6 +525,7 @@ Item {
         return missionUploader.uploadPrepared()
     }
     function startUploadedMission() {
+        if(!root.allowLiveAction()) return false
         if (!root.linkAlive || !root.vehicle.rover) {
             root.lastNavigationStatus = "Upload confirmat, dar autopilotul nu mai este conectat"
             return false
@@ -592,6 +603,7 @@ Item {
         return false
     }
     function navigateToCoordinate(c) {
+        if(!root.allowLiveAction()) return false
         if (!vehicle || !c || !c.isValid) {
             root.lastNavigationStatus = "Navigatie indisponibila"
             return
@@ -751,6 +763,7 @@ Item {
             id: fishingPageRoot
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             NavoMap {
+                recordedReplay: sonar.replayMode
                 id: navoMap
                 anchors.fill: parent
                 anchors.leftMargin: 8; anchors.topMargin: 8; anchors.bottomMargin: 8; anchors.rightMargin: 72
@@ -767,7 +780,7 @@ Item {
                 waypointNames: root.waypointNames
                 fishModel: fishStore
                 fishingSpotsModel: fishingSpots
-                bathymetryCells: scanCoordinator.bathymetryCells
+                bathymetryCells: sonar.replayMode ? [] : scanCoordinator.bathymetryCells
                 baitingController: root.mapBaitingController
                 areaScanController: root.mapAreaScanController
                 savedDepthM: root.depthM
@@ -779,6 +792,7 @@ Item {
                     root.lastNavigationStatus="Punct selectat: " + (waypoint.sequenceNumber !== undefined ? "WP" + waypoint.sequenceNumber : "waypoint") + " • poți deschide NĂDIRE când dorești"
                 }
                 onAreaRectangleRequested: function(cornerA, cornerB) {
+                            if(!root.allowLiveAction()) return;
                     missionUploader.invalidate()
                     var pts=scanCoordinator.prepareRectangle(cornerA,cornerB)
                     root.lastNavigationStatus=pts.length ? "Area Scan dreptunghi pregătit • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP • apasă PREGĂTEȘTE MISIUNEA" : "Dreptunghi respins: "+areaScanController.lastError
@@ -786,6 +800,7 @@ Item {
                     root.activePage=2
                 }
                 onAreaPolygonRequested: function(polygon) {
+                            if(!root.allowLiveAction()) return;
                     missionUploader.invalidate()
                     var pts=scanCoordinator.preparePolygon(polygon)
                     root.lastNavigationStatus=pts.length ? "Area Scan poligon • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP generate" : areaScanController.lastError
@@ -977,6 +992,7 @@ Item {
                         Layout.fillWidth: true; Layout.fillHeight: true
                         radius: 8; color: root.bg; border.color: root.line; clip: true
                         NavoMap {
+                recordedReplay: sonar.replayMode
                             id: areaScanMap
                             anchors.fill: parent; anchors.margins: 2
                             vehicle: root.vehicle
@@ -984,7 +1000,7 @@ Item {
                             waypointNames: root.waypointNames
                             fishModel: fishStore
                             fishingSpotsModel: fishingSpots
-                            bathymetryCells: scanCoordinator.bathymetryCells
+                            bathymetryCells: sonar.replayMode ? [] : scanCoordinator.bathymetryCells
                             baitingController: root.mapBaitingController
                             areaScanController: root.mapAreaScanController
                             savedDepthM: root.depthM
@@ -993,8 +1009,10 @@ Item {
                             baitPointPickMode: root.pendingBaitPointPick
                             onBaitPointPicked: function(coordinate) { root.pendingBaitPointPick=false; baitingController.targetWaypoint={coordinate:coordinate,name:"Punct hartă",sequenceNumber:0}; root.lastNavigationStatus="Punct de nădire selectat pe hartă"; root.activePage=8 }
                             onMaximizeRequested: root.mapMaximized = !root.mapMaximized
-                            onAreaRectangleRequested: function(cornerA, cornerB) { missionUploader.invalidate(); var pts=scanCoordinator.prepareRectangle(cornerA,cornerB); root.lastNavigationStatus=pts.length ? "Area Scan dreptunghi pregătit • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP • apasă PREGĂTEȘTE MISIUNEA" : "Dreptunghi respins: "+areaScanController.lastError; root.pendingAreaDrawMode="none" }
-                            onAreaPolygonRequested: function(polygon) { missionUploader.invalidate(); var pts=scanCoordinator.preparePolygon(polygon); root.lastNavigationStatus=pts.length ? "Area Scan poligon pregătit • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP • apasă PREGĂTEȘTE MISIUNEA" : "Poligon respins: "+areaScanController.lastError; root.pendingAreaDrawMode="none" }
+                            onAreaRectangleRequested: function(cornerA, cornerB) {
+                            if(!root.allowLiveAction()) return; missionUploader.invalidate(); var pts=scanCoordinator.prepareRectangle(cornerA,cornerB); root.lastNavigationStatus=pts.length ? "Area Scan dreptunghi pregătit • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP • apasă PREGĂTEȘTE MISIUNEA" : "Dreptunghi respins: "+areaScanController.lastError; root.pendingAreaDrawMode="none" }
+                            onAreaPolygonRequested: function(polygon) {
+                            if(!root.allowLiveAction()) return; missionUploader.invalidate(); var pts=scanCoordinator.preparePolygon(polygon); root.lastNavigationStatus=pts.length ? "Area Scan poligon pregătit • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP • apasă PREGĂTEȘTE MISIUNEA" : "Poligon respins: "+areaScanController.lastError; root.pendingAreaDrawMode="none" }
                             onSavePointRequested: function(coordinate) { if(!root.requireActiveLakeForPointSave()) return; var spot=fishingSpots.saveSpot(coordinate,root.depthM,root.waterTempC,"","",null); if(spot) scanCoordinator.checkpoint("fishing-spot") }
                         }
                     }
@@ -1065,12 +1083,13 @@ Item {
                     Layout.minimumWidth: 320
                     radius:8; color:root.bg; border.color:root.line; clip:true
                     NavoMap {
+                recordedReplay: sonar.replayMode
                         id:fishingMap
                         anchors.fill:parent
                         property real targetAspect: 16/9
                         property real availableAspect: width / Math.max(1,height)
                         vehicle:root.vehicle; planController:root.planController; waypointNames:root.waypointNames
-                        fishModel:fishStore; fishingSpotsModel:fishingSpots; bathymetryCells:scanCoordinator.bathymetryCells
+                        fishModel:fishStore; fishingSpotsModel:fishingSpots; bathymetryCells:sonar.replayMode ? [] : scanCoordinator.bathymetryCells
                         baitingController:root.mapBaitingController; areaScanController:root.mapAreaScanController
                         savedDepthM:root.depthM; savedWaterTempC:root.waterTempC; showStatusHint:false
                         maximized:fishingPageRoot.mapExpanded
@@ -1353,13 +1372,14 @@ Item {
                     Layout.fillWidth: true; Layout.fillHeight: true
                     radius: 8; color: root.panel; border.color: root.line; clip: true
                     NavoMap {
+                recordedReplay: sonar.replayMode
                         anchors.fill: parent; anchors.margins: 2
                         vehicle: root.vehicle
                         planController: root.planController
                         waypointNames: root.waypointNames
                         fishModel: fishStore
                         fishingSpotsModel: fishingSpots
-                        bathymetryCells: scanCoordinator.bathymetryCells
+                        bathymetryCells: sonar.replayMode ? [] : scanCoordinator.bathymetryCells
                         baitingController: root.mapBaitingController
                         areaScanController: root.mapAreaScanController
                         savedDepthM: root.depthM
@@ -1395,18 +1415,21 @@ Item {
                         controller: baitingController
                         hopperBridge: root.hopperBridgeController
                         waypoint: baitingController.targetWaypoint
-                        availableSpots: fishingSpots.fishingSpots
+                        availableSpots: sonar.replayMode ? [] : fishingSpots.fishingSpots
                         onChooseOnMapRequested: {
+                            if(!root.allowLiveAction()) return;
                             root.pendingBaitPointPick=true
                             root.lastNavigationStatus="Atinge harta din stânga pentru punctul de nădire"
                         }
                         onSpotChosen: function(spot) {
+                            if(!root.allowLiveAction()) return;
                             var coordinate=QtPositioning.coordinate(Number(spot.lat),Number(spot.lon))
                             if(!coordinate.isValid){root.lastNavigationStatus="Locul salvat nu are coordonate valide";return}
                             baitingController.targetWaypoint={coordinate:coordinate,name:spot.name,sequenceNumber:0}
                             root.lastNavigationStatus="Punct de nădire ales: "+spot.name
                         }
                         onStartConfirmed: function(waypoint,name,hopper) {
+                            if(!root.allowLiveAction()) return;
                             if(!root.linkAlive || scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || (hopper!==0 && !hopperBridge.calibrated)){root.lastNavigationStatus="Nădire blocată: verifică legătura, misiunea activă și calibrarea cuvelor";return}
                             digitalAnchor.release(); baitingController.startCycle(waypoint,name,hopper)
                         }
@@ -1508,8 +1531,8 @@ Item {
                 // restoreLake() repopulates rawSamples from the selected lake checkpoint.
                 samples: sonarMapping.rawSamples
                 boatTrack: sonarMapping.trackCoordinates.length ? sonarMapping.trackCoordinates : root.coordinatesFromSonarSamples(sonarMapping.rawSamples)
-                fishingSpots: root.fishingSpotsController.fishingSpots
-                fishDetections: root.fishDetections
+                fishingSpots: sonar.replayMode ? [] : root.fishingSpotsController.fishingSpots
+                fishDetections: sonar.replayMode ? [] : root.fishDetections
                 onOpenSonarRequested: root.activePage = 1
             }
         }

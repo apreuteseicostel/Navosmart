@@ -15,6 +15,8 @@ Item {
     signal waypointNameChanged(int sequence, string name)
     property var waypointNames: ({})
     property var fishModel
+    property bool recordedReplay: false
+    onRecordedReplayChanged: if(recordedReplay) { cancelAreaDrawing(); baitPointPickMode=false; fishingSaveDialog.close(); renameDialog.close() }
     property var fishingSpotsModel
     property var bathymetryCells: []
     property bool bathymetryHDEnabled: false
@@ -60,11 +62,13 @@ Item {
     property int rectangleDragCorner: -1
 
     function beginAreaRectangle() {
+        if(recordedReplay) return false
         areaDraftPoints=[]
         areaDrawMode="rectangle"
         if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid) liveMap.center=vehicle.coordinate
     }
     function beginAreaPolygon() {
+        if(recordedReplay) return false
         areaDraftPoints=[]
         areaDrawMode="polygon"
         if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid) liveMap.center=vehicle.coordinate
@@ -130,6 +134,7 @@ Item {
         return d>=1000 ? (d/1000).toFixed(2)+" km" : Math.round(d)+" m"
     }
     function finishAreaDrawing() {
+        if(recordedReplay) return false
         if(areaDrawMode==="rectangle" && areaDraftPoints.length===2)
             areaRectangleRequested(areaDraftPoints[0],areaDraftPoints[1])
         else if(areaDrawMode==="polygon" && areaDraftPoints.length>=3)
@@ -159,7 +164,7 @@ Item {
     FlightMap {
         id: liveMap
         anchors.fill: parent
-        bearing: root.headingUp && isFinite(root.boatHeadingDeg) ? root.boatHeadingDeg : 0
+        bearing: !root.recordedReplay && root.headingUp && isFinite(root.boatHeadingDeg) ? root.boatHeadingDeg : 0
         Behavior on bearing { NumberAnimation { duration: 250 } }
     }
 
@@ -167,7 +172,7 @@ Item {
     MapQuickItem {
         id: operatorMarker
         parent: liveMap
-        visible: root.operatorLocationEnabled && root.operatorLocationValid
+        visible: !root.recordedReplay && root.operatorLocationEnabled && root.operatorLocationValid
         coordinate: visible ? root.operatorCoordinate : QtPositioning.coordinate()
         anchorPoint.x: 26; anchorPoint.y: 26
         z: 10000
@@ -199,7 +204,7 @@ Item {
     MapPolyline {
         id: baitTargetLine
         parent: liveMap
-        visible: root.baitTargetValid && !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
+        visible: !root.recordedReplay && root.baitTargetValid && !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
         path: visible ? [root.vehicle.coordinate, root.baitTargetCoordinate] : []
         line.width: 3
         line.color: "#ffd34e"
@@ -210,7 +215,7 @@ Item {
     MapQuickItem {
         id: navoBoatMarker
         parent: liveMap
-        visible: !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
+        visible: !root.recordedReplay && !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
         coordinate: visible ? root.vehicle.coordinate : QtPositioning.coordinate()
         anchorPoint.x: 24; anchorPoint.y: 42
         z: 100
@@ -228,9 +233,9 @@ Item {
         id:rulerLine; parent:liveMap; visible:root.rulerPoints.length>1; path:root.rulerPoints; line.width:3; line.color:"#ffc857"
         Component.onCompleted:liveMap.addMapItem(this); Component.onDestruction:liveMap.removeMapItem(this)
     }
-    NavoActualTrack { id: actualTrack; map: liveMap; vehicle: root.vehicle; taskActive: !!root.vehicle }
-    NavoAreaScanOverlay { map: liveMap; areaScan: root.areaScanController }
-    NavoFishOverlay { map: liveMap; fishModel: root.fishModel }
+    NavoActualTrack { id: actualTrack; map: liveMap; vehicle: root.recordedReplay ? null : root.vehicle; taskActive: !root.recordedReplay && !!root.vehicle }
+    NavoAreaScanOverlay { map: liveMap; areaScan: root.recordedReplay ? null : root.areaScanController }
+    NavoFishOverlay { map: liveMap; fishModel: root.recordedReplay ? null : root.fishModel }
     NavoBathymetryHDOverlay {
         map: liveMap
         cells: root.bathymetryCells
@@ -241,7 +246,7 @@ Item {
         map: liveMap
         bathymetryCells: root.bathymetryCells
         showBathymetryCells: !root.bathymetryHDEnabled
-        fishingSpotsModel: root.fishingSpotsModel
+        fishingSpotsModel: root.recordedReplay ? null : root.fishingSpotsModel
         onNavigateSpotRequested: function(spot) { root.navigateRequested(QtPositioning.coordinate(Number(spot.lat),Number(spot.lon))) }
         onBaitSpotRequested: function(spot) {
             var c=QtPositioning.coordinate(Number(spot.lat),Number(spot.lon))
@@ -255,8 +260,8 @@ Item {
 
     NavoWaypointMapOverlay {
         map: liveMap
-        missionController: root.planController ? root.planController.missionController : null
-        vehicle: root.vehicle
+        missionController: !root.recordedReplay && root.planController ? root.planController.missionController : null
+        vehicle: root.recordedReplay ? null : root.vehicle
         waypointNames: root.waypointNames
         savedDepthM: root.savedDepthM
         savedWaterTempC: root.savedWaterTempC
@@ -326,7 +331,7 @@ Item {
     }
     MouseArea {
         anchors.fill: parent
-        enabled: root.areaDrawMode !== "none"
+        enabled: !root.recordedReplay && root.areaDrawMode !== "none"
         acceptedButtons: Qt.LeftButton
         preventStealing: root.areaDrawMode === "rectangle" && root.areaDraftPoints.length === 2
         onPressed: function(mouse) {
@@ -360,7 +365,7 @@ Item {
     }
     MouseArea {
         anchors.fill: parent
-        enabled: root.areaDrawMode === "none" && !root.baitPointPickMode && !root.rulerMode
+        enabled: !root.recordedReplay && root.areaDrawMode === "none" && !root.baitPointPickMode && !root.rulerMode
         acceptedButtons: Qt.LeftButton
         onPressAndHold: function(mouse) {
             var c=liveMap.toCoordinate(Qt.point(mouse.x,mouse.y),false)
@@ -378,7 +383,7 @@ Item {
     MouseArea {
         anchors.fill: parent
         z: 40
-        enabled: root.baitPointPickMode && root.areaDrawMode === "none"
+        enabled: !root.recordedReplay && root.baitPointPickMode && root.areaDrawMode === "none"
         acceptedButtons: Qt.LeftButton
         onClicked: function(mouse) {
             var c=liveMap.toCoordinate(Qt.point(mouse.x,mouse.y),false)
