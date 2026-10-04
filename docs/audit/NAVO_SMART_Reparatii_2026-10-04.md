@@ -1,10 +1,10 @@
 # NAVO SMART — reparații și validare după audit, 4 octombrie 2026
 
-Repository: [apreuteseicostel/Navosmart](https://github.com/apreuteseicostel/Navosmart). Snapshot: 2026-10-04T18:05:25.567Z. Cod main: `b52a315b41cd0149aec9d852a6941d64d600dc91`; tree: `aaed7a6770e6561b63ea51bd2a37f0ba816314e7`.
+Repository: [apreuteseicostel/Navosmart](https://github.com/apreuteseicostel/Navosmart). Snapshot: 2026-10-04T18:18:17.642Z; tree: `aaed7a6770e6561b63ea51bd2a37f0ba816314e7`.
 
 ## Rezultat și limite
 
-Reparațiile și procesarea nativă Kogger sunt integrate în main prin PR #16 (merge b52a315). PR #19 este marcat integrat prin aceeași ancestrie, fără merge separat al variantei comune. Main are exact arborele validat de Android #784. Verificările Core #65 și Display #37 pe main au trecut; rebuild-ul Android #785 pe main este încă în curs. Este un candidat software utilizabil și verificat automat, cu acceptanța hardware restantă.
+Reparațiile și procesarea nativă Kogger sunt integrate în main prin PR #16 (merge b52a315). PR #19 este marcat integrat prin aceeași ancestrie, fără merge separat al variantei comune. Main are exact arborele validat de Android #784. Verificările Core #65 și Display #37 pe main au trecut; rebuild-ul Android #785 pe main este încă în curs, la instalarea Qt pentru host (începută la 17:50:59 UTC, încă activă la 18:17 UTC). Nu există încă un rezultat al compilării Android pe main și nu îl declar verde. Este un candidat software utilizabil și verificat automat, cu acceptanța hardware restantă.
 
 Acest raport separă corecțiile implementate, testele automate și acceptanța fizică. APK-ul și testele software nu confirmă cursa servo-urilor, conexiunile electrice, comportamentul pe apă sau toate funcțiile opționale. Modulele care au cod, dar nu sunt conectate la fluxul aplicației, sunt identificate explicit.
 
@@ -18,7 +18,7 @@ Acest raport separă corecțiile implementate, testele automate și acceptanța 
 | [Replay #50](https://github.com/apreuteseicostel/Navosmart/actions/runs/37218972845) | a0e065f | Verde; pipeline real și izolare |
 | [Core main #65](https://github.com/apreuteseicostel/Navosmart/actions/runs/37221963978) | b52a315 | Verde |
 | [Display main #37](https://github.com/apreuteseicostel/Navosmart/actions/runs/37221964030) | b52a315 | Verde |
-| [Android main #785](https://github.com/apreuteseicostel/Navosmart/actions/runs/37221963970) | b52a315 | În curs; nu este încă declarat verde |
+| [Android main #785](https://github.com/apreuteseicostel/Navosmart/actions/runs/37221963970) | b52a315 | În curs la Install host Qt; instalarea depășește 26 de minute la ultima verificare, fără rezultat de compilare/smoke |
 | [Android comun #783](https://github.com/apreuteseicostel/Navosmart/actions/runs/37218968113) | 5f36409 | Compilarea ambelor ABI a trecut; smoke eșuat la prima HARTA. Backend-ul comun nu expune replayMode, cerut de noile binding-uri. Main folosește implementarea nativă validată |
 
 - 31 de scenarii de regresie: geometrie și progres misiune, schimbare baltă și checkpoint refuzat, nădire/viteză/derivă, timeout Nano, PWM/ieșiri, închidere la reconectare, fish/range/offset, replay versus date live, editare și pregătire/Resume/START de misiuni live.
@@ -32,6 +32,9 @@ Acest raport separă corecțiile implementate, testele automate și acceptanța 
 - Ultima coloană parțială de 200 samples din fixture rămâne pending până la următoarea limită de coloană; nu este declarată coloană completă.
 - Capturile Android #765/#766 și toate paginile #774 au fost inspectate și sunt curate în acele rulări. #773, deși verde inițial, avea un avertisment de ancorare și antetul peste PRO; acestea au fost reparate, iar smoke-ul extins le respinge.
 Capturile finale #784 sunt publicate în artefacte și smoke-ul a verificat controalele și logcat-ul. Revizia manuală a imaginilor finale este blocată de mediul local offline; nu este declarată efectuată. Codul, binarele CI și raportul rămân disponibile pe GitHub.
+
+
+APK-ul ARM64 verificat este disponibil în [artefactul NAVO-SMART-INSTALLABLE-APK din Android #784](https://github.com/apreuteseicostel/Navosmart/actions/runs/37218972880/artifacts/11310595248). Arborele sursă este identic cu main b52a315. Rebuild-ul #785 rămâne o verificare separată în așteptare; logurile job-ului activ nu sunt încă publicate prin API. Nu a fost înlocuită implementarea validată pentru a masca întârzierea instalării Qt.
 
 ## Firmware și cuve independente de Nano
 
