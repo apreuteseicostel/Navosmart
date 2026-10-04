@@ -27,6 +27,15 @@ Item {
  function rebuild(){meshEngine.buildCached(samples,gridSizeM,maxGapM,lodLevel);cachedSampleCount=samples.length;cachedSampleSignature=sampleSignature()}
  function refreshForSamples(){var sig=sampleSignature();if(sig!==cachedSampleSignature)rebuild()}
  function resetCamera(){yaw=-35;pitch=-48;cameraDistance=180;panOffset=Qt.point(0,0)} function topCamera(){yaw=0;pitch=-89;cameraDistance=180} function isoCamera(){yaw=-45;pitch=-42;cameraDistance=180}
+ // Evaluate cumulative gesture values against a snapshot taken at gesture start.
+ function orbitCameraGesture(baseYaw,basePitch,dx,dy){
+  if(!isFinite(baseYaw)||!isFinite(basePitch)||!isFinite(dx)||!isFinite(dy))return false
+  yaw=baseYaw+dx*.18;pitch=Math.max(-82,Math.min(-8,basePitch-dy*.14));return true
+ }
+ function zoomCameraGesture(baseDistance,initialScale,currentScale){
+  if(!isFinite(baseDistance)||!isFinite(initialScale)||!isFinite(currentScale)||baseDistance<=0||initialScale<=0||currentScale<=0)return false
+  cameraDistance=Math.max(12,Math.min(1800,baseDistance*initialScale/currentScale));return true
+ }
  function localPoint(lat,lon,depth){var R=6378137,lat0=meshEngine.originLatitude*Math.PI/180,x=(lon-meshEngine.originLongitude)*Math.PI/180*Math.cos(lat0)*R,z=-(lat-meshEngine.originLatitude)*Math.PI/180*R,y=-(depth||0)*verticalExaggeration;return Qt.vector3d(x,y,z)}
  function bottomDepth(lat,lon){var best=null,bd=1e99,p=localPoint(lat,lon,0);for(var i=0;i<meshEngine.vertices.length;i++){var v=meshEngine.vertices[i],d=(v.x-p.x)*(v.x-p.x)+((-v.y)-p.z)*((-v.y)-p.z);if(d<bd){bd=d;best=v}}return best?best.depth:0}
  function decimate(a,max){if(!a||a.length<=max)return a||[];var out=[],step=(a.length-1)/(max-1);for(var i=0;i<max;i++)out.push(a[Math.round(i*step)]);return out}
@@ -48,7 +57,19 @@ Item {
   }
  }
  TapHandler{onTapped:function(e){var p=view.pick(e.position.x,e.position.y);if(!p.objectHit){selectedObject=null;selectedPoint=null;return}if(p.objectHit.kind){root.select(p.objectHit.kind,p.objectHit.modelData);return}if(p.objectHit===terrain){var best=null,bd=1e99;for(var i=0;i<meshEngine.vertices.length;i++){var v=meshEngine.vertices[i],dx=v.x-p.scenePosition.x,dz=(-v.y)-p.scenePosition.z,d=dx*dx+dz*dz;if(d<bd){bd=d;best=v}}selectedPoint=best;selectedObject=null;selectedKind="bottom"}}}
- DragHandler{target:null;acceptedButtons:Qt.LeftButton;onTranslationChanged:{root.yaw+=translation.x*.18;root.pitch=Math.max(-82,Math.min(-8,root.pitch-translation.y*.14))}} PinchHandler{target:null;onScaleChanged:root.cameraDistance=Math.max(12,Math.min(1800,root.cameraDistance/scale))} WheelHandler{onWheel:root.cameraDistance=Math.max(12,Math.min(1800,root.cameraDistance*(wheel.angleDelta.y > 0 ? 0.9 : 1.1)))}
+ DragHandler{
+  objectName:"bathymetryOrbit";target:null;acceptedButtons:Qt.LeftButton
+  property real baseYaw:-35;property real basePitch:-48
+  onActiveChanged:if(active){baseYaw=root.yaw;basePitch=root.pitch}
+  onTranslationChanged:if(active)root.orbitCameraGesture(baseYaw,basePitch,activeTranslation.x,activeTranslation.y)
+ }
+ PinchHandler{
+  objectName:"bathymetryZoom";target:null
+  property real baseDistance:180
+  onActiveChanged:if(active){baseDistance=root.cameraDistance}
+  onScaleChanged:if(active)root.zoomCameraGesture(baseDistance,1,activeScale)
+ }
+ WheelHandler{onWheel:root.cameraDistance=Math.max(12,Math.min(1800,root.cameraDistance*(wheel.angleDelta.y > 0 ? 0.9 : 1.1)))}
  ColumnLayout{anchors{top:parent.top;left:parent.left;right:parent.right;margins:10}spacing:4
   Flow{Layout.fillWidth:true;spacing:5
    component Tool3D: Button { width:42;height:38;padding:0;property string hint:"";ToolTip.visible:hovered;ToolTip.text:hint;background:Rectangle{radius:7;color:parent.checked?"#123d50":"#101b25";border.color:parent.checked?"#21b7ff":"#31404d"} }

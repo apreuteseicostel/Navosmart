@@ -1,3 +1,4 @@
+add_compile_definitions(NAVO_KOGGER_NATIVE_DATASET)
 message(STATUS "NAVO SMART: loading custom QGroundControl overlay")
 
 set_property(DIRECTORY ${CMAKE_SOURCE_DIR} APPEND PROPERTY COMPILE_DEFINITIONS
@@ -116,10 +117,22 @@ qt_add_qml_module(NavoSmartModule
 )
 
 set(CUSTOM_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/epoch.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/dataset.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/KoggerApp/src/dataset.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/KoggerApp/src/data_interpolator.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/KoggerApp/src/black_stripes_processor.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/navo_mosaic_provider.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/NavoKoggerService.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/KoggerApp/src/mosaic_index_provider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerReplay.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerReplay.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerChartBridge.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDatasetAdapter.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerTcpClient.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerTcpClient.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoMissionBridge.cc
@@ -148,4 +161,14 @@ set(CUSTOM_LIBRARIES
     NavoSmartModule_resources_1
     CACHE INTERNAL "" FORCE
 )
-set(CUSTOM_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/src CACHE INTERNAL "" FORCE)
+set(CUSTOM_INCLUDE_DIRECTORIES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/KoggerApp/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/KoggerApp/src/data_processor
+    CACHE INTERNAL "" FORCE)
+
+find_package(Qt6 REQUIRED COMPONENTS Concurrent Sql)
+include(${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/processors.cmake)
+set(CUSTOM_SOURCES ${CUSTOM_SOURCES} ${NAVO_KOGGER_PROCESSOR_SOURCES} CACHE INTERNAL "" FORCE)
+set(CUSTOM_INCLUDE_DIRECTORIES ${CUSTOM_INCLUDE_DIRECTORIES} ${NAVO_KOGGER_PROCESSOR_INCLUDES} CACHE INTERNAL "" FORCE)
+set(CUSTOM_LIBRARIES ${CUSTOM_LIBRARIES} Qt6::Concurrent Qt6::Sql CACHE INTERNAL "" FORCE)

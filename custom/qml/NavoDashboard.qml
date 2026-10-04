@@ -15,6 +15,7 @@ import NavoSmart.Backend 1.0
 
 Item {
     id: root
+    readonly property string activePageName: ["HARTA","SONAR","AREA SCAN","PUNCTE PESCUIT","BALȚILE MELE","CAMERA","SETARI","3D","NĂDIRE","SIGURANȚĂ","SONAR PRO"][activePage] || "HARTA"
     implicitWidth: 1280
     implicitHeight: 720
 
@@ -39,6 +40,8 @@ Item {
     }
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
     property var planController: _planController
+    readonly property var mapBaitingController: baitingController
+    readonly property var mapAreaScanController: areaScanController
 
     PlanMasterController {
         id: _planController
@@ -48,9 +51,22 @@ Item {
 
     NavoPersistence { id: persistence }
     property alias lakePersistence: persistence
+    property alias fishingSpotsController: fishingSpots
+    property alias fishStoreController: fishStore
+    property alias sonarMappingController: sonarMapping
+    property alias hopperBridgeController: hopperBridge
+    property alias sonarController: sonar
     NavoFishingSpots { id: fishingSpots; onSpotSaved: scanCoordinator.checkpoint("spot-save"); onSpotRemoved: scanCoordinator.checkpoint("spot-delete"); onSpotUpdated: scanCoordinator.checkpoint("spot-update") }
     NavoFishDetections { id: fishStore }
     NavoBathymetryModel { id: bathymetryModel }
+    property string replaySaveStatus: ""
+    NavoBathymetryModel { id: replayBathymetryModel }
+    NavoSonarMapping { id: replayMapping; visible:false; externalSampleIngestion:true; sonarConnected:true; scanning:true }
+    readonly property var displayBathymetryCells: sonar.replayMode ? replayBathymetryModel.cells : scanCoordinator.bathymetryCells
+    Timer {
+        interval:2000; repeat:true; running:sonar.replayMode
+        onTriggered: if(replayMapping.rawSamples.length>=3)replayBathymetryModel.rebuild(replayMapping.rawSamples)
+    }
     Settings {
         id: sessionSettings
         category: "NavoSession"
@@ -144,12 +160,13 @@ Item {
     }
     NavoScanCoordinator {
         id: scanCoordinator
+        readOnlyReplay: root.sonarController.replayMode
         areaScan: areaScanController
-        persistence: persistence
-        fishingSpots: fishingSpots
-        fishStore: fishStore
+        persistence: root.lakePersistence
+        fishingSpots: root.fishingSpotsController
+        fishStore: root.fishStoreController
         bathymetry: bathymetryModel
-        sonarMapping: sonarMapping
+        sonarMapping: root.sonarMappingController
         vehicle: root.vehicle
         onMissionPrepared: function(points) {
             if (!missionUploader.prepare(points)) {
@@ -211,7 +228,7 @@ Item {
     }
     property var battery: vehicle && vehicle.batteries.count > 0 ? vehicle.batteries.get(0) : null
     property var waypointNames: persistence.waypointNames
-    readonly property real depthM: sonar.depthM
+    readonly property real depthM: isFinite(sonar.depthM) ? sonar.depthM : ((sonar.echoFresh || sonar.replayMode) ? sonar.processedBottomDepthM : NaN)
     readonly property real waterTempC: sonar.waterTempC
     readonly property bool sonarConnected: sonar.connected && sonar.dataAlive
     readonly property real bottomEchoStrength: sonar.bottomEchoStrength
@@ -321,11 +338,19 @@ Item {
     NavoSonarEthernet {
         id: sonar
         vehicle: root.vehicle
+        onReplayModeChanged: {
+            root.pendingAreaDrawMode="none"; root.pendingBaitPointPick=false
+            root.replaySaveStatus=""
+            replayMapping.rawSamples=[]; replayMapping.trackCoordinates=[]
+            replayBathymetryModel.rebuild([])
+        }
         onGeoSample: function(sample) {
+            if(sample.replay) { replayMapping.ingestSample(sample); return }
+            if(sonar.replayMode)return
             // Preserve the echo metric captured with this georeferenced CHART column.
             var echo = (sample.bottomEcho !== undefined && isFinite(Number(sample.bottomEcho)))
                        ? Number(sample.bottomEcho) : NaN
-            var enriched = {time:sample.time, lat:sample.lat, lon:sample.lon,
+            var enriched = {time:sample.time, sequence:sample.sequence, source:sample.source, lat:sample.lat, lon:sample.lon,
                             heading:sample.heading, depth:sample.depth, temp:sample.temp,
                             bottomEcho:echo,
                             chartResolution:sample.chartResolution,
@@ -490,7 +515,15 @@ Item {
     function closeHoppers() {
         root.selectedHopper = "none"
     }
+    function allowLiveAction() {
+        if(root.sonarController.replayMode) {
+            root.lastNavigationStatus="Replay activ: oprește redarea pentru editare sau navigare live"
+            return false
+        }
+        return true
+    }
     function startMission() {
+        if(!root.allowLiveAction()) return false
         if (!root.vehicle) {
             root.lastNavigationStatus = "START blocat: autopilot neconectat"
             return false
@@ -507,6 +540,7 @@ Item {
         return missionUploader.uploadPrepared()
     }
     function startUploadedMission() {
+        if(!root.allowLiveAction()) return false
         if (!root.linkAlive || !root.vehicle.rover) {
             root.lastNavigationStatus = "Upload confirmat, dar autopilotul nu mai este conectat"
             return false
@@ -584,6 +618,7 @@ Item {
         return false
     }
     function navigateToCoordinate(c) {
+        if(!root.allowLiveAction()) return false
         if (!vehicle || !c || !c.isValid) {
             root.lastNavigationStatus = "Navigatie indisponibila"
             return
@@ -613,6 +648,7 @@ Item {
 
     Rectangle {
         id: header
+        visible: root.activePage !== 10
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
         height: 64; color: "#101822"; border.color: root.line; z: 2000
         Flickable {
@@ -661,12 +697,12 @@ Item {
         }
     }
 
-    NavoHeadingCompass { id:headingCompassOverlay; visible:root.headingOverlayOpen; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; onToggleRequested:root.headingOverlayOpen=false }
+    NavoHeadingCompass { id:headingCompassOverlay; visible:root.headingOverlayOpen && root.activePage !== 10; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; onToggleRequested:root.headingOverlayOpen=false }
 
     Rectangle {
         id: sidebar
         anchors.left: parent.left; anchors.top: header.bottom; anchors.bottom: parent.bottom
-        visible: !root.mapMaximized
+        visible: !root.mapMaximized && root.activePage !== 10
         width: root.width < 1100 ? 64 : 72; color: root.panel; border.color: root.line
         Flickable {
             anchors.fill: parent
@@ -682,7 +718,7 @@ Item {
                 spacing: Math.max(3, Math.min(8, (sidebar.height - 44 - 10 * 36) / 11))
                 NavButton { text: "HARTA"; iconSource: "qrc:/qml/NavoSmart/icons/map.svg"; active: root.activePage === 0; onClicked: root.activePage = 0 }
                 NavButton { text: "SONAR"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 1; onClicked: root.activePage = 1 }
-                NavButton { text: "SONAR PRO"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 10; onClicked: root.activePage = 10 }
+                NavButton { text: "SONAR PRO"; proBadge: true; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 10; onClicked: root.activePage = 10 }
                 NavButton { text: "AREA SCAN"; iconSource: "qrc:/qml/NavoSmart/icons/scan.svg"; active: root.activePage === 2; onClicked: root.activePage = 2 }
                 NavButton { text: "PUNCTE PESCUIT"; iconSource: "qrc:/qml/NavoSmart/icons/fish.svg"; active: root.activePage === 3; onClicked: root.activePage = 3 }
                 NavButton { text: "BALȚILE MELE"; iconSource: "qrc:/qml/NavoSmart/icons/lake.svg"; active: root.activePage === 4; onClicked: root.activePage = 4 }
@@ -699,9 +735,12 @@ Item {
     Rectangle {
         id: content
         anchors.left: root.mapMaximized || root.activePage === 10 ? parent.left : sidebar.right; anchors.right: parent.right; anchors.top: root.activePage === 10 ? parent.top : header.bottom; anchors.bottom: parent.bottom
-        z: root.activePage === 10 ? 1000 : 0
+        // Fullscreen sonar controls must render above the Dashboard header (z: 2000).
+        z: root.activePage === 10 ? 3000 : 0
         color: root.bg
         Loader {
+            Accessible.role: Accessible.Pane
+            Accessible.name: status === Loader.Ready ? "Pagina " + root.activePageName : "Se încarcă pagina"
             anchors.fill: parent; anchors.margins: root.activePage === 10 ? 0 : 10
             sourceComponent: root.activePage === 0 ? mapPage :
                              root.activePage === 1 ? sonarPage :
@@ -720,7 +759,7 @@ Item {
         id: persistentCameraPip
         parent: root
         z: 900
-        visible: root.cameraPipEnabled && root.cameraStreamUrl.length>0 && !root.cameraFullscreen && root.activePage!==5
+        visible: root.cameraPipEnabled && root.cameraStreamUrl.length>0 && !root.cameraFullscreen && root.activePage!==5 && root.activePage!==10
         anchors.right: parent.right
         anchors.top: header.bottom
         anchors.rightMargin: root.activePage===0 ? 88 : 16
@@ -741,6 +780,7 @@ Item {
             id: fishingPageRoot
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             NavoMap {
+                recordedReplay: sonar.replayMode
                 id: navoMap
                 anchors.fill: parent
                 anchors.leftMargin: 8; anchors.topMargin: 8; anchors.bottomMargin: 8; anchors.rightMargin: 72
@@ -757,9 +797,11 @@ Item {
                 waypointNames: root.waypointNames
                 fishModel: fishStore
                 fishingSpotsModel: fishingSpots
-                bathymetryCells: scanCoordinator.bathymetryCells
-                baitingController: baitingController
-                areaScanController: areaScanController
+                bathymetryCells: root.displayBathymetryCells
+                        replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
+                        replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
+                baitingController: root.mapBaitingController
+                areaScanController: root.mapAreaScanController
                 savedDepthM: root.depthM
                 savedWaterTempC: root.waterTempC
                 maximized: root.mapMaximized
@@ -769,6 +811,7 @@ Item {
                     root.lastNavigationStatus="Punct selectat: " + (waypoint.sequenceNumber !== undefined ? "WP" + waypoint.sequenceNumber : "waypoint") + " • poți deschide NĂDIRE când dorești"
                 }
                 onAreaRectangleRequested: function(cornerA, cornerB) {
+                            if(!root.allowLiveAction()) return;
                     missionUploader.invalidate()
                     var pts=scanCoordinator.prepareRectangle(cornerA,cornerB)
                     root.lastNavigationStatus=pts.length ? "Area Scan dreptunghi pregătit • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP • apasă PREGĂTEȘTE MISIUNEA" : "Dreptunghi respins: "+areaScanController.lastError
@@ -776,6 +819,7 @@ Item {
                     root.activePage=2
                 }
                 onAreaPolygonRequested: function(polygon) {
+                            if(!root.allowLiveAction()) return;
                     missionUploader.invalidate()
                     var pts=scanCoordinator.preparePolygon(polygon)
                     root.lastNavigationStatus=pts.length ? "Area Scan poligon • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP generate" : areaScanController.lastError
@@ -844,11 +888,18 @@ Item {
             chartSource: sonar
             vehicle: root.vehicle
             planController: root.planController
-            boatTrack: root.proBoatTrack
+            boatTrack: sonar.replayMode ? replayMapping.trackCoordinates : root.proBoatTrack
             plannedTrack: areaScanController.generatedPoints
+            replaySaveStatus: root.replaySaveStatus
+            replaySampleCount: replayMapping.rawSamples.length
+            onSaveReplayRequested: function(name) {
+                replayBathymetryModel.rebuild(replayMapping.rawSamples)
+                var id=persistence.saveReplayLake(name,replayMapping.rawSamples,replayBathymetryModel.cells)
+                root.replaySaveStatus=id ? "Salvat în Bălțile mele: "+name : "Salvarea a eșuat; sunt necesare probe GPS și fund valid."
+            }
             onClosed: root.activePage = 0
-            connected: root.sonarConnected
-            depthM: root.depthM
+            connected: sonar.connected || sonar.replayMode
+            depthM: sonar.depthM
             waterTempC: root.waterTempC
             samples: sonar.echoSamples
             chartResolution: sonar.chartResolution
@@ -967,6 +1018,7 @@ Item {
                         Layout.fillWidth: true; Layout.fillHeight: true
                         radius: 8; color: root.bg; border.color: root.line; clip: true
                         NavoMap {
+                recordedReplay: sonar.replayMode
                             id: areaScanMap
                             anchors.fill: parent; anchors.margins: 2
                             vehicle: root.vehicle
@@ -974,17 +1026,21 @@ Item {
                             waypointNames: root.waypointNames
                             fishModel: fishStore
                             fishingSpotsModel: fishingSpots
-                            bathymetryCells: scanCoordinator.bathymetryCells
-                            baitingController: baitingController
-                            areaScanController: areaScanController
+                            bathymetryCells: root.displayBathymetryCells
+                        replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
+                        replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
+                            baitingController: root.mapBaitingController
+                            areaScanController: root.mapAreaScanController
                             savedDepthM: root.depthM
                             savedWaterTempC: root.waterTempC
                             maximized: root.mapMaximized
                             baitPointPickMode: root.pendingBaitPointPick
                             onBaitPointPicked: function(coordinate) { root.pendingBaitPointPick=false; baitingController.targetWaypoint={coordinate:coordinate,name:"Punct hartă",sequenceNumber:0}; root.lastNavigationStatus="Punct de nădire selectat pe hartă"; root.activePage=8 }
                             onMaximizeRequested: root.mapMaximized = !root.mapMaximized
-                            onAreaRectangleRequested: function(cornerA, cornerB) { missionUploader.invalidate(); var pts=scanCoordinator.prepareRectangle(cornerA,cornerB); root.lastNavigationStatus=pts.length ? "Area Scan dreptunghi pregătit • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP • apasă PREGĂTEȘTE MISIUNEA" : "Dreptunghi respins: "+areaScanController.lastError; root.pendingAreaDrawMode="none" }
-                            onAreaPolygonRequested: function(polygon) { missionUploader.invalidate(); var pts=scanCoordinator.preparePolygon(polygon); root.lastNavigationStatus=pts.length ? "Area Scan poligon pregătit • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP • apasă PREGĂTEȘTE MISIUNEA" : "Poligon respins: "+areaScanController.lastError; root.pendingAreaDrawMode="none" }
+                            onAreaRectangleRequested: function(cornerA, cornerB) {
+                            if(!root.allowLiveAction()) return; missionUploader.invalidate(); var pts=scanCoordinator.prepareRectangle(cornerA,cornerB); root.lastNavigationStatus=pts.length ? "Area Scan dreptunghi pregătit • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP • apasă PREGĂTEȘTE MISIUNEA" : "Dreptunghi respins: "+areaScanController.lastError; root.pendingAreaDrawMode="none" }
+                            onAreaPolygonRequested: function(polygon) {
+                            if(!root.allowLiveAction()) return; missionUploader.invalidate(); var pts=scanCoordinator.preparePolygon(polygon); root.lastNavigationStatus=pts.length ? "Area Scan poligon pregătit • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP • apasă PREGĂTEȘTE MISIUNEA" : "Poligon respins: "+areaScanController.lastError; root.pendingAreaDrawMode="none" }
                             onSavePointRequested: function(coordinate) { if(!root.requireActiveLakeForPointSave()) return; var spot=fishingSpots.saveSpot(coordinate,root.depthM,root.waterTempC,"","",null); if(spot) scanCoordinator.checkpoint("fishing-spot") }
                         }
                     }
@@ -1016,7 +1072,7 @@ Item {
                             hint: "Pregătește misiunea"
                             enabled: areaScanController.generatedPoints.length>0 && scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
                             contentItem: Canvas { anchors.fill: parent; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#21b7ff";p.fillStyle="#21b7ff";p.lineWidth=2;p.beginPath();p.moveTo(11,34);p.lineTo(22,22);p.lineTo(31,29);p.lineTo(41,13);p.stroke();for(var i=0;i<4;i++){var a=[[11,34],[22,22],[31,29],[41,13]][i];p.beginPath();p.arc(a[0],a[1],2.5,0,Math.PI*2);p.fill()}} }
-                            onClicked: { missionUploader.invalidate(); var prepared=scanCoordinator.prepareMission(false); if(prepared&&prepared.length)root.lastNavigationStatus="Misiune pregătită • "+prepared.length+" WP • următorul pas: UPLOAD"; else if(!root.lastNavigationStatus.length)root.lastNavigationStatus="Pregătirea misiunii a eșuat" }
+                            onClicked: { if(!root.allowLiveAction()) return; missionUploader.invalidate(); var prepared=scanCoordinator.prepareMission(false); if(prepared&&prepared.length)root.lastNavigationStatus="Misiune pregătită • "+prepared.length+" WP • următorul pas: UPLOAD"; else if(!root.lastNavigationStatus.length)root.lastNavigationStatus="Pregătirea misiunii a eșuat" }
                         }
                         ScanIconButton {
                             hint: missionUploader.uploadVerified ? "Start autopilot" : "Upload misiune"
@@ -1055,13 +1111,16 @@ Item {
                     Layout.minimumWidth: 320
                     radius:8; color:root.bg; border.color:root.line; clip:true
                     NavoMap {
+                recordedReplay: sonar.replayMode
                         id:fishingMap
                         anchors.fill:parent
                         property real targetAspect: 16/9
                         property real availableAspect: width / Math.max(1,height)
                         vehicle:root.vehicle; planController:root.planController; waypointNames:root.waypointNames
-                        fishModel:fishStore; fishingSpotsModel:fishingSpots; bathymetryCells:scanCoordinator.bathymetryCells
-                        baitingController:baitingController; areaScanController:areaScanController
+                        fishModel:fishStore; fishingSpotsModel:fishingSpots; bathymetryCells:root.displayBathymetryCells
+                        replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
+                        replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
+                        baitingController: root.mapBaitingController; areaScanController: root.mapAreaScanController
                         savedDepthM:root.depthM; savedWaterTempC:root.waterTempC; showStatusHint:false
                         maximized:fishingPageRoot.mapExpanded
                         onMaximizeRequested:fishingPageRoot.mapExpanded=!fishingPageRoot.mapExpanded
@@ -1343,15 +1402,18 @@ Item {
                     Layout.fillWidth: true; Layout.fillHeight: true
                     radius: 8; color: root.panel; border.color: root.line; clip: true
                     NavoMap {
+                recordedReplay: sonar.replayMode
                         anchors.fill: parent; anchors.margins: 2
                         vehicle: root.vehicle
                         planController: root.planController
                         waypointNames: root.waypointNames
                         fishModel: fishStore
                         fishingSpotsModel: fishingSpots
-                        bathymetryCells: scanCoordinator.bathymetryCells
-                        baitingController: baitingController
-                        areaScanController: areaScanController
+                        bathymetryCells: root.displayBathymetryCells
+                        replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
+                        replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
+                        baitingController: root.mapBaitingController
+                        areaScanController: root.mapAreaScanController
                         savedDepthM: root.depthM
                         savedWaterTempC: root.waterTempC
                         maximized: root.mapMaximized
@@ -1383,20 +1445,23 @@ Item {
                         anchors.fill: parent
                         anchors.margins: 8
                         controller: baitingController
-                        hopperBridge: hopperBridge
+                        hopperBridge: root.hopperBridgeController
                         waypoint: baitingController.targetWaypoint
-                        availableSpots: fishingSpots.fishingSpots
+                        availableSpots: sonar.replayMode ? [] : fishingSpots.fishingSpots
                         onChooseOnMapRequested: {
+                            if(!root.allowLiveAction()) return;
                             root.pendingBaitPointPick=true
                             root.lastNavigationStatus="Atinge harta din stânga pentru punctul de nădire"
                         }
                         onSpotChosen: function(spot) {
+                            if(!root.allowLiveAction()) return;
                             var coordinate=QtPositioning.coordinate(Number(spot.lat),Number(spot.lon))
                             if(!coordinate.isValid){root.lastNavigationStatus="Locul salvat nu are coordonate valide";return}
                             baitingController.targetWaypoint={coordinate:coordinate,name:spot.name,sequenceNumber:0}
                             root.lastNavigationStatus="Punct de nădire ales: "+spot.name
                         }
                         onStartConfirmed: function(waypoint,name,hopper) {
+                            if(!root.allowLiveAction()) return;
                             if(!root.linkAlive || scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || (hopper!==0 && !hopperBridge.calibrated)){root.lastNavigationStatus="Nădire blocată: verifică legătura, misiunea activă și calibrarea cuvelor";return}
                             digitalAnchor.release(); baitingController.startCycle(waypoint,name,hopper)
                         }
@@ -1496,10 +1561,10 @@ Item {
                 anchors.fill: parent
                 // Use the active/restored lake session, not the global sonar history.
                 // restoreLake() repopulates rawSamples from the selected lake checkpoint.
-                samples: sonarMapping.rawSamples
-                boatTrack: sonarMapping.trackCoordinates.length ? sonarMapping.trackCoordinates : root.coordinatesFromSonarSamples(sonarMapping.rawSamples)
-                fishingSpots: fishingSpots.fishingSpots
-                fishDetections: root.fishDetections
+                samples: sonar.replayMode ? replayMapping.rawSamples : sonarMapping.rawSamples
+                boatTrack: sonar.replayMode ? replayMapping.trackCoordinates : (sonarMapping.trackCoordinates.length ? sonarMapping.trackCoordinates : root.coordinatesFromSonarSamples(sonarMapping.rawSamples))
+                fishingSpots: sonar.replayMode ? [] : root.fishingSpotsController.fishingSpots
+                fishDetections: sonar.replayMode ? [] : root.fishDetections
                 onOpenSonarRequested: root.activePage = 1
             }
         }
@@ -1563,7 +1628,7 @@ Item {
                         id: ethernetSettings
                         Layout.fillWidth: true
                         Layout.preferredHeight: implicitHeight
-                        sonar: sonar
+                        sonar: root.sonarController
                         camera: cameraEthernet
                         onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
                         onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
@@ -1611,14 +1676,39 @@ Item {
     }
 
     component NavButton: Button {
+        Accessible.name: text
         property bool active: false
+        property bool proBadge: false
         property url iconSource: ""
         ToolTip.visible: hovered
         ToolTip.text: text
         Layout.fillWidth: true
         Layout.preferredHeight: Math.max(38, Math.min(46, (sidebar.height - 58) / 9))
         background: Rectangle { radius: 6; color: parent.active ? "#183248" : "transparent"; border.color: parent.active ? root.accent : "transparent" }
-        contentItem: Image { anchors.centerIn: parent; width: 32; height: 32; source: parent.iconSource; fillMode: Image.PreserveAspectFit }
+        contentItem: Item {
+            Image {
+                anchors.centerIn: parent
+                anchors.verticalCenterOffset: parent.parent.proBadge ? -5 : 0
+                width: parent.parent.proBadge ? 27 : 32
+                height: parent.parent.proBadge ? 27 : 32
+                source: parent.parent.iconSource
+                fillMode: Image.PreserveAspectFit
+            }
+            Rectangle {
+                visible: parent.parent.proBadge
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: 1
+                width: 31; height: 13; radius: 3
+                color: parent.parent.active ? "#21b7ff" : "#103c51"
+                border.color: "#21b7ff"
+                Label {
+                    anchors.centerIn: parent
+                    text: "PRO"; font.pixelSize: 9; font.bold: true
+                    color: parent.parent.active ? "#061824" : "#e1faff"
+                }
+            }
+        }
     }
 
     component DataLine: RowLayout {

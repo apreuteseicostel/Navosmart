@@ -19,6 +19,8 @@ jobs:
     env:
       QT_VERSION: 6.8.3
       QT_ANDROID_ABIS: arm64-v8a
+      CCACHE_DIR: ${{ github.workspace }}/build-cache/ccache
+      CCACHE_COMPILERCHECK: content
     steps:
       - uses: actions/checkout@v4
       - name: NAVO controller regression tests
@@ -28,6 +30,7 @@ jobs:
           git clone --depth 1 --branch v5.0.7 --recurse-submodules --shallow-submodules https://github.com/mavlink/qgroundcontrol.git qgc
           rm -rf qgc/custom
           cp -a custom qgc/custom
+          cp -a third_party qgc/third_party
           sed -i '/import NavoSmart.Backend 1.0/i import NavoSmart 1.0' qgc/custom/qml/NavoDashboard.qml
           sed -i 's/QGroundControl\.FlyView/QGroundControl.FlightDisplay/g' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
           sed -i '/QGroundControl\.PlanView/d' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
@@ -58,6 +61,16 @@ jobs:
           p.write_text(src.replace(needle, guard, 1))
           PY
           grep -n -A9 -B4 'if (!_mainRootWindow)' qgc/src/QGCApplication.cc
+      - name: Install compiler cache
+        run: sudo apt-get update && sudo apt-get install -y ccache
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ${{ runner.os }}-navo-qgc5.0.7-qt6.8.3-ndk26b-v1-${{ hashFiles('custom/**', '.github/workflows/android.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-navo-qgc5.0.7-qt6.8.3-ndk26b-v1-
+      - name: Initialize compiler cache
+        run: ccache --max-size=2GiB && ccache --zero-stats
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -115,7 +128,7 @@ jobs:
           mkdir -p build
           "${{ runner.temp }}/Qt/6.8.3/android_arm64_v8a/bin/qt-cmake" -S qgc -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release -DQT_ANDROID_ABIS=arm64-v8a -DQT_ANDROID_BUILD_ALL_ABIS=OFF \
-            -DQT_HOST_PATH="${{ runner.temp }}/Qt/6.8.3/gcc_64" -DQT_ANDROID_SIGN_APK=OFF -DQGC_STABLE_BUILD=ON
+            -DQT_HOST_PATH="${{ runner.temp }}/Qt/6.8.3/gcc_64" -DQT_ANDROID_SIGN_APK=OFF -DQGC_STABLE_BUILD=ON -DQGC_USE_CACHE=ON
       - name: Build arm64 APK
         run: cmake --build build --target all --config Release --parallel
       - name: Prepare installable APK
@@ -137,7 +150,7 @@ jobs:
           mkdir -p build-x86
           "${{ runner.temp }}/Qt/6.8.3/android_x86_64/bin/qt-cmake" -S qgc -B build-x86 -G Ninja \
             -DCMAKE_BUILD_TYPE=Release -DQT_ANDROID_ABIS=x86_64 -DQT_ANDROID_BUILD_ALL_ABIS=OFF \
-            -DQT_HOST_PATH="${{ runner.temp }}/Qt/6.8.3/gcc_64" -DQT_ANDROID_SIGN_APK=OFF -DQGC_STABLE_BUILD=ON
+            -DQT_HOST_PATH="${{ runner.temp }}/Qt/6.8.3/gcc_64" -DQT_ANDROID_SIGN_APK=OFF -DQGC_STABLE_BUILD=ON -DQGC_USE_CACHE=ON
       - name: Build x86_64 smoke-test APK
         run: cmake --build build-x86 --target all --config Release --parallel
       - name: Prepare x86_64 smoke-test APK
@@ -218,7 +231,7 @@ jobs:
           adb -s emulator-5554 shell settings put global transition_animation_scale 0.0 || true
           adb -s emulator-5554 shell settings put global animator_duration_scale 0.0 || true
 
-          adb -s emulator-5554 install --no-streaming -r build-x86/NAVO_SMART-x86.apk
+          adb -s emulator-5554 install --no-streaming -r -g build-x86/NAVO_SMART-x86.apk
 
           AAPT2="$ANDROID_HOME/build-tools/35.0.0/aapt2"
           test -x "$AAPT2"
@@ -239,6 +252,8 @@ jobs:
           adb -s emulator-5554 shell settings put system user_rotation 1 || true
           adb -s emulator-5554 shell input keyevent KEYCODE_WAKEUP || true
           adb -s emulator-5554 shell wm dismiss-keyguard || true
+          # Suppress the Android first-run immersive tutorial in this disposable emulator.
+          adb -s emulator-5554 shell settings put secure immersive_mode_confirmations confirmed
           adb -s emulator-5554 shell am start -W -n "$PACKAGE/$ACTIVITY"
 
           sleep 5
@@ -249,16 +264,22 @@ jobs:
           adb -s emulator-5554 exec-out screencap -p > build/screenshots/dashboard-30s.png || true
           cp build/screenshots/dashboard-30s.png build/navo-screenshot.png 2>/dev/null || true
 
+          NAVO_UI_STATUS=0
+          python3 tests/android/ui-smoke.py || NAVO_UI_STATUS=$?
           adb -s emulator-5554 shell dumpsys window windows > build/window.txt || true
           adb -s emulator-5554 shell dumpsys activity activities > build/activity.txt || true
           adb -s emulator-5554 logcat -d > build/navo-logcat.txt || true
           adb -s emulator-5554 shell pidof "$PACKAGE" | tee build/navo-pid.txt
           test -s build/navo-pid.txt
           # Process survival alone can hide failed QML bindings/components.
-          if grep -E 'NAVO_SMART:.*(ReferenceError:|TypeError:|Unable to assign \[undefined\]|is not a type|Detected anchors on an item that is managed by a layout)' build/navo-logcat.txt; then
+          if grep -E 'NAVO_SMART:.*(ReferenceError:|TypeError:|Unable to assign \[undefined\]|is not a type|Cannot anchor to an item|Binding loop detected|Detected anchors on an item that is managed by a layout)' build/navo-logcat.txt; then
             echo "NAVO QML runtime validation failed"
             exit 1
           fi
+          test "$NAVO_UI_STATUS" -eq 0
+      - name: Compiler cache statistics
+        if: always()
+        run: ccache --show-stats
       - name: Upload Android smoke-test evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -267,6 +288,7 @@ jobs:
           path: |
             build/emulator.log
             build/navo-pid.txt
+            build/navo-ui.xml
             build/window.txt
             build/activity.txt
             build/navo-logcat.txt

@@ -1,0 +1,2 @@
+module QtPositioning
+singleton QtPositioning 1.0 QtPositioning.qml

@@ -5,7 +5,7 @@
 #include <QRectF>
 #include <QVector>
 #include <QSet>
-#include "data_processor_defs.h"
+#include "data_processor/data_processor_defs.h"
 
 
 struct ZoomInfo {

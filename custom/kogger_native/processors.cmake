@@ -1,0 +1,31 @@
+# Shared source closure for Android and the real Qt replay tests.
+set(NAVO_KOGGER_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../third_party/KoggerApp/src")
+set(NAVO_KOGGER_PROCESSOR_SOURCES
+    ${NAVO_KOGGER_ROOT}/dataset_defs.h
+    ${NAVO_KOGGER_ROOT}/data_horizon.cpp
+    ${NAVO_KOGGER_ROOT}/data_horizon.h
+    ${NAVO_KOGGER_ROOT}/data_processor/data_processor.cpp
+    ${NAVO_KOGGER_ROOT}/data_processor/data_processor.h
+    ${NAVO_KOGGER_ROOT}/data_processor/bottom_track_processor.cpp
+    ${NAVO_KOGGER_ROOT}/data_processor/bt_worker.cpp
+    ${NAVO_KOGGER_ROOT}/data_processor/bt_worker.h
+    ${NAVO_KOGGER_ROOT}/data_processor/compute_worker.cpp
+    ${NAVO_KOGGER_ROOT}/data_processor/compute_worker.h
+    ${NAVO_KOGGER_ROOT}/data_processor/mosaic_processor.cpp
+    ${NAVO_KOGGER_ROOT}/data_processor/isobaths_processor.cpp
+    ${NAVO_KOGGER_ROOT}/data_processor/surface_mesh.cpp
+    ${NAVO_KOGGER_ROOT}/data_processor/surface_tile.cpp
+    ${NAVO_KOGGER_ROOT}/data_processor/hot_tile_cache.cpp
+    ${NAVO_KOGGER_ROOT}/data_processor/mosaic_db.h
+    ${CMAKE_CURRENT_LIST_DIR}/surface_processor.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/mosaic_db.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/NavoKoggerService.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/NavoKoggerService.h
+    ${NAVO_KOGGER_ROOT}/scene3d/utils/draw_utils.cpp
+)
+set(NAVO_KOGGER_PROCESSOR_INCLUDES
+    ${CMAKE_CURRENT_LIST_DIR}
+    ${NAVO_KOGGER_ROOT}
+    ${NAVO_KOGGER_ROOT}/data_processor
+    ${NAVO_KOGGER_ROOT}/scene3d/utils
+)

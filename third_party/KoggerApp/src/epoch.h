@@ -10,7 +10,7 @@
 #include <QSet>
 #include <QVector>
 
-#include "data_processor_defs.h"
+#include "data_processor/data_processor_defs.h"
 #include "dataset_defs.h"
 #include "id_binnary.h"
 
