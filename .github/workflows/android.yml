@@ -269,7 +269,7 @@ jobs:
           adb -s emulator-5554 shell pidof "$PACKAGE" | tee build/navo-pid.txt
           test -s build/navo-pid.txt
           # Process survival alone can hide failed QML bindings/components.
-          if grep -E 'NAVO_SMART:.*(ReferenceError:|TypeError:|Unable to assign \[undefined\]|is not a type|Detected anchors on an item that is managed by a layout)' build/navo-logcat.txt; then
+          if grep -E 'NAVO_SMART:.*(ReferenceError:|TypeError:|Unable to assign \[undefined\]|is not a type|Cannot anchor to an item|Binding loop detected|Detected anchors on an item that is managed by a layout)' build/navo-logcat.txt; then
             echo "NAVO QML runtime validation failed"
             exit 1
           fi

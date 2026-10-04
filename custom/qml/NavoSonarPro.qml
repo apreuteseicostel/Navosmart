@@ -335,31 +335,35 @@ Rectangle {
         }
     }
     Rectangle {
+        id: telemetryBar
+        z: 101
         anchors.left: parent.left; anchors.top: parent.top; anchors.margins: 6
         width: Math.max(0, Math.min(parent.width-root.buttonSize-18, telemetry.implicitWidth+16)); height: root.buttonSize; radius: 7; color: "#cc0b1c2e"
         Label {
-            id: telemetry; anchors.fill: parent; anchors.margins: 8; elide: Text.ElideRight
+            id: telemetry; objectName: "sonarProTelemetry"; anchors.fill: parent; anchors.margins: 8; elide: Text.ElideRight
             color: root.connected ? "#21b7ff" : "#9db2c5"
             text: "PRO  •  " + (root.connected ? (root.paused ? "PAUZĂ" : "LIVE") : "OFFLINE") + "   " + (isFinite(root.depthM)?root.depthM.toFixed(1)+" m":"— m") + "   " + (isFinite(root.waterTempC)?root.waterTempC.toFixed(1)+" °C":"— °C")
         }
     }
     IconButton {
         id: menuButton
-        anchors.left: parent.left; anchors.top: telemetry.bottom; anchors.margins: 6
-        z: 20; glyph: "settings"; hint: "Meniu Sonar PRO"
+        objectName: "sonarProMenuButton"
+        anchors.left: parent.left; anchors.top: telemetryBar.bottom; anchors.margins: 6
+        z: 100; glyph: "settings"; hint: "Deschide / închide meniul Sonar PRO"
         checkable: true; checked: root.menuOpen
         onClicked: root.menuOpen = !root.menuOpen
     }
     IconButton {
         id: closeButton
+        objectName: "sonarProCloseButton"
         anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 6
-        z: 25; glyph: "close"; hint: "Ieșire din Sonar PRO"
+        z: 102; glyph: "close"; hint: "Ieșire din Sonar PRO"
         onClicked: root.closed()
     }
     Rectangle {
         id: menuPanel
         visible: root.menuOpen
-        z: 19
+        z: 103
         anchors.left: parent.left; anchors.top: menuButton.bottom; anchors.topMargin: 4; anchors.leftMargin: 6
         width: Math.min(260,parent.width*.48)
         height: Math.min(menuColumn.implicitHeight+16,Math.max(0,parent.height-menuButton.height-55))
@@ -381,6 +385,7 @@ Rectangle {
     }
     Rectangle {
         visible: root.settingsVisible
+        z: 103
         anchors.left: parent.left; anchors.top: menuButton.bottom; anchors.topMargin: 4; anchors.leftMargin: 6
         width: Math.min(360,parent.width-16)
         height: Math.min(settingsContent.implicitHeight+16, Math.max(0, parent.height-menuButton.height-55))

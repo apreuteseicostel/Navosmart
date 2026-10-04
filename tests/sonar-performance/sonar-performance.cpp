@@ -15,10 +15,12 @@
 #include <algorithm>
 #include <iostream>
 #include <stdexcept>
+static QStringList errors;
+static void message(QtMsgType,const QMessageLogContext&,const QString& s){if(s.contains("TypeError")||s.contains("ReferenceError")||s.contains("Cannot anchor")||s.contains("Binding loop")||s.contains("managed by a layout")||s.contains("Unable to assign"))errors<<s;std::cerr<<s.toStdString()<<'\n';}
 static void require(bool ok,const char* text){if(!ok)throw std::runtime_error(text);}
 int main(int argc,char** argv){
  qputenv("QT_QPA_PLATFORM","offscreen");qputenv("QT_QUICK_BACKEND","software");
- QGuiApplication app(argc,argv);
+ QGuiApplication app(argc,argv);qInstallMessageHandler(message);
  try{
  require(argc>=3,"usage: sonar-performance source.qml mock-imports [columns.json]");
  QQuickView view;view.engine()->addImportPath(argv[2]);view.setResizeMode(QQuickView::SizeRootObjectToView);view.resize(960,540);view.setSource(QUrl::fromLocalFile(argv[1]));require(view.status()==QQuickView::Ready,"QML load failed");auto* root=view.rootObject();
@@ -29,6 +31,9 @@ int main(int argc,char** argv){
  evaluate("samples=history[history.length-1].samples");
  auto* canvas=root->findChild<QObject*>("sonarProEchogram");require(canvas,"Canvas object missing");
  view.show();QEventLoop setup;QTimer::singleShot(1800,&setup,&QEventLoop::quit);setup.exec();
+ for(const char* name:{"sonarProMenuButton","sonarProCloseButton"}){
+ auto* control=root->findChild<QQuickItem*>(name);require(control&&control->isVisible()&&control->isEnabled(),"PRO control unavailable");auto pos=control->mapToScene(QPointF(control->width()/2,control->height()/2));require(pos.x()>0&&pos.y()>0&&pos.x()<view.width()&&pos.y()<view.height(),"PRO control off screen");}
+ require(errors.isEmpty(),errors.join('\n').toUtf8().constData());
  std::vector<double> times;
  for(int n=0;n<24;n++){
  QEventLoop loop;bool painted=false;QObject::connect(canvas,SIGNAL(painted()),&loop,SLOT(quit()));
