@@ -7,3 +7,7 @@ target_link_libraries(navo-sonar-performance PRIVATE Qt6::Core Qt6::Gui Qt6::Qml
 
 file(GLOB NAVO_ICONS "${CMAKE_CURRENT_SOURCE_DIR}/../../custom/icons/*.svg")
 qt_add_resources(navo-sonar-performance navo-icons PREFIX "/qml/NavoSmart/icons" BASE "${CMAKE_CURRENT_SOURCE_DIR}/../../custom/icons" FILES ${NAVO_ICONS})
+
+add_executable(navo-page-wiring page-wiring.cpp)
+target_link_libraries(navo-page-wiring PRIVATE Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick)
+qt_add_resources(navo-page-wiring navo-page-icons PREFIX "/qml/NavoSmart/icons" BASE "${CMAKE_CURRENT_SOURCE_DIR}/../../custom/icons" FILES ${NAVO_ICONS})

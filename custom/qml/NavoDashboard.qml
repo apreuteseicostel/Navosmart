@@ -38,6 +38,8 @@ Item {
             }
         }
     }
+    readonly property var mapBaitingController: baitingController
+    readonly property var mapAreaScanController: areaScanController
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
     property var planController: _planController
 
@@ -49,6 +51,11 @@ Item {
 
     NavoPersistence { id: persistence }
     property alias lakePersistence: persistence
+    property alias fishingSpotsController: fishingSpots
+    property alias fishStoreController: fishStore
+    property alias sonarMappingController: sonarMapping
+    property alias hopperBridgeController: hopperBridge
+    property alias sonarController: sonar
     NavoFishingSpots { id: fishingSpots; onSpotSaved: scanCoordinator.checkpoint("spot-save"); onSpotRemoved: scanCoordinator.checkpoint("spot-delete"); onSpotUpdated: scanCoordinator.checkpoint("spot-update") }
     NavoFishDetections { id: fishStore }
     NavoBathymetryModel { id: bathymetryModel }
@@ -146,11 +153,11 @@ Item {
     NavoScanCoordinator {
         id: scanCoordinator
         areaScan: areaScanController
-        persistence: persistence
-        fishingSpots: fishingSpots
-        fishStore: fishStore
+        persistence: root.lakePersistence
+        fishingSpots: root.fishingSpotsController
+        fishStore: root.fishStoreController
         bathymetry: bathymetryModel
-        sonarMapping: sonarMapping
+        sonarMapping: root.sonarMappingController
         vehicle: root.vehicle
         onMissionPrepared: function(points) {
             if (!missionUploader.prepare(points)) {
@@ -761,8 +768,8 @@ Item {
                 fishModel: fishStore
                 fishingSpotsModel: fishingSpots
                 bathymetryCells: scanCoordinator.bathymetryCells
-                baitingController: baitingController
-                areaScanController: areaScanController
+                baitingController: root.mapBaitingController
+                areaScanController: root.mapAreaScanController
                 savedDepthM: root.depthM
                 savedWaterTempC: root.waterTempC
                 maximized: root.mapMaximized
@@ -978,8 +985,8 @@ Item {
                             fishModel: fishStore
                             fishingSpotsModel: fishingSpots
                             bathymetryCells: scanCoordinator.bathymetryCells
-                            baitingController: baitingController
-                            areaScanController: areaScanController
+                            baitingController: root.mapBaitingController
+                            areaScanController: root.mapAreaScanController
                             savedDepthM: root.depthM
                             savedWaterTempC: root.waterTempC
                             maximized: root.mapMaximized
@@ -1064,7 +1071,7 @@ Item {
                         property real availableAspect: width / Math.max(1,height)
                         vehicle:root.vehicle; planController:root.planController; waypointNames:root.waypointNames
                         fishModel:fishStore; fishingSpotsModel:fishingSpots; bathymetryCells:scanCoordinator.bathymetryCells
-                        baitingController:baitingController; areaScanController:areaScanController
+                        baitingController:root.mapBaitingController; areaScanController:root.mapAreaScanController
                         savedDepthM:root.depthM; savedWaterTempC:root.waterTempC; showStatusHint:false
                         maximized:fishingPageRoot.mapExpanded
                         onMaximizeRequested:fishingPageRoot.mapExpanded=!fishingPageRoot.mapExpanded
@@ -1353,8 +1360,8 @@ Item {
                         fishModel: fishStore
                         fishingSpotsModel: fishingSpots
                         bathymetryCells: scanCoordinator.bathymetryCells
-                        baitingController: baitingController
-                        areaScanController: areaScanController
+                        baitingController: root.mapBaitingController
+                        areaScanController: root.mapAreaScanController
                         savedDepthM: root.depthM
                         savedWaterTempC: root.waterTempC
                         maximized: root.mapMaximized
@@ -1386,7 +1393,7 @@ Item {
                         anchors.fill: parent
                         anchors.margins: 8
                         controller: baitingController
-                        hopperBridge: hopperBridge
+                        hopperBridge: root.hopperBridgeController
                         waypoint: baitingController.targetWaypoint
                         availableSpots: fishingSpots.fishingSpots
                         onChooseOnMapRequested: {
@@ -1501,7 +1508,7 @@ Item {
                 // restoreLake() repopulates rawSamples from the selected lake checkpoint.
                 samples: sonarMapping.rawSamples
                 boatTrack: sonarMapping.trackCoordinates.length ? sonarMapping.trackCoordinates : root.coordinatesFromSonarSamples(sonarMapping.rawSamples)
-                fishingSpots: fishingSpots.fishingSpots
+                fishingSpots: root.fishingSpotsController.fishingSpots
                 fishDetections: root.fishDetections
                 onOpenSonarRequested: root.activePage = 1
             }
@@ -1566,7 +1573,7 @@ Item {
                         id: ethernetSettings
                         Layout.fillWidth: true
                         Layout.preferredHeight: implicitHeight
-                        sonar: sonar
+                        sonar: root.sonarController
                         camera: cameraEthernet
                         onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
                         onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
