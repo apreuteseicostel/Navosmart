@@ -174,7 +174,9 @@ Rectangle {
         contentItem: Image { source: "qrc:/qml/NavoSmart/icons/" + control.glyph + ".svg"; fillMode: Image.PreserveAspectFit }
     }
     Row {
-        anchors.fill: parent
+        anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+        // Keep the scale and echo key below the status/close controls.
+        anchors.top: telemetryBar.bottom; anchors.topMargin: 8
         spacing: root.mapEnabled ? 2 : 0
         Item {
             id: echoPanel
@@ -224,10 +226,11 @@ Rectangle {
                             var depthLabel=root.scaleRange > 0 ? (root.scaleStart+n*root.scaleRange/4).toFixed(1)+" m" : "— m"
                             var labelY=Math.max(14,Math.min(height-6,gy+(n===4?-5:14)))
                             var labelWidth=ctx.measureText(depthLabel).width+10
+                            var labelX=n===0 ? menuButton.x+menuButton.width+8 : 8
                             ctx.fillStyle=root.dayPalette?"#e5edf2":"#102b3b"
-                            ctx.fillRect(3,labelY-12,labelWidth,16)
+                            ctx.fillRect(labelX-5,labelY-12,labelWidth,16)
                             ctx.fillStyle=root.dayPalette?"#18364a":"#d9edf7"
-                            ctx.fillText(depthLabel,8,labelY)
+                            ctx.fillText(depthLabel,labelX,labelY)
                         }
                     }
                 }
