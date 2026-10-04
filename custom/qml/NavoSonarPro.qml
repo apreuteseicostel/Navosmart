@@ -373,8 +373,8 @@ Rectangle {
                         anchors.fill: parent
                         zoomLevel: 17
                         function followBoat() {
-                            if(root.replayMode && root.boatTrack.length) {
-                                center=root.boatTrack[root.boatTrack.length-1]
+                            if(root.replayMode) {
+                                if(root.boatTrack.length) center=root.boatTrack[root.boatTrack.length-1]
                                 return
                             }
                             if(root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid)
@@ -386,8 +386,9 @@ Rectangle {
                     }
                     MapPolyline {
                         parent: liveMap
+                        objectName: "sonarProPlannedTrack"
                         line.width: 2; line.color: "#f6da46"
-                        path: root.plannedTrack
+                        path: root.replayMode ? [] : root.plannedTrack
                         Component.onCompleted: liveMap.addMapItem(this)
                         Component.onDestruction: liveMap.removeMapItem(this)
                     }
@@ -399,8 +400,9 @@ Rectangle {
                         Component.onDestruction: liveMap.removeMapItem(this)
                     }
                     MapQuickItem {
+                        objectName: "sonarProBoatMarker"
                         parent: liveMap
-                        coordinate: root.replayMode && root.boatTrack.length ? root.boatTrack[root.boatTrack.length-1] : (root.vehicle ? root.vehicle.coordinate : QtPositioning.coordinate())
+                        coordinate: root.replayMode ? (root.boatTrack.length ? root.boatTrack[root.boatTrack.length-1] : QtPositioning.coordinate()) : (root.vehicle ? root.vehicle.coordinate : QtPositioning.coordinate())
                         visible: coordinate.isValid
                         anchorPoint.x: 18; anchorPoint.y: 18
                         sourceItem: Image {
