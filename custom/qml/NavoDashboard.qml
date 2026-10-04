@@ -596,6 +596,7 @@ Item {
 
     Rectangle {
         id: header
+        visible: root.activePage !== 10
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
         height: 64; color: "#101822"; border.color: root.line; z: 2000
         Flickable {
@@ -639,12 +640,12 @@ Item {
         }
     }
 
-    NavoHeadingCompass { id:headingCompassOverlay; visible:root.headingOverlayOpen; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; onToggleRequested:root.headingOverlayOpen=false }
+    NavoHeadingCompass { id:headingCompassOverlay; visible:root.headingOverlayOpen && root.activePage !== 10; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; onToggleRequested:root.headingOverlayOpen=false }
 
     Rectangle {
         id: sidebar
         anchors.left: parent.left; anchors.top: header.bottom; anchors.bottom: parent.bottom
-        visible: !root.mapMaximized
+        visible: !root.mapMaximized && root.activePage !== 10
         width: root.width < 1100 ? 64 : 72; color: root.panel; border.color: root.line
         Flickable {
             anchors.fill: parent
@@ -699,7 +700,7 @@ Item {
         id: persistentCameraPip
         parent: root
         z: 900
-        visible: root.cameraPipEnabled && root.cameraStreamUrl.length>0 && !root.cameraFullscreen && root.activePage!==5
+        visible: root.cameraPipEnabled && root.cameraStreamUrl.length>0 && !root.cameraFullscreen && root.activePage!==5 && root.activePage!==10
         anchors.right: parent.right
         anchors.top: header.bottom
         anchors.rightMargin: root.activePage===0 ? 88 : 16
