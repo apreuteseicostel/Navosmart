@@ -241,7 +241,9 @@ static void recordedProcessors(const QByteArray& bytes) {
     service.processor().distCompletedByProcessing(0,channel,99.0f);
     service.processor().sendSurfaceTiles(staleTiles,false);
     service.clear();
-    require(service.ingest(adapter.records().last(),channel,0),"cannot seed new session isolation test");
+    NavoKoggerDatasetAdapter resetAdapter;
+    require(resetAdapter.append(decoder,lat,lon),"cannot build session isolation column");
+    require(service.ingest(resetAdapter.records().last(),channel,0),"cannot seed new session isolation test");
     QCoreApplication::processEvents(QEventLoop::AllEvents,20);
     require(service.dataset().size()==1 && service.tileCount()==0 && service.dataset().fromIndexCopy(0).distProccesing(channel)!=99.0f,
             "queued worker results crossed the replay/live generation boundary");
