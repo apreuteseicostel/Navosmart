@@ -43,7 +43,11 @@ for i,name in enumerate(nav):
  click(name,True)
  if not locate('Pagina '+name):raise RuntimeError('Page did not load: '+name)
  (out/f'page-{i:02d}.png').write_bytes(adb('exec-out','screencap','-p'))
- if name=='SONAR PRO':click('Ieșire din Sonar PRO')
+ if name=='SONAR PRO':
+  click('Deschide / închide meniul Sonar PRO')
+  (out/'sonar-pro-menu.png').write_bytes(adb('exec-out','screencap','-p'))
+  click('Deschide / închide meniul Sonar PRO')
+  click('Ieșire din Sonar PRO')
  print('PASS navigation:',name,flush=True)
 click('HARTA',True)
 (out/'dashboard-after-navigation.png').write_bytes(adb('exec-out','screencap','-p'))
