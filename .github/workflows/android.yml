@@ -178,7 +178,7 @@ jobs:
           "$ANDROID_HOME/emulator/emulator" @navo-smoke \
             -port 5554 \
             -no-window \
-            -gpu swiftshader_indirect \
+            -gpu swangle \
             -noaudio \
             -no-boot-anim \
             -no-snapshot \
@@ -230,6 +230,10 @@ jobs:
           "$AAPT2" dump badging build-x86/NAVO_SMART-x86.apk | grep -m1 '^package:'
           "$AAPT2" dump badging build-x86/NAVO_SMART-x86.apk | grep -m1 '^launchable-activity:'
 
+          # Keep OS permission/fullscreen prompts out of dashboard evidence.
+          adb -s emulator-5554 shell pm grant "$PACKAGE" android.permission.ACCESS_COARSE_LOCATION
+          adb -s emulator-5554 shell pm grant "$PACKAGE" android.permission.ACCESS_FINE_LOCATION
+          adb -s emulator-5554 shell settings put secure immersive_mode_confirmations confirmed
           adb -s emulator-5554 logcat -c
           adb -s emulator-5554 shell settings put system accelerometer_rotation 0 || true
           adb -s emulator-5554 shell settings put system user_rotation 1 || true
@@ -250,6 +254,11 @@ jobs:
           adb -s emulator-5554 logcat -d > build/navo-logcat.txt || true
           adb -s emulator-5554 shell pidof "$PACKAGE" | tee build/navo-pid.txt
           test -s build/navo-pid.txt
+          # Process survival alone can hide failed QML bindings/components.
+          if grep -E 'NAVO_SMART:.*(ReferenceError:|TypeError:|Unable to assign \[undefined\]|is not a type|Detected anchors on an item that is managed by a layout)' build/navo-logcat.txt; then
+            echo "NAVO QML runtime validation failed"
+            exit 1
+          fi
       - name: Upload Android smoke-test evidence
         if: always()
         uses: actions/upload-artifact@v4
