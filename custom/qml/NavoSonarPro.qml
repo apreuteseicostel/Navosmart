@@ -3,7 +3,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import QtPositioning
 import QtLocation
-import QGroundControl.FlightDisplay
+import QGroundControl.FlightMap
 
 Rectangle {
     id: root
@@ -35,7 +35,7 @@ Rectangle {
     property int maxGeoChartRecords: 3000
     property int unlocatedChartCount: 0
     function captureGeoChart() {
-        if (!chartSource || !chartSource.chartRawBytes || !chartSource.chartRawByteCount) return
+        if (!chartSource || chartSource.replayMode || !chartSource.chartRawBytes || !chartSource.chartRawByteCount) return
         var coordinate = vehicle && vehicle.coordinate ? vehicle.coordinate : null
         if (!coordinate || !coordinate.isValid) { unlocatedChartCount++; return }
         var record = { latitude: coordinate.latitude, longitude: coordinate.longitude,
@@ -227,26 +227,10 @@ Rectangle {
             sourceComponent: Component {
                 Item {
                     clip: true
-                    FlyViewMap {
+                    FlightMap {
                         id: liveMap
                         anchors.fill: parent
-                        planMasterController: root.planController
-                        rightPanelWidth: 0
                         zoomLevel: 17
-                        toolInsets: QtObject {
-                            readonly property real leftEdgeTopInset: 0
-                            readonly property real leftEdgeCenterInset: 0
-                            readonly property real leftEdgeBottomInset: 0
-                            readonly property real rightEdgeTopInset: 0
-                            readonly property real rightEdgeCenterInset: 0
-                            readonly property real rightEdgeBottomInset: 0
-                            readonly property real topEdgeLeftInset: 0
-                            readonly property real topEdgeCenterInset: 0
-                            readonly property real topEdgeRightInset: 0
-                            readonly property real bottomEdgeLeftInset: 0
-                            readonly property real bottomEdgeCenterInset: 0
-                            readonly property real bottomEdgeRightInset: 0
-                        }
                         function followBoat() {
                             if(root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid)
                                 center=root.vehicle.coordinate

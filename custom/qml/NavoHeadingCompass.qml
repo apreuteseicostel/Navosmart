@@ -74,45 +74,7 @@ Item {
         width: Math.max(22, root.width * (root.expanded ? 0.30 : 0.38)); height: Math.max(36, root.height * (root.expanded ? 0.52 : 0.66)); anchors.centerIn: parent; anchors.horizontalCenterOffset: root.expanded ? 0 : -14
         rotation: root.normalizedHeading
         Behavior on rotation { RotationAnimation { duration: 260; direction: RotationAnimation.Shortest } }
-        Canvas {
-            anchors.fill: parent
-            onWidthChanged: requestPaint()
-            onHeightChanged: requestPaint()
-            onPaint: {
-                var c=getContext("2d"); c.reset()
-                // NAVO bait boat, top view: broad hull, pointed bow and squared stern.
-                c.fillStyle="#d9ff19"; c.strokeStyle="#111923"; c.lineWidth=root.expanded?2.4:1.5
-                c.beginPath()
-                c.moveTo(width/2,0)
-                c.quadraticCurveTo(width*0.79,height*0.10,width*0.91,height*0.28)
-                c.quadraticCurveTo(width*0.98,height*0.43,width*0.90,height*0.88)
-                c.quadraticCurveTo(width*0.72,height*0.98,width/2,height)
-                c.quadraticCurveTo(width*0.28,height*0.98,width*0.10,height*0.88)
-                c.quadraticCurveTo(width*0.02,height*0.43,width*0.09,height*0.28)
-                c.quadraticCurveTo(width*0.21,height*0.10,width/2,0)
-                c.closePath(); c.fill(); c.stroke()
-
-                // Dark cockpit/deck panel forward of the hoppers.
-                c.fillStyle="#35424a"
-                c.beginPath()
-                c.roundedRect(width*0.34,height*0.25,width*0.32,height*0.17,3,3); c.fill()
-
-                // Twin hopper lids in the aft half.
-                c.fillStyle="#171d22"
-                c.beginPath(); c.roundedRect(width*0.17,height*0.53,width*0.27,height*0.27,2,2); c.fill()
-                c.beginPath(); c.roundedRect(width*0.56,height*0.53,width*0.27,height*0.27,2,2); c.fill()
-
-                // Central antenna/mast, visible in both compact and expanded states.
-                c.strokeStyle="#26343e"; c.lineWidth=root.expanded?2:1.4
-                c.beginPath(); c.moveTo(width/2,height*0.27); c.lineTo(width/2,height*0.08); c.stroke()
-                c.fillStyle="#26c6da"
-                c.beginPath(); c.arc(width/2,height*0.07,root.expanded?2.5:1.6,0,Math.PI*2); c.fill()
-
-                // Subtle centre spine improves recognition at small size.
-                c.strokeStyle="#8ea0a9"; c.lineWidth=1
-                c.beginPath(); c.moveTo(width/2,height*0.34); c.lineTo(width/2,height*0.88); c.stroke()
-            }
-        }
+        NavoBoatVisual { anchors.fill: parent }
     }
 
     Rectangle {

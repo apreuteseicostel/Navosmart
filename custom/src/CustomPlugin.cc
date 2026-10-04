@@ -10,6 +10,8 @@
 #include "NavoBathymetryGeometry.h"
 #include "NavoTrack3DGeometry.h"
 #include "AppSettings.h"
+#include "UnitsSettings.h"
+#include <QSettings>
 #include "FactMetaData.h"
 #include "QGCMAVLink.h"
 #include <QtQml/qqml.h>
@@ -22,6 +24,17 @@ Q_APPLICATION_STATIC(CustomPlugin, _customPluginInstance);
 
 CustomFlyViewOptions::CustomFlyViewOptions(CustomOptions* options,QObject* parent):QGCFlyViewOptions(options,parent){}
 CustomPlugin::CustomPlugin(QObject* parent):QGCCorePlugin(parent),_options(new CustomOptions(this)){
+ // NAVO uses metres and Celsius on first install. Existing unit preferences
+ // are preserved and remain editable in Settings without a blocking prompt.
+ QSettings units;
+ units.beginGroup("Units");
+ const QVariantMap defaults{{"horizontalDistanceUnits",UnitsSettings::HorizontalDistanceUnitsMeters},
+                            {"verticalDistanceUnits",UnitsSettings::VerticalDistanceUnitsMeters},
+                            {"areaUnits",UnitsSettings::AreaUnitsSquareMeters},
+                            {"speedUnits",UnitsSettings::SpeedUnitsMetersPerSecond},
+                            {"temperatureUnits",UnitsSettings::TemperatureUnitsCelsius}};
+ for(auto it=defaults.cbegin();it!=defaults.cend();++it)if(!units.contains(it.key()))units.setValue(it.key(),it.value());
+ units.endGroup();units.sync();
  qmlRegisterType<NavoKoggerDecoder>("NavoSmart.Backend",1,0,"NavoKoggerDecoder");
  qmlRegisterType<NavoKoggerTcpClient>("NavoSmart.Backend",1,0,"NavoKoggerTcpClient");
  qmlRegisterType<NavoPersistence>("NavoSmart.Backend",1,0,"NavoPersistence");

@@ -1,0 +1,32 @@
+name: NAVO firmware and persistence
+on:
+  push:
+    branches: [main, 'fix/**', 'feature/kogger-native-dataset-adapter-20261002']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: navo-core-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  firmware-persistence:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y gcc-avr avr-libc arduino-core-avr qt6-base-dev cmake g++ lua5.3
+      - name: Compile actual classic Nano firmware and test command parser
+        run: bash tests/firmware/build-nano.sh
+      - name: Test H743 Lua UART bridge under fragmented and malformed input
+        run: lua5.3 tests/firmware/nano-bridge.lua
+      - name: Build and test persistence under write failures
+        run: cmake -S tests/persistence -B /tmp/navo-persistence && cmake --build /tmp/navo-persistence -j2 && /tmp/navo-persistence/navo-persistence-test
+      - name: Controller regressions
+        run: node tests/audit-regressions.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NAVO-NANO-FIRMWARE
+          path: |
+            build/firmware-nano/NAVO_NANO.hex
+            build/firmware-nano/NAVO_NANO.elf
