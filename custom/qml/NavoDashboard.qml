@@ -51,6 +51,11 @@ Item {
 
     NavoPersistence { id: persistence }
     property alias lakePersistence: persistence
+    property alias fishingSpotsController: fishingSpots
+    property alias fishStoreController: fishStore
+    property alias sonarMappingController: sonarMapping
+    property alias hopperBridgeController: hopperBridge
+    property alias sonarController: sonar
     NavoFishingSpots { id: fishingSpots; onSpotSaved: scanCoordinator.checkpoint("spot-save"); onSpotRemoved: scanCoordinator.checkpoint("spot-delete"); onSpotUpdated: scanCoordinator.checkpoint("spot-update") }
     NavoFishDetections { id: fishStore }
     NavoBathymetryModel { id: bathymetryModel }
@@ -156,11 +161,11 @@ Item {
     NavoScanCoordinator {
         id: scanCoordinator
         areaScan: areaScanController
-        persistence: persistence
-        fishingSpots: fishingSpots
-        fishStore: fishStore
+        persistence: root.lakePersistence
+        fishingSpots: root.fishingSpotsController
+        fishStore: root.fishStoreController
         bathymetry: bathymetryModel
-        sonarMapping: sonarMapping
+        sonarMapping: root.sonarMappingController
         vehicle: root.vehicle
         onMissionPrepared: function(points) {
             if (!missionUploader.prepare(points)) {
@@ -1420,7 +1425,7 @@ Item {
                         anchors.fill: parent
                         anchors.margins: 8
                         controller: baitingController
-                        hopperBridge: hopperBridge
+                        hopperBridge: root.hopperBridgeController
                         waypoint: baitingController.targetWaypoint
                         availableSpots: fishingSpots.fishingSpots
                         onChooseOnMapRequested: {
@@ -1535,7 +1540,7 @@ Item {
                 // restoreLake() repopulates rawSamples from the selected lake checkpoint.
                 samples: sonar.replayMode ? replayMapping.rawSamples : sonarMapping.rawSamples
                 boatTrack: sonar.replayMode ? replayMapping.trackCoordinates : (sonarMapping.trackCoordinates.length ? sonarMapping.trackCoordinates : root.coordinatesFromSonarSamples(sonarMapping.rawSamples))
-                fishingSpots: fishingSpots.fishingSpots
+                fishingSpots: root.fishingSpotsController.fishingSpots
                 fishDetections: root.fishDetections
                 onOpenSonarRequested: root.activePage = 1
             }
@@ -1600,7 +1605,7 @@ Item {
                         id: ethernetSettings
                         Layout.fillWidth: true
                         Layout.preferredHeight: implicitHeight
-                        sonar: sonar
+                        sonar: root.sonarController
                         camera: cameraEthernet
                         onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
                         onCameraProtocolChanged: root.cameraProtocol = cameraProtocol

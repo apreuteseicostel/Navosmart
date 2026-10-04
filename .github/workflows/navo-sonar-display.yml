@@ -2,9 +2,9 @@ name: Sonar display regression and performance
 on:
   push:
     branches: [main, 'fix/**', feature/kogger-native-dataset-adapter-20261002]
-    paths: ['custom/qml/NavoSonarPro.qml', 'custom/qml/NavoBathymetryHDOverlay.qml', 'tests/sonar-performance/**', '.github/workflows/navo-sonar-display.yml']
+    paths: ['custom/qml/NavoDashboard.qml', 'custom/qml/NavoSonarFullScreen.qml', 'custom/qml/NavoSonarPro.qml', 'custom/qml/NavoBathymetryHDOverlay.qml', 'tests/sonar-performance/**', '.github/workflows/navo-sonar-display.yml']
   pull_request:
-    paths: ['custom/qml/NavoSonarPro.qml', 'custom/qml/NavoBathymetryHDOverlay.qml', 'tests/sonar-performance/**', '.github/workflows/navo-sonar-display.yml']
+    paths: ['custom/qml/NavoDashboard.qml', 'custom/qml/NavoSonarFullScreen.qml', 'custom/qml/NavoSonarPro.qml', 'custom/qml/NavoBathymetryHDOverlay.qml', 'tests/sonar-performance/**', '.github/workflows/navo-sonar-display.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -20,6 +20,8 @@ jobs:
         run: cmake -S tests/sonar-performance -B /tmp/navo-sonar-display && cmake --build /tmp/navo-sonar-display -j2
       - name: Verify peak preservation and measure full-history paint
         run: set -o pipefail; /tmp/navo-sonar-display/navo-sonar-performance "$PWD/custom/qml/NavoSonarPro.qml" "$PWD/tests/sonar-performance/mock-imports" | tee sonar-performance.txt
+      - name: Verify Dashboard bindings and basic Sonar Popup
+        run: /tmp/navo-sonar-display/navo-page-wiring "$PWD/custom/qml/NavoDashboard.qml" "$PWD/tests/sonar-performance/mock-imports"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -27,3 +29,4 @@ jobs:
           path: |
             sonar-performance.txt
             sonar-performance.png
+            sonar-basic-popup.png

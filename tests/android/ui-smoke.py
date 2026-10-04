@@ -10,18 +10,26 @@ def snapshot():
  xml=adb('shell','cat','/sdcard/navo-ui.xml')
  Path('build/navo-ui.xml').write_bytes(xml)
  return ET.fromstring(xml).iter('node')
-def locate(name):
+def locate(name,navigation=False):
  nodes=list(snapshot());matches=[]
+ heights=[]
+ for node in nodes:
+  if node.get("resource-id", "").endswith(".NavButton"):
+   b=list(map(int,re.findall(r"-?\d+",node.get("bounds",""))))
+   if len(b)==4 and b[3]>b[1]:heights.append(b[3]-b[1])
+ normal_height=sorted(heights)[len(heights)//2] if heights else 0
  for node in nodes:
   if name not in [node.get('text'),node.get('content-desc')]:continue
+  if navigation and not node.get('resource-id','').endswith('.NavButton'):continue
   b=list(map(int,re.findall(r'-?\d+',node.get('bounds',''))))
+  if navigation and len(b)==4 and b[3]-b[1]<normal_height*.8:continue
   if len(b)==4 and b[0]>=0 and b[1]>=0 and b[2]>b[0] and b[3]>b[1]:matches.append((node.get('clickable')=='true',b))
  if matches:
   _,b=max(matches,key=lambda m:m[0]);return ((b[0]+b[2])//2,(b[1]+b[3])//2)
  return None
 def click(name,scroll=False):
  for n in range(8):
-  pos=locate(name)
+  pos=locate(name,scroll)
   if pos:
    adb('shell','input','tap',str(pos[0]),str(pos[1]));time.sleep(1.2);return
   if not scroll:break
