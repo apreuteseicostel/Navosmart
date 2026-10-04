@@ -134,6 +134,7 @@ QtObject {
         checkpoint("area"); status("Area Scan pregătit • "+areaScan.laneCount()+" culoare"); return pts
     }
     function prepareMission(resumeOnly) {
+        if(readOnlyReplay) { status("Replay activ: pregătirea sau reluarea unei misiuni live este blocată"); return [] }
         if(!areaScan) return []
         var boat=vehicle && vehicle.coordinate && vehicle.coordinate.isValid ? vehicle.coordinate : null
         var route=resumeOnly ? areaScan.resumeRoute(boat) : areaScan.generatedPoints
