@@ -238,4 +238,19 @@ test('Replay point saves cannot write into the currently active live lake',()=>{
  const c=context('NavoDashboard.qml',{sonar:{replayMode:true},scanCoordinator:{lakeId:'live-lake'}});
  assert.equal(c.requireActiveLakeForPointSave(),false);c.sonar.replayMode=false;assert.equal(c.requireActiveLakeForPointSave(),true);
 });
+test('Recorded replay refuses live geometry changes and new navigation or mission starts',()=>{
+ const writes=[];const c=context('NavoScanCoordinator.qml',{readOnlyReplay:true,status:noop,areaScan:{generatedPoints:[1]},sonarMapping:{rawSamples:[1]},state:'IDLE'});
+ c.checkpoint=()=>{writes.push(1);return true};
+ assert.equal(c.prepareRectangle(coord(52,0),coord(52.001,.001)).length,0);
+ assert.equal(c.preparePolygon([coord(52,0),coord(52.001,0),coord(52.001,.001)]).length,0);
+ assert.deepEqual(c.areaScan.generatedPoints,[1]);assert.equal(writes.length,0);
+ let commands=0;const d=context('NavoDashboard.qml',{sonarController:{replayMode:true},vehicle:{guidedModeGotoLocation(){commands++}},lastNavigationStatus:''});
+ assert.equal(d.navigateToCoordinate(coord(52,0)),false);assert.equal(d.startMission(),false);assert.equal(d.startUploadedMission(),false);assert.equal(commands,0);
+ d.sonarController.replayMode=false;assert.equal(d.allowLiveAction(),true);
+});
+test('Recorded replay Map refuses area drawing and its deferred commit',()=>{
+ const c=context('NavoMap.qml',{recordedReplay:true,areaDrawMode:'polygon',areaDraftPoints:[1,2,3],areaPolygonRequested(){throw Error('Replay geometry reached live session')}});
+ assert.equal(c.beginAreaRectangle(),false);assert.equal(c.beginAreaPolygon(),false);assert.equal(c.finishAreaDrawing(),false);
+ assert.equal(c.areaDrawMode,'polygon');assert.deepEqual(c.areaDraftPoints,[1,2,3]);
+});
 console.log(`${passed} regression scenarios passed`);

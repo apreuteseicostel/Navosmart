@@ -10,6 +10,7 @@ QtObject {
     property var fishingSpots
     property var fishStore
     property var vehicle
+    property bool readOnlyReplay: false
     property string lakeId: ""
     property string lakeName: ""
     onLakeIdChanged: {
@@ -102,7 +103,7 @@ QtObject {
     }
 
     property Timer autosave: Timer {
-        interval: 5000; repeat: true; running: root.lakeId.length>0
+        interval: 5000; repeat: true; running: root.lakeId.length>0 && !root.readOnlyReplay
         onTriggered: root.checkpoint("autosave")
     }
 
@@ -116,6 +117,7 @@ QtObject {
     }
 
     function preparePolygon(polygon) {
+        if(readOnlyReplay) { status("Replay activ: geometria bălții live nu poate fi modificată"); return [] }
         if(!areaScan || state==="SCANNING") return []
         var pts=areaScan.generatePolygon(polygon); areaPoints=pts
         state=pts.length ? "AREA_DEFINED" : "IDLE"
@@ -123,6 +125,7 @@ QtObject {
         checkpoint("area-polygon"); status("Area Scan poligon pregătit • "+areaScan.laneCount()+" culoare"); return pts
     }
     function prepareRectangle(cornerA, cornerB) {
+        if(readOnlyReplay) { status("Replay activ: geometria bălții live nu poate fi modificată"); return [] }
         if(!areaScan || state==="SCANNING") return []
         var boat=vehicle && vehicle.coordinate && vehicle.coordinate.isValid ? vehicle.coordinate : null
         var pts=areaScan.generateRectangle(cornerA,cornerB,boat); areaPoints=pts
