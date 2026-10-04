@@ -5,7 +5,7 @@ import QtQuick.Controls
 
 import QGroundControl
 import QGroundControl.Controllers
-import QGroundControl.FlightDisplay
+import QGroundControl.FlightMap
 
 Item {
     id: root
@@ -156,25 +156,9 @@ Item {
         updateInterval: 2000
     }
 
-    FlyViewMap {
+    FlightMap {
         id: liveMap
         anchors.fill: parent
-        planMasterController: root.planController
-        rightPanelWidth: 0
-        toolInsets: QtObject {
-            readonly property real leftEdgeTopInset: 0
-            readonly property real leftEdgeCenterInset: 0
-            readonly property real leftEdgeBottomInset: 0
-            readonly property real rightEdgeTopInset: 0
-            readonly property real rightEdgeCenterInset: 0
-            readonly property real rightEdgeBottomInset: 0
-            readonly property real topEdgeLeftInset: 0
-            readonly property real topEdgeCenterInset: 0
-            readonly property real topEdgeRightInset: 0
-            readonly property real bottomEdgeLeftInset: 0
-            readonly property real bottomEdgeCenterInset: 0
-            readonly property real bottomEdgeRightInset: 0
-        }
         bearing: root.headingUp && isFinite(root.boatHeadingDeg) ? root.boatHeadingDeg : 0
         Behavior on bearing { NumberAnimation { duration: 250 } }
     }
