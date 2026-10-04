@@ -10,7 +10,7 @@ uart:begin(57600)
 uart:set_flow_control(0)
 
 local line = ""
-local last_frame_ms = 0
+local dropping_line = false
 local mavlink_msgs = require("MAVLink/mavlink_msgs")
 local COMMAND_LONG_ID = mavlink_msgs.get_msgid("COMMAND_LONG")
 local msg_map = {}; msg_map[COMMAND_LONG_ID] = "COMMAND_LONG"
@@ -44,11 +44,21 @@ end
 local function parse(s)
     local payload,hex=s:match("^%$(.-)%*([0-9A-Fa-f][0-9A-Fa-f])$")
     if not payload or xor_checksum(payload) ~= tonumber(hex,16) then return false end
+    if payload:find(",,",1,true) or payload:sub(-1)=="," then return false end
     local f={}
     for v in payload:gmatch("[^,]+") do f[#f+1]=v end
     if #f ~= 13 or f[1] ~= "NAVO" or f[2] ~= "1" then return false end
-    for i=3,13 do if tonumber(f[i]) == nil then return false end end
-    publish(f); last_frame_ms=millis():toint(); return true
+    local function integer(value,minimum,maximum)
+        return value and value==value and value>=minimum and value<=maximum and value%1==0
+    end
+    local v={}
+    for i=3,13 do v[i]=tonumber(f[i]); if not v[i] or v[i]~=v[i] then return false end end
+    if not integer(v[3],0,4294967295) or not integer(v[4],0,60000) then return false end
+    if v[5]~=-32768 and not integer(v[5],-500,1500) then return false end
+    for i=6,9 do if not integer(v[i],0,1) then return false end end
+    for i=10,12 do if v[i]~=0 and not integer(v[i],900,2100) then return false end end
+    if not integer(v[13],0,15) then return false end
+    publish(f); return true
 end
 
 local function send_nano_command(target, op)
@@ -61,8 +71,8 @@ local function handle_gcs_commands()
     if not msg then return end
     local p=mavlink_msgs.decode(msg,msg_map)
     if not p or p.msgid~=COMMAND_LONG_ID or p.command~=MAV_CMD_WAYPOINT_USER_1 then return end
-    local target=math.floor(p.param1+0.5)==1 and "HEAD" or (math.floor(p.param1+0.5)==2 and "POS" or nil)
-    local mode=math.floor(p.param2+0.5)
+    local target=p.param1==1 and "HEAD" or (p.param1==2 and "POS" or nil)
+    local mode=p.param2
     local op=mode==0 and "OFF" or (mode==1 and "ON" or (mode==2 and "TOGGLE" or nil))
     local result=3 -- MAV_RESULT_UNSUPPORTED
     if target and op then send_nano_command(target,op); result=0 end
@@ -72,14 +82,15 @@ end
 
 local function update()
     handle_gcs_commands()
-    local n=uart:available()
+    local n=math.min(uart:available(),256)
     while n>0 do
         local b=uart:read()
         if b < 0 then break end
         if b==10 then
-            if #line>0 then parse(line); line="" end
-        elseif b~=13 then
-            if #line<180 then line=line..string.char(b) else line="" end
+            if not dropping_line and #line>0 then parse(line) end
+            line=""; dropping_line=false
+        elseif b~=13 and not dropping_line then
+            if #line<180 then line=line..string.char(b) else line=""; dropping_line=true end
         end
         n=n-1
     end
