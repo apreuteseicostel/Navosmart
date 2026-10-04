@@ -264,6 +264,10 @@ static void qmlBathymetryPipeline(const QString& directory,const QVariantList& s
     QSettings::setDefaultFormat(QSettings::IniFormat);QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,settings.path());
     QString replayLakeId,liveLakeId;
     const QVariantMap liveState{{"state","PAUSED"},{"sonarSamples",QVariantList{mapped.first()}}};
+    // Persistence uses JSON: optional NaN/undefined QML fields become null.
+    // Compare the complete stored representation, rather than QVariant types
+    // or NaN equality, while retaining every field in the isolation check.
+    const auto storedLiveState=QJsonObject::fromVariantMap(liveState);
     {
         NavoPersistence persistence;
         liveLakeId=persistence.saveLake({{"name","Live lake"}});
@@ -271,7 +275,7 @@ static void qmlBathymetryPipeline(const QString& directory,const QVariantList& s
         require(persistence.saveReplayLake(" ",mapped,cells).isEmpty(),"unnamed replay should not be saved");
         replayLakeId=persistence.saveReplayLake("Recorded DownView",mapped,cells);
         require(!replayLakeId.isEmpty() && replayLakeId!=liveLakeId,"recording must have a separate lake identity");
-        require(persistence.lakeState(liveLakeId)==liveState,"replay save changed live lake");
+        require(QJsonObject::fromVariantMap(persistence.lakeState(liveLakeId))==storedLiveState,"replay save changed live lake");
         for(const auto& sample:mapped)persistence.addSonarSample(sample.toMap());
     }
     NavoPersistence restored;const auto loaded=restored.sonarSamples();require(loaded.size()==mapped.size(),"persistence did not restore recorded sample count");
@@ -280,7 +284,7 @@ static void qmlBathymetryPipeline(const QString& directory,const QVariantList& s
     require(replayState.value("sonarSamples").toList().size()==mapped.size(),"recorded lake samples did not reload");
     require(replayState.value("bathymetryCells").toList().size()==cells.size(),"recorded lake cells did not reload");
     require(replayState.value("missionLanes").toList().isEmpty(),"recording acquired an autopilot mission");
-    require(restored.lakeState(liveLakeId)==liveState,"reloaded replay changed live lake");
+    require(QJsonObject::fromVariantMap(restored.lakeState(liveLakeId))==storedLiveState,"reloaded replay changed live lake");
     const auto lakeSamples=replayState.value("sonarSamples").toList();
     for(int i=0;i<loaded.size();++i){
         const auto a=mapped[i].toMap(),b=loaded[i].toMap(),c=lakeSamples[i].toMap();
