@@ -22,7 +22,7 @@ Item {
 
     NavoBathymetryHDModel {
         id: hdModel
-        sourceCells: root.cells
+        sourceCells: root.enabled ? root.cells : []
         targetResolution: root.resolution
         maxInterpolationDistanceM: root.interpolationDistanceM
         contourStepM: root.contourStepM

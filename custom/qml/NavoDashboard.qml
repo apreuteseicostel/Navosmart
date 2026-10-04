@@ -15,6 +15,7 @@ import NavoSmart.Backend 1.0
 
 Item {
     id: root
+    readonly property string activePageName: ["HARTA","SONAR","AREA SCAN","PUNCTE PESCUIT","BALȚILE MELE","CAMERA","SETARI","3D","NĂDIRE","SIGURANȚĂ","SONAR PRO"][activePage] || "HARTA"
     implicitWidth: 1280
     implicitHeight: 720
 
@@ -702,6 +703,8 @@ Item {
         z: root.activePage === 10 ? 1000 : 0
         color: root.bg
         Loader {
+            Accessible.role: Accessible.Pane
+            Accessible.name: status === Loader.Ready ? "Pagina " + root.activePageName : "Se încarcă pagina"
             anchors.fill: parent; anchors.margins: root.activePage === 10 ? 0 : 10
             sourceComponent: root.activePage === 0 ? mapPage :
                              root.activePage === 1 ? sonarPage :
@@ -1611,6 +1614,7 @@ Item {
     }
 
     component NavButton: Button {
+        Accessible.name: text
         property bool active: false
         property url iconSource: ""
         ToolTip.visible: hovered

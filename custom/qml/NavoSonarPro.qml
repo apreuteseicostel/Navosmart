@@ -28,6 +28,44 @@ Rectangle {
     property bool menuOpen: false
     property bool paused: false
     property var history: []
+    // Cache only display pixels; retain all original samples for processing/save.
+    // Bounded cache also works with QVariant-backed QML arrays.
+    property var rasterCache: []
+    function displayRaster(entry, pixelHeight) {
+        var rows = Math.max(1, Math.ceil(pixelHeight))
+        var col = entry.samples
+        var key = [rows, scaleStart, scaleRange, entry.offset, entry.range,
+                   gain, noiseFloor, noiseFilterEnabled].join(":")
+        var cache = rasterCache, slot = -1, cached = null
+        for (var c = 0; c < cache.length; ++c)
+            if (cache[c].samples === col) { slot = c; cached = cache[c]; break }
+        if (cached && cached.key === key) return cached
+        var strengths = new Float32Array(rows), bins = new Uint8Array(rows)
+        if (scaleRange > 0 && entry.range > 0 && col.length) {
+            var step = entry.range / col.length / scaleRange * rows
+            var top = (entry.offset - scaleStart) / scaleRange * rows
+            for (var i = 0; i < col.length; ++i) {
+                var first = Math.max(0, Math.floor(top + i * step))
+                var end = Math.min(rows, Math.ceil(top + (i + 1) * step))
+                if (first >= end) continue
+                var value = sampleStrength(col, i)
+                if (!isFinite(value) || value <= 0) continue
+                for (var y = first; y < end; ++y)
+                    if (value > strengths[y]) strengths[y] = value
+            }
+            for (var y = 0; y < rows; ++y) {
+                var v = strengths[y]
+                bins[y] = v <= 0 ? 0 : v > .72 ? 4 : v > .48 ? 3 : v > .24 ? 2 : 1
+            }
+        }
+        cached = {samples:col, key:key, strengths:strengths, bins:bins}
+        if (slot >= 0) cache[slot] = cached
+        else {
+            cache.push(cached)
+            if (cache.length > Math.max(1, historyColumns)) cache.shift()
+        }
+        return cached
+    }
     // Georeferenced input queue for the native KoggerApp Dataset adapter.
     // Retain raw CHART bytes and their metadata; never feed display-filtered pixels
     // to bottom tracking, mosaic, surface or isobath processing.
@@ -105,7 +143,7 @@ Rectangle {
     }
     onSamplesChanged: if (!chartSource) Qt.callLater(pushHistory)
     Component.onCompleted: Qt.callLater(pushHistory)
-    onHistoryChanged: repaint()
+    onHistoryChanged: { if (!history.length) rasterCache = []; repaint() }
     onGainChanged: repaint()
     onNoiseFloorChanged: repaint()
     onNoiseFilterEnabledChanged: repaint()
@@ -139,6 +177,7 @@ Rectangle {
             clip: true
             Canvas {
                 id: echogram
+                objectName: "sonarProEchogram"
                 anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
                 anchors.right: echoColumn.left
                 onWidthChanged: requestPaint()
@@ -151,13 +190,18 @@ Rectangle {
                         var entry=root.history[x], col=entry.samples
                         if (!root.scaleRange || !isFinite(entry.range) || entry.range<=0) continue
                         var px=width-(root.history.length-x)*cw
-                        for (var y=0; y<col.length; y++) {
-                            var v=root.sampleStrength(col, y)
-                            if (!isFinite(v) || v<=0) continue
-                            var py=(entry.offset+y*entry.range/col.length-root.scaleStart)/root.scaleRange*height
-                            var ph=entry.range/col.length/root.scaleRange*height
-                            ctx.fillStyle=root.echoColor(v)
-                            ctx.fillRect(px,py,Math.max(1,cw+.5),Math.max(1,ph+.5))
+                        var bins = root.displayRaster(entry, height).bins
+                        var palette = root.dayPalette
+                            ? ["", "#b7d8e8", "#136d9b", "#e97820", "#a52026"]
+                            : ["", "#105caa", "#1ccde1", "#f6da46", "#f44b2e"]
+                        for (var y=0; y<bins.length;) {
+                            var shade=bins[y], end=y+1
+                            while (end<bins.length && bins[end]===shade) ++end
+                            if (shade) {
+                                ctx.fillStyle=palette[shade]
+                                ctx.fillRect(px,y,Math.max(1,cw+.5),end-y)
+                            }
+                            y=end
                         }
                     }
                     if(root.showBottomTrack && root.scaleRange>0) {
@@ -201,12 +245,12 @@ Rectangle {
                         var ctx = getContext("2d")
                         ctx.reset()
                         if (!root.displayedColumn || !root.scaleRange) return
-                        var col = root.displayedColumn.samples
-                        for (var i = 0; i < col.length; ++i) {
-                            var v = root.sampleStrength(col, i)
+                        var raster = root.displayRaster(root.displayedColumn, height)
+                        for (var i = 0; i < raster.strengths.length; ++i) {
+                            var v = raster.strengths[i]
                             if (v <= 0) continue
                             ctx.fillStyle = root.echoColor(v)
-                            ctx.fillRect(0, i * height / col.length, v * width, Math.max(1, height / col.length))
+                            ctx.fillRect(0, i, v * width, 1)
                         }
                     }
                 }
