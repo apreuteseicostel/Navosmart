@@ -1,0 +1,3 @@
+module QtLocation
+MapPolyline 1.0 MapPolyline.qml
+MapQuickItem 1.0 MapQuickItem.qml

@@ -11,6 +11,7 @@ on:
       - 'custom/kogger_native/**'
       - 'third_party/KoggerApp/**'
       - 'tests/kogger-replay/**'
+      - 'tests/sonar-performance/**'
       - '.github/workflows/kogger-replay.yml'
   workflow_dispatch:
 concurrency:
@@ -28,6 +29,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y qt6-base-dev qt6-declarative-dev qt6-svg-dev qml6-module-qtpositioning qml6-module-qtqml qml6-module-qtqml-models qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-dialogs qml6-module-qtquick-layouts qml6-module-qtquick-window qml6-module-qtquick-templates qml6-module-qtqml-workerscript
       - name: Build actual NAVO decoder
         run: cmake -S tests/kogger-replay -B /tmp/navo-replay && cmake --build /tmp/navo-replay -j2
+      - name: Build Sonar display benchmark
+        run: cmake -S tests/sonar-performance -B /tmp/navo-sonar-performance && cmake --build /tmp/navo-sonar-performance -j2
       - name: Package runnable Qt test environments
         run: python3 tests/kogger-replay/bundle-runtime.py
       - uses: actions/upload-artifact@v4
@@ -53,12 +56,15 @@ jobs:
 
       - name: Render actual Sonar PRO component from recorded columns
         run: /tmp/navo-replay/navo-sonar-ui-replay custom/qml/NavoSonarPro.qml tests/kogger-replay/mock-imports kogger-columns.json
+      - name: Benchmark and verify full-resolution display cache
+        run: /tmp/navo-sonar-performance/navo-sonar-performance "$PWD/custom/qml/NavoSonarPro.qml" "$PWD/tests/kogger-replay/mock-imports" "$PWD/kogger-columns.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: kogger-recorded-evidence
           path: |
             kogger-sonar-pro-*.png
+            sonar-performance.png
             kogger-bottom-track.csv
             kogger-bathymetry-cells.csv
           if-no-files-found: ignore
