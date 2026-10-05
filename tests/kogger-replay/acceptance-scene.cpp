@@ -5,6 +5,7 @@
 #include <memory>
 #include <iostream>
 int main(int argc,char** argv) {
+    qputenv("QT_QPA_PLATFORM","offscreen");qputenv("QT_QUICK_BACKEND","software");
     QGuiApplication app(argc,argv);NavoAndroidAcceptance backend;
     QQuickWindow window;QQuickItem dashboard(window.contentItem());dashboard.setSize({640,480});
     if(backend.claim(&dashboard))return 1;
