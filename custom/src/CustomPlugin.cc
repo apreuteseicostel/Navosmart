@@ -11,6 +11,8 @@
 #include "NavoBathymetryMesh.h"
 #include "NavoBathymetryGeometry.h"
 #include "NavoTrack3DGeometry.h"
+#include "NavoAndroidAcceptance.h"
+#include <QQmlContext>
 #include "AppSettings.h"
 #include "UnitsSettings.h"
 #include <QSettings>
@@ -62,6 +64,11 @@ bool CustomPlugin::adjustSettingMetaData(const QString& settingsGroup, FactMetaD
 }
 QQmlApplicationEngine* CustomPlugin::createQmlApplicationEngine(QObject* parent){
  _engine=QGCCorePlugin::createQmlApplicationEngine(parent);
+#ifdef NAVO_ANDROID_ACCEPTANCE
+ _engine->rootContext()->setContextProperty("navoAcceptance",new NavoAndroidAcceptance(_engine));
+#else
+ _engine->rootContext()->setContextProperty("navoAcceptance",QVariant::fromValue<QObject*>(nullptr));
+#endif
  _engine->addImportPath("qrc:/qml");
  _selector=new CustomOverrideInterceptor();
  _engine->addUrlInterceptor(_selector);

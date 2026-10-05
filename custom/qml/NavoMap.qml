@@ -9,6 +9,7 @@ import QGroundControl.FlightMap
 
 Item {
     id: root
+    objectName:"navoMap"
 
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
     property var planController

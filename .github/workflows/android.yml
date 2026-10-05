@@ -149,7 +149,7 @@ jobs:
         run: |
           mkdir -p build-x86
           "${{ runner.temp }}/Qt/6.8.3/android_x86_64/bin/qt-cmake" -S qgc -B build-x86 -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release -DQT_ANDROID_ABIS=x86_64 -DQT_ANDROID_BUILD_ALL_ABIS=OFF \
+            -DCMAKE_BUILD_TYPE=Release -DNAVO_ANDROID_ACCEPTANCE=ON -DQT_ANDROID_ABIS=x86_64 -DQT_ANDROID_BUILD_ALL_ABIS=OFF \
             -DQT_HOST_PATH="${{ runner.temp }}/Qt/6.8.3/gcc_64" -DQT_ANDROID_SIGN_APK=OFF -DQGC_STABLE_BUILD=ON -DQGC_USE_CACHE=ON
       - name: Build x86_64 smoke-test APK
         run: cmake --build build-x86 --target all --config Release --parallel
@@ -266,6 +266,11 @@ jobs:
 
           NAVO_UI_STATUS=0
           python3 tests/android/ui-smoke.py || NAVO_UI_STATUS=$?
+          if [ "$NAVO_UI_STATUS" -eq 0 ]; then
+            curl --fail --location --retry 3 --max-time 180 https://kogger.tech/wp-content/uploads/00028_DownView.klf -o /tmp/00028_DownView.klf
+            python3 tests/android/functional-acceptance.py "$PACKAGE" "$ACTIVITY" /tmp/00028_DownView.klf || NAVO_UI_STATUS=$?
+            adb -s emulator-5554 shell am start -W -n "$PACKAGE/$ACTIVITY"
+          fi
           adb -s emulator-5554 shell dumpsys window windows > build/window.txt || true
           adb -s emulator-5554 shell dumpsys activity activities > build/activity.txt || true
           adb -s emulator-5554 logcat -d > build/navo-logcat.txt || true
@@ -294,6 +299,7 @@ jobs:
             build/navo-logcat.txt
             build/navo-screenshot.png
             build/screenshots/*.png
+            build/acceptance/**
           if-no-files-found: warn
       - name: Upload installable APK
         if: always()

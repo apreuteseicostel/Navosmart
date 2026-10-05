@@ -4,6 +4,7 @@ import QtPositioning
 
 Item {
     id: root
+    objectName:"navoNativeSurfaceOverlay"
     required property var map
     property var surface: ({})
     property bool active: false

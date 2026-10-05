@@ -56,6 +56,17 @@ Item {
     property alias sonarMappingController: sonarMapping
     property alias hopperBridgeController: hopperBridge
     property alias sonarController: sonar
+    property alias replayMappingController: replayMapping
+    function saveRecordedReplayLake(name) {
+        replayBathymetryModel.rebuild(replayMapping.rawSamples)
+        var id=persistence.saveReplayLake(name,replayMapping.rawSamples,replayBathymetryModel.cells,sonar.nativeSurfaceMesh)
+        root.replaySaveStatus=id ? "Salvat în Bălțile mele: "+name : "Salvarea a eșuat; sunt necesare probe GPS și fund valid."
+        return id
+    }
+    Loader {
+        active: typeof navoAcceptance!=="undefined" && navoAcceptance!==null && navoAcceptance.active
+        sourceComponent: Component { NavoAndroidAcceptance { dashboard:root; backend:navoAcceptance } }
+    }
     Connections {
         target: sonar.nativeBridge
         function onNativeSurfaceChanged() {
@@ -911,9 +922,7 @@ Item {
             replaySaveStatus: root.replaySaveStatus
             replaySampleCount: replayMapping.rawSamples.length
             onSaveReplayRequested: function(name) {
-                replayBathymetryModel.rebuild(replayMapping.rawSamples)
-                var id=persistence.saveReplayLake(name,replayMapping.rawSamples,replayBathymetryModel.cells,sonar.nativeSurfaceMesh)
-                root.replaySaveStatus=id ? "Salvat în Bălțile mele: "+name : "Salvarea a eșuat; sunt necesare probe GPS și fund valid."
+                root.saveRecordedReplayLake(name)
             }
             onClosed: root.activePage = 0
             connected: sonar.connected || sonar.replayMode

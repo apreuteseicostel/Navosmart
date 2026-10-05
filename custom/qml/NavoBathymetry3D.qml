@@ -43,7 +43,7 @@ Item {
  function labelPoint(o,kind){if(kind==="waypoint")return localPoint(o.lat!==undefined?o.lat:o.coordinate.latitude,o.lon!==undefined?o.lon:o.coordinate.longitude,Math.max(0,bottomDepth(o.lat!==undefined?o.lat:o.coordinate.latitude,o.lon!==undefined?o.lon:o.coordinate.longitude)-.7));return localPoint(o.lat,o.lon,Math.max(0,(o.depth!==null&&o.depth!==undefined?o.depth:bottomDepth(o.lat,o.lon))-.8))}
  function select(kind,obj){selectedKind=kind;selectedObject=obj;selectedPoint=null}
  function fmtTime(v){if(!v)return "--";return new Date(v).toLocaleString(Qt.locale(),"dd MMM yyyy HH:mm:ss")}
- NavoBathymetryMesh{id:meshEngine}
+ NavoBathymetryMesh{id:meshEngine;objectName:"navoBathymetryMesh"}
  Rectangle{anchors.fill:parent;color:"#071019"}
  View3D{id:view;anchors.fill:parent;camera:camera;environment:SceneEnvironment{clearColor:"#071019";backgroundMode:SceneEnvironment.Color;antialiasingMode:SceneEnvironment.MSAA;antialiasingQuality:SceneEnvironment.High}
   PerspectiveCamera{id:camera;position:Qt.vector3d(root.panOffset.x,65+root.panOffset.y,root.cameraDistance);eulerRotation.x:root.pitch;eulerRotation.y:root.yaw;clipNear:.1;clipFar:5000}

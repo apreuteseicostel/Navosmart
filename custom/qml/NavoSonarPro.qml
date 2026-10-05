@@ -8,6 +8,7 @@ import QGroundControl.FlightMap
 
 Rectangle {
     id: root
+    objectName:"navoSonarPro"
     property int chartResolution: 0
     property int chartAbsoluteOffset: 0
     property int chartVersion: 0

@@ -1,5 +1,10 @@
 add_compile_definitions(NAVO_KOGGER_NATIVE_DATASET)
 message(STATUS "NAVO SMART: loading custom QGroundControl overlay")
+option(NAVO_ANDROID_ACCEPTANCE "Enable CI-only installed functional acceptance driver" OFF)
+if(NAVO_ANDROID_ACCEPTANCE)
+    add_compile_definitions(NAVO_ANDROID_ACCEPTANCE)
+    set_property(DIRECTORY ${CMAKE_SOURCE_DIR} APPEND PROPERTY COMPILE_DEFINITIONS NAVO_ANDROID_ACCEPTANCE)
+endif()
 
 set_property(DIRECTORY ${CMAKE_SOURCE_DIR} APPEND PROPERTY COMPILE_DEFINITIONS
     QGC_CUSTOM_BUILD
@@ -21,6 +26,7 @@ qt_add_qml_module(NavoSmartModule
         QtQuick3D
     QML_FILES
         qml/NavoDashboard.qml
+        qml/NavoAndroidAcceptance.qml
         qml/NavoMap.qml
         qml/NavoTelemetryCard.qml
         qml/NavoModeButton.qml
@@ -129,6 +135,7 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/KoggerApp/src/mosaic_index_provider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoAndroidAcceptance.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerReplay.cc
