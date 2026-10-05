@@ -6,6 +6,7 @@ import QtPositioning
 import NavoSmart.Backend 1.0
 Item {
  id:root
+ objectName:"navoBathymetry3D"
  property var samples:[]; property var boatTrack:[]; property var waypoints:[]; property var fishingSpots:[]; property var fishDetections:[]
  property real gridSizeM:2; property real maxGapM:6; property real verticalExaggeration:2; property real yaw:-35; property real pitch:-48; property real cameraDistance:180; property point panOffset:Qt.point(0,0)
  property var selectedPoint:null; property var selectedObject:null; property string selectedKind:""

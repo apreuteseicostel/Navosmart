@@ -52,9 +52,13 @@ public:
         return output.write(bytes)==bytes.size() && output.commit();
     }
     Q_INVOKABLE QVariantMap inspect(QObject* dashboard) const {
-        QVariantMap result{{"nativePaintedTriangles",0},{"mesh3dVertices",0},{"mesh3dTriangles",0},{"sonarHistoryColumns",0}};
+        QVariantMap result{{"nativePaintedTriangles",0},{"mesh3dVisible",false},{"mesh3dVertices",0},{"mesh3dTriangles",0},{"sonarHistoryColumns",0}};
         if(!dashboard)return result;
         for(auto* object:sceneObjects(dashboard)) {
+            if(object->objectName()=="navoBathymetry3D") {
+                auto* item=qobject_cast<QQuickItem*>(object);
+                result["mesh3dVisible"]=item && item->isVisible() && item->window() && item->width()>0 && item->height()>0;
+            }
             if(object->objectName()=="navoNativeSurfaceOverlay" && object->property("visible").toBool()) {
                 result["nativePaintedTriangles"]=object->property("renderedTriangles");
                 result["nativePaintMs"]=object->property("lastPaintMs");

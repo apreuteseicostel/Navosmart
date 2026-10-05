@@ -32,6 +32,8 @@ Item {
         state.nativeChartRecords=sonar.nativeChartRecords;state.nativeChartRejected=sonar.nativeChartRejected
         state.bathymetryTileCount=sonar.bathymetryTileCount
         state.replayMappingSamples=dashboard.replayMappingController.rawSamples.length
+        state.restoredLakeSamples=dashboard.sonarMappingController.rawSamples.length
+        state.activePage=dashboard.activePage
         state.nativeSurfaceIndices=sonar.nativeSurfaceMesh.indices ? sonar.nativeSurfaceMesh.indices.length : 0
         for(var key in evidence)state[key]=evidence[key]
         var metrics=backend.inspect(dashboard)
@@ -126,7 +128,9 @@ Item {
         }
         if(stage==="3d") {
             var mesh=backend.inspect(dashboard)
-            if(mesh.mesh3dVertices<3 || mesh.mesh3dTriangles<1)return
+            require(dashboard.activePage===7,"3D page is not selected")
+            // Wait for the visible Quick3D page to settle before screenshot readiness.
+            if(Date.now()-entered<4000 || !mesh.mesh3dVisible || mesh.mesh3dVertices<3 || mesh.mesh3dTriangles<1)return
             if(!evidence.sceneReady){evidence.sceneReady=true;entered=Date.now();publish("running")}
             if(Date.now()-entered<4000)return
             evidence.verifiedMesh3dVertices=mesh.mesh3dVertices;evidence.verifiedMesh3dTriangles=mesh.mesh3dTriangles

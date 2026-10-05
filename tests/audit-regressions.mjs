@@ -327,4 +327,12 @@ test('Installed acceptance keeps exact persisted and restored counts after resta
  assert.equal(c.evidence.savedSamples,14486);assert.equal(c.evidence.restoredSamples,14485);
  saved.sonarSamples=source.slice(1);assert.throws(()=>c.step(),/Persisted sonar sample count differs/);
 });
+test('Installed 3D evidence waits for visible page and rendering settlement',()=>{
+ const c=context('NavoAndroidAcceptance.qml',{stage:'3d',entered:Date.now(),started:Date.now(),evidence:{sceneReady:false},
+  backend:{inspect:()=>({mesh3dVisible:true,mesh3dVertices:799,mesh3dTriangles:802})},
+  dashboard:{vehicle:null,activePage:7},publish:noop});
+ c.publish=noop;c.step();assert.equal(c.evidence.sceneReady,false);
+ c.entered=Date.now()-5000;c.step();assert.equal(c.evidence.sceneReady,true);
+ c.dashboard.activePage=0;assert.throws(()=>c.step(),/3D page is not selected/);
+});
 console.log(`${passed} regression scenarios passed`);
