@@ -467,6 +467,13 @@ Item {
         }
     }
 
+    NavoG20Controller {
+        id: g20Controller
+        vehicle: root.vehicle
+        inputAllowed: root.linkAlive && !root.sonarController.replayMode
+        onActionRequested: function(control, action) { root.dispatchG20Action(control, action) }
+    }
+
     function dispatchG20Action(control, action) {
         if(action==="NONE") return
         if(action==="CUVA_STANGA") { openHopper("stanga"); return }
@@ -1608,21 +1615,17 @@ Item {
                 ColumnLayout {
                     width: parent.width
                     spacing: root.responsiveGap
-                    NavoG20Settings {
-                        id: g20Settings
+                    Button {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: root.compactUi ? 430 : 360
-                        positionMode: lightSettings.positionMode
-                        onPositionModeRequested: function(mode) { root.setPositionLightMode(mode) }
-                        onActionRequested: function(control, action) { root.dispatchG20Action(control, action) }
-                        onZoomRequested: function(direction) {
-                            if (root.mapController && root.mapController.adjustZoom)
-                                root.mapController.adjustZoom(direction)
-                            else {
-                                root.activePage=0
-                                root.lastNavigationStatus=direction>0 ? "G20 • Zoom +" : "G20 • Zoom −"
-                            }
-                        }
+                        text: g20Advanced.visible ? "Închide Avansat • G20" : "Avansat • integrare G20"
+                        onClicked: g20Advanced.visible = !g20Advanced.visible
+                    }
+                    NavoG20Settings {
+                        id: g20Advanced
+                        visible: false
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: implicitHeight
+                        controller: g20Controller
                     }
                     NavoEthernetSettings {
                         id: ethernetSettings

@@ -69,6 +69,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoBoatStatus.qml
         qml/NavoHeadingCompass.qml
         qml/NavoG20Settings.qml
+        qml/NavoG20Controller.qml
     RESOURCES
         icons/map.svg
         icons/sonar.svg
