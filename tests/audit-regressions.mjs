@@ -335,4 +335,65 @@ test('Installed 3D evidence waits for visible page and rendering settlement',()=
  c.entered=Date.now()-5000;c.step();assert.equal(c.evidence.sceneReady,true);
  c.dashboard.activePage=0;assert.throws(()=>c.step(),/3D page is not selected/);
 });
+test('3D camera centres the terrain and GPS track and fits portrait and landscape',()=>{
+ const c=context('NavoBathymetry3D.qml',{meshEngine:{vertices:[{x:0,y:0,depth:1},{x:100,y:200,depth:10}]},boatTrack:[],verticalExaggeration:2,
+   width:960,height:540,Qt:{point:(x,y)=>({x,y})}});
+ c.sceneBounds=c.boundsForScene();assert.equal(c.sceneBounds.centerX,50);assert.equal(c.sceneBounds.centerY,-11);assert.equal(c.sceneBounds.centerZ,-100);
+ c.fitCamera();const wide=c.cameraDistance;assert(wide>c.sceneBounds.radius);assert(c.cameraFramed);
+ c.width=540;c.height=960;c.fitCamera();assert(c.cameraDistance>wide);
+ c.localPoint=()=>({x:400,y:0,z:300});c.boatTrack=[{lat:1,lon:2}];c.sceneBounds=c.boundsForScene();assert.equal(c.sceneBounds.centerX,200);assert.equal(c.sceneBounds.centerZ,50);
+ const source=fs.readFileSync(path.join(dir,'NavoBathymetry3D.qml'),'utf8');assert.match(source,/Node\{id:cameraPivot/);assert.match(source,/position:Qt\.vector3d\(0,0,root.cameraDistance\)/);
+});
+test('Energy guard is opt-in and rejects invalid route/battery and inadequate return reserve',()=>{
+ const c=context('NavoEnergyGuard.qml',{calibrated:false,reservePercent:25,consumptionPercentPerKm:12});
+ assert(c.canStart(NaN,NaN));c.calibrated=true;
+ for(const value of [NaN,Infinity,-1])assert.equal(c.canStart(value,100),false);
+ for(const value of [NaN,Infinity,-1,101])assert.equal(c.canStart(1000,value),false);
+ assert.equal(c.requiredPercent(2000),49);assert.equal(c.canStart(2000,48),false);assert(c.canStart(2000,49));
+ c.consumptionPercentPerKm=0;assert.equal(c.canStart(0,100),false);
+});
+test('Route energy includes approach, every corridor and return HOME',()=>{
+ const c=context('NavoDashboard.qml',{vehicle:{coordinate:coord(0,0),homePosition:coord(0,0)}});
+ const distance=c.routeDistanceWithReturn([coord(0,.001),coord(0,.002)]);assert(Math.abs(distance-445.28)<.001);
+ c.vehicle.homePosition={isValid:false};assert(Number.isNaN(c.routeDistanceWithReturn([coord(0,.001)])));
+});
+test('GPS anchor refuses unsupported commands and never overrides pilot mode changes',()=>{
+ const commands=[];const vehicle={coordinate:coord(52,0),vehicleLinkManager:{communicationLost:false},gps:{lock:{rawValue:3}},flightMode:'Guided',
+   guidedModeGotoLocation(c){commands.push(c)},pauseVehicle(){throw Error('Anchor should retain GUIDED rather than switch to HOLD')}};
+ const c=context('NavoDigitalAnchor.qml',{vehicle,QtPositioning:{coordinate:coord},active:false,correctionActive:false,driftRadiusM:1.5,status:noop});
+ assert(c.engage());assert.equal(commands.length,1);c.maintain();assert(c.guidedConfirmed);
+ vehicle.coordinate=coord(52,.0001);c.maintain();assert.equal(commands.length,2);c.maintain();assert.equal(commands.length,2);
+ vehicle.coordinate=coord(52,0);c.maintain();assert.equal(c.correctionActive,false);
+ vehicle.flightMode='Manual';c.maintain();assert.equal(c.active,false);assert.equal(commands.length,2);
+ vehicle.guidedModeGotoLocation=null;assert.equal(c.engage(),false);
+});
+test('GPS anchor cancels on invalid coordinates and link loss',()=>{
+ const vehicle={coordinate:coord(52,0),vehicleLinkManager:{communicationLost:false},gps:{lock:{rawValue:3}},flightMode:'Guided',guidedModeGotoLocation:noop,pauseVehicle:noop};
+ const c=context('NavoDigitalAnchor.qml',{vehicle,QtPositioning:{coordinate:coord},active:false,correctionActive:false,driftRadiusM:1.5,status:noop});
+ assert(c.engage());vehicle.coordinate={isValid:false};c.maintain();assert.equal(c.active,false);
+ vehicle.coordinate=coord(52,0);assert(c.engage());vehicle.vehicleLinkManager.communicationLost=true;c.maintain();assert.equal(c.active,false);
+});
+test('Dashboard anchor is reachable but blocked during replay and active operations',()=>{
+ let engaged=0,held=0;const c=context('NavoDashboard.qml',{digitalAnchor:{active:false,engage(){engaged++;return true}},linkAlive:true,
+   sonarController:{replayMode:true},scanCoordinator:{state:'IDLE'},awaitingMissionStart:false,baitingController:{enabled:false}});
+ assert.equal(c.toggleDigitalAnchor(),false);assert.equal(engaged,0);c.sonarController.replayMode=false;
+ c.scanCoordinator.state='SCANNING';assert.equal(c.toggleDigitalAnchor(),false);c.scanCoordinator.state='IDLE';assert(c.toggleDigitalAnchor());
+ c.digitalAnchor.active=true;c.holdMission=()=>{held++};assert(c.toggleDigitalAnchor());assert.equal(held,1);
+});
+test('Navigation and baiting refuse calibrated energy failure before releasing anchor or commanding H743',()=>{
+ let commands=0;const c=context('NavoDashboard.qml',{linkAlive:true,vehicle:{guidedModeGotoLocation(){commands++}},sonarController:{replayMode:false},
+   scanCoordinator:{state:'IDLE'},awaitingMissionStart:false,baitingController:{enabled:false,startCycle(){commands++}},hopperBridge:{calibrated:true},
+   digitalAnchor:{release(){commands++}},energyGuard:{calibrated:true,canStart(){return false},message(){return 'insufficient'}},battery:null});
+ c.routeDistanceWithReturn=()=>1000;
+ assert.equal(c.navigateToCoordinate(coord(52,0)),false);assert.equal(c.startBaiting({coordinate:coord(52,0)},'spot',1),false);assert.equal(commands,0);
+ c.linkAlive=false;assert.equal(c.navigateToCoordinate(coord(52,0)),false);
+});
+test('Area Scan checks energy before START and uses only remaining corridors on Resume',()=>{
+ let started=0,released=0,checked=[];const coordinate=coord(52,0),route=[coord(52,.001)];
+ const c=context('NavoDashboard.qml',{sonarController:{replayMode:false},linkAlive:true,vehicle:{rover:true,coordinate,gps:{lock:{rawValue:3}},flightMode:'Hold',missionFlightMode:'Auto',startMission(){started++}},
+   awaitingMissionStart:false,missionUploader:{uploadVerified:true},scanCoordinator:{state:'RESUME_READY',lakeId:'lake'},sonarConnected:true,
+   areaScanController:{resumeRoute(){return route},generatedPoints:[coordinate,...route]},digitalAnchor:{release(){released++}}});
+ c.checkEnergyForRoute=(points)=>{checked=points;return false};assert.equal(c.startUploadedMission(),false);assert.equal(started,0);assert.equal(released,0);assert.equal(checked,route);
+ c.checkEnergyForRoute=()=>true;assert(c.startUploadedMission());assert.equal(started,1);assert.equal(released,1);
+});
 console.log(`${passed} regression scenarios passed`);

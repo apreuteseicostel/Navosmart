@@ -151,6 +151,16 @@ Item {
         onStatus: function(text) { root.lastNavigationStatus=text }
     }
     NavoEnergyGuard { id: energyGuard }
+    Settings {
+        id: energySettings
+        category:"NavoEnergy"
+        property bool confirmed:false
+        property real reservePercent:25
+        property real consumptionPercentPerKm:12
+    }
+    Binding { target:energyGuard;property:"calibrated";value:energySettings.confirmed }
+    Binding { target:energyGuard;property:"reservePercent";value:energySettings.reservePercent }
+    Binding { target:energyGuard;property:"consumptionPercentPerKm";value:energySettings.consumptionPercentPerKm }
     NavoFailsafeController {
         id: failsafeController
         vehicle: root.vehicle
@@ -549,6 +559,39 @@ Item {
         }
         return true
     }
+    function toggleDigitalAnchor(){
+        if(digitalAnchor.active){root.holdMission();return true}
+        if(!root.allowLiveAction())return false
+        if(!root.linkAlive || scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || baitingController.enabled){root.lastNavigationStatus="Ancora indisponibilă: verifică legătura și oprește misiunea/nădirea";return false}
+        return digitalAnchor.engage()
+    }
+    function routeDistanceWithReturn(points){
+        if(!vehicle || !vehicle.coordinate || !vehicle.coordinate.isValid || !vehicle.homePosition || !vehicle.homePosition.isValid || !points || !points.length)return NaN
+        var distance=0,previous=vehicle.coordinate
+        for(var i=0;i<points.length;i++){
+            var p=points[i]
+            if(!p || !p.isValid)return NaN
+            var segment=previous.distanceTo(p)
+            if(!isFinite(segment)||segment<0)return NaN
+            distance+=segment;previous=p
+        }
+        var homeDistance=previous.distanceTo(vehicle.homePosition)
+        return isFinite(homeDistance)&&homeDistance>=0 ? distance+homeDistance : NaN
+    }
+    function checkEnergyForRoute(points){
+        if(!energyGuard.calibrated)return true
+        var distance=routeDistanceWithReturn(points)
+        var percent=battery && battery.percentRemaining ? Number(battery.percentRemaining.rawValue) : NaN
+        if(!energyGuard.canStart(distance,percent)){root.lastNavigationStatus=energyGuard.message(distance,percent);return false}
+        return true
+    }
+    function startBaiting(waypoint,name,hopper){
+        if(!root.allowLiveAction())return false
+        if(!root.linkAlive || scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || (hopper!==0 && !hopperBridge.calibrated)){root.lastNavigationStatus="Nădire blocată: verifică legătura, misiunea activă și calibrarea cuvelor";return false}
+        if(!waypoint || !root.checkEnergyForRoute([waypoint.coordinate]))return false
+        digitalAnchor.release()
+        return baitingController.startCycle(waypoint,name,hopper)
+    }
     function startMission() {
         if(!root.allowLiveAction()) return false
         if (!root.vehicle) {
@@ -584,9 +627,12 @@ Item {
             root.lastNavigationStatus = "START Area Scan blocat: sonar fără date live"
             return false
         }
+        var route=scanCoordinator.state==="RESUME_READY" ? areaScanController.resumeRoute(root.vehicle.coordinate) : areaScanController.generatedPoints
+        if(!root.checkEnergyForRoute(route))return false
         // QGC Vehicle::startMission() is the normal MAVLink mission-start path.
         // Never report AUTO before the vehicle reports the resulting mode.
         if (root.vehicle.startMission) {
+            digitalAnchor.release()
             root.awaitingMissionStart = true
             root.vehicle.startMission()
             root.lastNavigationStatus = "Upload confirmat • comandă START AUTOPILOT trimisă"
@@ -646,16 +692,20 @@ Item {
     }
     function navigateToCoordinate(c) {
         if(!root.allowLiveAction()) return false
-        if (!vehicle || !c || !c.isValid) {
+        if (!root.linkAlive || !vehicle || !c || !c.isValid) {
             root.lastNavigationStatus = "Navigatie indisponibila"
-            return
+            return false
         }
+        if(scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || baitingController.enabled){root.lastNavigationStatus="Oprește misiunea/nădirea înainte de navigarea către alt punct";return false}
         if (!vehicle.guidedModeGotoLocation) {
             root.lastNavigationStatus = "Navigație indisponibilă: comanda GUIDED nu este expusă de autopilot"
-            return
+            return false
         }
+        if(!root.checkEnergyForRoute([c]))return false
+        digitalAnchor.release()
         vehicle.guidedModeGotoLocation(c)
         root.lastNavigationStatus = "Comandă GUIDED trimisă către punct"
+        return true
     }
 
 
@@ -892,6 +942,7 @@ Item {
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/lan.svg"; title:"LAN"; value:sonar.transport&&sonar.transport.connected?"ON":"OFF"; good:sonar.transport&&sonar.transport.connected }
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/sonar.svg"; title:"SONAR"; value:root.sonarConnected?"ON":"OFF"; good:root.sonarConnected }
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/nano.svg"; title:"NANO"; value:nanoTelemetry.connected?"ON":"OFF"; good:nanoTelemetry.connected }
+                MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/navigate.svg";title:"ANCORĂ";value:digitalAnchor.active?"CERUTĂ":"OFF";good:digitalAnchor.guidedConfirmed;clickable:true;toolTipText:digitalAnchor.active?"Dezactivează ancora GPS și solicită HOLD":"Menține poziția GPS curentă";onClicked:root.toggleDigitalAnchor() }
                 MiniStatus {
                     iconSource:"qrc:/qml/NavoSmart/icons/camera.svg"; title:"CAM"; value:root.cameraConnected?"ON":"OFF"; good:root.cameraConnected
                     clickable:true
@@ -1492,9 +1543,7 @@ Item {
                             root.lastNavigationStatus="Punct de nădire ales: "+spot.name
                         }
                         onStartConfirmed: function(waypoint,name,hopper) {
-                            if(!root.allowLiveAction()) return;
-                            if(!root.linkAlive || scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || (hopper!==0 && !hopperBridge.calibrated)){root.lastNavigationStatus="Nădire blocată: verifică legătura, misiunea activă și calibrarea cuvelor";return}
-                            digitalAnchor.release(); baitingController.startCycle(waypoint,name,hopper)
+                            root.startBaiting(waypoint,name,hopper)
                         }
                         onAbortRequested: baitingController.abortCycle("Oprit de utilizator")
                     }
@@ -1661,6 +1710,22 @@ Item {
                         onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
                         onStatus: function(text) { root.lastNavigationStatus=text }
                         onUnitsRequested: { if (typeof mainWindow !== "undefined" && mainWindow.showSettingsTool) mainWindow.showSettingsTool() }
+                    }
+                    GroupBox {
+                        title:"Rezervă energie • traseu + întoarcere HOME"
+                        Layout.fillWidth:true
+                        ColumnLayout {
+                            anchors.fill:parent
+                            Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;color:root.muted;text:"Activează verificarea numai după măsurarea consumului pe barcă. Estimarea verifică navigarea, nădirea și START Area Scan; nu comandă automat RTL." }
+                            GridLayout {
+                                columns:2;Layout.fillWidth:true
+                                Label { text:"Rezervă %";color:root.text }
+                                SpinBox { Layout.fillWidth:true;from:5;to:80;value:energySettings.reservePercent;onValueModified:{energySettings.confirmed=false;energySettings.reservePercent=value} }
+                                Label { text:"Consum %/km";color:root.text }
+                                SpinBox { Layout.fillWidth:true;from:1;to:100;value:energySettings.consumptionPercentPerKm;onValueModified:{energySettings.confirmed=false;energySettings.consumptionPercentPerKm=value} }
+                            }
+                            CheckBox { text:"Consum verificat • activează verificarea înainte de plecare";checked:energySettings.confirmed;onToggled:energySettings.confirmed=checked }
+                        }
                     }
                 }
             }
