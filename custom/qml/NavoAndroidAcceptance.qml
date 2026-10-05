@@ -42,6 +42,22 @@ Item {
         require(backend.report(reportState(status)),"Cannot persist acceptance report")
         reported=Date.now()
     }
+    function saveReplaySnapshot(){
+        // EOF closes the byte reader, not the asynchronous native processor.
+        // Samples may arrive while the sonar/map evidence is being captured.
+        // Compare restart with the exact snapshot saved here, not the EOF count.
+        samples=dashboard.replayMappingController.rawSamples.length
+        require(samples>14000,"Recorded snapshot missed processed recording samples")
+        replayId=dashboard.saveRecordedReplayLake("CI original Kogger")
+        require(replayId && replayId!==liveId,"Replay did not create a separate lake")
+        var saved=dashboard.lakePersistence.lakeState(replayId)
+        evidence.savedSamples=saved.sonarSamples ? saved.sonarSamples.length : 0
+        require(evidence.savedSamples===samples,"Saved sonar sample count differs: expected "+samples+", saved "+evidence.savedSamples)
+        dashboard.sonarController.stopReplay()
+        require(dashboard.areaCoordinator.activateLake(replayId,"CI original Kogger"),"Cannot activate saved recording")
+        evidence.activatedSamples=dashboard.sonarMappingController.rawSamples.length
+        require(evidence.activatedSamples===samples,"Activated sonar sample count differs: expected "+samples+", activated "+evidence.activatedSamples)
+    }
     function step(){
         require(!dashboard.vehicle,"Acceptance requires a disposable emulator with no vehicle")
         require(Date.now()-started<720000,"Acceptance timed out at "+stage)
@@ -51,7 +67,11 @@ Item {
             if(backend.configuration.phase==="restore") {
                 liveId=backend.configuration.liveId;replayId=backend.configuration.replayId;samples=backend.configuration.samples
                 require(coordinator.lakeId===replayId,"Selected lake not restored automatically after process restart")
-                require(dashboard.sonarMappingController.rawSamples.length===samples,"Restored sonar sample count differs")
+                var saved=persistence.lakeState(replayId)
+                evidence.savedSamples=saved.sonarSamples ? saved.sonarSamples.length : 0
+                evidence.restoredSamples=dashboard.sonarMappingController.rawSamples.length
+                require(evidence.savedSamples===samples,"Persisted sonar sample count differs: expected "+samples+", persisted "+evidence.savedSamples)
+                require(evidence.restoredSamples===samples,"Restored sonar sample count differs: expected "+samples+", restored "+evidence.restoredSamples)
                 require(coordinator.nativeSurfaceMesh.indices.length>=3,"Saved native mesh missing after restart")
                 require(!sonar.replayMode,"Restart unexpectedly started replay")
                 dashboard.activePage=0;advance("restored-map");return
@@ -83,6 +103,7 @@ Item {
             if(sonar.replayActive || sonar.processedColumns<14000 || !sonar.nativeSurfaceMesh.indices || sonar.nativeSurfaceMesh.indices.length<3)return
             require(sonar.replayPosition===sonar.replaySize,"Replay ended before EOF")
             samples=dashboard.replayMappingController.rawSamples.length
+            evidence.samplesAtEof=samples
             require(samples>14000,"Installed mapping missed processed recording samples")
             require(backend.inspect(dashboard).sonarHistoryColumns>100,"Installed Sonar PRO has no populated ecogram history")
             require(liveBefore===JSON.stringify(persistence.lakeState(liveId)),"Replay modified the active live lake")
@@ -99,10 +120,7 @@ Item {
             if(Date.now()-entered<4000)return
             require(coordinator.nativeSurfaceMesh.indices || stage==="native-map","Restored native geometry absent")
             if(stage==="native-map") {
-                replayId=dashboard.saveRecordedReplayLake("CI original Kogger")
-                require(replayId && replayId!==liveId,"Replay did not create a separate lake")
-                sonar.stopReplay()
-                require(coordinator.activateLake(replayId,"CI original Kogger"),"Cannot activate saved recording")
+                saveReplaySnapshot()
             }
             dashboard.activePage=7;advance("3d");return
         }

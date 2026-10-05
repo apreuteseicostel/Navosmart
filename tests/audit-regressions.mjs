@@ -298,4 +298,33 @@ test('Sonar PRO labels the finished recording as replay rather than live input',
  c.chartSource.replayMode=false;assert.equal(c.sourceStatusText(),'LIVE');
  c.connected=false;assert.equal(c.sourceStatusText(),'OFFLINE');
 });
+test('Installed acceptance compares restart with the saved snapshot including late native samples',()=>{
+ const late=Array(14486).fill({depth:3}),saved={};let stopped=false;
+ const dashboard={replayMappingController:{rawSamples:late},sonarMappingController:{rawSamples:[]},
+   saveRecordedReplayLake(){saved.sonarSamples=late.slice();return 'replay'},
+   lakePersistence:{lakeState(){return saved}},sonarController:{stopReplay(){stopped=true}},
+   areaCoordinator:{activateLake(){dashboard.sonarMappingController.rawSamples=saved.sonarSamples.slice();return true}}};
+ const c=context('NavoAndroidAcceptance.qml',{dashboard,samples:14460,liveId:'live',replayId:'',evidence:{samplesAtEof:14460}});
+ c.saveReplaySnapshot();assert.equal(c.samples,14486);assert.equal(c.evidence.samplesAtEof,14460);
+ assert.equal(c.evidence.savedSamples,14486);assert.equal(c.evidence.activatedSamples,14486);assert(stopped);
+});
+test('Installed acceptance refuses sample loss at save or immediate activation',()=>{
+ let stopped=false;const source=Array(14486).fill({depth:3}),saved={sonarSamples:source.slice(1)};
+ const dashboard={replayMappingController:{rawSamples:source},sonarMappingController:{rawSamples:[]},
+   saveRecordedReplayLake(){return 'replay'},lakePersistence:{lakeState(){return saved}},
+   sonarController:{stopReplay(){stopped=true}},areaCoordinator:{activateLake(){return true}}};
+ const c=context('NavoAndroidAcceptance.qml',{dashboard,samples:14460,liveId:'live',replayId:'',evidence:{}});
+ assert.throws(()=>c.saveReplaySnapshot(),/Saved sonar sample count differs/);assert.equal(stopped,false);
+ saved.sonarSamples=source.slice();assert.throws(()=>c.saveReplaySnapshot(),/Activated sonar sample count differs/);
+});
+test('Installed acceptance keeps exact persisted and restored counts after restart',()=>{
+ const source=Array(14486).fill({depth:3}),saved={sonarSamples:source};
+ const dashboard={vehicle:null,sonarController:{},lakePersistence:{lakeState(){return saved}},
+   sonarMappingController:{rawSamples:source.slice(1)},areaCoordinator:{lakeId:'replay'},mapAreaScanController:{}};
+ const c=context('NavoAndroidAcceptance.qml',{dashboard,backend:{configuration:{phase:'restore',liveId:'live',replayId:'replay',samples:14486}},
+   started:Date.now(),stage:'start',liveId:'',replayId:'',samples:0,evidence:{}});
+ assert.throws(()=>c.step(),/Restored sonar sample count differs: expected 14486, restored 14485/);
+ assert.equal(c.evidence.savedSamples,14486);assert.equal(c.evidence.restoredSamples,14485);
+ saved.sonarSamples=source.slice(1);assert.throws(()=>c.step(),/Persisted sonar sample count differs/);
+});
 console.log(`${passed} regression scenarios passed`);
