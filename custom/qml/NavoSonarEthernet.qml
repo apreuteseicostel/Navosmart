@@ -55,6 +55,7 @@ QtObject {
  readonly property real chartRangeMeters: decoderObject.chartRangeMeters
  readonly property real processedBottomDepthM: chartBridge.bottomDepthM
  readonly property int processedColumns: chartBridge.processedColumns
+ readonly property var nativeSurfaceMesh: chartBridge.nativeSurfaceMesh
  readonly property int bathymetryTileCount: chartBridge.bathymetryTileCount
  readonly property int mosaicTileCount: chartBridge.mosaicTileCount
  readonly property bool nativeChannelReady: chartBridge.channelReady
@@ -83,8 +84,8 @@ QtObject {
   onGeoSampleReady: function(sample){ var published={}; for(var key in sample)published[key]=sample[key]; published.replay=root.replayMode; root.geoSample(published) }
   onBottomColumnReady: function(sequence,depth){root.bottomColumnReady(sequence,depth)}
  }
- property Timer replaySurfaceRefresh: Timer {
-  interval:2000; repeat:true; running:root.replayMode
+ property Timer nativeSurfaceRefresh: Timer {
+  interval:2000; repeat:true; running:root.connected
   onTriggered:chartBridge.requestReplaySurface()
  }
  property Connections gpsUpdates: Connections {

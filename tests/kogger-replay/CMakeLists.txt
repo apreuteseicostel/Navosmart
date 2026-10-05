@@ -30,3 +30,9 @@ file(GLOB NAVO_TEST_ICONS "../../custom/icons/*.svg")
 qt_add_resources(navo-sonar-ui-replay navo-test-icons PREFIX "/qml/NavoSmart" BASE "../../custom" FILES ${NAVO_TEST_ICONS})
 
 target_link_libraries(navo-kogger-replay PRIVATE Qt6::Test)
+
+add_executable(navo-native-surface native-surface.cpp ../../third_party/KoggerApp/src/data_processor/surface_tile.cpp)
+target_link_libraries(navo-native-surface PRIVATE Qt6::Core Qt6::Gui)
+
+add_executable(navo-native-surface-view native-surface-view.cpp)
+target_link_libraries(navo-native-surface-view PRIVATE Qt6::Quick Qt6::Qml)

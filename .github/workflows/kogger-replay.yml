@@ -1,11 +1,16 @@
 name: Kogger recorded CHART replay
 on:
+  push:
+    branches: [main]
   pull_request:
     paths:
       - 'custom/src/NavoKogger*'
       - 'custom/qml/NavoSonar*.qml'
       - 'custom/qml/NavoDashboard.qml'
       - 'custom/qml/NavoMap.qml'
+      - 'custom/qml/NavoNativeBathymetryOverlay.qml'
+      - 'custom/qml/NavoScanCoordinator.qml'
+      - 'custom/src/NavoPersistence*'
       - '.github/workflows/android.yml'
       - 'custom/CMakeLists.txt'
       - 'custom/kogger_native/**'
@@ -41,6 +46,8 @@ jobs:
         with:
           name: navo-qt-ui-runner
           path: /tmp/navo-qt-runtime/ui.tar.gz
+      - name: Test native surface geometry
+        run: /tmp/navo-replay/navo-native-surface
       - name: Test protocol regressions
         run: /tmp/navo-replay/navo-kogger-replay
       - uses: actions/cache@v4
@@ -54,6 +61,8 @@ jobs:
       - name: Replay verified fixture through actual NAVO decoder
         run: /tmp/navo-replay/navo-kogger-replay /tmp/00028_DownView.klf custom/qml/NavoSonarEthernet.qml
 
+      - name: Render production native surface Canvas
+        run: /tmp/navo-replay/navo-native-surface-view tests/kogger-replay/native-surface-view.qml kogger-native-surface.json
       - name: Render actual Sonar PRO component from recorded columns
         run: /tmp/navo-replay/navo-sonar-ui-replay custom/qml/NavoSonarPro.qml tests/kogger-replay/mock-imports kogger-columns.json
       - name: Benchmark and verify full-resolution display cache
@@ -63,6 +72,8 @@ jobs:
         with:
           name: kogger-recorded-evidence
           path: |
+            kogger-native-surface*.png
+            kogger-native-surface.json
             kogger-sonar-pro-*.png
             sonar-performance.png
             kogger-bottom-track.csv

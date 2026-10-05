@@ -56,12 +56,21 @@ Item {
     property alias sonarMappingController: sonarMapping
     property alias hopperBridgeController: hopperBridge
     property alias sonarController: sonar
+    Connections {
+        target: sonar.nativeBridge
+        function onNativeSurfaceChanged() {
+            var mesh=sonar.nativeSurfaceMesh
+            if(!sonar.replayMode && scanCoordinator.lakeId.length && mesh && mesh.indices && mesh.indices.length)
+                scanCoordinator.nativeSurfaceMesh=mesh
+        }
+    }
     NavoFishingSpots { id: fishingSpots; onSpotSaved: scanCoordinator.checkpoint("spot-save"); onSpotRemoved: scanCoordinator.checkpoint("spot-delete"); onSpotUpdated: scanCoordinator.checkpoint("spot-update") }
     NavoFishDetections { id: fishStore }
     NavoBathymetryModel { id: bathymetryModel }
     property string replaySaveStatus: ""
     NavoBathymetryModel { id: replayBathymetryModel }
     NavoSonarMapping { id: replayMapping; visible:false; externalSampleIngestion:true; sonarConnected:true; scanning:true }
+    readonly property var displayNativeSurfaceMesh: sonar.replayMode ? sonar.nativeSurfaceMesh : scanCoordinator.nativeSurfaceMesh
     readonly property var displayBathymetryCells: sonar.replayMode ? replayBathymetryModel.cells : scanCoordinator.bathymetryCells
     Timer {
         interval:2000; repeat:true; running:sonar.replayMode
@@ -175,7 +184,7 @@ Item {
             }
         }
         onStatus: function(message) { root.lastNavigationStatus = message }
-        onLakeActivated: function(id) { sessionSettings.activeLakeId=id; missionUploader.invalidate(); baitingController.targetWaypoint=null }
+        onLakeActivated: function(id) { sessionSettings.activeLakeId=id; missionUploader.invalidate(); baitingController.targetWaypoint=null; if(!sonar.replayMode)sonar.nativeBridge.clear() }
         onScanFinished: function(bathymetrySaved, sampleCount) {
             missionUploader.invalidate()
             root.awaitingMissionStart=false
@@ -804,6 +813,8 @@ Item {
                 waypointNames: root.waypointNames
                 fishModel: fishStore
                 fishingSpotsModel: fishingSpots
+                nativeSurfaceMesh: root.displayNativeSurfaceMesh
+                nativeSurfaceBridge: sonar.nativeBridge
                 bathymetryCells: root.displayBathymetryCells
                         replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
                         replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
@@ -901,7 +912,7 @@ Item {
             replaySampleCount: replayMapping.rawSamples.length
             onSaveReplayRequested: function(name) {
                 replayBathymetryModel.rebuild(replayMapping.rawSamples)
-                var id=persistence.saveReplayLake(name,replayMapping.rawSamples,replayBathymetryModel.cells)
+                var id=persistence.saveReplayLake(name,replayMapping.rawSamples,replayBathymetryModel.cells,sonar.nativeSurfaceMesh)
                 root.replaySaveStatus=id ? "Salvat în Bălțile mele: "+name : "Salvarea a eșuat; sunt necesare probe GPS și fund valid."
             }
             onClosed: root.activePage = 0
@@ -1033,7 +1044,9 @@ Item {
                             waypointNames: root.waypointNames
                             fishModel: fishStore
                             fishingSpotsModel: fishingSpots
-                            bathymetryCells: root.displayBathymetryCells
+                            nativeSurfaceMesh: root.displayNativeSurfaceMesh
+                            nativeSurfaceBridge: sonar.nativeBridge
+                bathymetryCells: root.displayBathymetryCells
                         replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
                         replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
                             baitingController: root.mapBaitingController
@@ -1124,7 +1137,7 @@ Item {
                         property real targetAspect: 16/9
                         property real availableAspect: width / Math.max(1,height)
                         vehicle:root.vehicle; planController:root.planController; waypointNames:root.waypointNames
-                        fishModel:fishStore; fishingSpotsModel:fishingSpots; bathymetryCells:root.displayBathymetryCells
+                        fishModel:fishStore; fishingSpotsModel:fishingSpots; nativeSurfaceMesh:root.displayNativeSurfaceMesh; nativeSurfaceBridge:sonar.nativeBridge; bathymetryCells:root.displayBathymetryCells
                         replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
                         replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
                         baitingController: root.mapBaitingController; areaScanController: root.mapAreaScanController
@@ -1416,7 +1429,9 @@ Item {
                         waypointNames: root.waypointNames
                         fishModel: fishStore
                         fishingSpotsModel: fishingSpots
-                        bathymetryCells: root.displayBathymetryCells
+                        nativeSurfaceMesh: root.displayNativeSurfaceMesh
+                        nativeSurfaceBridge: sonar.nativeBridge
+                bathymetryCells: root.displayBathymetryCells
                         replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
                         replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
                         baitingController: root.mapBaitingController

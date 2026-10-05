@@ -20,7 +20,7 @@ public:
  Q_INVOKABLE QString saveBathymetrySession(const QVariantMap& metadata,const QVariantList& samples);
  Q_INVOKABLE bool deleteBathymetrySession(const QString& id);
  Q_INVOKABLE QString saveLake(const QVariantMap& lake);
- Q_INVOKABLE QString saveReplayLake(const QString& name,const QVariantList& samples,const QVariantList& cells);
+ Q_INVOKABLE QString saveReplayLake(const QString& name,const QVariantList& samples,const QVariantList& cells,const QVariantMap& nativeSurface=QVariantMap());
  Q_INVOKABLE QVariantMap lakeState(const QString& lakeId) const;
  Q_INVOKABLE bool saveLakeState(const QString& lakeId,const QVariantMap& state);
  Q_INVOKABLE bool deleteLake(const QString& lakeId);

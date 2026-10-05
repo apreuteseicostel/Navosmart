@@ -19,6 +19,9 @@ Item {
     onRecordedReplayChanged: if(recordedReplay) { cancelAreaDrawing(); baitPointPickMode=false; fishingSaveDialog.close(); renameDialog.close() }
     property var fishingSpotsModel
     property var bathymetryCells: []
+    property var nativeSurfaceMesh: ({})
+    property var nativeSurfaceBridge: null
+    readonly property bool nativeSurfaceReady: !!nativeSurfaceMesh && nativeSurfaceMesh.version===1 && !!nativeSurfaceMesh.indices && nativeSurfaceMesh.indices.length>=3 && nativeSurfaceMesh.indices.length<=49152 && !!nativeSurfaceMesh.vertices && nativeSurfaceMesh.vertices.length<=8192
     property bool replayPreview: false
     property var replayTrack: []
     function followReplay() {
@@ -257,10 +260,16 @@ Item {
     NavoActualTrack { id: actualTrack; map: liveMap; vehicle: root.recordedReplay ? null : root.vehicle; taskActive: !root.recordedReplay && !!root.vehicle }
     NavoAreaScanOverlay { map: liveMap; areaScan: root.recordedReplay ? null : root.areaScanController }
     NavoFishOverlay { map: liveMap; fishModel: root.recordedReplay ? null : root.fishModel }
+    NavoNativeBathymetryOverlay {
+        map: liveMap
+        surface: root.nativeSurfaceMesh
+        nativeBridge: root.nativeSurfaceBridge
+        active: root.bathymetryHDEnabled && root.nativeSurfaceReady
+    }
     NavoBathymetryHDOverlay {
         map: liveMap
         cells: root.bathymetryCells
-        enabled: root.bathymetryHDEnabled
+        enabled: root.bathymetryHDEnabled && !root.nativeSurfaceReady
         resolution: root.maximized ? 34 : 28
     }
     NavoBathymetryOverlay {

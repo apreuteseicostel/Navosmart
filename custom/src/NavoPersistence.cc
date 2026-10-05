@@ -51,7 +51,7 @@ void NavoPersistence::saveWaypoints(){QSettings s;s.setValue("navo/waypointNames
 bool NavoPersistence::saveLakes(){return saveCatalog();}
 QString NavoPersistence::saveLake(const QVariantMap& input){const auto previous=_lakes;QVariantMap lake=input;QString id=lake.value("id").toString();if(id.isEmpty())id=QString("lake-%1").arg(QUuid::createUuid().toString(QUuid::WithoutBraces));lake["id"]=id;if(!lake.contains("createdAt"))lake["createdAt"]=QDateTime::currentDateTimeUtc().toString(Qt::ISODate);lake["updatedAt"]=QDateTime::currentDateTimeUtc().toString(Qt::ISODate);for(int i=0;i<_lakes.size();++i)if(_lakes[i].toMap().value("id").toString()==id){auto old=_lakes[i].toMap();for(auto it=lake.cbegin();it!=lake.cend();++it)old[it.key()]=it.value();_lakes[i]=old;if(!saveLakes()){_lakes=previous;return {};}emit lakesChanged();return id;}_lakes.prepend(lake);if(!saveLakes()){_lakes=previous;return {};}emit lakesChanged();return id;}
 
-QString NavoPersistence::saveReplayLake(const QString& name,const QVariantList& samples,const QVariantList& cells){
+QString NavoPersistence::saveReplayLake(const QString& name,const QVariantList& samples,const QVariantList& cells,const QVariantMap& nativeSurface){
  const auto clean=name.trimmed();
  if(clean.isEmpty() || samples.size()<3 || cells.isEmpty())return {};
  for(const auto& value:samples){
@@ -64,7 +64,7 @@ QString NavoPersistence::saveReplayLake(const QString& name,const QVariantList& 
  const QVariantMap state{
   {"schemaVersion",2},{"reason","recorded-replay-import"},{"recordedReplay",true},
   {"state","COMPLETE"},{"lakeName",clean},{"savedAt",QDateTime::currentMSecsSinceEpoch()},
-  {"sonarSamples",samples},{"bathymetryCells",cells},{"areaPoints",QVariantList{}},
+  {"sonarSamples",samples},{"bathymetryCells",cells},{"nativeSurfaceMesh",nativeSurface},{"areaPoints",QVariantList{}},
   {"fishingSpots",QVariantList{}},{"fishDetections",QVariantList{}},{"waypointNames",QVariantMap{}},
   {"currentLane",-1},{"completedLanes",QVariantList{}},{"totalLanes",0},
   {"missionCurrentIndex",-1},{"missionLanes",QVariantList{}},{"missionWaypointCount",0}

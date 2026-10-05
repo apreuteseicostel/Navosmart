@@ -1,4 +1,4 @@
-# Kogger native integration status — 4 October 2026
+# Kogger native integration status — 5 October 2026
 
 PR #16 links the imported Dataset/Epoch and original bottom-track/surface
 processors into Android/QGroundControl. The earlier dependency-blocker list
@@ -28,9 +28,18 @@ separate CI workflow. Always inspect the checks on the current PR head.
 
 ## Remaining feature and hardware validation
 
-- Native tiles are calculated and tested; the production map currently uses
-  the NAVO sample-derived bathymetry overlay. A direct native-tile renderer
-  has not been completed.
+- The production map now has a direct Canvas renderer for original native
+  surface triangle topology, georeferenced with the Dataset LLA origin.
+  Undefined/nonpositive/nonfinite depths are excluded. Geometry is bounded
+  to 8192 vertices / 16384 triangles; a truncation label is shown.
+  The sample-derived HD overlay remains the fallback when native data is absent.
+- Native geometry is saved as a bounded snapshot in the selected lake checkpoint.
+  It is not a complete offline native tile database; saved geometry outside the
+  last snapshot needs new sonar data. Replay saves create their own lake.
+- The recorded replay tests native geometry and persistence after restart.
+  A production Canvas smoke test verifies pan/zoom/resize with an explicit
+  projection test double. It does not validate real QtLocation map projection,
+  ARM64 graphics, G20 frame time or installed-device operation.
 - Lateral mosaic and native isobaths remain disabled for the downward beam;
   do not enable them by treating its vertical returns as a side-scan swath.
 - CHART v1 encoding requires its own device evidence.

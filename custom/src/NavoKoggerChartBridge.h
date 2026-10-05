@@ -5,11 +5,13 @@
 #include <QPointer>
 #include <QMetaObject>
 #include <cmath>
+#include "../kogger_native/navo_surface_mesh.h"
 
 // Live input bridge. Upstream Dataset processing is enabled only after the
 // complete KoggerApp dependency tree passes the Android build.
 class NavoKoggerChartBridge : public QObject {
     Q_OBJECT
+    Q_PROPERTY(QVariantMap nativeSurfaceMesh READ nativeSurfaceMesh NOTIFY nativeSurfaceChanged)
     Q_PROPERTY(bool channelReady READ channelReady NOTIFY recordsChanged)
     Q_PROPERTY(double bottomDepthM READ bottomDepthM NOTIFY recordsChanged)
     Q_PROPERTY(int processedColumns READ processedColumns NOTIFY recordsChanged)
@@ -24,11 +26,23 @@ class NavoKoggerChartBridge : public QObject {
     Q_PROPERTY(int datasetColumns READ datasetColumns NOTIFY recordsChanged)
 public:
     explicit NavoKoggerChartBridge(QObject* parent = nullptr) : QObject(parent) {
+        surfaceRefresh_.setSingleShot(true); surfaceRefresh_.setInterval(200);
+        connect(&surfaceRefresh_,&QTimer::timeout,this,[this](){
+            auto& service=NavoKoggerService::instance();
+            surfaceMesh_=navoNativeSurfaceMesh(service.tiles(),service.dataset().getLlaRef());
+            emit nativeSurfaceChanged();
+        });
         auto& service=NavoKoggerService::instance();
+        connect(&service,&NavoKoggerService::tilesChanged,this,[this](){
+            if(NavoKoggerService::instance().tileCount()==0) {
+                surfaceRefresh_.stop();surfaceMesh_.clear();emit nativeSurfaceChanged();
+            } else if(!surfaceRefresh_.isActive())surfaceRefresh_.start();
+        });
         QObject::connect(&service,&NavoKoggerService::processingChanged,this,&NavoKoggerChartBridge::recordsChanged);
         QObject::connect(&service,&NavoKoggerService::geoSampleReady,this,&NavoKoggerChartBridge::geoSampleReady);
         QObject::connect(&service,&NavoKoggerService::bottomColumnReady,this,&NavoKoggerChartBridge::bottomColumnReady);
     }
+    QVariantMap nativeSurfaceMesh() const {return surfaceMesh_;}
     bool channelReady() const {return !linkUuid_.isNull() && decoder_ && decoder_->chartAddress()>=0;}
     double bottomDepthM() const {return NavoKoggerService::instance().bottomDepth();}
     int processedColumns() const {return NavoKoggerService::instance().processedColumns();}
@@ -46,6 +60,7 @@ public:
     }
     Q_INVOKABLE void requestReplaySurface() {
         auto& service=NavoKoggerService::instance();
+        if(viewportValid_){service.requestVisibleRect(viewportN0_,viewportE0_,viewportN1_,viewportE1_);return;}
         float n0=INFINITY,e0=INFINITY,n1=-INFINITY,e1=-INFINITY;
         for(int i=0;i<service.dataset().size();++i) {
             const auto p=service.dataset().fromIndexCopy(i).getSonarPosition();
@@ -54,6 +69,23 @@ public:
             e0=std::min(e0,float(p.ned.e));e1=std::max(e1,float(p.ned.e));
         }
         if(std::isfinite(n0))service.requestVisibleRect(n0-20,e0-20,n1+20,e1+20);
+    }
+    Q_INVOKABLE bool requestNativeViewport(double south,double west,double north,double east) {
+        auto& service=NavoKoggerService::instance();const auto reference=service.dataset().getLlaRef();
+        if(!reference.isInit || !std::isfinite(south) || !std::isfinite(north) ||
+           !std::isfinite(west) || !std::isfinite(east) || south>north || west>east ||
+           south < -90 || north > 90 || west < -180 || east > 180 || east-west>180)return false;
+        float n0=INFINITY,e0=INFINITY,n1=-INFINITY,e1=-INFINITY;
+        for(const auto& lla:{LLA(south,west,0),LLA(south,east,0),LLA(north,west,0),LLA(north,east,0)}) {
+            const NED ned(&lla,&reference);
+            if(!ned.isCoordinatesValid())return false;
+            n0=std::min(n0,float(ned.n));n1=std::max(n1,float(ned.n));
+            e0=std::min(e0,float(ned.e));e1=std::max(e1,float(ned.e));
+        }
+        // Ignore world-scale requests; retained track refresh is the fallback.
+        if(n1-n0>10000 || e1-e0>10000)return false;
+        viewportN0_=n0;viewportE0_=e0;viewportN1_=n1;viewportE1_=e1;viewportValid_=true;
+        service.requestVisibleRect(n0,e0,n1,e1);return true;
     }
     int recordCount() const { return adapter_.records().size(); }
     qint64 retainedRawBytes() const { return adapter_.retainedRawBytes(); }
@@ -75,6 +107,7 @@ public:
         positionUpdatedAt_=QDateTime::currentMSecsSinceEpoch();
     }
     Q_INVOKABLE void clear() {
+        viewportValid_=false;
         adapter_.clear();
         NavoKoggerService::instance().clear();
         rejected_ = 0;
@@ -85,6 +118,7 @@ public:
     }
 signals:
     void recordsChanged();
+    void nativeSurfaceChanged();
     void geoSampleReady(const QVariantMap& sample);
     void bottomColumnReady(quint64 sequence,double depth);
 private:
@@ -107,6 +141,10 @@ private:
         }
         emit recordsChanged();
     }
+    bool viewportValid_=false;
+    float viewportN0_=0,viewportE0_=0,viewportN1_=0,viewportE1_=0;
+    QTimer surfaceRefresh_;
+    QVariantMap surfaceMesh_;
     QPointer<NavoKoggerDecoder> decoder_;
     QMetaObject::Connection connection_;
     NavoKoggerDatasetAdapter adapter_;
