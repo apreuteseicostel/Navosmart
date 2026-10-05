@@ -278,4 +278,17 @@ test('Changing the vehicle removes stale servo feedback',()=>{
  const panel=fs.readFileSync(path.join(dir,'NavoBaitingPanel.qml'),'utf8');
  assert(panel.includes('physicalPositionStatus'));assert(!panel.includes('CUVE BASCULEAZĂ'));
 });
+test('Sonar PRO preserves recorded ecogram at EOF and starts a clean new replay',()=>{
+ const source=fs.readFileSync(path.join(dir,'NavoSonarPro.qml'),'utf8');
+ const handler=source.match(/onReplayActiveChanged:\s*(\{[^\n]*\})/)[1];
+ const c=vm.createContext({history:[{sequence:1},{sequence:2}],replayActive:false,menuOpen:true});c.root=c;
+ vm.runInContext(handler,c);assert.equal(c.history.length,2);assert.equal(c.menuOpen,false);
+ c.replayActive=true;vm.runInContext(handler,c);assert.equal(c.history.length,0);
+});
+test('Sonar PRO displays the Dashboard native bottom-depth fallback',()=>{
+ const dashboard=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+ const pro=dashboard.slice(dashboard.indexOf('id: sonarProPage'),dashboard.indexOf('id: sonarProPage')+1800);
+ assert.match(pro,/depthM:\s*root\.depthM/);
+ assert.match(dashboard,/processedBottomDepthM/);
+});
 console.log(`${passed} regression scenarios passed`);

@@ -42,3 +42,6 @@ target_link_libraries(navo-servo-feedback PRIVATE Qt6::Gui Qt6::Qml)
 
 add_executable(navo-acceptance-scene acceptance-scene.cpp ../../custom/src/NavoAndroidAcceptance.h)
 target_link_libraries(navo-acceptance-scene PRIVATE Qt6::Quick Qt6::Qml)
+
+add_executable(navo-replay-pacing replay-pacing.cpp ../../custom/src/NavoKoggerReplay.cc ../../custom/src/NavoKoggerReplay.h)
+target_link_libraries(navo-replay-pacing PRIVATE Qt6::Core)

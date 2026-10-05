@@ -208,7 +208,7 @@ Rectangle {
     onNoiseFloorChanged: repaint()
     onNoiseFilterEnabledChanged: repaint()
     onDayPaletteChanged: repaint()
-    onReplayActiveChanged: { history=[]; root.menuOpen=false }
+    onReplayActiveChanged: { if(replayActive)history=[]; root.menuOpen=false }
     onKoggerCompensationChanged: { history = []; pushHistory(); repaint() }
     onShowBottomTrackChanged: repaint()
     // Freeze scale together with the displayed history while paused.

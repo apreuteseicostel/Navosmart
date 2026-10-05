@@ -2,6 +2,7 @@
 #include <QObject>
 #include <QFile>
 #include <QTimer>
+#include <QElapsedTimer>
 #include <QUrl>
 #include <memory>
 namespace Parsers { class FrameParser; }
@@ -16,7 +17,7 @@ class NavoKoggerReplay : public QObject {
 public:
  explicit NavoKoggerReplay(QObject* parent=nullptr);
  ~NavoKoggerReplay() override;
- Q_INVOKABLE void setBlocked(bool blocked) { _blocked=blocked; }
+ Q_INVOKABLE void setBlocked(bool blocked) { if(_blocked!=blocked){_blocked=blocked;_pacing.start();} }
  bool active() const { return _active; }
  bool paused() const { return _paused; }
  double speed() const { return _speed; }
@@ -35,6 +36,7 @@ signals:
 private:
  QFile _file;
  QTimer _timer;
+ QElapsedTimer _pacing;
  std::unique_ptr<Parsers::FrameParser> _parser;
  bool _blocked=false, _gpsFix=false;
  double _lat=qQNaN(),_lon=qQNaN(),_heading=qQNaN(),_pitch=qQNaN(),_roll=qQNaN();

@@ -15,20 +15,20 @@ bool NavoKoggerReplay::open(const QUrl& url) {
  }
  _file.setFileName(url.isLocalFile()?url.toLocalFile():url.toString());
  if (!_file.open(QIODevice::ReadOnly)) { _error=_file.errorString(); emit stateChanged(); return false; }
- _active=true; _paused=false; _timer.start(); emit stateChanged(); emit progressChanged(); return true;
+ _active=true; _paused=false; _pacing.start(); _timer.start(); emit stateChanged(); emit progressChanged(); return true;
 }
 void NavoKoggerReplay::stop() {
- _timer.stop(); _file.close(); _parser=std::make_unique<Parsers::FrameParser>();
+ _timer.stop(); _pacing.invalidate(); _file.close(); _parser=std::make_unique<Parsers::FrameParser>();
  _active=false; _paused=false; _blocked=false; _gpsFix=false;
  _lat=_lon=_heading=_pitch=_roll=qQNaN(); emit stateChanged(); emit progressChanged();
 }
 void NavoKoggerReplay::setPaused(bool value) {
  if (!_active || _paused==value)return;
- _paused=value; if(value)_timer.stop();else _timer.start(); emit stateChanged();
+ _paused=value; _pacing.start(); if(value)_timer.stop();else _timer.start(); emit stateChanged();
 }
 void NavoKoggerReplay::setSpeed(double value) {
  value=std::clamp(value,0.5,5.0);
- if(_speed==value)return;_speed=value;emit stateChanged();
+ if(_speed==value)return;_speed=value;_pacing.start();emit stateChanged();
 }
 void NavoKoggerReplay::readPosition() {
  const auto* raw=_parser->frame();
@@ -51,8 +51,14 @@ void NavoKoggerReplay::readPosition() {
  }
 }
 void NavoKoggerReplay::tick() {
- if(!_active||_paused||_blocked)return;
- QByteArray bytes=_file.read(int(4096*_speed));
+ if(!_active||_paused||_blocked){if(_pacing.isValid())_pacing.restart();return;}
+ // Qt timers coalesce missed intervals when the UI is rendering. Compensate
+ // for actual elapsed time rather than silently reducing the requested speed.
+ // Bound each read so native backpressure can still stop the next tick.
+ const qint64 elapsed=_pacing.isValid()?_pacing.restart():40;
+ const int nominal=int(4096*_speed);
+ const int budget=std::clamp(int(4096.0*_speed*std::min<qint64>(elapsed,1000)/40.0),nominal,65536);
+ QByteArray bytes=_file.read(budget);
  _parser->setContext(reinterpret_cast<uint8_t*>(bytes.data()),bytes.size());
  while(_parser->availContext()>0) {
   _parser->process();

@@ -54,6 +54,8 @@ jobs:
         run: /tmp/navo-replay/navo-servo-feedback custom/qml/NavoHopperBridge.qml
       - name: Test installed acceptance scene ownership
         run: /tmp/navo-replay/navo-acceptance-scene
+      - name: Test bounded elapsed replay pacing
+        run: /tmp/navo-replay/navo-replay-pacing
       - name: Test protocol regressions
         run: /tmp/navo-replay/navo-kogger-replay
       - uses: actions/cache@v4

@@ -926,7 +926,7 @@ Item {
             }
             onClosed: root.activePage = 0
             connected: sonar.connected || sonar.replayMode
-            depthM: sonar.depthM
+            depthM: root.depthM
             waterTempC: root.waterTempC
             samples: sonar.echoSamples
             chartResolution: sonar.chartResolution
