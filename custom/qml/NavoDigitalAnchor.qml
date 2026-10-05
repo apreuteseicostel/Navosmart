@@ -12,8 +12,9 @@ QtObject {
     property bool guidedConfirmed:false
     onVehicleChanged: release()
     signal status(string text)
+    function gpsReady() { return !!vehicle && !!vehicle.gps && !!vehicle.gps.lock && isFinite(vehicle.gps.lock.rawValue) && vehicle.gps.lock.rawValue>=3 }
     function engage() {
-        if (!vehicle || !vehicle.vehicleLinkManager || vehicle.vehicleLinkManager.communicationLost || !vehicle.coordinate || !vehicle.coordinate.isValid || !vehicle.gps || vehicle.gps.lock.rawValue<3) { status("Ancora GPS: poziție/legătură invalidă"); return false }
+        if (!vehicle || !vehicle.vehicleLinkManager || vehicle.vehicleLinkManager.communicationLost || !vehicle.coordinate || !vehicle.coordinate.isValid || !gpsReady()) { status("Ancora GPS: poziție/legătură invalidă"); return false }
         if(!vehicle.guidedModeGotoLocation || !vehicle.pauseVehicle){status("Ancora GPS: comenzi autopilot indisponibile");return false}
         anchorCoordinate = QtPositioning.coordinate(vehicle.coordinate.latitude,vehicle.coordinate.longitude)
         vehicle.guidedModeGotoLocation(anchorCoordinate)
@@ -22,7 +23,7 @@ QtObject {
     }
     function release() { active=false; correctionActive=false;guidedConfirmed=false;requestedAtMs=0; status("Ancora GPS dezactivată") }
     function maintain() {
-        if(active && (!vehicle || !vehicle.vehicleLinkManager || vehicle.vehicleLinkManager.communicationLost || !vehicle.gps || vehicle.gps.lock.rawValue<3)) { release(); status("Ancora suspendată: GPS/legătură pierdută"); return }
+        if(active && (!vehicle || !vehicle.vehicleLinkManager || vehicle.vehicleLinkManager.communicationLost || !gpsReady())) { release(); status("Ancora suspendată: GPS/legătură pierdută"); return }
         if (!active) return
         if(!vehicle.coordinate || !vehicle.coordinate.isValid || !anchorCoordinate.isValid){release();status("Ancora suspendată: coordonate invalide");return}
         // A pilot mode change cancels NAVO corrections. Never override MANUAL.

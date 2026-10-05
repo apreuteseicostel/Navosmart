@@ -372,6 +372,10 @@ test('GPS anchor cancels on invalid coordinates and link loss',()=>{
  const c=context('NavoDigitalAnchor.qml',{vehicle,QtPositioning:{coordinate:coord},active:false,correctionActive:false,driftRadiusM:1.5,status:noop});
  assert(c.engage());vehicle.coordinate={isValid:false};c.maintain();assert.equal(c.active,false);
  vehicle.coordinate=coord(52,0);assert(c.engage());vehicle.vehicleLinkManager.communicationLost=true;c.maintain();assert.equal(c.active,false);
+ vehicle.vehicleLinkManager.communicationLost=false;
+ for(const invalid of [undefined,NaN,2]){vehicle.gps.lock.rawValue=invalid;assert.equal(c.engage(),false)}
+ vehicle.gps.lock=null;assert.equal(c.engage(),false);
+ vehicle.gps.lock={rawValue:3};assert(c.engage());vehicle.gps.lock.rawValue=NaN;c.maintain();assert.equal(c.active,false);
 });
 test('Dashboard anchor is reachable but blocked during replay and active operations',()=>{
  let engaged=0,held=0;const c=context('NavoDashboard.qml',{digitalAnchor:{active:false,engage(){engaged++;return true}},linkAlive:true,
