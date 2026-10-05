@@ -9,6 +9,10 @@
 #include <QCryptographicHash>
 #include <QJSValue>
 #include <QDebug>
+#include <QQuickItem>
+#include <QQuickWindow>
+#include <QPointer>
+#include <QSet>
 
 // Instantiated only in the explicit CI x86_64 acceptance build. No simulated
 // vehicle, sonar, map projection or persistence is installed by this helper.
@@ -27,6 +31,16 @@ public:
     QVariantMap configuration() const{return configuration_;}
     QString directory() const{return dir_;}
     bool active() const{return configuration_.value("phase")=="record" || configuration_.value("phase")=="restore";}
+    Q_INVOKABLE bool claim(QObject* dashboard) {
+        auto* item=qobject_cast<QQuickItem*>(dashboard);
+        if(!item || !item->isVisible() || !item->window() || !item->window()->isVisible()
+           || item->width()<=0 || item->height()<=0)return false;
+        if(!owner_) {
+            owner_=dashboard;
+            qInfo()<<"NAVO_ACCEPTANCE_OWNER:"<<dashboard;
+        }
+        return owner_==dashboard;
+    }
     Q_INVOKABLE bool verifiedFixture() const {
         QFile fixture(dir_+"/00028_DownView.klf");if(!fixture.open(QIODevice::ReadOnly))return false;
         QCryptographicHash hash(QCryptographicHash::Sha256);
@@ -40,27 +54,42 @@ public:
     Q_INVOKABLE QVariantMap inspect(QObject* dashboard) const {
         QVariantMap result{{"nativePaintedTriangles",0},{"mesh3dVertices",0},{"mesh3dTriangles",0},{"sonarHistoryColumns",0}};
         if(!dashboard)return result;
-        for(auto* object:dashboard->findChildren<QObject*>()) {
+        for(auto* object:sceneObjects(dashboard)) {
             if(object->objectName()=="navoNativeSurfaceOverlay" && object->property("visible").toBool()) {
                 result["nativePaintedTriangles"]=object->property("renderedTriangles");
                 result["nativePaintMs"]=object->property("lastPaintMs");
             }
             if(object->objectName()=="navoBathymetryMesh") {
-                result["mesh3dVertices"]=plain(object->property("vertices")).toList().size();
-                result["mesh3dTriangles"]=plain(object->property("triangles")).toList().size();
+                result["mesh3dVertices"]=listSize(object->property("vertices"));
+                result["mesh3dTriangles"]=listSize(object->property("triangles"));
             }
             if(object->objectName()=="navoSonarPro" && object->property("visible").toBool())
-                result["sonarHistoryColumns"]=plain(object->property("history")).toList().size();
+                result["sonarHistoryColumns"]=listSize(object->property("history"));
         }
         return result;
     }
     Q_INVOKABLE void enableNativeMap(QObject* dashboard) const {
         if(!dashboard)return;
-        for(auto* object:dashboard->findChildren<QObject*>("navoMap"))
-            if(object->property("visible").toBool())object->setProperty("bathymetryHDEnabled",true);
+        for(auto* object:sceneObjects(dashboard))
+            if(object->objectName()=="navoMap" && object->property("visible").toBool())object->setProperty("bathymetryHDEnabled",true);
     }
 private:
-    static QVariant plain(const QVariant& value){return value.metaType()==QMetaType::fromType<QJSValue>()?value.value<QJSValue>().toVariant():value;}
+    static int listSize(const QVariant& value) {
+        if(value.metaType()==QMetaType::fromType<QJSValue>())
+            return value.value<QJSValue>().property("length").toInt();
+        return value.toList().size();
+    }
+    static QList<QObject*> sceneObjects(QObject* root) {
+        QList<QObject*> objects{root};QSet<QObject*> seen{root};
+        for(qsizetype i=0;i<objects.size();++i) {
+            auto append=[&](QObject* child){if(child && !seen.contains(child)){seen.insert(child);objects.append(child);}};
+            for(auto* child:objects[i]->children())append(child);
+            if(auto* item=qobject_cast<QQuickItem*>(objects[i]))
+                for(auto* child:item->childItems())append(child);
+        }
+        return objects;
+    }
+    QPointer<QObject> owner_;
     QVariantMap configuration_;
     QString dir_;
 };

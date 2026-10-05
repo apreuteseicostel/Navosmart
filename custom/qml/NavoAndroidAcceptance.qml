@@ -16,7 +16,8 @@ Item {
     property string liveBefore:""
     property int samples:0
     property var evidence:({})
-    function fail(message){stage="failed";backend.report({status:"failed",error:message,phase:backend.configuration.phase});clock.stop()}
+    property bool stepping:false
+    function fail(message){var failedStage=stage;stage="failed";backend.report({status:"failed",error:message,failedStage:failedStage,phase:backend.configuration.phase,liveId:liveId,replayId:replayId});clock.stop()}
     function require(ok,message){if(!ok)throw new Error(message)}
     function advance(next){stage=next;entered=Date.now();evidence.sceneReady=false;publish("running")}
     function publish(status){
@@ -91,7 +92,7 @@ Item {
             if(mesh.mesh3dVertices<3 || mesh.mesh3dTriangles<1)return
             if(!evidence.sceneReady){evidence.sceneReady=true;entered=Date.now();publish("running")}
             if(Date.now()-entered<4000)return
-            evidence.mesh3dVertices=mesh.mesh3dVertices;evidence.mesh3dTriangles=mesh.mesh3dTriangles
+            evidence.verifiedMesh3dVertices=mesh.mesh3dVertices;evidence.verifiedMesh3dTriangles=mesh.mesh3dTriangles
             if(backend.configuration.phase==="restore") {
                 require(coordinator.activateLake(liveId,"CI live isolation"),"Cannot restore original Area Scan lake")
                 require(area.completedLanes.length===1 && area.completedLanes[0]===0,"Area Scan completed corridor lost after restart")
@@ -102,5 +103,13 @@ Item {
             publish("passed");clock.stop()
         }
     }
-    Timer {id:clock;interval:250;repeat:true;running:true;onTriggered:{try{test.step()}catch(error){test.fail(String(error))}}}
+    Timer {
+        id:clock;interval:250;repeat:true;running:true
+        onTriggered:{
+            if(test.stepping || !backend.claim(dashboard))return
+            test.stepping=true
+            try{test.step()}catch(error){test.fail(String(error))}
+            finally{test.stepping=false}
+        }
+    }
 }

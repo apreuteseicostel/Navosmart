@@ -63,7 +63,8 @@ jobs:
           grep -n -A9 -B4 'if (!_mainRootWindow)' qgc/src/QGCApplication.cc
       - name: Install compiler cache
         run: sudo apt-get update && sudo apt-get install -y ccache
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
+        id: compiler-cache
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ${{ runner.os }}-navo-qgc5.0.7-qt6.8.3-ndk26b-v1-${{ hashFiles('custom/**', '.github/workflows/android.yml') }}
@@ -285,6 +286,12 @@ jobs:
       - name: Compiler cache statistics
         if: always()
         run: ccache --show-stats
+      - name: Save compiler cache after functional checks
+        if: always() && steps.compiler-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ${{ steps.compiler-cache.outputs.cache-primary-key }}
       - name: Upload Android smoke-test evidence
         if: always()
         uses: actions/upload-artifact@v4
