@@ -1679,6 +1679,8 @@ Item {
         Item {
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             ScrollView {
+                id: settingsScroll
+                contentWidth: availableWidth
                 anchors.fill: parent
                 anchors.margins: root.responsiveMargin
                 clip: true
@@ -1686,10 +1688,10 @@ Item {
                 ScrollBar.vertical.policy: contentHeight > availableHeight ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
 
                 ColumnLayout {
-                    width: parent.width
+                    width: settingsScroll.availableWidth
                     spacing: root.responsiveGap
                     Button {
-                        Layout.fillWidth: true
+                        Layout.maximumWidth: 230
                         text: g20Advanced.visible ? "Închide Avansat • G20" : "Avansat • integrare G20"
                         onClicked: g20Advanced.visible = !g20Advanced.visible
                     }
