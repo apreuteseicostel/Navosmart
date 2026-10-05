@@ -21,6 +21,10 @@ Rectangle {
     property bool connected: false
     readonly property bool replayMode: chartSource ? chartSource.replayMode : false
     readonly property bool replayActive: chartSource ? chartSource.replayActive : false
+    function sourceStatusText() {
+        if(chartSource && chartSource.replayMode)return replayActive ? "TEST REPLAY" : "REPLAY • FINAL"
+        return connected ? (paused ? "PAUZĂ" : "LIVE") : "OFFLINE"
+    }
     FileDialog { id: replayPicker; title: 'Încarcă înregistrare Kogger'; nameFilters: ['Kogger (*.klf)', 'Toate fișierele (*)']; onAccepted: { if(root.chartSource) {root.history=[];root.chartSource.startReplay(selectedFile)} } }
     property real depthM: NaN
     property real waterTempC: NaN
@@ -431,7 +435,7 @@ Rectangle {
         Label {
             id: telemetry; objectName: "sonarProTelemetry"; font.pixelSize: 14; anchors.fill: parent; anchors.margins: 8; elide: Text.ElideRight
             color: root.connected ? "#21b7ff" : "#9db2c5"
-            text: "PRO  •  " + (root.connected ? (root.replayActive ? "TEST REPLAY" : (root.paused ? "PAUZĂ" : "LIVE")) : "OFFLINE") + "   " + (isFinite(root.depthM)?root.depthM.toFixed(1)+" m":"— m") + "   " + (isFinite(root.waterTempC)?root.waterTempC.toFixed(1)+" °C":"— °C")
+            text: "PRO  •  " + root.sourceStatusText() + "   " + (isFinite(root.depthM)?root.depthM.toFixed(1)+" m":"— m") + "   " + (isFinite(root.waterTempC)?root.waterTempC.toFixed(1)+" °C":"— °C")
         }
     }
     IconButton {
