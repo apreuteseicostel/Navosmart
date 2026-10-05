@@ -23,5 +23,11 @@ int main(int argc,char** argv) {
     qobject_cast<QQuickItem*>(scene.get())->setParentItem(&dashboard);
     if(backend.inspect(&dashboard).value("sonarHistoryColumns").toInt()!=3)return 5;
     if(!backend.claim(&dashboard))return 6;
+    QQuickItem view(&dashboard);view.setObjectName("navoBathymetry3D");view.setSize({640,480});
+    if(!backend.inspect(&dashboard).value("mesh3dVisible").toBool())return 7;
+    view.setVisible(false);
+    if(backend.inspect(&dashboard).value("mesh3dVisible").toBool())return 8;
+    view.setVisible(true);view.setWidth(0);
+    if(backend.inspect(&dashboard).value("mesh3dVisible").toBool())return 9;
     std::cout<<"PASS acceptance owner isolation and real QtQuick Loader/visual traversal\n";
 }
