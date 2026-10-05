@@ -43,9 +43,13 @@ separate CI workflow. Always inspect the checks on the current PR head.
 - Lateral mosaic and native isobaths remain disabled for the downward beam;
   do not enable them by treating its vertical returns as a side-scan swath.
 - CHART v1 encoding requires its own device evidence.
-- Real G20 physical event mapping, H743 servo acknowledgements, hardware
-  calibration, disconnect/reconnect and release/close cycles require the
-  actual boat. Command-sent UI state is not physical actuator confirmation.
+- The baiting panel reports QGC servo command results (accepted/rejected,
+  timeout and duplicate-send failure) for the selected vehicle/autopilot.
+  Results are command-level, not per-output physical feedback. The animation
+  labels requested commands and explicitly leaves physical position unconfirmed.
+- Real G20 physical event mapping, H743 ACK delivery, hardware calibration,
+  disconnect/reconnect and release/close cycles require the actual boat.
+  An accepted ACK does not confirm physical actuator movement.
 - Emulator launch is not complete functional acceptance of every dashboard
   tab, outdoor connectivity or Android device graphics.
 - Preserve upstream GPL-3.0 attribution and distribution requirements.

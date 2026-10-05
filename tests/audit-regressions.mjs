@@ -254,4 +254,28 @@ test('Recorded replay Map refuses area drawing and its deferred commit',()=>{
  assert.equal(c.beginAreaRectangle(),false);assert.equal(c.beginAreaPolygon(),false);assert.equal(c.finishAreaDrawing(),false);
  assert.equal(c.areaDrawMode,'polygon');assert.deepEqual(c.areaDraftPoints,[1,2,3]);
 });
+test('Servo replies are filtered by vehicle, component and command',()=>{
+ const c=context('NavoHopperBridge.qml',{vehicle:{id:42},mavCompAutopilot1:1,mavCmdDoSetServo:183,servoResponse:'original',servoResponseAtMs:0});
+ for(const args of [[43,1,183,0,0],[42,2,183,0,0],[42,1,184,0,0]])assert.equal(c.receiveServoResult(...args),false);
+ assert.equal(c.servoResponse,'original');assert.equal(c.servoResponseAtMs,0);
+});
+test('Accepted servo ACK does not alter requested hopper position',()=>{
+ const c=context('NavoHopperBridge.qml',{vehicle:{id:42},mavCompAutopilot1:1,mavCmdDoSetServo:183,leftOpen:false,rightOpen:true,commandPending:true});
+ assert.equal(c.receiveServoResult(42,1,183,0,0),true);
+ assert.match(c.servoResponse,/acceptat/);assert(c.servoResponseAtMs>0);
+ assert.equal(c.leftOpen,false);assert.equal(c.rightOpen,true);assert.equal(c.commandPending,true);
+});
+test('Servo timeout, duplicate and rejected replies remain failures',()=>{
+ const c=context('NavoHopperBridge.qml',{vehicle:{id:42},mavCompAutopilot1:1,mavCmdDoSetServo:183});
+ c.receiveServoResult(42,1,183,0,1);assert.match(c.servoResponse,/timeout/);
+ c.receiveServoResult(42,1,183,0,2);assert.match(c.servoResponse,/netrimisă/);
+ c.receiveServoResult(42,1,183,2,0);assert.match(c.servoResponse,/respins/);
+ c.receiveServoResult(42,1,183,5,0);assert.match(c.servoResponse,/în curs/);
+});
+test('Changing the vehicle removes stale servo feedback',()=>{
+ const c=context('NavoHopperBridge.qml',{servoResponse:'acceptat',servoResponseAtMs:100});
+ c.resetServoFeedback();assert.equal(c.servoResponseAtMs,0);assert.match(c.servoResponse,/Niciun/);
+ const panel=fs.readFileSync(path.join(dir,'NavoBaitingPanel.qml'),'utf8');
+ assert(panel.includes('physicalPositionStatus'));assert(!panel.includes('CUVE BASCULEAZĂ'));
+});
 console.log(`${passed} regression scenarios passed`);

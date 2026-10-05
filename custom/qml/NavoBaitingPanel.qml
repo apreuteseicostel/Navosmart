@@ -113,6 +113,16 @@ Rectangle {
                 onActivated: function(index) { saved.hopperIndex = index }
             }
         }
+        Label {
+            Layout.fillWidth:true
+            text:root.hopperBridge ? root.hopperBridge.servoResponse : "H743 indisponibil"
+            color:root.secondaryTextColor; font.pixelSize:10; wrapMode:Text.WordWrap
+        }
+        Label {
+            Layout.fillWidth:true
+            text:root.hopperBridge ? root.hopperBridge.physicalPositionStatus : "Poziția fizică a cuvelor: neconfirmată"
+            color:"#f0bb64"; font.pixelSize:10; wrapMode:Text.WordWrap
+        }
         RowLayout {
             Layout.fillWidth:true
             Layout.topMargin: 18
@@ -143,9 +153,9 @@ Rectangle {
                 anchors.top: parent.top
                 anchors.horizontalCenter: parent.horizontalCenter
                 anchors.topMargin: 7
-                text: root.hopperLeftOpen && root.hopperRightOpen ? "AMBELE CUVE BASCULEAZĂ" :
-                      root.hopperLeftOpen ? "CUVA STÂNGĂ BASCULEAZĂ" :
-                      root.hopperRightOpen ? "CUVA DREAPTĂ BASCULEAZĂ" : "CUVE ÎNCHISE • REVENIRE"
+                text: root.hopperLeftOpen && root.hopperRightOpen ? "COMANDĂ: DESCHIDE AMBELE CUVE" :
+                      root.hopperLeftOpen ? "COMANDĂ: DESCHIDE STÂNGA" :
+                      root.hopperRightOpen ? "COMANDĂ: DESCHIDE DREAPTA" : "COMANDĂ: ÎNCHIDE CUVELE"
                 color: root.hopperLeftOpen || root.hopperRightOpen ? "#31d67b" : root.secondaryTextColor
                 font.bold: true
                 font.pixelSize: 12

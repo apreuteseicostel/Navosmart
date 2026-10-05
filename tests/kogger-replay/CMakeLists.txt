@@ -36,3 +36,6 @@ target_link_libraries(navo-native-surface PRIVATE Qt6::Core Qt6::Gui)
 
 add_executable(navo-native-surface-view native-surface-view.cpp)
 target_link_libraries(navo-native-surface-view PRIVATE Qt6::Quick Qt6::Qml)
+
+add_executable(navo-servo-feedback servo-feedback.cpp)
+target_link_libraries(navo-servo-feedback PRIVATE Qt6::Gui Qt6::Qml)

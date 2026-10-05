@@ -11,6 +11,8 @@ on:
       - 'custom/qml/NavoNativeBathymetryOverlay.qml'
       - 'custom/qml/NavoScanCoordinator.qml'
       - 'custom/src/NavoPersistence*'
+      - 'custom/qml/NavoHopperBridge.qml'
+      - 'custom/qml/NavoBaitingPanel.qml'
       - '.github/workflows/android.yml'
       - 'custom/CMakeLists.txt'
       - 'custom/kogger_native/**'
@@ -48,6 +50,8 @@ jobs:
           path: /tmp/navo-qt-runtime/ui.tar.gz
       - name: Test native surface geometry
         run: /tmp/navo-replay/navo-native-surface
+      - name: Test production H743 servo feedback wiring
+        run: /tmp/navo-replay/navo-servo-feedback custom/qml/NavoHopperBridge.qml
       - name: Test protocol regressions
         run: /tmp/navo-replay/navo-kogger-replay
       - uses: actions/cache@v4
