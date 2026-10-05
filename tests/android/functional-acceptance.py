@@ -38,7 +38,7 @@ def run_phase(config):
     adb('push', str(request), remote); shell('chown', owner, remote)
     shell('chmod', '600', remote); shell('restorecon', remote)
     shell('am', 'start', '-W', '-n', package + '/' + activity)
-    started = time.monotonic(); captured = set(); previous_stage = None
+    started = time.monotonic(); captured = set(); previous_stage = None; last_progress_capture = 0
     while time.monotonic() - started < 750:
         time.sleep(1)
         if not shell('pidof', package).strip():
@@ -53,10 +53,15 @@ def run_phase(config):
         stage = report.get('stage')
         if stage != previous_stage:
             print('Installed acceptance:', phase, stage, flush=True); previous_stage = stage
+        if stage == 'replay' and time.monotonic()-last_progress_capture > 30:
+            print('Replay progress:', {key: report.get(key) for key in ('replayPosition','replaySize','replayActive','processedColumns','nativeCapacityFull','replayMappingSamples','nativeSurfaceIndices')}, flush=True)
+            (screens / ('acceptance-' + phase + '-replay-progress.png')).write_bytes(adb('exec-out','screencap','-p'))
+            last_progress_capture = time.monotonic()
         if stage not in captured and (stage == 'sonar-evidence' or report.get('sceneReady')):
             (screens / ('acceptance-' + phase + '-' + stage + '.png')).write_bytes(adb('exec-out', 'screencap', '-p'))
             captured.add(stage)
         if report.get('status') == 'failed':
+            (screens / ('acceptance-' + phase + '-failed.png')).write_bytes(adb('exec-out','screencap','-p'))
             raise RuntimeError(report.get('error'))
         if report.get('status') == 'passed':
             assert {'3d', 'native-map' if phase == 'record' else 'restored-map'} <= captured, 'Rendered scene evidence missing'

@@ -17,15 +17,30 @@ Item {
     property int samples:0
     property var evidence:({})
     property bool stepping:false
-    function fail(message){var failedStage=stage;stage="failed";backend.report({status:"failed",error:message,failedStage:failedStage,phase:backend.configuration.phase,liveId:liveId,replayId:replayId});clock.stop()}
+    property double reported:0
+    property string progressSignature:""
+    property double progressed:Date.now()
+    function fail(message){evidence.failedStage=stage;evidence.error=message;stage="failed";backend.report(reportState("failed"));clock.stop()}
     function require(ok,message){if(!ok)throw new Error(message)}
     function advance(next){stage=next;entered=Date.now();evidence.sceneReady=false;publish("running")}
-    function publish(status){
+    function reportState(status){
         var state={status:status,phase:backend.configuration.phase,stage:stage,liveId:liveId,replayId:replayId,samples:samples}
+        var sonar=dashboard.sonarController
+        state.replayPosition=sonar.replayPosition;state.replaySize=sonar.replaySize
+        state.replayActive=sonar.replayActive;state.replayPaused=sonar.replayPaused
+        state.processedColumns=sonar.processedColumns;state.nativeCapacityFull=sonar.nativeCapacityFull
+        state.nativeChartRecords=sonar.nativeChartRecords;state.nativeChartRejected=sonar.nativeChartRejected
+        state.bathymetryTileCount=sonar.bathymetryTileCount
+        state.replayMappingSamples=dashboard.replayMappingController.rawSamples.length
+        state.nativeSurfaceIndices=sonar.nativeSurfaceMesh.indices ? sonar.nativeSurfaceMesh.indices.length : 0
         for(var key in evidence)state[key]=evidence[key]
         var metrics=backend.inspect(dashboard)
         for(var metric in metrics)state[metric]=metrics[metric]
-        require(backend.report(state),"Cannot persist acceptance report")
+        return state
+    }
+    function publish(status){
+        require(backend.report(reportState(status)),"Cannot persist acceptance report")
+        reported=Date.now()
     }
     function step(){
         require(!dashboard.vehicle,"Acceptance requires a disposable emulator with no vehicle")
@@ -61,6 +76,10 @@ Item {
         if(stage==="replay") {
             require(!sonar.dataAlive,"Replay claims live telemetry")
             if(sonar.replayError.length)throw new Error(sonar.replayError)
+            var signature=[sonar.replayPosition,sonar.processedColumns,dashboard.replayMappingController.rawSamples.length,sonar.nativeSurfaceMesh.indices ? sonar.nativeSurfaceMesh.indices.length : 0].join(":")
+            if(signature!==progressSignature){progressSignature=signature;progressed=Date.now()}
+            require(Date.now()-progressed<60000,"Replay stalled: "+signature)
+            if(Date.now()-reported>5000)publish("running")
             if(sonar.replayActive || sonar.processedColumns<14000 || !sonar.nativeSurfaceMesh.indices || sonar.nativeSurfaceMesh.indices.length<3)return
             require(sonar.replayPosition===sonar.replaySize,"Replay ended before EOF")
             samples=dashboard.replayMappingController.rawSamples.length
