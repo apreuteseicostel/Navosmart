@@ -151,6 +151,17 @@ Item {
         onStatus: function(text) { root.lastNavigationStatus=text }
     }
     NavoEnergyGuard { id: energyGuard }
+    NavoPreLaunchCheck {
+        id: preLaunchCheck
+        vehicleConnected: root.linkAlive
+        gpsReady: !!root.vehicle && !!root.vehicle.gps && Number(root.vehicle.gps.lock.rawValue) >= 3 && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
+        homeReady: !!root.vehicle && !!root.vehicle.homePosition && root.vehicle.homePosition.isValid
+        batteryReady: !!root.battery && !!root.battery.percentRemaining && isFinite(Number(root.battery.percentRemaining.rawValue)) && Number(root.battery.percentRemaining.rawValue) > 20
+        nanoReady: nanoTelemetry.connected
+        sonarReady: root.sonarConnected
+        cameraReady: root.cameraConnected
+        hoppersReady: hopperSettings.confirmed && hopperSettings.leftOutput !== hopperSettings.rightOutput
+    }
     Settings {
         id: energySettings
         category:"NavoEnergy"
@@ -594,6 +605,7 @@ Item {
     }
     function startMission() {
         if(!root.allowLiveAction()) return false
+        if (!preLaunchCheck.navigationReady) { root.lastNavigationStatus = preLaunchCheck.blockingMessage; return false }
         if (!root.vehicle) {
             root.lastNavigationStatus = "START blocat: autopilot neconectat"
             return false
