@@ -26,6 +26,7 @@ qt_add_qml_module(NavoSmartModule
         QtQuick3D
     QML_FILES
         qml/NavoDashboard.qml
+        qml/NavoPreLaunchCheck.qml
         qml/NavoAndroidAcceptance.qml
         qml/NavoMap.qml
         qml/NavoTelemetryCard.qml
