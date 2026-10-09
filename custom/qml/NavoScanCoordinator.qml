@@ -271,7 +271,17 @@ QtObject {
         if(lakeId && lakeId!==id && !checkpoint("before-restore")) return false
         var p=persistence.lakeState(id); if(!p || Object.keys(p).length===0){status("Balta nu are încă stare salvată");return false}
         if(routePlan) routePlan.restore(p.routePlan)
-        lakeId=id; lakeName=p.lakeName||lakeName; areaPoints=geoCoordinates(p.areaPoints||[])
+        // The lake catalogue owns the current display name; a snapshot may predate a rename.
+        var currentName=""
+        var catalogue=persistence.lakes||[]
+        for(var lakeIndex=0;lakeIndex<catalogue.length;lakeIndex++) {
+            var entry=catalogue[lakeIndex]
+            if(entry && String(entry.id)===String(id)) {
+                currentName=String(entry.name||"").trim()
+                break
+            }
+        }
+        lakeId=id; lakeName=currentName||p.lakeName||"Baltă"; areaPoints=geoCoordinates(p.areaPoints||[])
         sonarMapping.lakeId=id; sonarMapping.rawSamples=(p.sonarSamples||[]).slice(0)
         // Rebuild the GPS breadcrumb from persisted samples, using the same
         // one-metre spacing rule as live sonar ingestion.
