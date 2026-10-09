@@ -1,7 +1,7 @@
 name: Build NAVO SMART Android
 on:
   push:
-    branches: [main, feature/navo-smart-pro, feature/area-scan-bathymetry-resume, feature/unified-navosmart-integration, feature/bathymetry-3d, audit/full-integration-23-sep]
+    branches: [main, fix/g20-advanced-rc-integration-20261005, feature/navo-smart-pro, feature/area-scan-bathymetry-resume, feature/unified-navosmart-integration, feature/bathymetry-3d, audit/full-integration-23-sep]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -9,7 +9,7 @@ on:
 # Keep only the newest Android validation for the same PR/branch.
 # This prevents one small UI commit from consuming another full multi-hour build.
 concurrency:
-  group: navo-android-${{ github.event.pull_request.number || github.ref }}
+  group: navo-android-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
 # build revision 4

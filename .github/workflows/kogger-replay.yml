@@ -1,7 +1,7 @@
 name: Kogger recorded CHART replay
 on:
   push:
-    branches: [main]
+    branches: [main, fix/g20-advanced-rc-integration-20261005]
   pull_request:
     paths:
       - 'custom/src/NavoKogger*'
@@ -25,7 +25,7 @@ on:
       - '.github/workflows/kogger-replay.yml'
   workflow_dispatch:
 concurrency:
-  group: kogger-replay-${{ github.ref }}
+  group: kogger-replay-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 permissions:
   contents: read
