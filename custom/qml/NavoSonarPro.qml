@@ -535,7 +535,7 @@ Rectangle {
                 MenuAction { visible:root.replayActive; selected:root.replayActive; text:'Viteză replay: '+(root.chartSource ? root.chartSource.replaySpeed : 1)+'×'; onClicked:root.chartSource.setReplaySpeed(root.chartSource.replaySpeed>=5 ? 0.5 : root.chartSource.replaySpeed*2) }
                 MenuAction { visible:root.replayMode; enabled:root.replaySampleCount>=3; text:"Salvează replay în Bălțile mele"; onClicked:{root.menuOpen=false;replaySaveDialog.open()} }
                 Label { visible:root.replaySaveStatus.length>0; Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.replaySaveStatus; color:"#d7e7f1"; font.pixelSize:11 }
-                MenuAction { visible:root.replayActive; text:'Oprește replay'; onClicked:root.chartSource.stopReplay() }
+                MenuAction { visible:root.replayMode; text:'Închide replay'; onClicked:root.chartSource.stopReplay() }
                 MenuAction { selected:root.mapEnabled; text: root.mapEnabled ? "Ascunde harta" : "Activează harta"; onClicked: {root.mapEnabled=!root.mapEnabled;root.menuOpen=false} }
                 MenuAction { selected:root.paused; text: root.paused ? "Continuă ecograma" : "Pauză ecogramă"; onClicked: root.paused=!root.paused }
                 MenuAction { selected:root.dayPalette; text: root.dayPalette ? "Paletă NAVO" : "Paletă de zi"; onClicked: root.dayPalette=!root.dayPalette }

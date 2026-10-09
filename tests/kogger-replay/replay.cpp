@@ -366,11 +366,13 @@ QtObject {
     require(recorder,"production recorder missing");
     QVariant recordingStarted;
     require(QMetaObject::invokeMethod(sonar.get(),"startRecording",Q_RETURN_ARG(QVariant,recordingStarted),Q_ARG(QVariant,QVariant("TCP archive"))) && recordingStarted.toBool(),"cannot record live sonar");
-    send();
-    require(wait([&]{return sonar->property("nativeChartRecords").toInt()>=2;}),"located column did not reach bridge");
+    // CHART publication trails a column boundary. Complete a located column
+    // while the fix is still valid before the following GPS-loss chunk.
+    send();send();
+    require(wait([&]{return sonar->property("nativeChartRecords").toInt()>=3;}),"located column did not reach bridge");
     require(service.dataset().getLlaRef().isInit && std::abs(service.dataset().getLlaRef().refLla.latitude-40.1616)<1e-6,"QML did not establish origin after GPS fix");
     lock->setProperty("rawValue",1);send();
-    require(wait([&]{return sonar->property("nativeChartRecords").toInt()>=3;}),"GPS-loss column did not reach bridge");
+    require(wait([&]{return sonar->property("nativeChartRecords").toInt()>=4;}),"GPS-loss column did not reach bridge");
     require(!service.dataset().fromIndexCopy(service.dataset().endIndex()).getPositionGNSS().lla.isCoordinatesValid(),"QML retained located samples after GPS fix loss");
     require(QMetaObject::invokeMethod(sonar.get(),"disconnectSonar"),"cannot disconnect production transport");
     require(!sonar->property("dataAlive").toBool(),"sonar heartbeat remained live after disconnect");
@@ -384,7 +386,9 @@ QtObject {
     auto* replay=qobject_cast<NavoKoggerReplay*>(sonar->property("replay").value<QObject*>());
     require(wait([&]{return !replay->active();}),"archive replay did not finish");
     require(wait([&]{return sonar->property("nativeChartRecords").toInt()>=1;}),"offline archive bypassed actual decoder");
-    require(service.dataset().getLlaRef().isInit && std::abs(service.dataset().getLlaRef().refLla.latitude-40.1616)<1e-6,"offline archive used connected live GPS");
+    require(service.dataset().getLlaRef().isInit,"offline archive has no completed located column");
+    require(std::abs(service.dataset().getLlaRef().refLla.latitude-40.1616)<1e-6,"offline archive substituted connected live GPS");
+    require(!service.dataset().fromIndexCopy(service.dataset().endIndex()).getPositionGNSS().lla.isCoordinatesValid(),"offline archive retained GPS after recorded fix loss");
     require(!sonar->property("dataAlive").toBool() && !recorder->recording(),"replay claimed live recording");
     require(QMetaObject::invokeMethod(sonar.get(),"disconnectSonar"),"stop offline archive");
     service.clear();
