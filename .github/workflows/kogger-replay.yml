@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - 'custom/src/NavoKogger*'
+      - 'custom/src/NavoSonarArchive.h'
       - 'custom/src/NavoAndroidAcceptance.h'
       - 'custom/qml/NavoAndroidAcceptance.qml'
       - 'custom/qml/NavoSonar*.qml'
@@ -58,6 +59,8 @@ jobs:
         run: /tmp/navo-replay/navo-acceptance-scene
       - name: Test bounded elapsed replay pacing
         run: /tmp/navo-replay/navo-replay-pacing
+      - name: Test offline NAVO recording roundtrip and corruption handling
+        run: /tmp/navo-replay/navo-sonar-recording
       - name: Test protocol regressions
         run: /tmp/navo-replay/navo-kogger-replay
       - uses: actions/cache@v4
@@ -85,6 +88,8 @@ jobs:
             kogger-native-surface*.png
             kogger-native-surface.json
             kogger-sonar-pro-*.png
+            kogger-sonarRecordingDialog-*.png
+            kogger-sonarRecordingsDialog-*.png
             sonar-performance.png
             kogger-bottom-track.csv
             kogger-bathymetry-cells.csv

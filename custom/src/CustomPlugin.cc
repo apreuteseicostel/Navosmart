@@ -1,6 +1,7 @@
 #include "CustomPlugin.h"
 #include "NavoKoggerDecoder.h"
 #include "NavoKoggerReplay.h"
+#include "NavoKoggerRecorder.h"
 #include "NavoKoggerChartBridge.h"
 #include "NavoKoggerTcpClient.h"
 #include "NavoPersistence.h"
@@ -39,6 +40,7 @@ CustomPlugin::CustomPlugin(QObject* parent):QGCCorePlugin(parent),_options(new C
                             {"temperatureUnits",UnitsSettings::TemperatureUnitsCelsius}};
  for(auto it=defaults.cbegin();it!=defaults.cend();++it)if(!units.contains(it.key()))units.setValue(it.key(),it.value());
  units.endGroup();units.sync();
+ qmlRegisterType<NavoKoggerRecorder>("NavoSmart.Backend",1,0,"NavoKoggerRecorder");
  qmlRegisterType<NavoKoggerReplay>("NavoSmart.Backend",1,0,"NavoKoggerReplay");
  qmlRegisterType<NavoKoggerDecoder>("NavoSmart.Backend",1,0,"NavoKoggerDecoder");
  qmlRegisterType<NavoKoggerChartBridge>("NavoSmart.Backend",1,0,"NavoKoggerChartBridge");

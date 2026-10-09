@@ -5,6 +5,7 @@
 #include <QElapsedTimer>
 #include <QUrl>
 #include <memory>
+#include "NavoSonarArchive.h"
 namespace Parsers { class FrameParser; }
 class NavoKoggerReplay : public QObject {
  Q_OBJECT
@@ -43,6 +44,11 @@ private:
  bool _active=false, _paused=false;
  double _speed=1.0;
  QString _error;
+ bool _archive=false, _pending=false;
+ double _archiveTime=0;
+ qint64 _previousTime=0;
+ NavoSonarArchive::Record _record;
+ void archiveTick(qint64 elapsed);
  void readPosition();
 private slots:
  void tick();

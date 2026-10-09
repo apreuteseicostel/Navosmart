@@ -1,5 +1,6 @@
 #include "../../custom/src/NavoKoggerDecoder.h"
 #include "../../custom/src/NavoKoggerReplay.h"
+#include "../../custom/src/NavoKoggerRecorder.h"
 #include <QGuiApplication>
 #include <QQmlEngine>
 #include <QQmlContext>
@@ -326,6 +327,7 @@ static void qmlBathymetryPipeline(const QString& directory,const QVariantList& s
 }
 
 static void qmlTransportRoundTrip(const QString& source) {
+    qmlRegisterType<NavoKoggerRecorder>("NavoSmart.Backend",1,0,"NavoKoggerRecorder");
     qmlRegisterType<NavoKoggerReplay>("NavoSmart.Backend",1,0,"NavoKoggerReplay");
     qmlRegisterType<NavoKoggerDecoder>("NavoSmart.Backend",1,0,"NavoKoggerDecoder");
     qmlRegisterType<NavoKoggerChartBridge>("NavoSmart.Backend",1,0,"NavoKoggerChartBridge");
@@ -360,6 +362,10 @@ QtObject {
     auto& service=NavoKoggerService::instance();
     require(!service.dataset().getLlaRef().isInit,"QML accepted a coordinate without GPS fix");
     auto* gps=vehicle->property("gps").value<QObject*>();auto* lock=gps->property("lock").value<QObject*>();lock->setProperty("rawValue",3);
+    auto* recorder=qobject_cast<NavoKoggerRecorder*>(sonar->property("recorder").value<QObject*>());
+    require(recorder,"production recorder missing");
+    QVariant recordingStarted;
+    require(QMetaObject::invokeMethod(sonar.get(),"startRecording",Q_RETURN_ARG(QVariant,recordingStarted),Q_ARG(QVariant,QVariant("TCP archive"))) && recordingStarted.toBool(),"cannot record live sonar");
     send();
     require(wait([&]{return sonar->property("nativeChartRecords").toInt()>=2;}),"located column did not reach bridge");
     require(service.dataset().getLlaRef().isInit && std::abs(service.dataset().getLlaRef().refLla.latitude-40.1616)<1e-6,"QML did not establish origin after GPS fix");
@@ -368,7 +374,21 @@ QtObject {
     require(!service.dataset().fromIndexCopy(service.dataset().endIndex()).getPositionGNSS().lla.isCoordinatesValid(),"QML retained located samples after GPS fix loss");
     require(QMetaObject::invokeMethod(sonar.get(),"disconnectSonar"),"cannot disconnect production transport");
     require(!sonar->property("dataAlive").toBool(),"sonar heartbeat remained live after disconnect");
+    require(!recorder->recording() && recorder->bytes()>0 && !recorder->sessions().isEmpty(),"disconnect did not finalize received sonar");
+    const auto archive=recorder->sessions().first().toMap().value("url").toUrl();
+    // Connected vehicle has a different valid GPS: replay must use the saved fix.
+    lock->setProperty("rawValue",3);
+    vehicle->property("coordinate").value<QObject*>()->setProperty("latitude",52.0);
+    QVariant archiveOpened;
+    require(QMetaObject::invokeMethod(sonar.get(),"startReplay",Q_RETURN_ARG(QVariant,archiveOpened),Q_ARG(QVariant,QVariant(archive))) && archiveOpened.toBool(),"cannot reopen production archive");
+    auto* replay=qobject_cast<NavoKoggerReplay*>(sonar->property("replay").value<QObject*>());
+    require(wait([&]{return !replay->active();}),"archive replay did not finish");
+    require(wait([&]{return sonar->property("nativeChartRecords").toInt()>=1;}),"offline archive bypassed actual decoder");
+    require(service.dataset().getLlaRef().isInit && std::abs(service.dataset().getLlaRef().refLla.latitude-40.1616)<1e-6,"offline archive used connected live GPS");
+    require(!sonar->property("dataAlive").toBool() && !recorder->recording(),"replay claimed live recording");
+    require(QMetaObject::invokeMethod(sonar.get(),"disconnectSonar"),"stop offline archive");
     service.clear();
+    std::cout<<"PASS production TCP -> atomic recording -> offline replay -> actual decoder/Dataset with saved GPS and no live GPS substitution\n";
     std::cout<<"PASS production SonarEthernet QML: real localhost TCP -> decoder -> channel bridge -> Dataset, CHART-only heartbeat and GPS fix/loss gating\n";
 }
 

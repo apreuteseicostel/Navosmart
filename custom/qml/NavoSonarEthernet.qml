@@ -13,9 +13,18 @@ QtObject {
  readonly property double replayPosition: replayObject.position
  readonly property double replaySize: replayObject.size
  readonly property string replayError: replayObject.error
+ readonly property bool recording: recorderObject.recording
+ readonly property double recordingBytes: recorderObject.bytes
+ readonly property string recordingError: recorderObject.error
+ readonly property string recordingSavedName: recorderObject.savedName
+ readonly property var recordings: recorderObject.sessions
+ property NavoKoggerRecorder recorder: NavoKoggerRecorder { id: recorderObject }
+ function startRecording(name) { return !replayMode && dataAlive && recorderObject.start(name) }
+ function stopRecording() { return recorderObject.stop() }
+ function refreshRecordings() { recorderObject.refresh() }
  property bool replayMode: false
  function startReplay(url) {
-  transportObject.disconnectEndpoint(); replayObject.stop(); decoderObject.reset()
+  recorderObject.stop(); transportObject.disconnectEndpoint(); replayObject.stop(); decoderObject.reset()
   replayMode=true; chartBridge.setConnectionEndpoint('replay:'+String(url),1,false)
   chartBridge.clear(); chartBridge.setPosition(NaN,NaN,NaN,NaN,NaN)
   var opened=replayObject.open(url)
@@ -72,8 +81,9 @@ QtObject {
   var fixValid=!replayMode && vehicle && vehicle.gps && vehicle.gps.lock.rawValue>=3 &&
                vehicle.vehicleLinkManager && !vehicle.vehicleLinkManager.communicationLost
   var c=fixValid && vehicle.coordinate ? vehicle.coordinate : null
-  chartBridge.setPosition(c && c.isValid ? c.latitude : NaN,
-                          c && c.isValid ? c.longitude : NaN,
+  var lat=c && c.isValid ? c.latitude : NaN, lon=c && c.isValid ? c.longitude : NaN
+  chartBridge.setPosition(lat,
+                          lon,
                           vehicle && vehicle.heading ? vehicle.heading.rawValue : NaN,
                           vehicle && vehicle.pitch ? vehicle.pitch.rawValue : NaN,
                           vehicle && vehicle.roll ? vehicle.roll.rawValue : NaN)
@@ -106,14 +116,19 @@ QtObject {
  signal geoSample(var sample)
  signal bottomColumnReady(double sequence,real depth)
  function connectSonar(){ stopReplay(); transportObject.connectEndpoint() }
- function disconnectSonar(){ stopReplay(); transportObject.disconnectEndpoint(); decoderObject.reset() }
+ function disconnectSonar(){ recorderObject.stop(); stopReplay(); transportObject.disconnectEndpoint(); decoderObject.reset() }
  function connectToSonar(){ connectSonar() }
  function disconnectFromSonar(){ disconnectSonar() }
  property NavoEthernetTransport transport: NavoEthernetTransport {
   id: transportObject
   onConnectedChanged: if(!connected && !root.replayMode) { root.lastDepthMs=0; root.lastEchoMs=0; decoderObject.reset() }
-  onEndpointChanged: { decoderObject.reset(); chartBridge.setConnectionEndpoint(host,port,udp) }
-  onBytesReceived: function(data){ if(root.replayMode)return; root.rxBytes += data.length; root.rxChunks += 1; decoderObject.feedBytes(data) }
+  onEndpointChanged: { recorderObject.stop(); decoderObject.reset(); chartBridge.setConnectionEndpoint(host,port,udp) }
+  onBytesReceived: function(data){ if(root.replayMode)return; root.rxBytes += data.length; root.rxChunks += 1;
+   var v=root.vehicle
+   var valid=v && v.gps && v.gps.lock.rawValue>=3 && v.vehicleLinkManager && !v.vehicleLinkManager.communicationLost && v.coordinate && v.coordinate.isValid
+   recorderObject.append(data,valid?v.coordinate.latitude:NaN,valid?v.coordinate.longitude:NaN,
+                         v && v.heading?v.heading.rawValue:NaN,v && v.pitch?v.pitch.rawValue:NaN,v && v.roll?v.roll.rawValue:NaN)
+   decoderObject.feedBytes(data) }
  }
  property NavoKoggerDecoder decoder: NavoKoggerDecoder {
   id: decoderObject

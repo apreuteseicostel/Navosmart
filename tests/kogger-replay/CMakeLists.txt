@@ -5,6 +5,8 @@ set(CMAKE_AUTOMOC ON)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Concurrent Sql Network Qml)
 add_executable(navo-kogger-replay replay.cpp ../../custom/src/NavoKoggerDecoder.cc ../../custom/src/NavoKoggerDecoder.h ../../custom/src/NavoKoggerReplay.cc ../../custom/src/NavoKoggerReplay.h)
 target_sources(navo-kogger-replay PRIVATE
+    ../../custom/src/NavoKoggerRecorder.cc
+    ../../custom/src/NavoKoggerRecorder.h
     ../../custom/src/NavoPersistence.cc
     ../../custom/src/NavoPersistence.h
     ../../custom/src/NavoEthernetTransport.cc
@@ -45,3 +47,6 @@ target_link_libraries(navo-acceptance-scene PRIVATE Qt6::Quick Qt6::Qml)
 
 add_executable(navo-replay-pacing replay-pacing.cpp ../../custom/src/NavoKoggerReplay.cc ../../custom/src/NavoKoggerReplay.h)
 target_link_libraries(navo-replay-pacing PRIVATE Qt6::Core)
+
+add_executable(navo-sonar-recording recording.cpp ../../custom/src/NavoKoggerRecorder.cc ../../custom/src/NavoKoggerRecorder.h ../../custom/src/NavoKoggerReplay.cc ../../custom/src/NavoKoggerReplay.h)
+target_link_libraries(navo-sonar-recording PRIVATE Qt6::Core)

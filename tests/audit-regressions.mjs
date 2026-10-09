@@ -297,7 +297,7 @@ test('Sonar PRO displays the Dashboard native bottom-depth fallback',()=>{
 test('Sonar PRO labels the finished recording as replay rather than live input',()=>{
  const c=context('NavoSonarPro.qml',{chartSource:{replayMode:true},replayActive:false,connected:true,paused:false});
  assert.equal(c.sourceStatusText(),'REPLAY • FINAL');
- c.replayActive=true;assert.equal(c.sourceStatusText(),'TEST REPLAY');
+ c.replayActive=true;assert.equal(c.sourceStatusText(),'REPLAY');
  c.chartSource.replayMode=false;assert.equal(c.sourceStatusText(),'LIVE');
  c.connected=false;assert.equal(c.sourceStatusText(),'OFFLINE');
 });

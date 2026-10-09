@@ -22,10 +22,56 @@ Rectangle {
     readonly property bool replayMode: chartSource ? chartSource.replayMode : false
     readonly property bool replayActive: chartSource ? chartSource.replayActive : false
     function sourceStatusText() {
-        if(chartSource && chartSource.replayMode)return replayActive ? "TEST REPLAY" : "REPLAY • FINAL"
-        return connected ? (paused ? "PAUZĂ" : "LIVE") : "OFFLINE"
+        if(chartSource && chartSource.replayMode)return replayActive ? "REPLAY" : "REPLAY • FINAL"
+        return connected ? (chartSource && chartSource.recording ? "REC ●" : (paused ? "PAUZĂ" : "LIVE")) : "OFFLINE"
     }
-    FileDialog { id: replayPicker; title: 'Încarcă înregistrare Kogger'; nameFilters: ['Kogger (*.klf)', 'Toate fișierele (*)']; onAccepted: { if(root.chartSource) {root.history=[];root.chartSource.startReplay(selectedFile)} } }
+    FileDialog { id: replayPicker; title: 'Încarcă înregistrare sonar'; nameFilters: ['Sonar NAVO / Kogger (*.navosonar *.klf)', 'Toate fișierele (*)']; onAccepted: { if(root.chartSource) {root.history=[];root.chartSource.startReplay(selectedFile)} } }
+    Dialog {
+        id: recordingDialog
+        objectName: "sonarRecordingDialog"
+        title: "Înregistrare sonar"
+        modal: true
+        width: Math.min(360, root.width-16)
+        anchors.centerIn: parent
+        footer: DialogButtonBox {
+            Button { text:"Pornește"; DialogButtonBox.buttonRole:DialogButtonBox.AcceptRole }
+            Button { text:"Renunță"; DialogButtonBox.buttonRole:DialogButtonBox.RejectRole }
+        }
+        contentItem: ColumnLayout {
+            TextField { id: recordingName; objectName:"sonarRecordingName"; Layout.fillWidth:true; placeholderText:"Nume baltă / sesiune"; maximumLength:120 }
+            Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; text:"Salvează ecourile brute și poziția GPS la recepție. Oprește înregistrarea pentru a o păstra offline." }
+        }
+        onAccepted: { if(root.chartSource)root.chartSource.startRecording(recordingName.text) }
+    }
+    Dialog {
+        id: recordingsDialog
+        objectName: "sonarRecordingsDialog"
+        title: "Sesiuni sonar offline"
+        modal:true
+        width:Math.min(440,root.width-16)
+        height:Math.min(420,root.height-16)
+        anchors.centerIn:parent
+        footer:DialogButtonBox { Button {text:"Închide"; DialogButtonBox.buttonRole:DialogButtonBox.RejectRole} }
+        onOpened: { if(root.chartSource)root.chartSource.refreshRecordings() }
+        contentItem: ColumnLayout {
+            Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; text:"Redeschide o sesiune salvată pe acest dispozitiv. Replay-ul nu comandă barca." }
+            Label { visible:!root.chartSource || !root.chartSource.recordings || root.chartSource.recordings.length===0; text:"Nu ai sesiuni salvate încă." }
+            ListView {
+                id: recordingsList
+                objectName:"sonarRecordingsList"
+                Layout.fillWidth:true; Layout.fillHeight:true
+                clip:true; spacing:5
+                model:root.chartSource && root.chartSource.recordings ? root.chartSource.recordings : []
+                delegate: Button {
+                    required property var modelData
+                    width:recordingsList.width
+                    text:modelData.name + " · " + (modelData.size/1048576).toFixed(1) + " MiB\n" + modelData.createdUtc
+                    onClicked: {root.history=[];root.chartSource.startReplay(modelData.url);recordingsDialog.close()}
+                }
+                ScrollBar.vertical:ScrollBar {}
+            }
+        }
+    }
     property real depthM: NaN
     property real waterTempC: NaN
     property var vehicle: null
@@ -201,7 +247,7 @@ Rectangle {
     // Read the source getters synchronously: all metadata is published before
     // this signal. Capture every column even when one TCP chunk holds several.
     Connections {
-        target: root.chartSource
+        target: root.chartSource || null
         function onEchoSamplesChanged() { root.captureGeoChart(); root.pushHistory() }
         function onBottomColumnReady(sequence,depth) { root.updateHistoryBottom(sequence,depth) }
     }
@@ -478,8 +524,14 @@ Rectangle {
                     palette.buttonText: selected ? "#ffffff" : "#d7e7f1"
                     background: Rectangle { radius: 5; color: action.selected ? root.selectedMenuColor : (action.hovered ? "#183c51" : "#102435"); border.color: action.selected ? root.selectedMenuBorder : "#31536c"; border.width: action.selected ? 2 : 1 }
                 }
-                MenuAction { text: 'Deschide KLF (TEST)'; onClicked: {root.menuOpen=false; replayPicker.open()} }
-                MenuAction { visible:root.replayActive; selected:root.chartSource && root.chartSource.replayPaused; text:root.chartSource && root.chartSource.replayPaused ? 'Continuă replay' : 'Pauză replay'; onClicked:root.chartSource.pauseReplay(!root.chartSource.replayPaused) }
+                MenuAction { visible:!!(root.chartSource && !root.replayMode); enabled:!!(root.chartSource && (root.chartSource.recording || root.chartSource.dataAlive)); selected:!!(root.chartSource && root.chartSource.recording); text:root.chartSource && root.chartSource.recording ? 'Oprește și salvează REC' : 'Înregistrează sesiunea'; onClicked: {root.menuOpen=false;if(root.chartSource.recording)root.chartSource.stopRecording();else recordingDialog.open()} }
+                MenuAction { text:'Sesiuni offline'; onClicked:{root.menuOpen=false;recordingsDialog.open()} }
+                Label { visible:!!(root.chartSource && root.chartSource.recording); Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.chartSource ? 'REC · '+(root.chartSource.recordingBytes/1048576).toFixed(1)+' MiB' : ''; color:'#ffbd69'; font.pixelSize:11 }
+                Label { visible:!!(root.chartSource && root.chartSource.recordingError && root.chartSource.recordingError.length>0); Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.chartSource ? root.chartSource.recordingError || '' : ''; color:'#ffbd69'; font.pixelSize:11 }
+                Label { visible:!!(root.chartSource && !root.chartSource.recording && root.chartSource.recordingSavedName && root.chartSource.recordingSavedName.length>0); Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.chartSource ? 'Salvat: '+(root.chartSource.recordingSavedName || '') : ''; color:'#d7e7f1'; font.pixelSize:11 }
+                Label { visible:!!(root.chartSource && root.chartSource.replayError && root.chartSource.replayError.length>0); Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.chartSource ? root.chartSource.replayError || '' : ''; color:'#ffbd69'; font.pixelSize:11 }
+                MenuAction { text: 'Deschide fișier sonar'; onClicked: {root.menuOpen=false; replayPicker.open()} }
+                MenuAction { visible:root.replayActive; selected:!!(root.chartSource && root.chartSource.replayPaused); text:root.chartSource && root.chartSource.replayPaused ? 'Continuă replay' : 'Pauză replay'; onClicked:root.chartSource.pauseReplay(!root.chartSource.replayPaused) }
                 MenuAction { visible:root.replayActive; selected:root.replayActive; text:'Viteză replay: '+(root.chartSource ? root.chartSource.replaySpeed : 1)+'×'; onClicked:root.chartSource.setReplaySpeed(root.chartSource.replaySpeed>=5 ? 0.5 : root.chartSource.replaySpeed*2) }
                 MenuAction { visible:root.replayMode; enabled:root.replaySampleCount>=3; text:"Salvează replay în Bălțile mele"; onClicked:{root.menuOpen=false;replaySaveDialog.open()} }
                 Label { visible:root.replaySaveStatus.length>0; Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.replaySaveStatus; color:"#d7e7f1"; font.pixelSize:11 }

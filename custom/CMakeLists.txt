@@ -145,6 +145,9 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerReplay.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerReplay.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerRecorder.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerRecorder.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoSonarArchive.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerChartBridge.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDatasetAdapter.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerTcpClient.cc
