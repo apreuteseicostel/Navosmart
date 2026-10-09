@@ -36,6 +36,8 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoWaypointMapOverlay.qml
         qml/NavoActualTrack.qml
         qml/NavoBaitingController.qml
+        qml/NavoRoutePlan.qml
+        qml/NavoRoutePanel.qml
         qml/NavoBaitingPanel.qml
         qml/NavoHopperBridge.qml
         qml/NavoSonarCard.qml
@@ -79,6 +81,8 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoG20Settings.qml
         qml/NavoG20Controller.qml
     RESOURCES
+        icons/layers.svg
+        icons/route.svg
         icons/map.svg
         icons/sonar.svg
         icons/scan.svg

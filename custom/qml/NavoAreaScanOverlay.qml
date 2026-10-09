@@ -4,6 +4,7 @@ import QtPositioning
 
 Item {
     id: root
+    property bool showLayer: true
     required property var map
     property var areaScan
     property int lineWidth: 4
@@ -15,6 +16,7 @@ Item {
     Repeater {
         model: root.areaScan ? root.areaScan.laneCount() : 0
         delegate: MapPolyline {
+            visible:root.showLayer
             required property int index
             Component.onCompleted: { parent = root.map; root.map.addMapItem(this) }
             Component.onDestruction: root.map.removeMapItem(this)
@@ -31,6 +33,7 @@ Item {
     Repeater {
         model: root.areaScan ? root.areaScan.laneCount() : 0
         delegate: MapQuickItem {
+            visible:root.showLayer
             required property int index
             Component.onCompleted: { parent = root.map; root.map.addMapItem(this) }
             Component.onDestruction: root.map.removeMapItem(this)
@@ -52,6 +55,7 @@ Item {
         model: root.areaScan && root.areaScan.activeLaneIndex>=0
                && root.areaScan.generatedPoints.length>root.areaScan.activeLaneIndex*2 ? 1 : 0
         delegate: MapQuickItem {
+            visible:root.showLayer
             Component.onCompleted: { parent = root.map; root.map.addMapItem(this) }
             Component.onDestruction: root.map.removeMapItem(this)
             coordinate: root.areaScan && root.areaScan.activeLaneIndex>=0

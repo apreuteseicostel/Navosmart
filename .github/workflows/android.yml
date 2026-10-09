@@ -24,7 +24,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: NAVO controller regression tests
-        run: node tests/audit-regressions.mjs
+        run: |
+          node tests/audit-regressions.mjs
+          node tests/route-plan.mjs
       - name: Clone pinned QGroundControl
         run: |
           git clone --depth 1 --branch v5.0.7 --recurse-submodules --shallow-submodules https://github.com/mavlink/qgroundcontrol.git qgc

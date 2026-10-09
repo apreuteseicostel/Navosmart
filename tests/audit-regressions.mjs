@@ -14,7 +14,7 @@ function callable(source, start) {
 }
 function context(file, values={}) {
   const source=fs.readFileSync(path.join(dir,file),'utf8');
-  const c=vm.createContext({...values}); c.root=c;
+  const c=vm.createContext({routePlan:null,baitingController:null,servoCommandFailed:()=>{},...values}); c.root=c;
   const re=/\bfunction\s+([A-Za-z_][A-Za-z_0-9]*)\s*\(/g;
   let m;
   while((m=re.exec(source))) {
@@ -74,12 +74,15 @@ test('Failed checkpoint blocks lake switch',()=>{
   c.checkpoint=()=>false;assert.equal(c.activateLake('new','New'),false);assert.equal(c.lakeId,'old');
 });
 function bait(speed, distance=0.2) {
-  const c=context('NavoBaitingController.qml',{enabled:true,state:4,settleState:4,releaseState:5,arrivalRadiusM:1,releaseMaxSpeedMps:.12,hopper:1,postDropTimer:{restart(){c.postStarted=true}},hopperReleaseRequested(){c.released=true},stopRequested:noop,restart:noop});
+  const c=context('NavoBaitingController.qml',{vehicle:{flightMode:'HOLD'},enabled:true,state:4,settleState:4,releaseState:5,arrivalRadiusM:1,releaseMaxSpeedMps:.12,hopper:1,postDropTimer:{restart(){c.postStarted=true}},hopperReleaseRequested(){c.released=true},stopRequested:noop,restart:noop});
   c.vehicleCoordinateValid=()=>true;c.validTarget=()=>true;c.distanceToTarget=()=>distance;c.groundSpeed=()=>speed;c.setState=s=>c.state=s;c.abortCycle=()=>{c.enabled=false;c.aborted=true};
   return c;
 }
 test('Bait release refuses unknown speed and drift outside waypoint radius',()=>{
   for(const c of [bait(NaN),bait(Infinity),bait(.01,2)]) {timerHandler('NavoBaitingController.qml','settleTimer',c)();assert(c.aborted);assert(!c.released);assert(!c.postStarted);}
+});
+test('Pilot MANUAL blocks the drop even if the settle timer fires before the position monitor',()=>{
+ const c=bait(.01);c.vehicle.flightMode='MANUAL';timerHandler('NavoBaitingController.qml','settleTimer',c)();assert(c.aborted);assert(!c.released);
 });
 test('Valid stationary bait release dispatches; synchronous rejection prevents exit timer',()=>{
   let c=bait(.01);timerHandler('NavoBaitingController.qml','settleTimer',c)();assert(c.released && c.postStarted);

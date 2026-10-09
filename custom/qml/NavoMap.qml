@@ -2,6 +2,8 @@ import QtQuick
 import QtPositioning
 import QtLocation
 import QtQuick.Controls
+import QtQuick.Layouts
+import QtCore
 
 import QGroundControl
 import QGroundControl.Controllers
@@ -25,6 +27,15 @@ Item {
     readonly property bool nativeSurfaceReady: !!nativeSurfaceMesh && nativeSurfaceMesh.version===1 && !!nativeSurfaceMesh.indices && nativeSurfaceMesh.indices.length>=3 && nativeSurfaceMesh.indices.length<=49152 && !!nativeSurfaceMesh.vertices && nativeSurfaceMesh.vertices.length<=8192
     property bool replayPreview: false
     property var replayTrack: []
+    property bool routeActive: false
+    property var routeStops: []
+    property bool routeReturnsHome: true
+    Settings {
+        id:layerSettings; category:"NavoMapLayers"
+        property bool trackVisible:true
+        property bool plannedVisible:true
+        property bool fishVisible:true
+    }
     function followReplay() {
         if (!replayPreview || !replayTrack.length) return
         if (!initialCenterApplied || autoFollowBoat) {
@@ -252,15 +263,43 @@ Item {
     }
     MapPolyline {
         parent: liveMap
-        visible: root.replayPreview
+        visible: root.replayPreview && layerSettings.trackVisible
         path: root.replayTrack
         line.width: 3; line.color: "#21b7ff"
         Component.onCompleted: liveMap.addMapItem(this)
         Component.onDestruction: liveMap.removeMapItem(this)
     }
-    NavoActualTrack { id: actualTrack; map: liveMap; vehicle: root.recordedReplay ? null : root.vehicle; taskActive: !root.recordedReplay && !!root.vehicle }
-    NavoAreaScanOverlay { map: liveMap; areaScan: root.recordedReplay ? null : root.areaScanController }
-    NavoFishOverlay { map: liveMap; fishModel: root.recordedReplay ? null : root.fishModel }
+    MapPolyline {
+        id:plannedRoute; parent:liveMap
+        visible:layerSettings.plannedVisible && !root.recordedReplay && root.routeStops.length>0
+        path: {
+            var points=[]
+            if(root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid) points.push(root.vehicle.coordinate)
+            for(var i=0;i<root.routeStops.length;i++) points.push(QtPositioning.coordinate(root.routeStops[i].latitude,root.routeStops[i].longitude))
+            if(root.routeReturnsHome && root.vehicle && root.vehicle.homePosition && root.vehicle.homePosition.isValid)points.push(root.vehicle.homePosition)
+            return points
+        }
+        line.width:3; line.color:"#b28bff"
+        Component.onCompleted:liveMap.addMapItem(this)
+        Component.onDestruction:liveMap.removeMapItem(this)
+    }
+    Repeater {
+        model:!root.recordedReplay ? root.routeStops : []
+        delegate:MapQuickItem {
+            required property var modelData
+            required property int index
+            visible:layerSettings.plannedVisible
+            coordinate:QtPositioning.coordinate(modelData.latitude,modelData.longitude)
+            anchorPoint.x:14; anchorPoint.y:14; z:900
+            sourceItem:Rectangle { width:28;height:28;radius:14;color:"#302144";border.color:"#b28bff"
+                Label{anchors.centerIn:parent;text:String(index+1);color:"white";font.bold:true} }
+            Component.onCompleted:{parent=liveMap;liveMap.addMapItem(this)}
+            Component.onDestruction:liveMap.removeMapItem(this)
+        }
+    }
+    NavoActualTrack { id: actualTrack; showTrack:layerSettings.trackVisible; map: liveMap; vehicle: root.recordedReplay ? null : root.vehicle; taskActive: !root.recordedReplay && !!root.vehicle }
+    NavoAreaScanOverlay { showLayer:layerSettings.plannedVisible; map: liveMap; areaScan: root.recordedReplay ? null : root.areaScanController }
+    NavoFishOverlay { showLayer:layerSettings.fishVisible; map: liveMap; fishModel: root.recordedReplay ? null : root.fishModel }
     NavoNativeBathymetryOverlay {
         map: liveMap
         surface: root.nativeSurfaceMesh
@@ -280,6 +319,7 @@ Item {
         fishingSpotsModel: root.recordedReplay ? null : root.fishingSpotsModel
         onNavigateSpotRequested: function(spot) { root.navigateRequested(QtPositioning.coordinate(Number(spot.lat),Number(spot.lon))) }
         onBaitSpotRequested: function(spot) {
+            if(root.routeActive || (root.baitingController && root.baitingController.enabled))return
             var c=QtPositioning.coordinate(Number(spot.lat),Number(spot.lon))
             var wp={coordinate:c,name:spot.name,sequenceNumber:0}
             if(root.baitingController) root.baitingController.targetWaypoint=wp
@@ -290,6 +330,7 @@ Item {
     }
 
     NavoWaypointMapOverlay {
+        navigationAllowed:!root.recordedReplay && !root.routeActive && !(root.baitingController && root.baitingController.enabled)
         map: liveMap
         missionController: !root.recordedReplay && root.planController ? root.planController.missionController : null
         vehicle: root.recordedReplay ? null : root.vehicle
@@ -297,9 +338,10 @@ Item {
         savedDepthM: root.savedDepthM
         savedWaterTempC: root.savedWaterTempC
         onNavigationCommandSent: function(wp, accepted) {
-            if (accepted && root.baitingController) root.baitingController.targetWaypoint = wp
+            if (accepted && !root.routeActive && root.baitingController && !root.baitingController.enabled) root.baitingController.targetWaypoint = wp
         }
         onWaypointSelected: function(wp) {
+            if(root.routeActive || (root.baitingController && root.baitingController.enabled))return
             if(root.baitingController) root.baitingController.targetWaypoint=wp
             root.baitingWaypointSelected(wp)
         }
@@ -480,12 +522,13 @@ Item {
             property url iconSource: ""
             width:44;height:44;padding:0
             font.pixelSize:22;font.bold:true
-            background:Rectangle { radius:8;color:"#800d1722";border.color:"#8027394b";border.width:1 }
+            background:Rectangle { radius:8;color:parent.checked||parent.down?"#b0164963":"#800d1722";border.color:parent.checked?"#21b7ff":"#8027394b";border.width:1 }
             contentItem:Image { anchors.centerIn:parent;width:23;height:23;source:parent.iconSource;fillMode:Image.PreserveAspectFit }
         }
         MapTool { text:"BOAT"; iconSource:"qrc:/qml/NavoSmart/icons/boat.svg"; font.pixelSize:9; ToolTip.visible:hovered;ToolTip.text:"Centrează pe poziția actuală a bărcii";enabled:!!root.vehicle&&!!root.vehicle.coordinate&&root.vehicle.coordinate.isValid;onClicked:root.followBoat() }
         MapTool { text:"+"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-in.svg";ToolTip.visible:hovered;ToolTip.text:"Mărește harta";onClicked:{root.autoFollowBoat=false;liveMap.zoomLevel=liveMap.zoomLevel+1} }
         MapTool { text:"-"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-out.svg";ToolTip.visible:hovered;ToolTip.text:"Micșorează harta";onClicked:{root.autoFollowBoat=false;liveMap.zoomLevel=liveMap.zoomLevel-1} }
+        MapTool { checkable:true;checked:layersPopup.visible;Accessible.name:"Straturi hartă"; iconSource:"qrc:/qml/NavoSmart/icons/layers.svg"; ToolTip.visible:hovered||down; ToolTip.text:"Straturi hartă"; onClicked:layersPopup.open() }
         MapTool { text:"CTR"; iconSource:"qrc:/qml/NavoSmart/icons/center.svg";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:"Reîncadrează harta și revine la orientarea Nord sus";onClicked:root.resetView() }
     }
     Column {
@@ -501,6 +544,19 @@ Item {
         RightTool { text:"HD"; iconSource:"qrc:/qml/NavoSmart/icons/lake.svg";font.pixelSize:14;checkable:true;checked:root.headingUp;ToolTip.visible:hovered;ToolTip.text:root.headingUp?"Heading Up activ • apasă pentru Nord sus":"Heading Up • rotește după barcă";onClicked:root.headingUp=!root.headingUp }
         RightTool { text:"RUL"; iconSource:"qrc:/qml/NavoSmart/icons/ruler.svg";font.pixelSize:11;checkable:true;checked:root.rulerMode;ToolTip.visible:hovered;ToolTip.text:root.rulerMode?root.rulerDistanceText():"Măsoară distanța între două puncte";onClicked:root.toggleRuler() }
         RightTool { text:root.maximized?"MIN":"MAX"; iconSource:"qrc:/qml/NavoSmart/icons/fullscreen.svg";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:root.maximized?"Revino la dashboard":"Hartă pe tot ecranul";onClicked:root.maximizeRequested() }
+    }
+    Popup {
+        id:layersPopup; parent:Overlay.overlay; anchors.centerIn:parent
+        width:Math.min(320,parent ? parent.width-24 : 320); modal:true; focus:true
+        background:Rectangle{color:"#0b1c2e";radius:8;border.color:"#21b7ff"}
+        contentItem:ColumnLayout {
+            Label{text:"STRATURI HARTĂ";color:"white";font.bold:true}
+            CheckBox{text:"Traseu parcurs / replay";palette.windowText:"white";checked:layerSettings.trackVisible;onToggled:layerSettings.trackVisible=checked}
+            CheckBox{text:"Traseu planificat / Area Scan";palette.windowText:"white";checked:layerSettings.plannedVisible;onToggled:layerSettings.plannedVisible=checked}
+            CheckBox{text:"Marcaje sonar";palette.windowText:"white";checked:layerSettings.fishVisible;onToggled:layerSettings.fishVisible=checked}
+            CheckBox{text:"Batimetrie HD";palette.windowText:"white";checked:root.bathymetryHDEnabled;onToggled:root.bathymetryHDEnabled=checked}
+            Button{text:"Închide";onClicked:layersPopup.close()}
+        }
     }
     Rectangle {
         visible: root.showStatusHint

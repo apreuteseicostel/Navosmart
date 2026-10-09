@@ -25,7 +25,9 @@ jobs:
       - name: G20 physical RC input regressions
         run: node tests/g20-input.mjs
       - name: Controller regressions
-        run: node tests/audit-regressions.mjs
+        run: |
+          node tests/audit-regressions.mjs
+          node tests/route-plan.mjs
       - uses: actions/upload-artifact@v4
         with:
           name: NAVO-NANO-FIRMWARE

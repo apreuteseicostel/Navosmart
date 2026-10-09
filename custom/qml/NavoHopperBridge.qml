@@ -2,6 +2,7 @@ import QtQuick
 
 QtObject {
  id:root
+ signal servoCommandFailed(string reason)
  property var vehicle
  property int leftServoOutput: 9
  property int rightServoOutput: 10
@@ -40,7 +41,9 @@ QtObject {
   else if(result===0)servoResponse="Ultimul răspuns servo H743: acceptat"
   else if(result===5)servoResponse="Ultimul răspuns servo H743: în curs"
   else servoResponse="Ultimul răspuns servo H743: respins ("+result+")"
-  servoResponseAtMs=Date.now();return true
+  servoResponseAtMs=Date.now()
+  if(failure!==0 || (result!==0 && result!==5))servoCommandFailed(servoResponse)
+  return true
  }
  property Connections servoResults: Connections {
   target:root.vehicle || null

@@ -4,6 +4,7 @@ import QtPositioning
 QtObject {
     id: root
     property var areaScan
+    property var routePlan: null
     property var sonarMapping
     property var bathymetry
     property var persistence
@@ -33,7 +34,7 @@ QtObject {
 
     function activateLake(id, name) {
         if(!persistence || !sonarMapping || !areaScan || !id.length) return false
-        if(state==="SCANNING" || state==="READY" || state==="RESUME_READY") {
+        if((routePlan && routePlan.active) || state==="SCANNING" || state==="READY" || state==="RESUME_READY") {
             status("Oprește misiunea înainte de schimbarea bălții"); return false
         }
         if(lakeId===id) return true
@@ -42,6 +43,7 @@ QtObject {
         if(saved && Object.keys(saved).length) {
             if(!restoreLake(id)) return false
         } else {
+            if(routePlan) routePlan.restore(null)
             lakeId=id; lakeName=name||"Baltă"; areaPoints=[]; bathymetryCells=[]; nativeSurfaceMesh=({})
             areaScan.generatedPoints=[]; areaScan.completedLanes=[]; areaScan.activeLaneIndex=-1; areaScan.paused=false; areaScan.lastBoatCoordinate=null
             sonarMapping.scanning=false; sonarMapping.paused=false; sonarMapping.rawSamples=[]; sonarMapping.trackCoordinates=[]
@@ -57,7 +59,8 @@ QtObject {
     }
 
     function clearActiveLake() {
-        if(!sonarMapping || !areaScan) return false
+        if(!sonarMapping || !areaScan || (routePlan && routePlan.active)) return false
+        if(routePlan) routePlan.restore(null)
         lakeId=""; lakeName=""; areaPoints=[]; bathymetryCells=[]; nativeSurfaceMesh=({})
         areaScan.generatedPoints=[]; areaScan.completedLanes=[]; areaScan.activeLaneIndex=-1
         areaScan.paused=false; areaScan.lastBoatCoordinate=null
@@ -89,7 +92,7 @@ QtObject {
 
     function deleteLake(id) {
         if(!persistence || !id || !id.length) return false
-        if(state==="SCANNING" || state==="READY" || state==="RESUME_READY") {
+        if((routePlan && routePlan.active) || state==="SCANNING" || state==="READY" || state==="RESUME_READY") {
             status("Oprește misiunea înainte de ștergerea bălții")
             return false
         }
@@ -244,6 +247,7 @@ QtObject {
     function checkpoint(reason) {
         if(!persistence || !sonarMapping || !areaScan || !lakeId.length) return false
         var payload={
+            routePlan:routePlan ? routePlan.snapshot() : null,
             schemaVersion:2, reason:reason, state:state, lakeName:lakeName, savedAt:Date.now(),
             areaPoints:jsonCoordinates(areaPoints), sonarSamples:sonarMapping.rawSamples,
             fishingSpots:fishingSpots ? fishingSpots.fishingSpots : [],
@@ -263,9 +267,10 @@ QtObject {
         return ok
     }
     function restoreLake(id) {
-        if(!persistence || !sonarMapping || !areaScan || !id.length || state==="SCANNING") return false
+        if(!persistence || !sonarMapping || !areaScan || !id.length || (routePlan && routePlan.active) || state==="SCANNING") return false
         if(lakeId && lakeId!==id && !checkpoint("before-restore")) return false
         var p=persistence.lakeState(id); if(!p || Object.keys(p).length===0){status("Balta nu are încă stare salvată");return false}
+        if(routePlan) routePlan.restore(p.routePlan)
         lakeId=id; lakeName=p.lakeName||lakeName; areaPoints=geoCoordinates(p.areaPoints||[])
         sonarMapping.lakeId=id; sonarMapping.rawSamples=(p.sonarSamples||[]).slice(0)
         // Rebuild the GPS breadcrumb from persisted samples, using the same

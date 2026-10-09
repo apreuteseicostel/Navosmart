@@ -143,8 +143,28 @@ Item {
         }
         onRtlRequested: root.rtlMission()
         onStateChangedDetailed: function(state, text) { root.lastNavigationStatus="Nădire: "+text }
-        onCycleFinished: function(success, message) { root.lastNavigationStatus=message }
+        onCycleFinished: function(success, message) {
+            root.lastNavigationStatus=message
+            if(routePlan.active) routePlan.stepFinished(success,message)
+        }
     }
+    readonly property var routePlanController:routePlan
+    property bool routePreviousRtl: true
+    NavoRoutePlan {
+        id:routePlan
+        readOnly:root.sonarController.replayMode
+        onActiveChanged:if(!active) baitingController.rtlAfterDrop=root.routePreviousRtl
+        onChanged:if(!root.sonarController.replayMode)scanCoordinator.checkpoint("route-edit")
+        onStatus:function(text){root.lastNavigationStatus=text}
+        onStepRequested:function(stop){
+            if(!root.startRouteStop(stop)) routePlan.cancel(root.lastNavigationStatus)
+        }
+        onFinishRequested:function(action){root.finishRoute(action)}
+    }
+    readonly property var routeEstimate: routePlan.estimate(root.vehicle ? root.vehicle.coordinate : null,
+                                                           root.vehicle ? root.vehicle.homePosition : null, baitingController)
+    readonly property string routeEnergyText: root.routeEstimate.valid
+        ? energyGuard.message(root.routeEstimate.energyDistanceM,root.battery && root.battery.percentRemaining ? Number(root.battery.percentRemaining.rawValue) : NaN) : ""
     NavoDigitalAnchor {
         id: digitalAnchor
         vehicle: root.vehicle
@@ -202,6 +222,7 @@ Item {
     NavoScanCoordinator {
         id: scanCoordinator
         readOnlyReplay: root.sonarController.replayMode
+        routePlan: root.routePlanController
         areaScan: areaScanController
         persistence: root.lakePersistence
         fishingSpots: root.fishingSpotsController
@@ -297,7 +318,7 @@ Item {
     }
     property bool awaitingMissionStart: false
     property string areaScanFinishAction: "HOLD"
-    onVehicleChanged: { nanoMissingSinceMs=0; nanoHopperFallback=false; proBoatTrack=[]; awaitingMissionStart=false; if(baitingController && baitingController.enabled) baitingController.abortCycle("Autopilot schimbat"); if(scanCoordinator && scanCoordinator.state==="SCANNING") scanCoordinator.pause("Autopilot schimbat") }
+    onVehicleChanged: { if(routePlan && routePlan.active) routePlan.cancel("Autopilot schimbat"); nanoMissingSinceMs=0; nanoHopperFallback=false; proBoatTrack=[]; awaitingMissionStart=false; if(baitingController && baitingController.enabled) baitingController.abortCycle("Autopilot schimbat"); if(scanCoordinator && scanCoordinator.state==="SCANNING") scanCoordinator.pause("Autopilot schimbat") }
     property string pendingMode: ""
     property string pendingModeLabel: ""
     Timer {
@@ -380,6 +401,7 @@ Item {
         id: sonar
         vehicle: root.vehicle
         onReplayModeChanged: {
+            if(sonar.replayMode && routePlan.active) root.stopMission()
             root.pendingAreaDrawMode="none"; root.pendingBaitPointPick=false
             root.replaySaveStatus=""
             replayMapping.rawSamples=[]; replayMapping.trackCoordinates=[]
@@ -489,6 +511,11 @@ Item {
         rightOpenPwm: hopperSettings.rightOpen
         onCommandSent: function(message) { root.lastNavigationStatus = message }
         onCommandRejected: function(reason) { root.lastNavigationStatus = "Cuve: " + reason }
+        onServoCommandFailed:function(reason){
+            if(routePlan.active)root.stopMission()
+            else if(baitingController.enabled)baitingController.abortCycle(reason)
+            root.lastNavigationStatus=reason
+        }
     }
     NavoSafetyManager {
         id: safetyManager
@@ -522,7 +549,7 @@ Item {
         if(action==="CUVE_AMBELE") { openHopper("ambele"); return }
         if(action==="SONAR") { activePage=1; lastNavigationStatus="G20 "+control+" • SONAR"; return }
         if(action==="CAMERA") { activePage=5; cameraFullscreen=!cameraFullscreen; lastNavigationStatus="G20 "+control+" • CAMERA FAȚĂ"; return }
-        if(action==="HOLD") { holdMission(true); lastNavigationStatus="G20 "+control+" • HOLD"; return }
+        if(action==="HOLD") { holdMission(); lastNavigationStatus="G20 "+control+" • HOLD"; return }
         if(action==="RTL") { homeRtlConfirm.open(); lastNavigationStatus="G20 "+control+" • confirmă RTL / ACASĂ"; return }
         if(action==="MANUAL") {
             if(vehicle) { vehicle.flightMode="Manual"; pendingMode="Manual"; pendingModeLabel="MANUAL"; lastNavigationStatus="G20 • MANUAL solicitat" }
@@ -552,6 +579,7 @@ Item {
         return root.accent
     }
     function openHopper(side) {
+        if(routePlan.active) {root.lastNavigationStatus="Oprește traseul înainte de eliberarea manuală";return}
         if (!root.hopperControlsEnabled) {
             root.lastNavigationStatus = "Cuve blocate: mergi aproape de punct sau treci pe MANUAL"
             return
@@ -573,7 +601,7 @@ Item {
     function toggleDigitalAnchor(){
         if(digitalAnchor.active){root.holdMission();return true}
         if(!root.allowLiveAction())return false
-        if(!root.linkAlive || scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || baitingController.enabled){root.lastNavigationStatus="Ancora indisponibilă: verifică legătura și oprește misiunea/nădirea";return false}
+        if(!root.linkAlive || scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || (baitingController.enabled || (routePlan && routePlan.active))){root.lastNavigationStatus="Ancora indisponibilă: verifică legătura și oprește misiunea/nădirea";return false}
         return digitalAnchor.engage()
     }
     function routeDistanceWithReturn(points){
@@ -596,7 +624,45 @@ Item {
         if(!energyGuard.canStart(distance,percent)){root.lastNavigationStatus=energyGuard.message(distance,percent);return false}
         return true
     }
+    function startRouteStop(stop) {
+        if(!root.allowLiveAction() || !root.linkAlive || !root.vehicle || !root.vehicle.guidedModeGotoLocation ||
+           !root.vehicle.guidedModeChangeGroundSpeedMetersSecond || !root.vehicle.pauseVehicle ||
+           scanCoordinator.state==="SCANNING" || root.awaitingMissionStart ||
+           (stop.hopper!==0 && !hopperBridge.calibrated)) {
+            root.lastNavigationStatus="Traseu blocat: verifică legătura, comenzile H743 și calibrarea cuvelor"; return false
+        }
+        digitalAnchor.release()
+        baitingController.rtlAfterDrop=false
+        return baitingController.startCycle({coordinate:routePlan.coordinate(stop)},stop.name,stop.hopper)
+    }
+    function startRoute(loadConfirmed) {
+        if(!root.requireActiveLakeForPointSave())return false
+        if(!preLaunchCheck.navigationReady) {root.lastNavigationStatus=preLaunchCheck.blockingMessage;return false}
+        if(!root.allowLiveAction() || !root.linkAlive || baitingController.enabled || routePlan.active ||
+           scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || missionUploader.uploadInProgress) {
+            root.lastNavigationStatus="Oprește operația activă înainte de START traseu"; return false
+        }
+        var estimate=root.routeEstimate
+        if(!estimate.valid) {root.lastNavigationStatus="Traseu blocat: verifică GPS, HOME și vitezele";return false}
+        var percent=battery && battery.percentRemaining ? Number(battery.percentRemaining.rawValue) : NaN
+        if(!energyGuard.canStart(estimate.energyDistanceM,percent)) {
+            root.lastNavigationStatus=energyGuard.message(estimate.energyDistanceM,percent);return false
+        }
+        if(routePlan.finishAction==="RTL" && !root.vehicle.guidedModeRTL) {root.lastNavigationStatus="RTL indisponibil";return false}
+        if(!scanCoordinator.checkpoint("route-before-start"))return false
+        root.routePreviousRtl=baitingController.rtlAfterDrop
+        return routePlan.start(loadConfirmed)
+    }
+    function finishRoute(action) {
+        // Dispatch only: neither ACK nor elapsed time proves HOME/anchor arrival.
+        if(!root.allowLiveAction() || !root.linkAlive) {routePlan.state="STOPPED";return false}
+        var ok=action==="RTL" ? root.rtlMission() : action==="ANCHOR" ? digitalAnchor.engage() : root.holdMission()
+        if(!ok) {routePlan.state="STOPPED";root.lastNavigationStatus="Acțiunea finală a eșuat"}
+        scanCoordinator.checkpoint("route-dispatched")
+        return ok
+    }
     function startBaiting(waypoint,name,hopper){
+        if(routePlan && routePlan.active) {root.lastNavigationStatus="Oprește traseul înainte de altă nădire";return false}
         if(!root.allowLiveAction())return false
         if(!root.linkAlive || scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || (hopper!==0 && !hopperBridge.calibrated)){root.lastNavigationStatus="Nădire blocată: verifică legătura, misiunea activă și calibrarea cuvelor";return false}
         if(!waypoint || !root.checkEnergyForRoute([waypoint.coordinate]))return false
@@ -604,6 +670,7 @@ Item {
         return baitingController.startCycle(waypoint,name,hopper)
     }
     function startMission() {
+        if((routePlan && routePlan.active) || (baitingController && baitingController.enabled)) {root.lastNavigationStatus="Oprește traseul/nădirea înainte de Area Scan";return false}
         if(!root.allowLiveAction()) return false
         if (!preLaunchCheck.navigationReady) { root.lastNavigationStatus = preLaunchCheck.blockingMessage; return false }
         if (!root.vehicle) {
@@ -622,6 +689,7 @@ Item {
         return missionUploader.uploadPrepared()
     }
     function startUploadedMission() {
+        if((routePlan && routePlan.active) || (baitingController && baitingController.enabled)) {root.lastNavigationStatus="Oprește traseul/nădirea înainte de START Area Scan";return false}
         if(!root.allowLiveAction()) return false
         if (!root.linkAlive || !root.vehicle.rover) {
             root.lastNavigationStatus = "Upload confirmat, dar autopilotul nu mai este conectat"
@@ -655,6 +723,7 @@ Item {
     }
     function holdMission(keepBaiting) {
         root.awaitingMissionStart = false
+        if(!keepBaiting && routePlan.active) routePlan.cancel("HOLD utilizator")
         if(!keepBaiting && baitingController.enabled) baitingController.abortCycle("HOLD utilizator")
         digitalAnchor.release()
         if(scanCoordinator.state==="SCANNING") scanCoordinator.pause("HOLD utilizator")
@@ -665,6 +734,7 @@ Item {
         return true
     }
     function rtlMission() {
+        if(routePlan.active) routePlan.cancel("RTL solicitat")
         root.awaitingMissionStart = false
         digitalAnchor.release()
         if(baitingController.enabled) baitingController.abortCycle("RTL solicitat")
@@ -676,6 +746,7 @@ Item {
         return true
     }
     function stopMission() {
+        if(routePlan.active) routePlan.cancel("STOP utilizator")
         root.awaitingMissionStart = false
         if(baitingController.enabled) baitingController.abortCycle("STOP utilizator")
         digitalAnchor.release()
@@ -708,7 +779,7 @@ Item {
             root.lastNavigationStatus = "Navigatie indisponibila"
             return false
         }
-        if(scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || baitingController.enabled){root.lastNavigationStatus="Oprește misiunea/nădirea înainte de navigarea către alt punct";return false}
+        if(scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || (baitingController.enabled || (routePlan && routePlan.active))){root.lastNavigationStatus="Oprește misiunea/nădirea înainte de navigarea către alt punct";return false}
         if (!vehicle.guidedModeGotoLocation) {
             root.lastNavigationStatus = "Navigație indisponibilă: comanda GUIDED nu este expusă de autopilot"
             return false
@@ -869,6 +940,9 @@ Item {
             id: fishingPageRoot
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             NavoMap {
+                routeActive:routePlan.active
+                routeStops:routePlan.active ? routePlan.runningStops : routePlan.stops
+                routeReturnsHome:(routePlan.active ? routePlan.runningFinishAction : routePlan.finishAction)==="RTL"
                 recordedReplay: sonar.replayMode
                 id: navoMap
                 anchors.fill: parent
@@ -1108,6 +1182,9 @@ Item {
                         Layout.fillWidth: true; Layout.fillHeight: true
                         radius: 8; color: root.bg; border.color: root.line; clip: true
                         NavoMap {
+                routeActive:routePlan.active
+                routeStops:routePlan.active ? routePlan.runningStops : routePlan.stops
+                routeReturnsHome:(routePlan.active ? routePlan.runningFinishAction : routePlan.finishAction)==="RTL"
                 recordedReplay: sonar.replayMode
                             id: areaScanMap
                             anchors.fill: parent; anchors.margins: 2
@@ -1203,6 +1280,9 @@ Item {
                     Layout.minimumWidth: 320
                     radius:8; color:root.bg; border.color:root.line; clip:true
                     NavoMap {
+                routeActive:routePlan.active
+                routeStops:routePlan.active ? routePlan.runningStops : routePlan.stops
+                routeReturnsHome:(routePlan.active ? routePlan.runningFinishAction : routePlan.finishAction)==="RTL"
                 recordedReplay: sonar.replayMode
                         id:fishingMap
                         anchors.fill:parent
@@ -1494,6 +1574,9 @@ Item {
                     Layout.fillWidth: true; Layout.fillHeight: true
                     radius: 8; color: root.panel; border.color: root.line; clip: true
                     NavoMap {
+                routeActive:routePlan.active
+                routeStops:routePlan.active ? routePlan.runningStops : routePlan.stops
+                routeReturnsHome:(routePlan.active ? routePlan.runningFinishAction : routePlan.finishAction)==="RTL"
                 recordedReplay: sonar.replayMode
                         anchors.fill: parent; anchors.margins: 2
                         vehicle: root.vehicle
@@ -1539,6 +1622,9 @@ Item {
                         anchors.fill: parent
                         anchors.margins: 8
                         controller: baitingController
+                        routePlan:root.routePlanController; routeEstimate:root.routeEstimate; routeEnergyText:root.routeEnergyText
+                        onRouteStartRequested:function(loaded){root.startRoute(loaded)}
+                        onRouteStopRequested:root.stopMission()
                         hopperBridge: root.hopperBridgeController
                         waypoint: baitingController.targetWaypoint
                         availableSpots: sonar.replayMode ? [] : fishingSpots.fishingSpots
@@ -1557,7 +1643,7 @@ Item {
                         onStartConfirmed: function(waypoint,name,hopper) {
                             root.startBaiting(waypoint,name,hopper)
                         }
-                        onAbortRequested: baitingController.abortCycle("Oprit de utilizator")
+                        onAbortRequested:root.stopMission()
                     }
                 }
             }

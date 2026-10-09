@@ -6,6 +6,11 @@ import QtCore
 Rectangle {
     id: root
     property var controller
+    property var routePlan
+    property var routeEstimate: ({valid:false})
+    property string routeEnergyText: ""
+    signal routeStartRequested(bool loadConfirmed)
+    signal routeStopRequested()
     property var hopperBridge
     property var waypoint
     property var availableSpots: []
@@ -38,7 +43,7 @@ Rectangle {
         property bool rtlAfterDrop: true
     }
     function applySettings() {
-        if (!controller) return
+        if (!controller || (routePlan && routePlan.active)) return
         controller.silentRadiusM = saved.silentRadius
         controller.finalRadiusM = saved.finalRadius
         controller.silentSpeedMps = saved.silentSpeedTenths / 10
@@ -90,16 +95,22 @@ Rectangle {
         ComboBox {
             Layout.fillWidth: true
             visible: root.availableSpots.length > 0
-            enabled: !root.controller || !root.controller.enabled
+            enabled: !root.controller || (!root.controller.enabled && (!root.routePlan || !root.routePlan.active))
             model: root.availableSpots
             textRole: "name"
             displayText: "Alege un loc salvat"
             onActivated: function(index) { root.spotChosen(root.availableSpots[index]) }
         }
         RowLayout { Layout.fillWidth:true; spacing:6
-            Button { Layout.preferredWidth:40; Layout.maximumWidth:40; Layout.preferredHeight:40; padding:0; enabled: !root.controller || !root.controller.enabled; onClicked: root.chooseOnMapRequested(); ToolTip.visible:hovered; ToolTip.text:"Alege punct pe hartă"; contentItem: Image { anchors.centerIn:parent; width:22; height:22; source:"qrc:/qml/NavoSmart/icons/target.svg"; fillMode:Image.PreserveAspectFit } }
+            Button { Layout.preferredWidth:40; Layout.maximumWidth:40; Layout.preferredHeight:40; padding:0; enabled: !root.controller || (!root.controller.enabled && (!root.routePlan || !root.routePlan.active)); onClicked: root.chooseOnMapRequested(); ToolTip.visible:hovered; ToolTip.text:"Alege punct pe hartă"; contentItem: Image { anchors.centerIn:parent; width:22; height:22; source:"qrc:/qml/NavoSmart/icons/target.svg"; fillMode:Image.PreserveAspectFit } }
+            Button { Layout.preferredWidth:40; Layout.maximumWidth:40; Layout.preferredHeight:40; padding:0
+                checkable:true; checked:routePopup.visible
+                background:Rectangle{radius:7;color:parent.checked?"#164963":"#102536";border.color:parent.checked?"#21b7ff":"#31404d"}
+                Accessible.name:"Traseu cu opriri"; ToolTip.visible:hovered||down; ToolTip.text:"Traseu cu opriri"
+                contentItem:Image{anchors.centerIn:parent;width:22;height:22;source:"qrc:/qml/NavoSmart/icons/route.svg";fillMode:Image.PreserveAspectFit}
+                onClicked:routePopup.open() }
             Item { Layout.fillWidth:true }
-            Button { Layout.preferredWidth:40; Layout.maximumWidth:40; Layout.preferredHeight:40; padding:0; enabled:!root.controller || !root.controller.enabled; onClicked:settingsPopup.open(); ToolTip.visible:hovered; ToolTip.text:"Setări nădire"; contentItem:Image{anchors.centerIn:parent;width:22;height:22;source:"qrc:/qml/NavoSmart/icons/settings.svg";fillMode:Image.PreserveAspectFit} }
+            Button { Layout.preferredWidth:40; Layout.maximumWidth:40; Layout.preferredHeight:40; padding:0; enabled:!root.controller || (!root.controller.enabled && (!root.routePlan || !root.routePlan.active)); onClicked:settingsPopup.open(); ToolTip.visible:hovered; ToolTip.text:"Setări nădire"; contentItem:Image{anchors.centerIn:parent;width:22;height:22;source:"qrc:/qml/NavoSmart/icons/settings.svg";fillMode:Image.PreserveAspectFit} }
         }
         RowLayout {
             Layout.fillWidth: true
@@ -109,7 +120,7 @@ Rectangle {
                 id: hopperBox; Layout.fillWidth: true
                 model: ["Stânga", "Dreapta", "Ambele", "Fără eliberare"]
                 currentIndex: saved.hopperIndex
-                enabled: !root.controller || !root.controller.enabled
+                enabled: !root.controller || (!root.controller.enabled && (!root.routePlan || !root.routePlan.active))
                 onActivated: function(index) { saved.hopperIndex = index }
             }
         }
@@ -131,7 +142,7 @@ Rectangle {
             Item { Layout.fillWidth:true }
             ColumnLayout { spacing:3
                 Label { Layout.alignment:Qt.AlignHCenter; text:root.controller&&root.controller.enabled?"ACTIV":"START"; color:root.controller&&root.controller.enabled?"#31d67b":root.secondaryTextColor; font.pixelSize:9; font.bold:true }
-                Button { Layout.preferredWidth:40;Layout.maximumWidth:40;Layout.preferredHeight:40;padding:0;enabled:!!root.waypoint&&!!root.controller&&!root.controller.enabled;ToolTip.visible:hovered;ToolTip.text:"Pornește nădirea";contentItem:Image{anchors.centerIn:parent;width:22;height:22;source:"qrc:/qml/NavoSmart/icons/play.svg";fillMode:Image.PreserveAspectFit} onClicked:confirmDialog.open() }
+                Button { Layout.preferredWidth:40;Layout.maximumWidth:40;Layout.preferredHeight:40;padding:0;enabled:!!root.waypoint&&!!root.controller&&(!root.controller.enabled && (!root.routePlan || !root.routePlan.active));ToolTip.visible:hovered;ToolTip.text:"Pornește nădirea";contentItem:Image{anchors.centerIn:parent;width:22;height:22;source:"qrc:/qml/NavoSmart/icons/play.svg";fillMode:Image.PreserveAspectFit} onClicked:confirmDialog.open() }
             }
             ColumnLayout { spacing:3
                 Label { Layout.alignment:Qt.AlignHCenter;text:"STOP";color:root.secondaryTextColor;font.pixelSize:9;font.bold:true }
@@ -266,6 +277,26 @@ Rectangle {
     }
 
     Popup {
+        objectName:"navoRoutePopup"
+        id:routePopup; parent:Overlay.overlay; anchors.centerIn:parent
+        width:Math.min(480,parent ? parent.width-24 : 480)
+        height:Math.min(680,parent ? parent.height-24 : 680)
+        modal:true; focus:true; padding:12
+        background:Rectangle{color:"#0b1c2e";radius:10;border.color:"#21b7ff"}
+        contentItem:ColumnLayout {
+            NavoRoutePanel {
+                Layout.fillWidth:true; Layout.fillHeight:true
+                routePlan:root.routePlan; waypoint:root.waypoint; availableSpots:root.availableSpots
+                estimate:root.routeEstimate; energyText:root.routeEnergyText
+                onSpotChosen:function(spot){root.spotChosen(spot)}
+                onChooseOnMapRequested:{routePopup.close();root.chooseOnMapRequested()}
+                onStartRequested:function(loaded){root.routeStartRequested(loaded)}
+                onStopRequested:root.routeStopRequested()
+            }
+            Button { Layout.alignment:Qt.AlignRight; text:"Închide"; onClicked:routePopup.close() }
+        }
+    }
+    Popup {
         id: settingsPopup; parent: Overlay.overlay; anchors.centerIn: parent
         width: Math.min(480, parent ? parent.width - 24 : 480)
         height: Math.min(560, parent ? parent.height - 24 : 560)
@@ -349,7 +380,7 @@ Rectangle {
             wrapMode: Text.WordWrap
             verticalAlignment: Text.AlignVCenter
             text: root.waypointName + "  •  Cuva " + hopperBox.currentText.toLowerCase() +
-                  "\nBarca va naviga, opri, elibera nada și reveni automat."
+                  "\nBarca va naviga, opri și executa acțiunea aleasă."
         }
         Component.onCompleted: {
             standardButton(Dialog.Ok).text = "PORNEȘTE"
