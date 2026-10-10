@@ -27,6 +27,10 @@ def locate(name,navigation=False):
   _,b=max(matches,key=lambda m:m[0]);return ((b[0]+b[2])//2,(b[1]+b[3])//2)
  return None
 def click(name,scroll=False):
+ # The initial map is already active. Verify its real page instead of
+ # requiring an icon-only sidebar button in UIAutomator's text tree.
+ if name=='HARTA' and locate('Pagina HARTA'):
+  return
  for n in range(8):
   pos=locate(name,scroll)
   if pos:
@@ -37,6 +41,8 @@ def click(name,scroll=False):
   bounds=[b for b in bounds if len(b)==4];h=max(b[3] for b in bounds);w=max(b[2] for b in bounds);x=max(20,int(w*.035))
   y0,y1=(int(h*.85),int(h*.30)) if name!='HARTA' else (int(h*.30),int(h*.85))
   adb('shell','input','swipe',str(x),str(y0),str(x),str(y1),'500');time.sleep(.2)
+ # Preserve the UI hierarchy for diagnosing accessibility failures.
+ Path('build/screenshots/nav-unavailable-'+re.sub(r'[^A-Za-z0-9]+','-',name)+'.png').write_bytes(adb('exec-out','screencap','-p'))
  raise RuntimeError('Navigation control unavailable: '+name)
 for i,name in enumerate(nav):
  click(name,True)
