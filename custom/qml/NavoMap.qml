@@ -547,14 +547,15 @@ Item {
     }
     Popup {
         id:layersPopup; parent:Overlay.overlay; anchors.centerIn:parent
-        width:Math.min(320,parent ? parent.width-24 : 320); modal:true; focus:true
-        background:Rectangle{color:"#0b1c2e";radius:8;border.color:"#21b7ff"}
+        width:Math.min(340,parent ? parent.width-24 : 340); modal:true; focus:true; padding:16; closePolicy:Popup.CloseOnEscape|Popup.CloseOnPressOutside
+        background:Rectangle{color:"#0b1c2e";radius:8;border.color:"#21b7ff";border.width:2}
         contentItem:ColumnLayout {
+            spacing:8
             Label{text:"STRATURI HARTĂ";color:"white";font.bold:true}
-            CheckBox{text:"Traseu parcurs / replay";palette.windowText:"white";checked:layerSettings.trackVisible;onToggled:layerSettings.trackVisible=checked}
+            CheckBox{text:"Traseu parcurs / replay";palette.windowText:"#e9f2fa";checked:layerSettings.trackVisible;onToggled:layerSettings.trackVisible=checked}
             CheckBox{text:"Traseu planificat / Area Scan";palette.windowText:"white";checked:layerSettings.plannedVisible;onToggled:layerSettings.plannedVisible=checked}
             CheckBox{text:"Marcaje sonar";palette.windowText:"white";checked:layerSettings.fishVisible;onToggled:layerSettings.fishVisible=checked}
-            CheckBox{text:"Batimetrie HD";palette.windowText:"white";checked:root.bathymetryHDEnabled;onToggled:root.bathymetryHDEnabled=checked}
+            CheckBox{text:"Batimetrie HD";palette.windowText:"#e9f2fa";checked:root.bathymetryHDEnabled;onToggled:root.bathymetryHDEnabled=checked}
             Button{text:"Închide";onClicked:layersPopup.close()}
         }
     }
