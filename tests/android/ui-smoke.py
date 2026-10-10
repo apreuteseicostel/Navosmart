@@ -20,9 +20,7 @@ def locate(name,navigation=False):
  normal_height=sorted(heights)[len(heights)//2] if heights else 0
  for node in nodes:
   if name not in [node.get('text'),node.get('content-desc')]:continue
-  if navigation and not node.get('resource-id','').endswith('.NavButton'):continue
   b=list(map(int,re.findall(r'-?\d+',node.get('bounds',''))))
-  if navigation and len(b)==4 and b[3]-b[1]<normal_height*.8:continue
   if len(b)==4 and b[0]>=0 and b[1]>=0 and b[2]>b[0] and b[3]>b[1]:matches.append((node.get('clickable')=='true',b))
  if matches:
   _,b=max(matches,key=lambda m:m[0]);return ((b[0]+b[2])//2,(b[1]+b[3])//2)
