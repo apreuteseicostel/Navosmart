@@ -2,7 +2,7 @@
 import subprocess, time, re, xml.etree.ElementTree as ET
 from pathlib import Path
 out=Path('build/screenshots');out.mkdir(parents=True,exist_ok=True)
-nav=['HARTA','SONAR','SONAR PRO','AREA SCAN','PUNCTE PESCUIT','BALȚILE MELE','CAMERA','3D','NĂDIRE','SIGURANȚĂ','SETARI']
+nav=['HARTA','SONAR','SONAR PRO','MISIUNI','PUNCTE PESCUIT','BALȚILE MELE','CAMERA','3D','NĂDIRE','SIGURANȚĂ','SETARI']
 def adb(*args):
  return subprocess.check_output(['adb','-s','emulator-5554',*args],timeout=25)
 def snapshot():
