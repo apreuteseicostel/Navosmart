@@ -12,14 +12,14 @@ def snapshot():
  return ET.fromstring(xml).iter('node')
 def locate(name,navigation=False):
  nodes=list(snapshot());matches=[]
- bounds=[list(map(int,re.findall(r'-?\\d+',node.get('bounds','')))) for node in nodes]
+ bounds=[list(map(int,re.findall(r'-?\d+',node.get('bounds','')))) for node in nodes]
  screen_width=max((b[2] for b in bounds if len(b)==4),default=0)
  # The NAVO sidebar is a 64/72 px rail. Qt's Android accessibility
  # resource-id is not guaranteed to expose the inline QML component name.
  rail_limit=min(112,max(72,int(screen_width*.12)))
  for node in nodes:
   if name not in [node.get('text'),node.get('content-desc')]:continue
-  b=list(map(int,re.findall(r'-?\\d+',node.get('bounds',''))))
+  b=list(map(int,re.findall(r'-?\d+',node.get('bounds',''))))
   if len(b)!=4 or b[0]<0 or b[1]<0 or b[2]<=b[0] or b[3]<=b[1]:continue
   if navigation and (b[0]>=rail_limit or b[2]>rail_limit+12 or b[3]-b[1]<28):continue
   matches.append((node.get('clickable')=='true',b))
