@@ -14,14 +14,23 @@ def locate(name,navigation=False):
  nodes=list(snapshot());matches=[]
  bounds=[list(map(int,re.findall(r'-?\d+',node.get('bounds','')))) for node in nodes]
  screen_width=max((b[2] for b in bounds if len(b)==4),default=0)
- # The NAVO sidebar is a 64/72 px rail. Qt's Android accessibility
- # resource-id is not guaranteed to expose the inline QML component name.
- rail_limit=min(112,max(72,int(screen_width*.12)))
+ # UIAutomator bounds are physical pixels, not the sidebar's QML units.
+ # Prefer the actual control identity; only use relative geometry as fallback.
+ rail_limit=screen_width*.12
+ nav_heights=[]
+ for node in nodes:
+  if not node.get('resource-id','').endswith('.NavButton'):continue
+  b=list(map(int,re.findall(r'-?\d+',node.get('bounds',''))))
+  if len(b)==4 and b[3]>b[1]:nav_heights.append(b[3]-b[1])
+ normal_height=sorted(nav_heights)[len(nav_heights)//2] if nav_heights else 0
  for node in nodes:
   if name not in [node.get('text'),node.get('content-desc')]:continue
   b=list(map(int,re.findall(r'-?\d+',node.get('bounds',''))))
   if len(b)!=4 or b[0]<0 or b[1]<0 or b[2]<=b[0] or b[3]<=b[1]:continue
-  if navigation and (b[0]>=rail_limit or b[2]>rail_limit+12 or b[3]-b[1]<28):continue
+  if navigation:
+   if node.get('resource-id','').endswith('.NavButton'):
+    if b[3]-b[1]<normal_height*.8:continue
+   elif node.get('clickable')!='true' or b[0]>=rail_limit or b[2]>rail_limit:continue
   matches.append((node.get('clickable')=='true',b))
  if matches:
   _,b=max(matches,key=lambda m:m[0]);return ((b[0]+b[2])//2,(b[1]+b[3])//2)

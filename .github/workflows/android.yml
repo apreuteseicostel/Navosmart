@@ -28,6 +28,7 @@ jobs:
           node tests/audit-regressions.mjs
           node tests/route-plan.mjs
           node tests/steering-bottom.mjs
+          python3 tests/android/navigation-locator.py
       - name: Clone pinned QGroundControl
         run: |
           git clone --depth 1 --branch v5.0.7 --recurse-submodules --shallow-submodules https://github.com/mavlink/qgroundcontrol.git qgc
