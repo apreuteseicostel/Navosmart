@@ -43,7 +43,6 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoHopperBridge.qml
         qml/NavoSonarCard.qml
         qml/NavoSonarPro.qml
-        qml/NavoBottomAnalysis.js
         qml/NavoSonarFullScreen.qml
         qml/NavoCameraPip.qml
         qml/NavoSafetyCard.qml
@@ -85,6 +84,9 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoG20Settings.qml
         qml/NavoG20Controller.qml
     RESOURCES
+        # Imported by relative URL only. Exporting this script in qmldir makes
+        # Qt 6.8.3's implicit + explicit NavoSmart imports ambiguous at startup.
+        qml/NavoBottomAnalysis.js
         icons/layers.svg
         icons/route.svg
         icons/map.svg
