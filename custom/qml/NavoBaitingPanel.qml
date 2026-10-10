@@ -90,7 +90,7 @@ Rectangle {
         RowLayout { Layout.fillWidth:true; spacing:6
             Image { width:26;height:26;source:"qrc:/qml/NavoSmart/icons/bait.svg";fillMode:Image.PreserveAspectFit }
             Label { text:"NĂDIRE"; color:"white"; font.bold:true; font.pixelSize:15 }
-            Label { Layout.fillWidth:true; text:"ȚINTĂ: "+root.waypointName+"  •  CUVA: "+hopperBox.currentText; color:"#21b7ff"; font.bold:true; font.pixelSize:11; elide:Text.ElideRight; horizontalAlignment:Text.AlignRight }
+            Label { Layout.fillWidth:true; Layout.minimumWidth:0; text:"ȚINTĂ: "+root.waypointName; color:"#21b7ff"; font.bold:true; font.pixelSize:11; elide:Text.ElideRight; horizontalAlignment:Text.AlignRight; ToolTip.visible:truncated && hovered; ToolTip.text:text }
         }
         ComboBox {
             Layout.fillWidth: true
@@ -138,7 +138,7 @@ Rectangle {
             Layout.fillWidth:true
             Layout.topMargin: 18
             Layout.bottomMargin: 14
-            spacing:42
+            spacing:12
             Item { Layout.fillWidth:true }
             ColumnLayout { spacing:3
                 Label { Layout.alignment:Qt.AlignHCenter; text:root.controller&&root.controller.enabled?"ACTIV":"START"; color:root.controller&&root.controller.enabled?"#31d67b":root.secondaryTextColor; font.pixelSize:9; font.bold:true }
@@ -283,9 +283,14 @@ Rectangle {
         height:Math.min(680,parent ? parent.height-24 : 680)
         modal:true; focus:true; padding:12
         background:Rectangle{color:"#0b1c2e";radius:10;border.color:"#21b7ff"}
-        contentItem:ColumnLayout {
+        contentItem:ScrollView {
+            clip:true
+            contentWidth:availableWidth
+            ColumnLayout {
+                width:routePopup.availableWidth
+                spacing:8
             NavoRoutePanel {
-                Layout.fillWidth:true; Layout.fillHeight:true
+                Layout.fillWidth:true; Layout.preferredHeight:Math.max(400,implicitHeight)
                 routePlan:root.routePlan; waypoint:root.waypoint; availableSpots:root.availableSpots
                 showSpeed:false
                 estimate:root.routeEstimate; energyText:root.routeEnergyText
@@ -295,6 +300,7 @@ Rectangle {
                 onStopRequested:root.routeStopRequested()
             }
             Button { Layout.alignment:Qt.AlignRight; text:"Închide"; onClicked:routePopup.close() }
+            }
         }
     }
     Popup {
