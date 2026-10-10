@@ -1229,6 +1229,9 @@ Item {
                     Repeater {
                         model:["Mergi la punct","Traseu cu opriri","Scanează zona"]
                         delegate:Button {
+                            implicitHeight:36
+                            leftPadding:9;rightPadding:9;topPadding:4;bottomPadding:4
+                            font.pixelSize:12
                             required property string modelData
                             required property int index
                             text:modelData
@@ -1249,13 +1252,14 @@ Item {
                     Layout.fillWidth:true
                     Label {Layout.fillWidth:true;wrapMode:Text.WordWrap;text:"Viteză estimare (m/s)";color:"white"}
                     SpinBox {
+                        implicitWidth:132; implicitHeight:38
                         from:1;to:30;value:Math.round(root.scanEstimateSpeedMps*10)
                         enabled:!root.missionBusy && !sonar.replayMode
                         textFromValue:function(v,locale){return Number(v/10).toLocaleString(locale,'f',1)}
                         onValueModified:root.scanEstimateSpeedMps=value/10
                     }
                     Label {text:"La final";color:"white"}
-                    ComboBox { enabled:!root.missionBusy && !sonar.replayMode; model:["HOLD","RTL"]; currentIndex:root.areaScanFinishAction==="RTL"?1:0; onActivated:root.areaScanFinishAction=currentIndex===1?"RTL":"HOLD" }
+                    ComboBox { implicitWidth:132; implicitHeight:38; enabled:!root.missionBusy && !sonar.replayMode; model:["HOLD","RTL"]; currentIndex:root.areaScanFinishAction==="RTL"?1:0; onActivated:root.areaScanFinishAction=currentIndex===1?"RTL":"HOLD" }
                 }
                 Label {
                     visible:root.missionScanSelected
@@ -1949,7 +1953,7 @@ Item {
                                 Label { text:"Consum %/km";color:root.text }
                                 SpinBox { Layout.fillWidth:true;from:1;to:100;value:energySettings.consumptionPercentPerKm;onValueModified:{energySettings.confirmed=false;energySettings.consumptionPercentPerKm=value} }
                             }
-                            CheckBox { text:"Consum verificat • activează verificarea înainte de plecare";checked:energySettings.confirmed;onToggled:energySettings.confirmed=checked }
+                            CheckBox { text:"Consum verificat • activează verificarea înainte de plecare";palette.windowText:"#d7e3ee";checked:energySettings.confirmed;onToggled:energySettings.confirmed=checked }
                         }
                     }
                 }
