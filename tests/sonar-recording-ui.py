@@ -53,15 +53,29 @@ root.setProperty('chartSource',source);root.setProperty('connected',True)
 view.show()
 recording=root.findChild(QObject,'sonarRecordingDialog')
 recordings=root.findChild(QObject,'sonarRecordingsDialog')
-assert recording and recordings
+analysis=root.findChild(QObject,'sonarBottomAnalysisDialog')
+assert recording and recordings and analysis
+raw=[.05]*200
+raw[98:102]=[.4,.8,.8,.4]
+raw[40:43]=[.6,.6,.6]
+root.setProperty('history',[{'samples':raw,'rawSamples':raw,'offset':0.0,'range':4.0,'bottom':2.0,'sequence':1}])
 for width,height in [(320,600),(480,720),(900,600)]:
  view.resize(width,height)
- for popup,label in [(recording,'record'),(recordings,'offline')]:
+ for popup,label in [(recording,'record'),(recordings,'offline'),(analysis,'bottom-analysis')]:
   QMetaObject.invokeMethod(popup,'open');QTest.qWait(150)
   assert popup.property('visible')
   assert popup.property('width')<=width and popup.property('height')<=height
   assert view.grabWindow().save(f'/tmp/navo-sonar-{label}-{width}.png')
   QMetaObject.invokeMethod(popup,'close')
+QMetaObject.invokeMethod(analysis,'open');QTest.qWait(30)
+metrics=root.property('bottomAnalysis').toVariant()
+assert metrics['valid'] and abs(metrics['peak']-.8)<1e-9 and metrics['material']=='NECLASIFICAT'
+root.setProperty('gain',3.0);root.setProperty('noiseFloor',.7);QTest.qWait(30)
+assert root.property('bottomAnalysis').toVariant()['peak']==metrics['peak']
+root.setProperty('koggerCompensation',True)
+root.setProperty('history',[{'samples':[.01]*200,'rawSamples':raw,'offset':0.0,'range':4.0,'bottom':2.0,'sequence':1}]);QTest.qWait(30)
+assert root.property('bottomAnalysis').toVariant()['peak']==metrics['peak']
+QMetaObject.invokeMethod(analysis,'close')
 name=root.findChild(QObject,'sonarRecordingName');assert name
 name.setProperty('text','Balta mea');QMetaObject.invokeMethod(recording,'accepted')
 assert source.property('lastName')=='Balta mea' and source.property('recording')
@@ -70,4 +84,4 @@ items=root.findChild(QObject,'sonarRecordingsList');assert items
 # A stale display source with no recording API must keep old PRO views warning-free.
 root.setProperty('chartSource',None);QTest.qWait(30)
 assert not errors,errors
-print('PASS actual Sonar PRO recording/offline dialogs at 320/480/900, named start and empty source')
+print('PASS actual Sonar PRO recording/offline/bottom-analysis dialogs at 320/480/900, named start and empty source')

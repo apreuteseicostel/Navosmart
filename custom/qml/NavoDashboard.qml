@@ -191,6 +191,15 @@ Item {
                                                            root.vehicle ? root.vehicle.homePosition : null, baitingController)
     readonly property string routeEnergyText: root.routeEstimate.valid
         ? energyGuard.message(root.routeEstimate.energyDistanceM,root.battery && root.battery.percentRemaining ? Number(root.battery.percentRemaining.rawValue) : NaN) : ""
+    NavoSteeringAssist {
+        id:steeringAssist
+        vehicle:root.vehicle
+        readOnly:sonar.replayMode
+        operationsBusy:root.missionBusy || digitalAnchor.active
+        preLaunchReady:preLaunchCheck.navigationReady
+        onStatus:function(text){root.lastNavigationStatus=text}
+    }
+    readonly property bool steeringModeBusy:steeringAssist.busy
     NavoDigitalAnchor {
         id: digitalAnchor
         vehicle: root.vehicle
@@ -625,6 +634,7 @@ Item {
         return true
     }
     function toggleDigitalAnchor(){
+        if(root.steeringModeBusy){root.lastNavigationStatus="Oprește asistența cârmei înainte de navigare/misiune";return false}
         if(digitalAnchor.active){root.holdMission();return true}
         if(!root.allowLiveAction())return false
         if(!root.linkAlive || scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || (baitingController.enabled || (routePlan && routePlan.active))){root.lastNavigationStatus="Ancora indisponibilă: verifică legătura și oprește misiunea/nădirea";return false}
@@ -664,6 +674,7 @@ Item {
         return baitingController.startCycle({coordinate:routePlan.coordinate(stop)},stop.name,stop.hopper)
     }
     function startRoute(loadConfirmed) {
+        if(root.steeringModeBusy){root.lastNavigationStatus="Oprește asistența cârmei înainte de navigare/misiune";return false}
         if(!root.requireActiveLakeForPointSave())return false
         if(!preLaunchCheck.navigationReady) {root.lastNavigationStatus=preLaunchCheck.blockingMessage;return false}
         if(!root.allowLiveAction() || !root.linkAlive || baitingController.enabled || routePlan.active ||
@@ -691,6 +702,7 @@ Item {
         return ok
     }
     function startBaiting(waypoint,name,hopper){
+        if(root.steeringModeBusy){root.lastNavigationStatus="Oprește asistența cârmei înainte de navigare/misiune";return false}
         if(routePlan && routePlan.active) {root.lastNavigationStatus="Oprește traseul înainte de altă nădire";return false}
         if(!root.allowLiveAction())return false
         if(!root.linkAlive || scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || (hopper!==0 && !hopperBridge.calibrated)){root.lastNavigationStatus="Nădire blocată: verifică legătura, misiunea activă și calibrarea cuvelor";return false}
@@ -699,6 +711,7 @@ Item {
         return baitingController.startCycle(waypoint,name,hopper)
     }
     function startMission() {
+        if(root.steeringModeBusy){root.lastNavigationStatus="Oprește asistența cârmei înainte de navigare/misiune";return false}
         if((routePlan && routePlan.active) || (baitingController && baitingController.enabled)) {root.lastNavigationStatus="Oprește traseul/nădirea înainte de Area Scan";return false}
         if(!root.allowLiveAction()) return false
         if (!preLaunchCheck.navigationReady) { root.lastNavigationStatus = preLaunchCheck.blockingMessage; return false }
@@ -718,6 +731,7 @@ Item {
         return missionUploader.uploadPrepared()
     }
     function startUploadedMission() {
+        if(root.steeringModeBusy){root.lastNavigationStatus="Oprește asistența cârmei înainte de navigare/misiune";return false}
         if((routePlan && routePlan.active) || (baitingController && baitingController.enabled)) {root.lastNavigationStatus="Oprește traseul/nădirea înainte de START Area Scan";return false}
         if(!root.allowLiveAction()) return false
         if (!root.linkAlive || !root.vehicle.rover) {
@@ -803,6 +817,7 @@ Item {
         return false
     }
     function navigateToCoordinate(c) {
+        if(root.steeringModeBusy){root.lastNavigationStatus="Oprește asistența cârmei înainte de navigare/misiune";return false}
         if(!root.allowLiveAction()) return false
         if (!root.linkAlive || !vehicle || !c || !c.isValid) {
             root.lastNavigationStatus = "Navigatie indisponibila"
@@ -1904,6 +1919,11 @@ Item {
                         Layout.fillWidth: true
                         Layout.preferredHeight: implicitHeight
                         controller: g20Controller
+                    }
+                    NavoSteeringPanel {
+                        Layout.fillWidth:true
+                        controller:steeringAssist
+                        onEnableRequested:steeringAssist.enable()
                     }
                     NavoEthernetSettings {
                         id: ethernetSettings

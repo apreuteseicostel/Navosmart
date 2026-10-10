@@ -28,11 +28,14 @@ jobs:
         run: |
           node tests/audit-regressions.mjs
           node tests/route-plan.mjs
+          node tests/steering-bottom.mjs
       - name: Render production Missions UI with Qt 6.8.3
         run: |
           python3 -m venv /tmp/navo-ui-env
           /tmp/navo-ui-env/bin/pip install PySide6-Essentials==6.8.3 PySide6-Addons==6.8.3
           /tmp/navo-ui-env/bin/python tests/missions-ui.py
+          /tmp/navo-ui-env/bin/python tests/steering-ui.py
+          /tmp/navo-ui-env/bin/python tests/sonar-recording-ui.py
       - uses: actions/upload-artifact@v4
         with:
           name: NAVO-NANO-FIRMWARE

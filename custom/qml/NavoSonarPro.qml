@@ -5,6 +5,7 @@ import QtQuick.Dialogs
 import QtPositioning
 import QtLocation
 import QGroundControl.FlightMap
+import "NavoBottomAnalysis.js" as BottomAnalysis
 
 Rectangle {
     id: root
@@ -26,6 +27,30 @@ Rectangle {
         return connected ? (chartSource && chartSource.recording ? "REC ●" : (paused ? "PAUZĂ" : "LIVE")) : "OFFLINE"
     }
     FileDialog { id: replayPicker; title: 'Încarcă înregistrare sonar'; nameFilters: ['Sonar NAVO / Kogger (*.navosonar *.klf)', 'Toate fișierele (*)']; onAccepted: { if(root.chartSource) {root.history=[];root.chartSource.startReplay(selectedFile)} } }
+    readonly property var bottomAnalysis: bottomAnalysisDialog.visible && displayedColumn
+        ? BottomAnalysis.column(displayedColumn.rawSamples,displayedColumn.offset,displayedColumn.range,displayedColumn.bottom) : ({valid:false})
+    readonly property var bottomProfile: bottomAnalysisDialog.visible ? BottomAnalysis.profile(history) : ({valid:false})
+    Dialog {
+        id:bottomAnalysisDialog;objectName:"sonarBottomAnalysisDialog"
+        title:"Fund & ecouri • analiză relativă";modal:true
+        width:Math.min(440,root.width-16);height:Math.min(420,root.height-16);anchors.centerIn:parent
+        footer:DialogButtonBox {Button{text:"Închide";DialogButtonBox.buttonRole:DialogButtonBox.RejectRole}}
+        contentItem:ScrollView {
+            clip:true;contentWidth:availableWidth
+            ColumnLayout {
+                width:parent.width;spacing:10
+                Label {Layout.fillWidth:true;wrapMode:Text.WordWrap;text:"Sursă: "+root.sourceStatusText()+" • ultima coloană afișată"}
+                Label {Layout.fillWidth:true;wrapMode:Text.WordWrap;text:"Material: NECLASIFICAT. Mâl, pietriș și vegetație necesită măsurători de referință. Aceasta este analiza CHART 2D, nu un mod DownScan."}
+                Label {Layout.fillWidth:true;wrapMode:Text.WordWrap;text:root.bottomAnalysis.valid ?
+                    "Fund: "+root.bottomAnalysis.bottomM.toFixed(2)+" m\nEcou brut maxim: "+Math.round(root.bottomAnalysis.peak*100)+"% din scala amplitudinii\nEcou mediu în fereastră: "+Math.round(root.bottomAnalysis.mean*100)+"%\nLățime la jumătatea maximului: "+(root.bottomAnalysis.widthLimited ? "≥ " : "")+root.bottomAnalysis.widthM.toFixed(2)+" m\nRezoluție verticală: "+root.bottomAnalysis.stepM.toFixed(3)+" m" : root.bottomAnalysis.reason || "Aștept fundul procesat al coloanei CHART curente."}
+                Label {Layout.fillWidth:true;wrapMode:Text.WordWrap;text:root.bottomAnalysis.valid && root.bottomAnalysis.aboveEchoes!==null ?
+                    "Grupuri de ecouri deasupra fundului: "+root.bottomAnalysis.aboveEchoes+(isFinite(root.bottomAnalysis.aboveHeightM) ? "\nÎnălțime maximă relativă: "+root.bottomAnalysis.aboveHeightM.toFixed(2)+" m" : "")+"\nPot proveni din pești, vegetație, obiecte sau zgomot; nu sunt identificări confirmate." : "Coloană de apă insuficientă pentru analiza ecourilor de deasupra fundului."}
+                Label {Layout.fillWidth:true;wrapMode:Text.WordWrap;text:root.bottomProfile.valid ?
+                    "Profil recent ("+root.bottomProfile.count+" coloane): "+root.bottomProfile.minM.toFixed(2)+"–"+root.bottomProfile.maxM.toFixed(2)+" m\nVariație verticală: "+root.bottomProfile.variationM.toFixed(2)+" m. Nu indică panta fără distanță GPS validată." : "Profil recent: sunt necesare cel puțin 3 coloane cu fund valid."}
+                Label {Layout.fillWidth:true;wrapMode:Text.WordWrap;text:"Valorile provin din ecoul brut, înainte de paletă, sensibilitate și filtrele afișării. Intensitatea ecoului nu este duritatea fizică a fundului."}
+            }
+        }
+    }
     Dialog {
         id: recordingDialog
         objectName: "sonarRecordingDialog"
@@ -201,8 +226,9 @@ Rectangle {
         var available = chartSource ? (chartSource.connected || root.replayMode) : connected
         if (paused || !available || !column || !column.length ||
                 !isFinite(offset) || !isFinite(range) || range <= 0) return
+        var raw=chartSource ? chartSource.echoSamples.slice(0) : column.slice(0)
         var h = history.slice(0)
-        h.push({samples: column.slice(0), offset: offset, range: range, sequence: chartSource ? chartSource.chartSequence : 0,
+        h.push({rawSamples:raw,samples:chartSource && koggerCompensation ? column.slice(0) : raw, offset: offset, range: range, sequence: chartSource ? chartSource.chartSequence : 0,
                 bottom: chartSource && chartSource.nativeChannelReady ? NaN : (isFinite(root.depthM) && root.depthM >= 0 ? root.depthM : NaN)})
         if (h.length > historyColumns) h.splice(0, h.length - historyColumns)
         history = h
@@ -525,6 +551,7 @@ Rectangle {
                     background: Rectangle { radius: 5; color: action.selected ? root.selectedMenuColor : (action.hovered ? "#183c51" : "#102435"); border.color: action.selected ? root.selectedMenuBorder : "#31536c"; border.width: action.selected ? 2 : 1 }
                 }
                 MenuAction { visible:!!(root.chartSource && !root.replayMode); enabled:!!(root.chartSource && (root.chartSource.recording || root.chartSource.dataAlive)); selected:!!(root.chartSource && root.chartSource.recording); text:root.chartSource && root.chartSource.recording ? 'Oprește și salvează REC' : 'Înregistrează sesiunea'; onClicked: {root.menuOpen=false;if(root.chartSource.recording)root.chartSource.stopRecording();else recordingDialog.open()} }
+                MenuAction { text:'Analiză fund și ecouri'; enabled:root.history.length>0; onClicked:{root.menuOpen=false;bottomAnalysisDialog.open()} }
                 MenuAction { text:'Sesiuni offline'; onClicked:{root.menuOpen=false;recordingsDialog.open()} }
                 Label { visible:!!(root.chartSource && root.chartSource.recording); Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.chartSource ? 'REC · '+(root.chartSource.recordingBytes/1048576).toFixed(1)+' MiB' : ''; color:'#ffbd69'; font.pixelSize:11 }
                 Label { visible:!!(root.chartSource && root.chartSource.recordingError && root.chartSource.recordingError.length>0); Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.chartSource ? root.chartSource.recordingError || '' : ''; color:'#ffbd69'; font.pixelSize:11 }
