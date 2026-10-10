@@ -1223,49 +1223,81 @@ Item {
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             ColumnLayout {
                 anchors.fill: parent; anchors.margins: root.responsiveMargin; spacing: root.responsiveGap
-                Flow {
+                RowLayout {
                     Layout.fillWidth:true
-                    spacing:6
-                    Repeater {
-                        model:["Mergi la punct","Traseu cu opriri","Scanează zona"]
-                        delegate:Button {
-                            implicitHeight:36
-                            leftPadding:9;rightPadding:9;topPadding:4;bottomPadding:4
-                            font.pixelSize:12
-                            required property string modelData
-                            required property int index
-                            text:modelData
-                            highlighted:root.missionScanSelected ? index===2 : index===(routePlan.missionKind==="point" ? 0 : 1)
-                            enabled:!root.missionBusy && !sonar.replayMode
-                            onClicked:root.selectMission(index)
+                    Button {
+                        text:missionOptions.opened ? "Închide opțiunile" : "⚙ Configurare misiune"
+                        Accessible.name:"Configurare misiune"
+                        onClicked:missionOptions.opened ? missionOptions.close() : missionOptions.open()
+                    }
+                    Label {
+                        Layout.fillWidth:true; color:root.muted; elide:Text.ElideRight
+                        text:root.missionScanSelected ? "Scanează zona" : (routePlan.missionKind==="point" ? "Mergi la punct" : "Traseu cu opriri")
+                    }
+                }
+                Popup {
+                    id:missionOptions
+                    parent:Overlay.overlay
+                    x:Math.max(12,(parent.width-width)/2)
+                    y:Math.max(12,Math.min(110,parent.height-height-12))
+                    width:Math.min(760,parent.width-24)
+                    height:Math.min(310,parent.height-24)
+                    modal:false; focus:true; closePolicy:Popup.CloseOnEscape|Popup.CloseOnPressOutside
+                    padding:12
+                    background:Rectangle { color:"#101b25";radius:10;border.color:"#21b7ff";border.width:2 }
+                    contentItem:ScrollView {
+                        clip:true;contentWidth:availableWidth
+                        ColumnLayout {
+                            width:missionOptions.availableWidth
+                            spacing:8
+                            Flow {
+                                Layout.fillWidth:true
+                                spacing:6
+                                Repeater {
+                                    model:["Mergi la punct","Traseu cu opriri","Scanează zona"]
+                                    delegate:Button {
+                                        implicitHeight:36
+                                        leftPadding:9;rightPadding:9;topPadding:4;bottomPadding:4
+                                        font.pixelSize:12
+                                        required property string modelData
+                                        required property int index
+                                        text:modelData
+                                        highlighted:root.missionScanSelected ? index===2 : index===(routePlan.missionKind==="point" ? 0 : 1)
+                                        enabled:!root.missionBusy && !sonar.replayMode
+                                        onClicked:root.selectMission(index)
+                                    }
+                                }
+                            }
+                            Label {
+                                Layout.fillWidth:true; wrapMode:Text.WordWrap; color:root.muted
+                                visible:!root.missionScanSelected && routePlan.state==="STOPPED"
+                                text:"HOLD oprește ciclul de nădire. Verifică cuvele și folosește un nou START; nu se reia automat o eliberare."
+                            }
+                            GridLayout {
+                                columns:2
+                                visible:root.missionScanSelected
+                                Layout.fillWidth:true
+                                Label {Layout.fillWidth:true;wrapMode:Text.WordWrap;text:"Viteză estimare (m/s)";color:"white"}
+                                SpinBox {
+                                    implicitWidth:132; implicitHeight:38
+                                    from:1;to:30;value:Math.round(root.scanEstimateSpeedMps*10)
+                                    enabled:!root.missionBusy && !sonar.replayMode
+                                    textFromValue:function(v,locale){return Number(v/10).toLocaleString(locale,'f',1)}
+                                    onValueModified:root.scanEstimateSpeedMps=value/10
+                                }
+                                Label {text:"La final";color:"white"}
+                                ComboBox { implicitWidth:132; implicitHeight:38; enabled:!root.missionBusy && !sonar.replayMode; model:["HOLD","RTL"]; currentIndex:root.areaScanFinishAction==="RTL"?1:0; onActivated:root.areaScanFinishAction=currentIndex===1?"RTL":"HOLD" }
+                            }
+                            Label {
+                                visible:root.missionScanSelected
+                                Layout.fillWidth:true;wrapMode:Text.WordWrap;color:root.muted
+                                text:"Cuve: fără eliberare • AUTO folosește viteza configurată în H743.\n"+
+                                    (root.scanEstimate.valid ? "~"+Math.ceil(root.scanEstimate.distanceM)+" m • ~"+Math.ceil(root.scanEstimate.durationSeconds/60)+" min (estimare fără viraje)" : "Definește zona; GPS și HOME sunt necesare pentru estimare.")
+                            }
+            
+                            Button { text:"Închide";Layout.alignment:Qt.AlignRight;onClicked:missionOptions.close() }
                         }
                     }
-                }
-                Label {
-                    Layout.fillWidth:true; wrapMode:Text.WordWrap; color:root.muted
-                    visible:!root.missionScanSelected && routePlan.state==="STOPPED"
-                    text:"HOLD oprește ciclul de nădire. Verifică cuvele și folosește un nou START; nu se reia automat o eliberare."
-                }
-                GridLayout {
-                    columns:2
-                    visible:root.missionScanSelected
-                    Layout.fillWidth:true
-                    Label {Layout.fillWidth:true;wrapMode:Text.WordWrap;text:"Viteză estimare (m/s)";color:"white"}
-                    SpinBox {
-                        implicitWidth:132; implicitHeight:38
-                        from:1;to:30;value:Math.round(root.scanEstimateSpeedMps*10)
-                        enabled:!root.missionBusy && !sonar.replayMode
-                        textFromValue:function(v,locale){return Number(v/10).toLocaleString(locale,'f',1)}
-                        onValueModified:root.scanEstimateSpeedMps=value/10
-                    }
-                    Label {text:"La final";color:"white"}
-                    ComboBox { implicitWidth:132; implicitHeight:38; enabled:!root.missionBusy && !sonar.replayMode; model:["HOLD","RTL"]; currentIndex:root.areaScanFinishAction==="RTL"?1:0; onActivated:root.areaScanFinishAction=currentIndex===1?"RTL":"HOLD" }
-                }
-                Label {
-                    visible:root.missionScanSelected
-                    Layout.fillWidth:true;wrapMode:Text.WordWrap;color:root.muted
-                    text:"Cuve: fără eliberare • AUTO folosește viteza configurată în H743.\n"+
-                        (root.scanEstimate.valid ? "~"+Math.ceil(root.scanEstimate.distanceM)+" m • ~"+Math.ceil(root.scanEstimate.durationSeconds/60)+" min (estimare fără viraje)" : "Definește zona; GPS și HOME sunt necesare pentru estimare.")
                 }
                 GridLayout {
                     columns:root.missionScanSelected || width>=700 ? 2 : 1
