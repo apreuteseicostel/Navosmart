@@ -6,6 +6,9 @@ import QtPositioning
 QtObject {
     id: root
     property var stops: []
+    property string missionKind: "route"
+    property var otherDraft: []
+    property string otherFinishAction: "RTL"
     property string finishAction: "RTL"
     property bool readOnly: false
     property bool active: false
@@ -42,8 +45,24 @@ QtObject {
         }
         return ""
     }
+    // Switching editors preserves both drafts; never switches a running mission.
+    function selectKind(kind) {
+        if(readOnly || active || ["point","route"].indexOf(kind)<0) return false
+        if(kind===missionKind) return true
+        var previous=stops, previousAction=finishAction
+        stops=otherDraft; finishAction=otherFinishAction
+        otherDraft=previous; otherFinishAction=previousAction; missionKind=kind
+        currentIndex=-1; state="DRAFT"; lastError=""; changed(); return true
+    }
+    function setPoint(wp, name, hopper) {
+        if(readOnly || active || missionKind!=="point" || !wp || !wp.coordinate) return false
+        var stop={name:String(name||"Punct"),latitude:wp.coordinate.latitude,longitude:wp.coordinate.longitude,hopper:hopper}
+        var error=validate([stop],finishAction)
+        if(error.length) {lastError=error;status(error);return false}
+        stops=[stop];state="DRAFT";lastError="";changed();return true
+    }
     function addStop(wp, name, hopper) {
-        if(readOnly || active || !wp || !wp.coordinate || !wp.coordinate.isValid || stops.length >= 50) return false
+        if(readOnly || active || !wp || !wp.coordinate || !wp.coordinate.isValid || stops.length >= 50 || (missionKind==="point" && stops.length>=1)) return false
         var stop = {name: String(name || "Punct"), latitude: wp.coordinate.latitude,
                     longitude: wp.coordinate.longitude, hopper: hopper}
         var next = stops.concat([stop]), error = validate(next, finishAction)
@@ -61,14 +80,19 @@ QtObject {
         stops=next; state="DRAFT"; changed(); return true
     }
     function snapshot() {
-        return {version:1, history:history.slice(-50), stops:stops.map(function(s){return {name:s.name,latitude:s.latitude,longitude:s.longitude,hopper:s.hopper}}), finishAction:finishAction}
+        return {version:1, missionKind:missionKind, otherDraft:otherDraft.map(function(s){return {name:s.name,latitude:s.latitude,longitude:s.longitude,hopper:s.hopper}}), otherFinishAction:otherFinishAction, history:history.slice(-50), stops:stops.map(function(s){return {name:s.name,latitude:s.latitude,longitude:s.longitude,hopper:s.hopper}}), finishAction:finishAction}
     }
     function restore(saved) {
         if(active) return false
         if(!saved || saved.version!==1 || !Array.isArray(saved.stops) ||
            (saved.stops.length && validate(saved.stops,saved.finishAction).length)) {
-            stops=[]; history=[]; finishAction="RTL"; state="DRAFT"; return false
+            stops=[]; otherDraft=[]; otherFinishAction="RTL"; missionKind="route"; history=[]; finishAction="RTL"; state="DRAFT"; return false
         }
+        missionKind=saved.missionKind==="point" ? "point" : "route"
+        if(missionKind==="point" && saved.stops.length>1) {stops=[];otherDraft=[];missionKind="route";return false}
+        otherFinishAction=["RTL","ANCHOR","HOLD"].indexOf(saved.otherFinishAction)>=0 ? saved.otherFinishAction : "RTL"
+        otherDraft=Array.isArray(saved.otherDraft) && (!saved.otherDraft.length || !validate(saved.otherDraft,otherFinishAction).length) &&
+            (missionKind==="point" || saved.otherDraft.length<=1) ? saved.otherDraft.map(function(s){return {name:String(s.name||"Punct"),latitude:s.latitude,longitude:s.longitude,hopper:s.hopper}}) : []
         history=Array.isArray(saved.history) ? saved.history.filter(function(h){
             return h && typeof h.startedAt==="number" && isFinite(h.startedAt) &&
                 typeof h.finishedAt==="number" && isFinite(h.finishedAt) &&
@@ -80,7 +104,7 @@ QtObject {
     }
     function start(loadConfirmed) {
         if(readOnly || active) return false
-        var error=validate(stops,finishAction)
+        var error=missionKind==="point" && stops.length!==1 ? "Alege o singură destinație" : validate(stops,finishAction)
         if(!error.length && stops.some(function(s){return s.hopper!==0}) && !loadConfirmed)
             error="Confirmă încărcarea cuvelor înainte de START sau repetare"
         if(error.length) { lastError=error; status(error); return false }

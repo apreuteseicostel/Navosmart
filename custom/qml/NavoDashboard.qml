@@ -15,7 +15,7 @@ import NavoSmart.Backend 1.0
 
 Item {
     id: root
-    readonly property string activePageName: ["HARTA","SONAR","AREA SCAN","PUNCTE PESCUIT","BALȚILE MELE","CAMERA","SETARI","3D","NĂDIRE","SIGURANȚĂ","SONAR PRO"][activePage] || "HARTA"
+    readonly property string activePageName: ["HARTA","SONAR","MISIUNI","PUNCTE PESCUIT","BALȚILE MELE","CAMERA","SETARI","3D","NĂDIRE","SIGURANȚĂ","SONAR PRO"][activePage] || "HARTA"
     implicitWidth: 1280
     implicitHeight: 720
 
@@ -150,6 +150,32 @@ Item {
     }
     readonly property var routePlanController:routePlan
     property bool routePreviousRtl: true
+    property real routeLegDistanceM: 0
+    property bool missionScanSelected: true
+    property real scanEstimateSpeedMps: 1.5
+    readonly property bool missionBusy: routePlan.active || baitingController.enabled || scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || missionUploader.uploadInProgress
+    readonly property var scanEstimate: {
+        var points=areaScanController.generatedPoints
+        var origin=root.vehicle ? root.vehicle.coordinate : null
+        var home=root.vehicle ? root.vehicle.homePosition : null
+        if(!points.length || !origin || !origin.isValid || !home || !home.isValid || !isFinite(root.scanEstimateSpeedMps) || root.scanEstimateSpeedMps<=0)return {valid:false}
+        var d=0,prev=origin
+        for(var i=0;i<points.length;i++){d+=prev.distanceTo(points[i]);prev=points[i]}
+        if(root.areaScanFinishAction==="RTL")d+=prev.distanceTo(home)
+        return {valid:isFinite(d),distanceM:d,durationSeconds:d/root.scanEstimateSpeedMps}
+    }
+    function missionStateLabel(state) {
+        var labels={DRAFT:"Schiță",RUNNING:"În curs",DISPATCHED:"Acțiuni comandate",STOPPED:"Oprit",IDLE:"Pregătit",READY:"Pregătit pentru START",RESUME_READY:"Reluare pregătită",SCANNING:"În curs",PAUSED:"Pauză",RTL:"Întoarcere HOME comandată",COMPLETE:"Încheiată"}
+        return labels[state] || state
+    }
+    function selectMission(index) {
+        if(root.missionBusy || sonar.replayMode || !Number.isInteger(index) || index<0 || index>2)return false
+        if(index!==2 && !routePlan.selectKind(index===0 ? "point" : "route"))return false
+        root.missionScanSelected=index===2
+        root.pendingBaitPointPick=false
+        root.pendingAreaDrawMode="none"
+        return true
+    }
     NavoRoutePlan {
         id:routePlan
         readOnly:root.sonarController.replayMode
@@ -631,6 +657,8 @@ Item {
            (stop.hopper!==0 && !hopperBridge.calibrated)) {
             root.lastNavigationStatus="Traseu blocat: verifică legătura, comenzile H743 și calibrarea cuvelor"; return false
         }
+        var leg=root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.distanceTo(routePlan.coordinate(stop)) : NaN
+        root.routeLegDistanceM=isFinite(leg) ? leg : 0
         digitalAnchor.release()
         baitingController.rtlAfterDrop=false
         return baitingController.startCycle({coordinate:routePlan.coordinate(stop)},stop.name,stop.hopper)
@@ -651,6 +679,7 @@ Item {
         if(routePlan.finishAction==="RTL" && !root.vehicle.guidedModeRTL) {root.lastNavigationStatus="RTL indisponibil";return false}
         if(!scanCoordinator.checkpoint("route-before-start"))return false
         root.routePreviousRtl=baitingController.rtlAfterDrop
+        root.missionScanSelected=false
         return routePlan.start(loadConfirmed)
     }
     function finishRoute(action) {
@@ -792,8 +821,8 @@ Item {
     }
 
 
-    Dialog { id:homeRtlConfirm; parent:Overlay.overlay; anchors.centerIn:parent; modal:true; title:"Întoarcere la HOME?"; standardButtons:Dialog.Yes | Dialog.No; closePolicy:Popup.NoAutoClose
-        Label { width:320; wrapMode:Text.WordWrap; text:"Comanzi RTL către H743/ArduPilot. Barca se va întoarce la HOME salvat de autopilot." }
+    Dialog { id:homeRtlConfirm; parent:Overlay.overlay; anchors.centerIn:parent; modal:true; width:Math.min(360,root.width-24); title:"Întoarcere la HOME?"; standardButtons:Dialog.Yes | Dialog.No; closePolicy:Popup.NoAutoClose
+        Label { width:Math.min(320,root.width-56); wrapMode:Text.WordWrap; text:"Comanzi RTL către H743/ArduPilot. Barca se va întoarce la HOME salvat de autopilot." }
         onAccepted: root.rtlMission()
     }
 
@@ -879,7 +908,7 @@ Item {
                 NavButton { text: "HARTA"; iconSource: "qrc:/qml/NavoSmart/icons/map.svg"; active: root.activePage === 0; onClicked: root.activePage = 0 }
                 NavButton { text: "SONAR"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 1; onClicked: root.activePage = 1 }
                 NavButton { text: "SONAR PRO"; proBadge: true; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 10; onClicked: root.activePage = 10 }
-                NavButton { text: "AREA SCAN"; iconSource: "qrc:/qml/NavoSmart/icons/scan.svg"; active: root.activePage === 2; onClicked: root.activePage = 2 }
+                NavButton { text: "MISIUNI"; iconSource: "qrc:/qml/NavoSmart/icons/scan.svg"; active: root.activePage === 2; onClicked: root.activePage = 2 }
                 NavButton { text: "PUNCTE PESCUIT"; iconSource: "qrc:/qml/NavoSmart/icons/fish.svg"; active: root.activePage === 3; onClicked: root.activePage = 3 }
                 NavButton { text: "BALȚILE MELE"; iconSource: "qrc:/qml/NavoSmart/icons/lake.svg"; active: root.activePage === 4; onClicked: root.activePage = 4 }
                 NavButton { text: "CAMERA"; iconSource: "qrc:/qml/NavoSmart/icons/camera.svg"; active: root.activePage === 5; onClicked: root.activePage = 5 }
@@ -892,9 +921,25 @@ Item {
         }
     }
 
+    NavoMissionStatus {
+        id:missionStrip
+        visible:root.missionBusy || root.activePage===2
+        anchors.left:root.mapMaximized || root.activePage===10 ? parent.left : sidebar.right
+        anchors.right:parent.right
+        anchors.top:root.activePage===10 ? parent.top : header.bottom
+        height:visible ? implicitHeight : 0
+        z:6001
+        active:root.missionBusy
+        connected:root.linkAlive
+        homeAvailable:!sonar.replayMode && !!root.vehicle && !!root.vehicle.guidedModeRTL && !!root.vehicle.homePosition && root.vehicle.homePosition.isValid
+        progress:routePlan.active ? 100*(routePlan.currentIndex+Math.min(0.95,Math.max(0,root.routeLegDistanceM>0 && isFinite(baitingController.distanceToTarget()) ? 1-baitingController.distanceToTarget()/root.routeLegDistanceM : 0)))/Math.max(1,routePlan.runningStops.length) : root.missionScanSelected ? areaScanController.progressPercent() : routePlan.state==="DISPATCHED" ? 100 : 0
+        statusText:routePlan.active ? (routePlan.missionKind==="point" ? "Mergi la punct" : "Traseu cu opriri")+" • oprire "+(routePlan.currentIndex+1)+"/"+routePlan.runningStops.length+" • "+baitingController.stateText(baitingController.state) : root.missionScanSelected ? "Scanare • "+root.missionStateLabel(scanCoordinator.state) : "Misiune • "+root.missionStateLabel(routePlan.state)
+        onPauseRequested:root.holdMission()
+        onHomeRequested:homeRtlConfirm.open()
+    }
     Rectangle {
         id: content
-        anchors.left: root.mapMaximized || root.activePage === 10 ? parent.left : sidebar.right; anchors.right: parent.right; anchors.top: root.activePage === 10 ? parent.top : header.bottom; anchors.bottom: parent.bottom
+        anchors.left: root.mapMaximized || root.activePage === 10 ? parent.left : sidebar.right; anchors.right: parent.right; anchors.top: missionStrip.bottom; anchors.bottom: parent.bottom
         // Fullscreen sonar controls must render above the Dashboard header (z: 2000).
         z: root.activePage === 10 ? 3000 : 0
         color: root.bg
@@ -981,6 +1026,7 @@ Item {
                     var pts=scanCoordinator.prepareRectangle(cornerA,cornerB)
                     root.lastNavigationStatus=pts.length ? "Area Scan dreptunghi pregătit • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP • apasă PREGĂTEȘTE MISIUNEA" : "Dreptunghi respins: "+areaScanController.lastError
                     root.pendingAreaDrawMode="none"
+                    root.missionScanSelected=true
                     root.activePage=2
                 }
                 onAreaPolygonRequested: function(polygon) {
@@ -989,6 +1035,7 @@ Item {
                     var pts=scanCoordinator.preparePolygon(polygon)
                     root.lastNavigationStatus=pts.length ? "Area Scan poligon • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP generate" : areaScanController.lastError
                     root.pendingAreaDrawMode="none"
+                    root.missionScanSelected=true
                     root.activePage=2
                 }
                 onSaveNamedPointRequested: function(coordinate,name,markerColor) {
@@ -1161,25 +1208,53 @@ Item {
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             ColumnLayout {
                 anchors.fill: parent; anchors.margins: root.responsiveMargin; spacing: root.responsiveGap
-                RowLayout {
-                    Layout.fillWidth: true
-                    Label { text: areaScanController.progressPercent() + "%"; color: root.accent; font.bold: true }
-                    ProgressBar { Layout.fillWidth: true; from: 0; to: 100; value: areaScanController.progressPercent() }
-                    Label { text: scanCoordinator.state==="COMPLETE" ? "FINISHED" : scanCoordinator.state; color: root.modeColor(); font.bold: true }
+                Flow {
+                    Layout.fillWidth:true
+                    spacing:6
+                    Repeater {
+                        model:["Mergi la punct","Traseu cu opriri","Scanează zona"]
+                        delegate:Button {
+                            required property string modelData
+                            required property int index
+                            text:modelData
+                            highlighted:root.missionScanSelected ? index===2 : index===(routePlan.missionKind==="point" ? 0 : 1)
+                            enabled:!root.missionBusy && !sonar.replayMode
+                            onClicked:root.selectMission(index)
+                        }
+                    }
                 }
                 Label {
-                    Layout.fillWidth: true
-                    text: areaScanController.laneCount() ?
-                          (areaScanController.completedLanes.length + " / " + areaScanController.laneCount() + " culoare • WP autopilot " + scanCoordinator.missionCurrentIndex) :
-                          "Definește zona de scanare pe hartă."
-                    color: root.muted
+                    Layout.fillWidth:true; wrapMode:Text.WordWrap; color:root.muted
+                    visible:!root.missionScanSelected && routePlan.state==="STOPPED"
+                    text:"HOLD oprește ciclul de nădire. Verifică cuvele și folosește un nou START; nu se reia automat o eliberare."
                 }
-                RowLayout {
+                GridLayout {
+                    columns:2
+                    visible:root.missionScanSelected
+                    Layout.fillWidth:true
+                    Label {Layout.fillWidth:true;wrapMode:Text.WordWrap;text:"Viteză estimare (m/s)";color:"white"}
+                    SpinBox {
+                        from:1;to:30;value:Math.round(root.scanEstimateSpeedMps*10)
+                        enabled:!root.missionBusy && !sonar.replayMode
+                        textFromValue:function(v,locale){return Number(v/10).toLocaleString(locale,'f',1)}
+                        onValueModified:root.scanEstimateSpeedMps=value/10
+                    }
+                    Label {text:"La final";color:"white"}
+                    ComboBox { enabled:!root.missionBusy && !sonar.replayMode; model:["HOLD","RTL"]; currentIndex:root.areaScanFinishAction==="RTL"?1:0; onActivated:root.areaScanFinishAction=currentIndex===1?"RTL":"HOLD" }
+                }
+                Label {
+                    visible:root.missionScanSelected
+                    Layout.fillWidth:true;wrapMode:Text.WordWrap;color:root.muted
+                    text:"Cuve: fără eliberare • AUTO folosește viteza configurată în H743.\n"+
+                        (root.scanEstimate.valid ? "~"+Math.ceil(root.scanEstimate.distanceM)+" m • ~"+Math.ceil(root.scanEstimate.durationSeconds/60)+" min (estimare fără viraje)" : "Definește zona; GPS și HOME sunt necesare pentru estimare.")
+                }
+                GridLayout {
+                    columns:root.missionScanSelected || width>=700 ? 2 : 1
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    spacing: 8
+                    rowSpacing:8;columnSpacing:8
                     Rectangle {
-                        Layout.fillWidth: true; Layout.fillHeight: true
+                        Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight:120
                         radius: 8; color: root.bg; border.color: root.line; clip: true
                         NavoMap {
                 routeActive:routePlan.active
@@ -1204,7 +1279,8 @@ Item {
                             savedWaterTempC: root.waterTempC
                             maximized: root.mapMaximized
                             baitPointPickMode: root.pendingBaitPointPick
-                            onBaitPointPicked: function(coordinate) { root.pendingBaitPointPick=false; baitingController.targetWaypoint={coordinate:coordinate,name:"Punct hartă",sequenceNumber:0}; root.lastNavigationStatus="Punct de nădire selectat pe hartă"; root.activePage=8 }
+                            onNavigateRequested:function(coordinate){if(!root.missionBusy){baitingController.targetWaypoint={coordinate:coordinate,name:"Punct hartă",sequenceNumber:0};root.lastNavigationStatus="Punct selectat pentru misiune"}}
+                            onBaitPointPicked: function(coordinate) { root.pendingBaitPointPick=false; baitingController.targetWaypoint={coordinate:coordinate,name:"Punct hartă",sequenceNumber:0}; root.lastNavigationStatus="Punct selectat • aplică destinația sau adaugă oprirea" }
                             onMaximizeRequested: root.mapMaximized = !root.mapMaximized
                             onAreaRectangleRequested: function(cornerA, cornerB) {
                             if(!root.allowLiveAction()) return; missionUploader.invalidate(); var pts=scanCoordinator.prepareRectangle(cornerA,cornerB); root.lastNavigationStatus=pts.length ? "Area Scan dreptunghi pregătit • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP • apasă PREGĂTEȘTE MISIUNEA" : "Dreptunghi respins: "+areaScanController.lastError; root.pendingAreaDrawMode="none" }
@@ -1213,10 +1289,39 @@ Item {
                             onSavePointRequested: function(coordinate) { if(!root.requireActiveLakeForPointSave()) return; var spot=fishingSpots.saveSpot(coordinate,root.depthM,root.waterTempC,"","",null); if(spot) scanCoordinator.checkpoint("fishing-spot") }
                         }
                     }
-                    Flow {
+                    ScrollView {
+                        visible:!root.missionScanSelected
+                        Layout.fillWidth:parent.columns===1
+                        Layout.preferredWidth:parent.columns===1 ? parent.width : 300
+                        Layout.minimumHeight:130
+                        Layout.fillHeight:true
+                        clip:true
+                        contentWidth:availableWidth
+                        NavoRoutePanel {
+                            width:parent.width
+                            implicitHeight:650
+                            routePlan:root.routePlanController
+                            waypoint:baitingController.targetWaypoint
+                            availableSpots:fishingSpots.fishingSpots
+                            estimate:root.routeEstimate
+                            energyText:root.routeEnergyText
+                            speedMps:baitingController.silentMode ? baitingController.silentSpeedMps : baitingController.normalSpeedMps
+                            speedEditable:!root.missionBusy
+                            onSpeedRequested:function(speed){if(!root.missionBusy && root.allowLiveAction()){if(baitingController.silentMode)baitingController.silentSpeedMps=speed;else baitingController.normalSpeedMps=speed}}
+                            onSpotChosen:function(spot){baitingController.targetWaypoint={coordinate:QtPositioning.coordinate(spot.lat,spot.lon),name:spot.name,sequenceNumber:0}}
+                            onChooseOnMapRequested:{root.pendingBaitPointPick=true;root.lastNavigationStatus="Atinge destinația pe hartă"}
+                            onStartRequested:function(loadConfirmed){root.startRoute(loadConfirmed)}
+                            onStopRequested:root.stopMission()
+                        }
+                    }
+                    ScrollView {
+                        visible:root.missionScanSelected
                         Layout.preferredWidth: root.compactUi ? 112 : 126
                         Layout.minimumWidth: 106; Layout.maximumWidth: 132
                         Layout.fillHeight: true
+                        clip:true;contentWidth:availableWidth
+                        Flow {
+                        width:parent.width
                         spacing: 6
                         component ScanIconButton: Button {
                             width: 52; height: 46; padding: 0
@@ -1227,13 +1332,13 @@ Item {
                         }
                         ScanIconButton {
                             hint: "Desenează dreptunghi"
-                            enabled: scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
+                            enabled: !root.missionBusy && !sonar.replayMode
                             contentItem: Canvas { anchors.fill: parent; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.strokeRect(12,11,28,24)} }
                             onClicked: { root.pendingAreaDrawMode="rectangle"; Qt.callLater(function(){if(areaScanMap){areaScanMap.beginAreaRectangle();root.pendingAreaDrawMode="none"}}); root.lastNavigationStatus="Atinge două colțuri pe hartă pentru dreptunghi" }
                         }
                         ScanIconButton {
                             hint: "Desenează poligon"
-                            enabled: scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
+                            enabled: !root.missionBusy && !sonar.replayMode
                             contentItem: Canvas { anchors.fill: parent; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.beginPath();p.moveTo(12,31);p.lineTo(17,12);p.lineTo(38,9);p.lineTo(42,30);p.lineTo(27,37);p.closePath();p.stroke()} }
                             onClicked: { root.pendingAreaDrawMode="polygon"; Qt.callLater(function(){if(areaScanMap){areaScanMap.beginAreaPolygon();root.pendingAreaDrawMode="none"}}); root.lastNavigationStatus="Atinge cel puțin trei puncte și apoi TERMINĂ" }
                         }
@@ -1258,7 +1363,7 @@ Item {
                         ScanIconButton { hint:"HOLD"; enabled:scanCoordinator.state==="SCANNING"||root.awaitingMissionStart; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.fillStyle="#ffc857";p.fillRect(15,12,7,23);p.fillRect(30,12,7,23)}} onClicked:root.holdMission() }
                         ScanIconButton { hint:"RTL / întoarcere acasă"; enabled:scanCoordinator.state==="SCANNING"||scanCoordinator.state==="PAUSED"||scanCoordinator.state==="RESUME_READY"; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#21b7ff";p.lineWidth=2;p.beginPath();p.moveTo(10,25);p.lineTo(26,11);p.lineTo(42,25);p.moveTo(16,22);p.lineTo(16,37);p.lineTo(36,37);p.lineTo(36,22);p.stroke()}} onClicked:root.rtlMission() }
                         ScanIconButton { hint:"STOP"; enabled:scanCoordinator.state==="SCANNING"||scanCoordinator.state==="PAUSED"||scanCoordinator.state==="READY"||scanCoordinator.state==="RESUME_READY"||root.awaitingMissionStart; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.fillStyle="#ff5c5c";p.fillRect(15,12,23,23)}} onClicked:root.stopMission() }
-                        ComboBox { width:110; height:34; model:["HOLD","RTL"]; currentIndex:root.areaScanFinishAction==="RTL"?1:0; ToolTip.visible:hovered; ToolTip.text:"Acțiune la finalul scanării"; onActivated:root.areaScanFinishAction=currentIndex===1?"RTL":"HOLD" }
+                        }
                     }
                 }
             }

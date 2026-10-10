@@ -38,6 +38,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoBaitingController.qml
         qml/NavoRoutePlan.qml
         qml/NavoRoutePanel.qml
+        qml/NavoMissionStatus.qml
         qml/NavoBaitingPanel.qml
         qml/NavoHopperBridge.qml
         qml/NavoSonarCard.qml

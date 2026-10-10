@@ -17,11 +17,29 @@ function coord(lat,lon) {return {latitude:lat,longitude:lon,isValid:Number.isFin
  distanceTo(p){return Math.hypot((p.latitude-lat)*111320,(p.longitude-lon)*111320)},azimuthTo(p){return Math.atan2(p.longitude-lon,p.latitude-lat)*180/Math.PI},
  atDistanceAndAzimuth(d,b){return coord(lat+d*Math.cos(b*Math.PI/180)/111320,lon+d*Math.sin(b*Math.PI/180)/111320)}}}
 function plan(){const queued=[],dispatched=[],finished=[];
- const c=context('NavoRoutePlan.qml',{stops:[],finishAction:'RTL',readOnly:false,active:false,currentIndex:-1,runningStops:[],runningFinishAction:'RTL',state:'DRAFT',generation:0,lastError:'',history:[],startedAtMs:0,Date,
+ const c=context('NavoRoutePlan.qml',{stops:[],missionKind:'route',otherDraft:[],otherFinishAction:'RTL',finishAction:'RTL',readOnly:false,active:false,currentIndex:-1,runningStops:[],runningFinishAction:'RTL',state:'DRAFT',generation:0,lastError:'',history:[],startedAtMs:0,Date,
  QtPositioning:{coordinate:coord},Qt:{callLater:f=>queued.push(f)},changed(){},status(){},stepRequested:s=>dispatched.push(s),finishRequested:a=>finished.push(a)});
  return {c,queued,dispatched,finished};}
 const wp=(lat,lon)=>({coordinate:coord(lat,lon)});let passed=0;
 function test(name,fn){fn();passed++;console.log('PASS '+name)}
+test('Mission selector refuses replay, active operations and invalid modes without replacing a draft',()=>{
+ const {c:route}=plan();route.addStop(wp(52,0),'route',0);
+ const c=context('NavoDashboard.qml',{routePlan:route,missionBusy:true,sonar:{replayMode:false},missionScanSelected:true});
+ assert(!c.selectMission(0));c.missionBusy=false;c.sonar.replayMode=true;assert(!c.selectMission(0));
+ c.sonar.replayMode=false;for(const bad of [-1,3,NaN,'0'])assert(!c.selectMission(bad));
+ assert(c.selectMission(0));assert.equal(route.missionKind,'point');assert(c.selectMission(2));assert.equal(c.missionScanSelected,true);
+ assert(c.selectMission(1));assert.equal(route.stops[0].name,'route');
+});
+test('Point and route editors preserve separate drafts and final actions across lake restore',()=>{
+ const {c}=plan();c.addStop(wp(52,0),'route A',1);c.addStop(wp(52,.001),'route B',2);c.finishAction='ANCHOR';
+ assert(c.selectKind('point'));assert.equal(c.stops.length,0);assert(c.setPoint(wp(52,.003),'point',0));c.finishAction='HOLD';
+ assert(!c.addStop(wp(52,.004),'extra',0));const saved=c.snapshot();saved.otherDraft[0].name='snapshot copy';assert.equal(c.otherDraft[0].name,'route A');
+ const restored=plan().c;assert(restored.restore(c.snapshot()));assert.equal(restored.missionKind,'point');assert.equal(restored.stops.length,1);
+ assert(restored.selectKind('route'));assert.equal(restored.stops.length,2);assert.equal(restored.finishAction,'ANCHOR');
+ assert(restored.selectKind('point'));assert.equal(restored.stops[0].name,'point');assert.equal(restored.finishAction,'HOLD');
+ assert(restored.start(false));assert(!restored.selectKind('route'));assert(!restored.setPoint(wp(52,.002),'changed',3));
+ restored.cancel('HOLD');restored.readOnly=true;assert(!restored.selectKind('route'));assert(!restored.setPoint(wp(52,.002),'changed',3));
+});
 test('Invalid coordinates/actions, bounded route and duplicate physical loads are refused',()=>{
  const {c}=plan();assert(!c.addStop(wp(NaN,0),'bad',1));assert(!c.addStop(wp(52,0),'bad',4));
  assert(c.addStop(wp(52,0),'left',1));assert(!c.addStop(wp(52,.001),'left again',1));assert(c.addStop(wp(52,.001),'right',2));

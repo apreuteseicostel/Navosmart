@@ -5,6 +5,11 @@ import QtQuick.Layouts
 ColumnLayout {
     id: root
     objectName:"navoRoutePanel"
+    property real speedMps: 1.5
+    property bool showSpeed: true
+    property bool speedEditable: false
+    signal speedRequested(real speed)
+    readonly property bool singlePoint: !!routePlan && routePlan.missionKind==="point"
     property var routePlan
     property var waypoint
     property var availableSpots: []
@@ -15,8 +20,17 @@ ColumnLayout {
     signal startRequested(bool loadConfirmed)
     signal stopRequested()
     spacing: 8
-    Label { text:"TRASEU CU OPRIRI"; color:"white"; font.bold:true; font.pixelSize:18 }
-    Label { Layout.fillWidth:true; text:"Alege punctele în ordine. Fiecare cuvă poate fi folosită o dată per încărcare."; color:"#d7e3ee"; wrapMode:Text.WordWrap }
+    Label { text:root.singlePoint ? "MERGI LA PUNCT" : "TRASEU CU OPRIRI"; color:"white"; font.bold:true; font.pixelSize:18 }
+    Label { Layout.fillWidth:true; text:root.singlePoint ? "Alege destinația și acțiunea cuvelor." : "Alege punctele în ordine. Fiecare cuvă poate fi folosită o dată per încărcare."; color:"#d7e3ee"; wrapMode:Text.WordWrap }
+    RowLayout {
+        visible:root.showSpeed
+        Layout.fillWidth:true
+        Label {text:"Viteză (m/s)";color:"white"}
+        SpinBox { objectName:"missionSpeed"; from:1;to:30;stepSize:1;value:Math.round(root.speedMps*10)
+            enabled:root.speedEditable && !!root.routePlan && !root.routePlan.active && !root.routePlan.readOnly
+            textFromValue:function(v,locale){return Number(v/10).toLocaleString(locale,'f',1)}
+            onValueModified:root.speedRequested(value/10) }
+    }
     ComboBox {
         Layout.fillWidth:true; model:root.availableSpots; textRole:"name"
         enabled:!!root.routePlan && (!root.routePlan.active && !root.routePlan.readOnly); displayText:"Alege un punct salvat"
@@ -30,11 +44,11 @@ ColumnLayout {
     RowLayout {
         Layout.fillWidth:true
         ComboBox { id:actionBox; Layout.fillWidth:true; model:["Doar navigare","Cuva stângă","Cuva dreaptă","Ambele cuve"]; enabled:!!root.routePlan && (!root.routePlan.active && !root.routePlan.readOnly) }
-        Button { text:"+"; Accessible.name:"Adaugă oprirea"; enabled:!!root.waypoint && !!root.routePlan && (!root.routePlan.active && !root.routePlan.readOnly)
-            onClicked:{if(root.routePlan.addStop(root.waypoint,root.waypoint.name,actionBox.currentIndex))loadCheck.checked=false} }
+        Button { text:root.singlePoint ? "Aplică" : "+"; Accessible.name:root.singlePoint ? "Aplică destinația" : "Adaugă oprirea"; enabled:!!root.waypoint && !!root.routePlan && (!root.routePlan.active && !root.routePlan.readOnly)
+            onClicked:{if(root.singlePoint ? root.routePlan.setPoint(root.waypoint,root.waypoint.name,actionBox.currentIndex) : root.routePlan.addStop(root.waypoint,root.waypoint.name,actionBox.currentIndex))loadCheck.checked=false} }
     }
     ListView {
-        Layout.fillWidth:true; Layout.fillHeight:true; Layout.minimumHeight:90
+        Layout.fillWidth:true; Layout.fillHeight:true; Layout.minimumHeight:root.singlePoint ? 64 : 90
         clip:true; spacing:4; model:root.routePlan ? root.routePlan.stops : []
         delegate:Rectangle {
             required property var modelData
@@ -46,8 +60,8 @@ ColumnLayout {
                 Label { Layout.fillWidth:true; text:(index+1)+". "+modelData.name+" • "+["Navigare","Stânga","Dreapta","Ambele"][modelData.hopper]; color:"white"; elide:Text.ElideRight }
                 RowLayout {
                     Item { Layout.fillWidth:true }
-                    Button { text:"↑"; implicitHeight:28; implicitWidth:38; Accessible.name:"Mută oprirea în sus"; enabled:(!root.routePlan.active && !root.routePlan.readOnly) && index>0; onClicked:{root.routePlan.moveStop(index,-1);loadCheck.checked=false} }
-                    Button { text:"↓"; implicitHeight:28; implicitWidth:38; Accessible.name:"Mută oprirea în jos"; enabled:(!root.routePlan.active && !root.routePlan.readOnly) && index<root.routePlan.stops.length-1; onClicked:{root.routePlan.moveStop(index,1);loadCheck.checked=false} }
+                    Button { visible:!root.singlePoint; text:"↑"; implicitHeight:28; implicitWidth:38; Accessible.name:"Mută oprirea în sus"; enabled:(!root.routePlan.active && !root.routePlan.readOnly) && index>0; onClicked:{root.routePlan.moveStop(index,-1);loadCheck.checked=false} }
+                    Button { visible:!root.singlePoint; text:"↓"; implicitHeight:28; implicitWidth:38; Accessible.name:"Mută oprirea în jos"; enabled:(!root.routePlan.active && !root.routePlan.readOnly) && index<root.routePlan.stops.length-1; onClicked:{root.routePlan.moveStop(index,1);loadCheck.checked=false} }
                     Button { text:"×"; implicitHeight:28; implicitWidth:38; Accessible.name:"Șterge oprirea"; enabled:(!root.routePlan.active && !root.routePlan.readOnly); onClicked:{root.routePlan.removeStop(index);loadCheck.checked=false} }
                 }
             }
@@ -64,14 +78,14 @@ ColumnLayout {
         text:root.estimate.valid ? "~"+Math.ceil(root.estimate.distanceM)+" m • ~"+Math.ceil(root.estimate.durationSeconds/60)+" min\nEstimare; vântul, virajele și stabilizarea pot prelungi durata.\n"+root.energyText : "Estimare indisponibilă: verifică traseul, GPS și HOME" }
     Label {
         Layout.fillWidth:true; color:"#d7e3ee"; wrapMode:Text.WordWrap
-        visible:!!root.routePlan && root.routePlan.history.length>0
+        visible:!root.singlePoint && !!root.routePlan && root.routePlan.history.length>0
         text: {
             if(!root.routePlan || !root.routePlan.history.length)return ""
             var entry=root.routePlan.history[root.routePlan.history.length-1]
             return "Ultimul traseu: "+new Date(entry.finishedAt).toLocaleString()+" • "+entry.completedStops+"/"+entry.stopCount+" opriri • "+(entry.result==="DISPATCHED"?"acțiuni comandate":"oprit")
         }
     }
-    CheckBox { id:loadCheck; Layout.fillWidth:true; text:"Am încărcat/reîncărcat cuvele"; palette.windowText:"white"; enabled:!!root.routePlan && (!root.routePlan.active && !root.routePlan.readOnly) }
+    CheckBox { id:loadCheck; visible:!!root.routePlan && root.routePlan.stops.some(function(s){return s.hopper!==0}); Layout.fillWidth:true; text:"Am încărcat/reîncărcat cuvele"; palette.windowText:"white"; enabled:!!root.routePlan && (!root.routePlan.active && !root.routePlan.readOnly) }
     Label { Layout.fillWidth:true; text:root.routePlan ? root.routePlan.lastError : ""; color:"#ffc857"; wrapMode:Text.WordWrap; visible:text.length>0 }
     RowLayout {
         Button { text:root.routePlan && root.routePlan.state==="DISPATCHED" ? "REPETĂ" : "START"; enabled:!!root.routePlan && (!root.routePlan.active && !root.routePlan.readOnly) && root.routePlan.stops.length>0
@@ -82,9 +96,9 @@ ColumnLayout {
     Dialog {
         objectName:"navoRouteConfirmation"
         id:confirmation; parent:Overlay.overlay; anchors.centerIn:parent
-        width:Math.min(440,parent ? parent.width-24 : 440); height:Math.min(220,parent ? parent.height-24 : 220); modal:true; title:"Confirmă traseul"
+        width:Math.min(440,parent ? parent.width-24 : 440); height:Math.min(220,parent ? parent.height-24 : 220); modal:true; title:root.singlePoint ? "Confirmă destinația" : "Confirmă traseul"
         standardButtons:Dialog.Ok|Dialog.Cancel
-        contentItem:Label { text:"Barca va parcurge opririle și va executa acțiunile cuvelor. Verifică traseul liber și încărcarea cuvelor."; wrapMode:Text.WordWrap; color:"white" }
+        contentItem:Label { text:root.singlePoint ? "Barca va merge la destinație și va executa acțiunea aleasă. Verifică drumul liber și cuvele." : "Barca va parcurge opririle și va executa acțiunile cuvelor. Verifică traseul liber și încărcarea cuvelor."; wrapMode:Text.WordWrap; color:"white" }
         background:Rectangle{color:"#0b1c2e";radius:8;border.color:"#21b7ff"}
         onAccepted:{root.startRequested(loadCheck.checked);loadCheck.checked=false}
     }

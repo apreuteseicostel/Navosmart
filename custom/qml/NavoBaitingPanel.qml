@@ -287,6 +287,7 @@ Rectangle {
             NavoRoutePanel {
                 Layout.fillWidth:true; Layout.fillHeight:true
                 routePlan:root.routePlan; waypoint:root.waypoint; availableSpots:root.availableSpots
+                showSpeed:false
                 estimate:root.routeEstimate; energyText:root.routeEnergyText
                 onSpotChosen:function(spot){root.spotChosen(spot)}
                 onChooseOnMapRequested:{routePopup.close();root.chooseOnMapRequested()}
