@@ -17,11 +17,55 @@ function coord(lat,lon) {return {latitude:lat,longitude:lon,isValid:Number.isFin
  distanceTo(p){return Math.hypot((p.latitude-lat)*111320,(p.longitude-lon)*111320)},azimuthTo(p){return Math.atan2(p.longitude-lon,p.latitude-lat)*180/Math.PI},
  atDistanceAndAzimuth(d,b){return coord(lat+d*Math.cos(b*Math.PI/180)/111320,lon+d*Math.sin(b*Math.PI/180)/111320)}}}
 function plan(){const queued=[],dispatched=[],finished=[];
- const c=context('NavoRoutePlan.qml',{stops:[],missionKind:'route',otherDraft:[],otherFinishAction:'RTL',finishAction:'RTL',readOnly:false,active:false,currentIndex:-1,runningStops:[],runningFinishAction:'RTL',state:'DRAFT',generation:0,lastError:'',history:[],startedAtMs:0,Date,
+ const c=context('NavoRoutePlan.qml',{stops:[],missionKind:'route',otherDraft:[],otherFinishAction:'RTL',finishAction:'RTL',readOnly:false,active:false,currentIndex:-1,runningStops:[],runningFinishAction:'RTL',state:'DRAFT',generation:0,lastError:'',history:[],library:[],libraryAvailable:true,persistLibrary:()=>true,startedAtMs:0,Date,
  QtPositioning:{coordinate:coord},Qt:{callLater:f=>queued.push(f)},changed(){},status(){},stepRequested:s=>dispatched.push(s),finishRequested:a=>finished.push(a)});
  return {c,queued,dispatched,finished};}
 const wp=(lat,lon)=>({coordinate:coord(lat,lon)});let passed=0;
 function test(name,fn){fn();passed++;console.log('PASS '+name)}
+test('Sonar bookmark uses column GPS/depth, rejects blank/GPS loss/replay and freezes its selection',()=>{
+ const v={coordinate:coord(52,.01),gps:{lock:{rawValue:3}},vehicleLinkManager:{communicationLost:false}};
+ const c=context('NavoSonarPro.qml',{vehicle:v,chartSource:null,samples:Array(20).fill(.2),chartOffsetMeters:0,chartRangeMeters:4,
+ connected:true,replayMode:false,activeLakeId:'lake-A',paused:false,pointPicking:false,pointPreviousPaused:false,
+ depthM:2,waterTempC:18,history:[],historyColumns:240,sonarPointName:{text:''},sonarPointNote:{text:''},sonarPointDialog:{open(){}},pointSaveStatus:''});
+ c.pushHistory();assert.equal(c.history[0].latitude,52);v.coordinate=coord(53,.5);c.depthM=3;
+ assert(c.beginPointPick());assert.equal(c.paused,true);assert(!c.selectSonarPoint(0,240));assert(c.selectSonarPoint(239,240));
+ assert.equal(c.selectedSonarPoint.latitude,52);assert.equal(c.selectedSonarPoint.bottom,2);assert(c.sonarPointValid(c.selectedSonarPoint));
+ c.history=[];assert.equal(c.selectedSonarPoint.latitude,52);c.activeLakeId='lake-B';assert(!c.sonarPointValid(c.selectedSonarPoint));
+ c.endPointPick();assert.equal(c.paused,false);v.gps.lock.rawValue=1;c.pushHistory();assert(!Number.isFinite(c.history[0].latitude));
+ assert(c.beginPointPick());c.selectSonarPoint(239,240);assert(!c.sonarPointValid(c.selectedSonarPoint));c.endPointPick();
+ c.replayMode=true;assert(!c.beginPointPick());c.pushHistory();assert(!Number.isFinite(c.history.at(-1).latitude));
+});
+test('Sonar point save checks source lake, rolls back disk failure and prepares without issuing START',()=>{
+ const route=plan().c;let saved=[],close=0;const pro={sonarPointValid:()=>true,closePointDialog:()=>close++};
+ const entry={latitude:52,longitude:.01,bottom:2,temp:18,lakeId:'lake-A',sequence:5,time:123,offset:0,range:4};
+ const spots={fishingSpots:[],saveSpot(c,d,t,n,note,evidence){const spot={name:n,lat:c.latitude,lon:c.longitude,depth:d,temp:t,sonarEvidence:evidence};this.fishingSpots=this.fishingSpots.concat([spot]);return spot}};
+ const dashboard=context('NavoDashboard.qml',{QtPositioning:{coordinate:coord},routePlan:route,sonar:{replayMode:false},fishingSpots:spots,
+ scanCoordinator:{lakeId:'lake-A',state:'IDLE',checkpoint:()=>false},baitingController:{enabled:false},awaitingMissionStart:false,steeringModeBusy:false});
+ assert(!dashboard.saveSonarPoint(pro,entry,'A','',false));assert.equal(spots.fishingSpots.length,0);assert.equal(close,0);
+ dashboard.scanCoordinator.checkpoint=()=>true;assert(dashboard.saveSonarPoint(pro,entry,'A','',true));
+ assert.equal(route.missionKind,'point');assert.equal(route.stops[0].latitude,52);assert.equal(route.stops[0].hopper,0);assert(!route.active);assert.equal(dashboard.activePage,2);
+ dashboard.scanCoordinator.lakeId='different';assert(!dashboard.saveSonarPoint(pro,entry,'B','',true));assert.equal(spots.fishingSpots.length,1);
+});
+test('Named mission library survives restart, loads a draft and isolates edits',()=>{
+ const {c,dispatched}=plan();c.addStop(wp(52,0),'left',1);c.addStop(wp(52,.001),'right',2);
+ assert(c.savePreset('Morning'));assert(!c.savePreset('Morning'));assert(!c.savePreset(' '));
+ const id=c.library[0].id;c.stops[0].name='edited';assert.equal(c.library[0].stops[0].name,'left');
+ const restored=plan().c;assert(restored.restore(c.snapshot()));assert(restored.loadPreset(id));
+ assert.equal(restored.stops[0].name,'left');assert.equal(restored.state,'DRAFT');assert.equal(dispatched.length,0);
+ restored.stops[0].name='new';assert.equal(restored.library[0].stops[0].name,'left');
+ assert(!restored.start(false));assert(restored.removePreset(id));assert.equal(restored.library.length,0);
+ restored.restore(null);assert.equal(restored.library.length,0);
+});
+test('Mission library rejects busy/replay/unavailable and rolls back disk failures',()=>{
+ const {c}=plan();c.addStop(wp(52,0),'A',0);assert(c.savePreset('A'));const before=c.snapshot();
+ c.persistLibrary=()=>false;assert(!c.savePreset('B'));assert.equal(c.library.length,1);
+ assert(!c.removePreset(c.library[0].id));assert.equal(c.library.length,1);
+ c.stops[0].name='current';assert(!c.loadPreset(c.library[0].id));assert.equal(c.stops[0].name,'current');
+ for(const prop of ['readOnly','active']){c[prop]=true;assert(!c.savePreset('C'));assert(!c.loadPreset(c.library[0].id));assert(!c.removePreset(c.library[0].id));c[prop]=false;}
+ c.libraryAvailable=false;assert(!c.savePreset('C'));assert(!c.loadPreset(c.library[0].id));
+ const malformed=Object.assign({},before,{library:[{id:'bad',name:'bad',kind:'point',stops:[{latitude:null,longitude:0,hopper:0}],finishAction:'RTL'}]});
+ assert(c.restore(malformed));assert.equal(c.library.length,0);
+});
 test('Mission selector refuses replay, active operations and invalid modes without replacing a draft',()=>{
  const {c:route}=plan();route.addStop(wp(52,0),'route',0);
  const c=context('NavoDashboard.qml',{routePlan:route,missionBusy:true,sonar:{replayMode:false},missionScanSelected:true});

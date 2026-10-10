@@ -34,6 +34,8 @@ assert invoke('seed')
 assert invoke('exercise')
 QTest.qWait(50)
 assert invoke('complete')
+assert invoke('libraryExercise')
+library=window.findChild(QObject,'missionLibraryDialog');assert library
 for width,height in [(320,600),(480,720),(900,600)]:
     window.setWidth(width);window.setHeight(height)
     QTest.qWait(150)
@@ -41,6 +43,10 @@ for width,height in [(320,600),(480,720),(900,600)]:
     assert not image.isNull()
     path=Path('/tmp')/f'navo-route-{width}.png'
     assert image.save(str(path))
+    QMetaObject.invokeMethod(library,'open');QTest.qWait(80)
+    assert library.property('visible') and library.property('width')<=width
+    assert window.grabWindow().save(f'/tmp/navo-mission-library-{width}.png')
+    QMetaObject.invokeMethod(library,'close')
 popup=window.findChild(QObject,'navoRoutePopup')
 assert popup
 window.setWidth(320);window.setHeight(600)

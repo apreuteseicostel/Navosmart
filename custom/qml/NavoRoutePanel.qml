@@ -20,6 +20,38 @@ ColumnLayout {
     signal startRequested(bool loadConfirmed)
     signal stopRequested()
     spacing: 8
+    Button { Layout.fillWidth:true;text:"MISIUNI SALVATE";objectName:"missionLibraryButton"
+        enabled:!!root.routePlan && !!root.routePlan.libraryAvailable && !root.routePlan.active && !root.routePlan.readOnly
+        onClicked:missionLibraryDialog.open() }
+    Dialog {
+        id:missionLibraryDialog;objectName:"missionLibraryDialog";parent:Overlay.overlay
+        anchors.centerIn:parent;modal:true;title:"Misiunile acestei bălți"
+        width:Math.min(440,parent ? parent.width-16 : 440);height:Math.min(430,parent ? parent.height-16 : 430)
+        contentItem:ColumnLayout {
+            TextField { id:missionLibraryName;objectName:"missionLibraryName";Layout.fillWidth:true;maximumLength:80;placeholderText:"Nume pentru configurația curentă" }
+            Button { Layout.fillWidth:true;text:"SALVEAZĂ CONFIGURAȚIA";enabled:!!root.routePlan && !!root.routePlan.libraryAvailable && !root.routePlan.active && !root.routePlan.readOnly
+                onClicked:if(root.routePlan.savePreset(missionLibraryName.text.trim()))missionLibraryName.text="" }
+            Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;text:"Puncte, acțiuni cuve și comportament final. Viteza folosește setarea curentă; START se confirmă separat." }
+            Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;text:root.routePlan ? root.routePlan.lastError : "" }
+            ListView {
+                Layout.fillWidth:true;Layout.fillHeight:true;clip:true;spacing:4
+                model:root.routePlan ? root.routePlan.library : [];ScrollBar.vertical:ScrollBar {}
+                delegate:RowLayout {
+                    required property var modelData
+                    width:ListView.view.width
+                    Label { Layout.fillWidth:true;text:modelData.name;elide:Text.ElideRight }
+                    Button { text:"Încarcă";enabled:!!root.routePlan.libraryAvailable && !root.routePlan.active && !root.routePlan.readOnly
+                        onClicked:if(root.routePlan.loadPreset(modelData.id)){loadCheck.checked=false;missionLibraryDialog.close()} }
+                    Button { text:"×";Accessible.name:"Șterge misiunea "+modelData.name;enabled:!!root.routePlan.libraryAvailable && !root.routePlan.active && !root.routePlan.readOnly
+                        onClicked:{deleteMissionDialog.presetId=modelData.id;deleteMissionDialog.open()} }
+                }
+            }
+            Button { Layout.fillWidth:true;text:"ÎNCHIDE";onClicked:missionLibraryDialog.close() }
+        }
+    }
+    Dialog { id:deleteMissionDialog;property string presetId:"";parent:Overlay.overlay;anchors.centerIn:parent
+        modal:true;title:"Ștergi misiunea salvată?";standardButtons:Dialog.Yes|Dialog.No
+        onAccepted:root.routePlan.removePreset(presetId) }
     Label { text:root.singlePoint ? "MERGI LA PUNCT" : "TRASEU CU OPRIRI"; color:"white"; font.bold:true; font.pixelSize:18 }
     Label { Layout.fillWidth:true; text:root.singlePoint ? "Alege destinația și acțiunea cuvelor." : "Alege punctele în ordine. Fiecare cuvă poate fi folosită o dată per încărcare."; color:"#d7e3ee"; wrapMode:Text.WordWrap }
     RowLayout {

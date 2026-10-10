@@ -9,6 +9,8 @@ ApplicationWindow {
     property alias plan:plan
     Navo.NavoRoutePlan {
         id:plan
+        libraryAvailable:true
+        persistLibrary:function(){return true}
         onStepRequested:function(stop){root.outputActions=root.outputActions.concat([stop.hopper])}
     }
     Navo.NavoRoutePanel {
@@ -46,6 +48,13 @@ ApplicationWindow {
         plan.addStop({coordinate:QtPositioning.coordinate(52,0.001)},"Punct A",1)
         plan.addStop({coordinate:QtPositioning.coordinate(52,0.002)},"Punct B",2)
         return plan.stops.length===2
+    }
+    function libraryExercise() {
+        if(!plan.savePreset("Morning route"))return false
+        var saved=plan.snapshot()
+        plan.removeStop(0)
+        if(!plan.restore(saved) || plan.library.length!==1)return false
+        return plan.loadPreset(plan.library[0].id) && !plan.active && plan.stops.length===2
     }
     function exercise() {
         if(plan.start(false))return false

@@ -178,6 +178,8 @@ Item {
     }
     NavoRoutePlan {
         id:routePlan
+        libraryAvailable:scanCoordinator.lakeId.length>0 && !root.sonarController.replayMode && !baitingController.enabled && scanCoordinator.state!=="SCANNING" && !root.awaitingMissionStart
+        persistLibrary:function(){return scanCoordinator.checkpoint("mission-library")}
         readOnly:root.sonarController.replayMode
         onActiveChanged:if(!active) baitingController.rtlAfterDrop=root.routePreviousRtl
         onChanged:if(!root.sonarController.replayMode)scanCoordinator.checkpoint("route-edit")
@@ -806,6 +808,33 @@ Item {
         root.lastNavigationStatus = "Comandă STOP/HOLD trimisă • aștept confirmarea autopilotului"
         return true
     }
+    function saveSonarPoint(pro, entry, name, note, prepare) {
+        if(!pro.sonarPointValid(entry) || entry.lakeId!==scanCoordinator.lakeId || !root.requireActiveLakeForPointSave()) {
+            pro.pointSaveStatus="Punct indisponibil: GPS/balta sursă trebuie să fie valide";return false
+        }
+        if(prepare && (routePlan.active || baitingController.enabled || scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || root.steeringModeBusy)) {
+            pro.pointSaveStatus="Oprește misiunea activă înainte de pregătirea altui punct";return false
+        }
+        var previous=fishingSpots.fishingSpots
+        var c=QtPositioning.coordinate(entry.latitude,entry.longitude)
+        var spot=fishingSpots.saveSpot(c,entry.bottom,entry.temp,name,note,
+            {source:"CHART",sequence:entry.sequence,observedAt:entry.time,offset:entry.offset,range:entry.range})
+        if(!spot || !scanCoordinator.checkpoint("sonar-point")) {
+            fishingSpots.fishingSpots=previous
+            pro.pointSaveStatus="Salvarea a eșuat. Punctul nu este confirmat pe disc.";return false
+        }
+        pro.pointSaveStatus="Punct salvat: "+spot.name
+        root.lastNavigationStatus=pro.pointSaveStatus
+        pro.closePointDialog()
+        if(prepare) {
+            if(!routePlan.selectKind("point") || !routePlan.setPoint({coordinate:c},spot.name,0)) {
+                pro.pointSaveStatus="Punct salvat; pregătirea misiunii a eșuat";return false
+            }
+            root.missionScanSelected=false;root.activePage=2
+            baitingController.targetWaypoint={coordinate:c,name:spot.name}
+        }
+        return true
+    }
     function requireActiveLakeForPointSave() {
         if (sonar.replayMode) {
             root.lastNavigationStatus = "Salvează replay-ul într-o baltă separată înainte de a adăuga puncte"
@@ -1113,6 +1142,9 @@ Item {
     Component {
         id: sonarProPage
         NavoSonarPro {
+            id:sonarProView
+            activeLakeId:scanCoordinator.lakeId
+            onSonarPointRequested:function(entry,name,note,prepareMission){root.saveSonarPoint(sonarProView,entry,name,note,prepareMission)}
             chartSource: sonar
             vehicle: root.vehicle
             planController: root.planController

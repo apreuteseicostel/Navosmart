@@ -18,6 +18,47 @@ QtObject {
     property string state: "DRAFT"
     property string lastError: ""
     property var history: []
+    property var library: []
+    property bool libraryAvailable: false
+    property var persistLibrary: null
+    function validPreset(p) {
+        return p && typeof p.id==="string" && typeof p.name==="string" && p.name.trim().length>0 &&
+            p.name.length<=80 && ["point","route"].indexOf(p.kind)>=0 && Array.isArray(p.stops) &&
+            (p.kind!=="point" || p.stops.length===1) && !validate(p.stops,p.finishAction).length
+    }
+    function savePreset(name) {
+        if(readOnly || active || !libraryAvailable || !persistLibrary)return false
+        var n=String(name||"").trim(),error=validate(stops,finishAction)
+        if(!n.length || n.length>80 || error.length || library.length>=25 || library.some(function(p){return p.name===n})) {
+            lastError=error || "Alege un nume unic (max. 80 caractere); biblioteca admite 25 de misiuni";return false
+        }
+        var before=library
+        library=library.concat([{id:"mission_"+Date.now()+"_"+Math.floor(Math.random()*10000),
+            name:n,kind:missionKind,stops:snapshot().stops,finishAction:finishAction}])
+        if(!persistLibrary()){library=before;lastError="Salvarea misiunii pe disc a eșuat";return false}
+        lastError="";status("Misiune salvată: "+n);return true
+    }
+    function loadPreset(id) {
+        if(readOnly || active || !libraryAvailable || !persistLibrary)return false
+        var found=library.filter(function(p){return p.id===id})[0]
+        if(!validPreset(found))return false
+        var before=snapshot()
+        if(found.kind!==missionKind) {
+            otherDraft=stops;otherFinishAction=finishAction;missionKind=found.kind
+        }
+        stops=found.stops.map(function(s){return Object.assign({},s)});finishAction=found.finishAction
+        state="DRAFT";currentIndex=-1
+        if(!persistLibrary()){restore(before);lastError="Încărcarea ciornei nu a putut fi salvată";return false}
+        lastError="";status("Misiune încărcată; verifică viteza și cuvele înainte de START");return true
+    }
+    function removePreset(id) {
+        if(readOnly || active || !libraryAvailable || !persistLibrary)return false
+        var before=library,next=library.filter(function(p){return p.id!==id})
+        if(next.length===before.length)return false
+        library=next
+        if(!persistLibrary()){library=before;lastError="Ștergerea pe disc a eșuat";return false}
+        lastError="";return true
+    }
     property double startedAtMs: 0
     property int generation: 0
     signal changed()
@@ -80,14 +121,15 @@ QtObject {
         stops=next; state="DRAFT"; changed(); return true
     }
     function snapshot() {
-        return {version:1, missionKind:missionKind, otherDraft:otherDraft.map(function(s){return {name:s.name,latitude:s.latitude,longitude:s.longitude,hopper:s.hopper}}), otherFinishAction:otherFinishAction, history:history.slice(-50), stops:stops.map(function(s){return {name:s.name,latitude:s.latitude,longitude:s.longitude,hopper:s.hopper}}), finishAction:finishAction}
+        return {version:1, library:library.map(function(p){return {id:p.id,name:p.name,kind:p.kind,stops:p.stops.map(function(s){return Object.assign({},s)}),finishAction:p.finishAction}}), missionKind:missionKind, otherDraft:otherDraft.map(function(s){return {name:s.name,latitude:s.latitude,longitude:s.longitude,hopper:s.hopper}}), otherFinishAction:otherFinishAction, history:history.slice(-50), stops:stops.map(function(s){return {name:s.name,latitude:s.latitude,longitude:s.longitude,hopper:s.hopper}}), finishAction:finishAction}
     }
     function restore(saved) {
         if(active) return false
         if(!saved || saved.version!==1 || !Array.isArray(saved.stops) ||
            (saved.stops.length && validate(saved.stops,saved.finishAction).length)) {
-            stops=[]; otherDraft=[]; otherFinishAction="RTL"; missionKind="route"; history=[]; finishAction="RTL"; state="DRAFT"; return false
+            stops=[]; otherDraft=[]; otherFinishAction="RTL"; missionKind="route"; history=[]; library=[]; finishAction="RTL"; state="DRAFT"; return false
         }
+        library=Array.isArray(saved.library) ? saved.library.filter(validPreset).slice(0,25).map(function(p){return {id:p.id,name:p.name,kind:p.kind,stops:p.stops.map(function(s){return Object.assign({},s)}),finishAction:p.finishAction}}) : []
         missionKind=saved.missionKind==="point" ? "point" : "route"
         if(missionKind==="point" && saved.stops.length>1) {stops=[];otherDraft=[];missionKind="route";return false}
         otherFinishAction=["RTL","ANCHOR","HOLD"].indexOf(saved.otherFinishAction)>=0 ? saved.otherFinishAction : "RTL"

@@ -108,6 +108,61 @@ Rectangle {
     property bool menuOpen: false
     property bool paused: false
     property var history: []
+    property string activeLakeId: ""
+    property string pointSaveStatus: ""
+    property bool pointPicking: false
+    property bool pointPreviousPaused: false
+    property var selectedSonarPoint: null
+    signal sonarPointRequested(var entry, string name, string note, bool prepareMission)
+    function beginPointPick() {
+        if(replayMode || !activeLakeId.length || !history.length)return false
+        pointPreviousPaused=paused;paused=true;pointPicking=true;pointSaveStatus=""
+        return true
+    }
+    function endPointPick() {
+        if(pointPicking)paused=pointPreviousPaused
+        pointPicking=false
+    }
+    function closePointDialog() { sonarPointDialog.close();endPointPick() }
+    function selectSonarPoint(x, chartWidth) {
+        if(!pointPicking || !(chartWidth>0) || x<0 || x>=chartWidth)return false
+        var index=Math.floor(x/chartWidth*historyColumns)-(historyColumns-history.length)
+        if(index<0 || index>=history.length)return false
+        var e=history[index]
+        selectedSonarPoint={latitude:e.latitude,longitude:e.longitude,time:e.time,
+            temp:e.temp,bottom:e.bottom,sequence:e.sequence,offset:e.offset,range:e.range,
+            lakeId:e.lakeId,replay:e.replay}
+        sonarPointName.text="";sonarPointNote.text="";pointSaveStatus=""
+        sonarPointDialog.open();return true
+    }
+    function sonarPointValid(e) {
+        return e && !e.replay && !replayMode && e.lakeId===activeLakeId && activeLakeId.length>0 &&
+            typeof e.latitude==="number" && isFinite(e.latitude) && Math.abs(e.latitude)<=90 &&
+            typeof e.longitude==="number" && isFinite(e.longitude) && Math.abs(e.longitude)<=180
+    }
+    Dialog {
+        id:sonarPointDialog;objectName:"sonarPointDialog";title:"Punct din ecogramă"
+        parent:Overlay.overlay;anchors.centerIn:parent;modal:true
+        width:Math.min(420,root.width-16);height:Math.min(390,root.height-16)
+        onClosed:root.endPointPick()
+        contentItem:ScrollView {
+            clip:true;contentWidth:availableWidth
+            ColumnLayout {
+                width:parent.width;spacing:8
+                Label { Layout.fillWidth:true;wrapMode:Text.WordWrap
+                    text:root.sonarPointValid(root.selectedSonarPoint) ? "GPS-ul coloanei selectate • "+new Date(root.selectedSonarPoint.time).toLocaleTimeString()+"\nFund: "+(isFinite(root.selectedSonarPoint.bottom) ? root.selectedSonarPoint.bottom.toFixed(2)+" m" : "indisponibil") : "Această coloană nu are GPS valid în balta activă. Nu poate fi salvată pe hartă." }
+                TextField { id:sonarPointName;objectName:"sonarPointName";Layout.fillWidth:true;maximumLength:80;placeholderText:"Nume (opțional)" }
+                TextField { id:sonarPointNote;Layout.fillWidth:true;maximumLength:300;placeholderText:"Notă (opțional)" }
+                Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;text:root.pointSaveStatus }
+                Button { objectName:"saveSonarPoint";Layout.fillWidth:true;text:"SALVEAZĂ PUNCT";enabled:root.sonarPointValid(root.selectedSonarPoint)
+                    onClicked:root.sonarPointRequested(root.selectedSonarPoint,sonarPointName.text.trim(),sonarPointNote.text.trim(),false) }
+                Button { objectName:"prepareSonarPoint";Layout.fillWidth:true;text:"SALVEAZĂ ȘI PREGĂTEȘTE MISIUNEA";enabled:root.sonarPointValid(root.selectedSonarPoint)
+                    onClicked:root.sonarPointRequested(root.selectedSonarPoint,sonarPointName.text.trim(),sonarPointNote.text.trim(),true) }
+                Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;text:"Pregătirea deschide Mergi la punct. Alegi cuvele și confirmi START separat." }
+                Button { Layout.fillWidth:true;text:"ÎNCHIDE";onClicked:sonarPointDialog.close() }
+            }
+        }
+    }
     // Cache only display pixels; retain all original samples for processing/save.
     // Bounded cache also works with QVariant-backed QML arrays.
     property var rasterCache: []
@@ -228,7 +283,13 @@ Rectangle {
                 !isFinite(offset) || !isFinite(range) || range <= 0) return
         var raw=chartSource ? chartSource.echoSamples.slice(0) : column.slice(0)
         var h = history.slice(0)
+        var v=root.vehicle
+        var fix=!root.replayMode && v && v.gps && v.gps.lock.rawValue>=3 &&
+            v.vehicleLinkManager && !v.vehicleLinkManager.communicationLost
+        var c=fix && v.coordinate && v.coordinate.isValid ? v.coordinate : null
         h.push({rawSamples:raw,samples:chartSource && koggerCompensation ? column.slice(0) : raw, offset: offset, range: range, sequence: chartSource ? chartSource.chartSequence : 0,
+                latitude:c ? c.latitude : NaN,longitude:c ? c.longitude : NaN,time:Date.now(),
+                temp:root.waterTempC,lakeId:root.activeLakeId,replay:root.replayMode,
                 bottom: chartSource && chartSource.nativeChannelReady ? NaN : (isFinite(root.depthM) && root.depthM >= 0 ? root.depthM : NaN)})
         if (h.length > historyColumns) h.splice(0, h.length - historyColumns)
         history = h
@@ -280,6 +341,8 @@ Rectangle {
     onSamplesChanged: if (!chartSource) Qt.callLater(pushHistory)
     Component.onCompleted: Qt.callLater(pushHistory)
     onHistoryChanged: { if (!history.length) rasterCache = []; repaint() }
+    onActiveLakeIdChanged: { endPointPick();sonarPointDialog.close();history=[] }
+    onReplayModeChanged: { endPointPick();sonarPointDialog.close();history=[] }
     onGainChanged: repaint()
     onNoiseFloorChanged: repaint()
     onNoiseFilterEnabledChanged: repaint()
@@ -371,6 +434,15 @@ Rectangle {
                         }
                     }
                 }
+                MouseArea {
+                    anchors.fill:parent;enabled:root.pointPicking;cursorShape:Qt.CrossCursor
+                    onClicked:function(mouse){root.selectSonarPoint(mouse.x,width)}
+                }
+            }
+            Label {
+                anchors.horizontalCenter:echogram.horizontalCenter;anchors.bottom:parent.bottom
+                visible:root.pointPicking;z:2;text:"Atinge coloana sonar • PAUZĂ";color:"#ffffff"
+                background:Rectangle { color:"#176b86";radius:4 }
             }
             Label {
                 anchors.centerIn: parent
@@ -552,6 +624,9 @@ Rectangle {
                 }
                 MenuAction { visible:!!(root.chartSource && !root.replayMode); enabled:!!(root.chartSource && (root.chartSource.recording || root.chartSource.dataAlive)); selected:!!(root.chartSource && root.chartSource.recording); text:root.chartSource && root.chartSource.recording ? 'Oprește și salvează REC' : 'Înregistrează sesiunea'; onClicked: {root.menuOpen=false;if(root.chartSource.recording)root.chartSource.stopRecording();else recordingDialog.open()} }
                 MenuAction { text:'Analiză fund și ecouri'; enabled:root.history.length>0; onClicked:{root.menuOpen=false;bottomAnalysisDialog.open()} }
+                MenuAction { text:root.pointPicking ? 'Anulează alegerea punctului' : 'Salvează punct din ecogramă'; selected:root.pointPicking
+                    enabled:root.pointPicking || (!root.replayMode && root.activeLakeId.length>0 && root.history.length>0)
+                    onClicked:{root.menuOpen=false;if(root.pointPicking)root.endPointPick();else root.beginPointPick()} }
                 MenuAction { text:'Sesiuni offline'; onClicked:{root.menuOpen=false;recordingsDialog.open()} }
                 Label { visible:!!(root.chartSource && root.chartSource.recording); Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.chartSource ? 'REC · '+(root.chartSource.recordingBytes/1048576).toFixed(1)+' MiB' : ''; color:'#ffbd69'; font.pixelSize:11 }
                 Label { visible:!!(root.chartSource && root.chartSource.recordingError && root.chartSource.recordingError.length>0); Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.chartSource ? root.chartSource.recordingError || '' : ''; color:'#ffbd69'; font.pixelSize:11 }

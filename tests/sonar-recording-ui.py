@@ -5,7 +5,7 @@ os.environ.setdefault('QT_QUICK_BACKEND','software')
 from pathlib import Path
 import tempfile, subprocess
 import PySide6
-from PySide6.QtCore import QUrl, QObject, QMetaObject, QResource
+from PySide6.QtCore import QUrl, QObject, QMetaObject, QResource, Q_RETURN_ARG, Q_ARG
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlComponent
 from PySide6.QtQuick import QQuickView
@@ -55,6 +55,7 @@ recording=root.findChild(QObject,'sonarRecordingDialog')
 recordings=root.findChild(QObject,'sonarRecordingsDialog')
 analysis=root.findChild(QObject,'sonarBottomAnalysisDialog')
 assert recording and recordings and analysis
+pointDialog=root.findChild(QObject,'sonarPointDialog');assert pointDialog
 raw=[.05]*200
 raw[98:102]=[.4,.8,.8,.4]
 raw[40:43]=[.6,.6,.6]
@@ -76,6 +77,22 @@ root.setProperty('koggerCompensation',True)
 root.setProperty('history',[{'samples':[.01]*200,'rawSamples':raw,'offset':0.0,'range':4.0,'bottom':2.0,'sequence':1}]);QTest.qWait(30)
 assert root.property('bottomAnalysis').toVariant()['peak']==metrics['peak']
 QMetaObject.invokeMethod(analysis,'close')
+root.setProperty('activeLakeId','test-lake')
+root.setProperty('history',[{'samples':raw,'rawSamples':raw,'offset':0.0,'range':4.0,'bottom':2.0,'sequence':1,
+    'latitude':52.0,'longitude':.01,'time':123456789,'temp':18.0,'lakeId':'test-lake','replay':False}])
+assert QMetaObject.invokeMethod(root,'beginPointPick',Q_RETURN_ARG('QVariant'))
+assert QMetaObject.invokeMethod(root,'selectSonarPoint',Q_RETURN_ARG('QVariant'),Q_ARG('QVariant',239.0),Q_ARG('QVariant',240.0))
+received=[]
+root.sonarPointRequested.connect(lambda entry,name,note,prepare:received.append((entry,name,prepare)))
+pointName=root.findChild(QObject,'sonarPointName');pointName.setProperty('text','Sonar spot')
+for width,height in [(320,600),(480,720),(900,600)]:
+ view.resize(width,height);QTest.qWait(80)
+ assert pointDialog.property('visible') and pointDialog.property('width')<=width
+ assert view.grabWindow().save(f'/tmp/navo-sonar-point-{width}.png')
+savePoint=root.findChild(QObject,'saveSonarPoint');assert savePoint.property('enabled')
+QMetaObject.invokeMethod(savePoint,'clicked');assert received[-1][1:] == ('Sonar spot',False)
+root.setProperty('activeLakeId','different-lake');QTest.qWait(20)
+assert not pointDialog.property('visible') and not root.property('paused')
 name=root.findChild(QObject,'sonarRecordingName');assert name
 name.setProperty('text','Balta mea');QMetaObject.invokeMethod(recording,'accepted')
 assert source.property('lastName')=='Balta mea' and source.property('recording')
