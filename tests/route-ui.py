@@ -56,4 +56,9 @@ assert popup.property('visible')
 assert window.grabWindow().save('/tmp/navo-route-popup-320.png')
 QMetaObject.invokeMethod(popup,'close')
 assert not errors,errors
+panel=window.findChild(QObject,'baitingPanel');assert panel
+panel.setProperty('waypoint',{'name':'A very long fishing destination name that must truncate in a narrow baiting panel'})
+panel.setProperty('visible',True);QTest.qWait(80)
+target=panel.findChild(QObject,'baitingTargetLabel');assert target and target.property('truncated')
+assert not errors,errors
 print('PASS real Qt route sequencing, restart as draft, and panel render at 320/480/900 widths')

@@ -90,7 +90,13 @@ Rectangle {
         RowLayout { Layout.fillWidth:true; spacing:6
             Image { width:26;height:26;source:"qrc:/qml/NavoSmart/icons/bait.svg";fillMode:Image.PreserveAspectFit }
             Label { text:"NĂDIRE"; color:"white"; font.bold:true; font.pixelSize:15 }
-            Label { Layout.fillWidth:true; Layout.minimumWidth:0; text:"ȚINTĂ: "+root.waypointName; color:"#21b7ff"; font.bold:true; font.pixelSize:11; elide:Text.ElideRight; horizontalAlignment:Text.AlignRight; ToolTip.visible:truncated && hovered; ToolTip.text:text }
+            Label {
+                objectName:"baitingTargetLabel"
+                Layout.fillWidth:true; Layout.minimumWidth:0; text:"ȚINTĂ: "+root.waypointName
+                color:"#21b7ff"; font.bold:true; font.pixelSize:11; elide:Text.ElideRight; horizontalAlignment:Text.AlignRight
+                HoverHandler { id:targetHover }
+                ToolTip.visible:truncated && targetHover.hovered; ToolTip.text:text
+            }
         }
         ComboBox {
             Layout.fillWidth: true

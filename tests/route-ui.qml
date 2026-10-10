@@ -37,6 +37,7 @@ ApplicationWindow {
         function stateText(s){return "Pregătit"}
     }
     Navo.NavoBaitingPanel {
+        objectName:"baitingPanel"
         visible:false; width:300;height:600
         controller:mockController; hopperBridge:null; routePlan:plan
         waypoint:({name:"Punct test",coordinate:QtPositioning.coordinate(52,0.002)})
