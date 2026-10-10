@@ -1,137 +1,143 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtCore
 
 Rectangle {
     id: root
+    property var controller
+    property var cfg: controller ? controller.settings : null
     color: "#0b1c2e"; border.color: "#1c4262"; radius: 10
-    signal actionRequested(string control, string action)
-    signal zoomRequested(int direction)
-    signal positionModeRequested(string mode)
-    property string positionMode: "AUTO"
+    implicitHeight: content.implicitHeight + 24
+    readonly property bool narrowRows: width < 430
 
-    Settings {
-        id: cfg
-        category: "NavoG20"
-        property string hAction: "RTL"
-        property string mode3Action: "MANUAL/HOLD/AUTO"
-        property string l1Action: "CUVA_STANGA"
-        property string r1Action: "CUVA_DREAPTA"
-        property string l2Action: "FAR"
-        property string r2Action: "SONAR"
-        property string cameraAction: "CAMERA"
-        property string pauseAction: "HOLD"
-        property string leftStickAction: "ZOOM_HARTA"
-        property int hopperHoldMs: 1500
-        property int rtlHoldMs: 1800
+    // Bound the entire control, including its +/- indicators. Android styles
+    // otherwise contribute a large implicit minimum to the settings content.
+    component ChannelSpinBox: SpinBox {
+        id: spin
+        implicitWidth: 116; implicitHeight: 44
+        leftPadding: 36; rightPadding: 36
+        font.pixelSize: 14
+        contentItem: TextInput {
+            text: spin.textFromValue(spin.value, spin.locale)
+            font: spin.font; color: "#e8f4ff"
+            horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+            readOnly: !spin.editable; validator: spin.validator
+            inputMethodHints: Qt.ImhFormattedNumbersOnly
+        }
+        up.indicator: Rectangle {
+            x: spin.width - width; width: 36; height: spin.height
+            color: spin.up.pressed ? "#21516c" : "#143149"
+            Text { anchors.centerIn: parent; text: "+"; color: spin.enabled && spin.value < spin.to ? "#e8f4ff" : "#61798a"; font.pixelSize: 20 }
+        }
+        down.indicator: Rectangle {
+            width: 36; height: spin.height
+            color: spin.down.pressed ? "#21516c" : "#143149"
+            Text { anchors.centerIn: parent; text: "−"; color: spin.enabled && spin.value > spin.from ? "#e8f4ff" : "#61798a"; font.pixelSize: 20 }
+        }
+        background: Rectangle { color: "#0e263b"; border.color: spin.activeFocus ? "#21b7ff" : "#31516c"; radius: 6 }
     }
-
-    readonly property var actions: [
-        {text:"Nimic",value:"NONE"}, {text:"Cuva stânga",value:"CUVA_STANGA"},
-        {text:"Cuva dreapta",value:"CUVA_DREAPTA"}, {text:"Ambele cuve",value:"CUVE_AMBELE"},
-        {text:"Far ON/OFF",value:"FAR"}, {text:"Poziții ON/OFF",value:"POZITII"}, {text:"Sonar fullscreen",value:"SONAR"},
-        {text:"Camera față",value:"CAMERA"}, {text:"HOLD",value:"HOLD"},
-        {text:"RTL / Acasă",value:"RTL"}
+    readonly property var bindings: [
+        {label:"HOME",key:"homeChannel",action:"hAction"},
+        {label:"L1",key:"leftHopperChannel",action:"l1Action"},
+        {label:"R1",key:"rightHopperChannel",action:"r1Action"},
+        {label:"L2",key:"lightChannel",action:"l2Action"},
+        {label:"R2",key:"sonarChannel",action:"r2Action"},
+        {label:"CAMERA",key:"cameraChannel",action:"cameraAction"},
+        {label:"STOP",key:"holdChannel",action:"pauseAction"}
     ]
-
-    property int settingsRevision: 0
-    function resetDefaults() {
-        cfg.hAction="RTL"; cfg.mode3Action="MANUAL/HOLD/AUTO"
-        cfg.l1Action="CUVA_STANGA"; cfg.r1Action="CUVA_DREAPTA"
-        cfg.l2Action="FAR"; cfg.r2Action="SONAR"; cfg.cameraAction="CAMERA"
-        cfg.pauseAction="HOLD"; cfg.leftStickAction="ZOOM_HARTA"
-        cfg.hopperHoldMs=1500; cfg.rtlHoldMs=1800
-        settingsRevision++
-    }
-    function trigger(control, longPress) {
-        var a="NONE"
-        if(control==="H") a=cfg.hAction
-        else if(control==="L1") a=cfg.l1Action
-        else if(control==="R1") a=cfg.r1Action
-        else if(control==="L2") a=cfg.l2Action
-        else if(control==="R2") a=cfg.r2Action
-        else if(control==="CAMERA") a=cfg.cameraAction
-        else if(control==="PAUSE") a=cfg.pauseAction
-        if((a==="RTL" || a.indexOf("CUVA")===0 || a==="CUVE_AMBELE") && !longPress) return
-        actionRequested(control,a)
-    }
-    function modeSwitch(position) {
-        if(position<=0) actionRequested("MODE3","MANUAL")
-        else if(position===1) actionRequested("MODE3","HOLD")
-        else actionRequested("MODE3","AUTO")
-    }
-    function leftStick(y) {
-        if(cfg.leftStickAction!=="ZOOM_HARTA") return
-        if(y>0.55) zoomRequested(1)
-        else if(y< -0.55) zoomRequested(-1)
-    }
-
     ColumnLayout {
-        anchors.fill: parent; anchors.margins: 10; spacing: 8
-        RowLayout {
-            Layout.fillWidth: true
-            Label { text:"TELECOMANDĂ G20 • BUTOANE"; color:"#21b7ff"; font.bold:true; font.pixelSize:14 }
-            Item { Layout.fillWidth:true }
-            Button { text:"RESET DEFAULT"; onClicked:root.resetDefaults() }
-        }
+        id: content
+        anchors.left: parent.left; anchors.right: parent.right
+        anchors.top: parent.top; anchors.margins: 12
+        spacing: 8
+        Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; text:"AVANSAT • INTEGRARE G20 / H743"; color:"#21b7ff"; font.bold:true }
         Label {
-            Layout.fillWidth:true; wrapMode:Text.WordWrap; color:"#9db2c5"; font.pixelSize:11
-            text:"Preset NAVO: H=RTL • 3 poziții=MANUAL/HOLD/AUTO • L1/R1=cuve stânga/dreapta • L2=far • R2=sonar • Camera=camera față • Pause=HOLD • joystick stâng ↑/↓=zoom hartă. Joystick dreapta rămâne rezervat pilotajului."
+            Layout.fillWidth:true; wrapMode:Text.WordWrap; color:"#9db2c5"
+            text:"Butoanele, Reverse și limitele se configurează în G20 Device Tool. Aici asociem canalele primite de la H743 cu acțiunile NAVO. X2/Y2 rămân pentru pilotaj."
         }
-        GridLayout {
-            Layout.fillWidth:true; columns:4; columnSpacing:8; rowSpacing:6
-            Label{text:"Control";color:"#d7e3ee";font.bold:true}
-            Label{text:"Funcție";color:"#d7e3ee";font.bold:true}
-            Label{text:"Control";color:"#d7e3ee";font.bold:true}
-            Label{text:"Funcție";color:"#d7e3ee";font.bold:true}
-
-            Label{text:"L1";color:"#d7e3ee"} ActionCombo{settingValue:cfg.l1Action;onPicked:v=>cfg.l1Action=v}
-            Label{text:"R1";color:"#d7e3ee"} ActionCombo{settingValue:cfg.r1Action;onPicked:v=>cfg.r1Action=v}
-            Label{text:"L2";color:"#d7e3ee"} ActionCombo{settingValue:cfg.l2Action;onPicked:v=>cfg.l2Action=v}
-            Label{text:"R2";color:"#d7e3ee"} ActionCombo{settingValue:cfg.r2Action;onPicked:v=>cfg.r2Action=v}
-            Label{text:"Camera";color:"#d7e3ee"} ActionCombo{settingValue:cfg.cameraAction;onPicked:v=>cfg.cameraAction=v}
-            Label{text:"Pause";color:"#d7e3ee"} ActionCombo{settingValue:cfg.pauseAction;onPicked:v=>cfg.pauseAction=v}
-            Label{text:"H (long press)";color:"#d7e3ee"} ActionCombo{settingValue:cfg.hAction;onPicked:v=>cfg.hAction=v}
-            Label{text:"3 poziții";color:"#d7e3ee"} Label{text:"MANUAL / HOLD / AUTO";color:"#47d16c";font.bold:true}
-            Label{text:"Joystick stâng";color:"#d7e3ee"} Label{text:"↑ Zoom +  •  ↓ Zoom −";color:"#47d16c";font.bold:true}
-            Label{text:"Joystick dreapta";color:"#d7e3ee"} Label{text:"PILOTAJ • blocat";color:"#ffc857";font.bold:true}
-        }
-        RowLayout {
+        Switch {
+            id: enableActions
             Layout.fillWidth:true
-            Label{text:"Poziții";color:"#d7e3ee"}
-            ComboBox {
-                model:["AUTO","ON","OFF"]; currentIndex:Math.max(0,model.indexOf(root.positionMode))
-                onActivated:root.positionModeRequested(currentText)
+            text:"Comenzi NAVO din RC"
+            contentItem: Label {
+                text:enableActions.text; color:"#d7e3ee"; font:enableActions.font
+                leftPadding:enableActions.indicator.width + enableActions.spacing
+                verticalAlignment:Text.AlignVCenter; wrapMode:Text.WordWrap
             }
-            Label{text:"AUTO = aprinse când barca este activă";color:"#9db2c5";font.pixelSize:10}
-            Item{Layout.fillWidth:true}
-        }
-        RowLayout {
-            Layout.fillWidth:true
-            Label{text:"Long press cuve";color:"#d7e3ee"}
-            SpinBox{from:800;to:3000;stepSize:100;value:cfg.hopperHoldMs;onValueModified:cfg.hopperHoldMs=value}
-            Label{text:"ms";color:"#9db2c5"}
-            Item{Layout.fillWidth:true}
-            Label{text:"Long press RTL";color:"#d7e3ee"}
-            SpinBox{from:1000;to:4000;stepSize:100;value:cfg.rtlHoldMs;onValueModified:cfg.rtlHoldMs=value}
-            Label{text:"ms";color:"#9db2c5"}
+            checked:root.cfg ? root.cfg.hardwareActionsEnabled : false
+            onToggled:if(root.cfg) root.cfg.hardwareActionsEnabled=checked
         }
         Label {
-            Layout.fillWidth:true; wrapMode:Text.WordWrap; color:"#ffc857"; font.pixelSize:10
-            text:"Siguranță: RTL și cuvele cer long-press. AUTO selectează modul, dar nu pornește singur o misiune. Confirmarea RTL rămâne în fluxul NAVO."
+            Layout.fillWidth:true; wrapMode:Text.WordWrap; color:"#ffc857"
+            text:"Activează după verificarea funcțiilor H743. Evită comanda aceluiași actuator atât direct din H743, cât și prin NAVO. Cuvele și RTL cer apăsare lungă; după reconectare, eliberează butonul înainte de comandă."
         }
-    }
-
-    component ActionCombo: ComboBox {
-        property string settingValue:"NONE"
-        signal picked(string value)
-        Layout.fillWidth:true
-        textRole:"text"; valueRole:"value"; model:root.actions
-        function syncSelection() { var i=indexOfValue(settingValue); if(i>=0 && currentIndex!==i) currentIndex=i }
-        Component.onCompleted:syncSelection()
-        onSettingValueChanged:syncSelection()
-        Connections { target:root; function onSettingsRevisionChanged() { syncSelection() } }
-        onActivated:picked(currentValue)
+        Repeater {
+            model:root.bindings
+            Item {
+                id: mappingRow
+                required property var modelData
+                objectName: "g20Mapping_" + modelData.key
+                Layout.fillWidth:true
+                implicitHeight: root.narrowRows ? 94 : 44
+                Label {
+                    text:mappingRow.modelData.label; color:"#d7e3ee"
+                    width:64; height:44; verticalAlignment:Text.AlignVCenter
+                    font.pixelSize:13; elide:Text.ElideRight
+                }
+                ChannelSpinBox {
+                    objectName: "g20Channel_" + mappingRow.modelData.key
+                    x:70; width:116; height:44
+                    from:0; to:16
+                    value:root.cfg ? root.cfg[mappingRow.modelData.key] : 0
+                    onValueModified:if(root.cfg) { root.cfg[mappingRow.modelData.key]=value; root.controller.resetInput() }
+                    ToolTip.visible:hovered
+                    ToolTip.text:"Canal RC_CHANNELS (0 = dezactivat)"
+                }
+                ComboBox {
+                    id: actionSelector
+                    objectName: "g20Action_" + mappingRow.modelData.key
+                    x:root.narrowRows ? 70 : 194
+                    y:root.narrowRows ? 50 : 0
+                    width:Math.max(0, Math.min(240, mappingRow.width-x)); height:44
+                    font.pixelSize:14
+                    textRole:"text"; valueRole:"value"
+                    model:root.controller ? root.controller.actions : []
+                    currentIndex:count > 0 && root.cfg ? Math.max(0,indexOfValue(root.cfg[mappingRow.modelData.action])) : 0
+                    onActivated:if(root.cfg) { root.cfg[mappingRow.modelData.action]=currentValue; root.controller.resetInput() }
+                    contentItem: Label {
+                        text:actionSelector.displayText; font:actionSelector.font; color:"#e8f4ff"
+                        leftPadding:10; rightPadding:32; verticalAlignment:Text.AlignVCenter
+                        elide:Text.ElideRight
+                    }
+                    indicator: Text {
+                        x:actionSelector.width-width-12; anchors.verticalCenter:parent.verticalCenter
+                        text:"▾"; color:"#21b7ff"; font.pixelSize:18
+                    }
+                    background: Rectangle { color:actionSelector.down ? "#21516c" : "#143149"; border.color:actionSelector.activeFocus ? "#21b7ff" : "#31516c"; radius:6 }
+                    ToolTip.visible:hovered; ToolTip.text:displayText
+                }
+            }
+        }
+        RowLayout {
+            Layout.alignment:Qt.AlignLeft
+            Label { text:"Cuve ms"; color:"#d7e3ee"; Layout.preferredWidth:64; font.pixelSize:13 }
+            ChannelSpinBox { Layout.preferredWidth:128; Layout.maximumWidth:128; from:800;to:3000;stepSize:100;value:root.cfg?root.cfg.hopperHoldMs:1500;onValueModified:if(root.cfg)root.cfg.hopperHoldMs=value }
+        }
+        RowLayout {
+            Layout.alignment:Qt.AlignLeft
+            Label { text:"RTL ms"; color:"#d7e3ee"; Layout.preferredWidth:64; font.pixelSize:13 }
+            ChannelSpinBox { Layout.preferredWidth:128; Layout.maximumWidth:128; from:1000;to:4000;stepSize:100;value:root.cfg?root.cfg.rtlHoldMs:1800;onValueModified:if(root.cfg)root.cfg.rtlHoldMs=value }
+        }
+        Label {
+            Layout.fillWidth:true; wrapMode:Text.WordWrap; color:"#9db2c5"
+            text:root.controller && root.controller.channels.length ?
+                "RC primit • " + root.controller.channels.map(function(v,i){return "CH"+(i+1)+": "+(v>0?v:"—")}).join("   ") :
+                "RC offline • H743 trebuie să transmită MAVLink RC_CHANNELS"
+        }
+        Button {
+            Layout.maximumWidth:210
+            text:"Reset preset NAVO"
+            onClicked:if(root.controller) root.controller.resetDefaults()
+        }
     }
 }

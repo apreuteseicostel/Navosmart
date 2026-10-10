@@ -1,6 +1,7 @@
 #pragma once
 #include <QObject>
 #include <QPointer>
+#include <QVariantList>
 
 class Vehicle;
 
@@ -14,6 +15,7 @@ public:
     void setVehicle(QObject* object);
 signals:
     void vehicleChanged();
+    void rcChannelsReceived(const QVariantList& channels);
     void uploadCompleted(bool success);
     void missionError(const QString& message);
     void missionItemReached(int sequence);

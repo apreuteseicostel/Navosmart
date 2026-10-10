@@ -6,6 +6,7 @@ import QtPositioning
 import NavoSmart.Backend 1.0
 Item {
  id:root
+ objectName:"navoBathymetry3D"
  property var samples:[]; property var boatTrack:[]; property var waypoints:[]; property var fishingSpots:[]; property var fishDetections:[]
  property real gridSizeM:2; property real maxGapM:6; property real verticalExaggeration:2; property real yaw:-35; property real pitch:-48; property real cameraDistance:180; property point panOffset:Qt.point(0,0)
  property var selectedPoint:null; property var selectedObject:null; property string selectedKind:""
@@ -16,6 +17,22 @@ Item {
  readonly property int adaptiveFishLimit: lodLevel===3?60:lodLevel===2?140:lodLevel===1?280:maxFish3D
  property int cachedSampleCount:0
  property string cachedSampleSignature:""
+ property bool cameraFramed:false
+ readonly property var sceneBounds: boundsForScene()
+ function boundsForScene(){
+  var b={minX:Infinity,maxX:-Infinity,minY:Infinity,maxY:-Infinity,minZ:Infinity,maxZ:-Infinity}
+  function add(x,y,z){if(!isFinite(x)||!isFinite(y)||!isFinite(z))return;b.minX=Math.min(b.minX,x);b.maxX=Math.max(b.maxX,x);b.minY=Math.min(b.minY,y);b.maxY=Math.max(b.maxY,y);b.minZ=Math.min(b.minZ,z);b.maxZ=Math.max(b.maxZ,z)}
+  for(var i=0;i<meshEngine.vertices.length;i++){var v=meshEngine.vertices[i];add(v.x,-v.depth*verticalExaggeration,-v.y)}
+  if(meshEngine.vertices.length)for(var j=0;j<boatTrack.length;j++){var p=boatTrack[j],q=localPoint(p.latitude!==undefined?p.latitude:p.lat,p.longitude!==undefined?p.longitude:p.lon,0);add(q.x,q.y,q.z)}
+  if(!isFinite(b.minX))return {centerX:0,centerY:0,centerZ:0,radius:10}
+  return {centerX:(b.minX+b.maxX)/2,centerY:(b.minY+b.maxY)/2,centerZ:(b.minZ+b.maxZ)/2,
+   radius:Math.max(2,Math.hypot(b.maxX-b.minX,b.maxY-b.minY,b.maxZ-b.minZ)/2)}
+ }
+ function fitCamera(){
+  var halfVertical=22.5*Math.PI/180,aspect=Math.max(.1,width/Math.max(1,height))
+  var halfFov=Math.min(halfVertical,Math.atan(Math.tan(halfVertical)*aspect))
+  cameraDistance=Math.max(12,sceneBounds.radius*1.15/Math.sin(halfFov));panOffset=Qt.point(0,0);cameraFramed=true
+ }
  function sampleSignature(){
   if(!samples||!samples.length)return "0"
   var h=2166136261
@@ -24,9 +41,9 @@ Item {
   for(var i=0;i<samples.length;i++){var s=samples[i];mix(s.lat);mix(s.lon);mix(s.depth);mix(s.time===undefined?s.timestamp:s.time);mix(s.confidence)}
   return String(h>>>0)
  }
- function rebuild(){meshEngine.buildCached(samples,gridSizeM,maxGapM,lodLevel);cachedSampleCount=samples.length;cachedSampleSignature=sampleSignature()}
+ function rebuild(){meshEngine.buildCached(samples,gridSizeM,maxGapM,lodLevel);cachedSampleCount=samples.length;cachedSampleSignature=sampleSignature();if(!cameraFramed&&meshEngine.vertices.length)fitCamera()}
  function refreshForSamples(){var sig=sampleSignature();if(sig!==cachedSampleSignature)rebuild()}
- function resetCamera(){yaw=-35;pitch=-48;cameraDistance=180;panOffset=Qt.point(0,0)} function topCamera(){yaw=0;pitch=-89;cameraDistance=180} function isoCamera(){yaw=-45;pitch=-42;cameraDistance=180}
+ function resetCamera(){yaw=-35;pitch=-48;fitCamera()} function topCamera(){yaw=0;pitch=-89;fitCamera()} function isoCamera(){yaw=-45;pitch=-42;fitCamera()}
  // Evaluate cumulative gesture values against a snapshot taken at gesture start.
  function orbitCameraGesture(baseYaw,basePitch,dx,dy){
   if(!isFinite(baseYaw)||!isFinite(basePitch)||!isFinite(dx)||!isFinite(dy))return false
@@ -43,10 +60,14 @@ Item {
  function labelPoint(o,kind){if(kind==="waypoint")return localPoint(o.lat!==undefined?o.lat:o.coordinate.latitude,o.lon!==undefined?o.lon:o.coordinate.longitude,Math.max(0,bottomDepth(o.lat!==undefined?o.lat:o.coordinate.latitude,o.lon!==undefined?o.lon:o.coordinate.longitude)-.7));return localPoint(o.lat,o.lon,Math.max(0,(o.depth!==null&&o.depth!==undefined?o.depth:bottomDepth(o.lat,o.lon))-.8))}
  function select(kind,obj){selectedKind=kind;selectedObject=obj;selectedPoint=null}
  function fmtTime(v){if(!v)return "--";return new Date(v).toLocaleString(Qt.locale(),"dd MMM yyyy HH:mm:ss")}
- NavoBathymetryMesh{id:meshEngine}
+ NavoBathymetryMesh{id:meshEngine;objectName:"navoBathymetryMesh"}
  Rectangle{anchors.fill:parent;color:"#071019"}
  View3D{id:view;anchors.fill:parent;camera:camera;environment:SceneEnvironment{clearColor:"#071019";backgroundMode:SceneEnvironment.Color;antialiasingMode:SceneEnvironment.MSAA;antialiasingQuality:SceneEnvironment.High}
-  PerspectiveCamera{id:camera;position:Qt.vector3d(root.panOffset.x,65+root.panOffset.y,root.cameraDistance);eulerRotation.x:root.pitch;eulerRotation.y:root.yaw;clipNear:.1;clipFar:5000}
+  // Rotate the camera around the data centre, rather than rotating its gaze
+  // from a fixed world position. The local -Z axis always points at the pivot.
+  Node{id:cameraPivot;position:Qt.vector3d(root.sceneBounds.centerX+root.panOffset.x,root.sceneBounds.centerY,root.sceneBounds.centerZ+root.panOffset.y);eulerRotation.x:root.pitch;eulerRotation.y:root.yaw
+   PerspectiveCamera{id:camera;position:Qt.vector3d(0,0,root.cameraDistance);fieldOfView:45;fieldOfViewOrientation:PerspectiveCamera.Vertical;clipNear:.1;clipFar:Math.max(5000,root.cameraDistance+root.sceneBounds.radius*3)}
+  }
   DirectionalLight{eulerRotation.x:-45;eulerRotation.y:-35;brightness:1.15;castsShadow:true} DirectionalLight{eulerRotation.x:35;eulerRotation.y:145;brightness:.35}
   Model{id:terrain;pickable:true;geometry:NavoBathymetryGeometry{vertices:meshEngine.vertices;triangles:meshEngine.triangles;verticalExaggeration:root.verticalExaggeration;minDepth:meshEngine.minDepthM;maxDepth:meshEngine.maxDepthM}materials:PrincipledMaterial{vertexColorsEnabled:true;roughness:.72;cullMode:Material.NoCulling}}
   Node{id:overlayRoot
@@ -103,6 +124,9 @@ Item {
  Timer{id:lodDebounce;interval:220;repeat:false;onTriggered:if(samples.length)root.rebuild()}
  Timer{id:sampleDebounce;interval:650;repeat:false;onTriggered:if(samples.length)root.refreshForSamples()}
  onLodLevelChanged:if(samples.length)lodDebounce.restart()
+ onWidthChanged:if(cameraFramed)fitCamera()
+ onHeightChanged:if(cameraFramed)fitCamera()
+ onVerticalExaggerationChanged:if(cameraFramed)fitCamera()
  Component.onCompleted:{if(samples.length)rebuild()}
- onSamplesChanged:{if(samples.length)sampleDebounce.restart();else{sampleDebounce.stop();meshEngine.clear();cachedSampleSignature=""}}
+ onSamplesChanged:{if(samples.length)sampleDebounce.restart();else{sampleDebounce.stop();meshEngine.clear();cachedSampleSignature="";cameraFramed=false}}
 }

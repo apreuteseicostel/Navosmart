@@ -6,6 +6,7 @@ Item {
     id: root
     property var map
     property var vehicle
+    property bool showTrack: true
     property bool taskActive: false
     property bool keepCompletedTrack: true
     property real minPointDistanceM: 1.0
@@ -64,6 +65,7 @@ Item {
 
     MapPolyline {
         id: actualTrack
+        visible:root.showTrack
         Component.onCompleted: {
             if (root.map) {
                 actualTrack.parent = root.map

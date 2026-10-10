@@ -1,6 +1,7 @@
 #include "CustomPlugin.h"
 #include "NavoKoggerDecoder.h"
 #include "NavoKoggerReplay.h"
+#include "NavoKoggerRecorder.h"
 #include "NavoKoggerChartBridge.h"
 #include "NavoKoggerTcpClient.h"
 #include "NavoPersistence.h"
@@ -11,6 +12,8 @@
 #include "NavoBathymetryMesh.h"
 #include "NavoBathymetryGeometry.h"
 #include "NavoTrack3DGeometry.h"
+#include "NavoAndroidAcceptance.h"
+#include <QQmlContext>
 #include "AppSettings.h"
 #include "UnitsSettings.h"
 #include <QSettings>
@@ -37,6 +40,7 @@ CustomPlugin::CustomPlugin(QObject* parent):QGCCorePlugin(parent),_options(new C
                             {"temperatureUnits",UnitsSettings::TemperatureUnitsCelsius}};
  for(auto it=defaults.cbegin();it!=defaults.cend();++it)if(!units.contains(it.key()))units.setValue(it.key(),it.value());
  units.endGroup();units.sync();
+ qmlRegisterType<NavoKoggerRecorder>("NavoSmart.Backend",1,0,"NavoKoggerRecorder");
  qmlRegisterType<NavoKoggerReplay>("NavoSmart.Backend",1,0,"NavoKoggerReplay");
  qmlRegisterType<NavoKoggerDecoder>("NavoSmart.Backend",1,0,"NavoKoggerDecoder");
  qmlRegisterType<NavoKoggerChartBridge>("NavoSmart.Backend",1,0,"NavoKoggerChartBridge");
@@ -62,6 +66,11 @@ bool CustomPlugin::adjustSettingMetaData(const QString& settingsGroup, FactMetaD
 }
 QQmlApplicationEngine* CustomPlugin::createQmlApplicationEngine(QObject* parent){
  _engine=QGCCorePlugin::createQmlApplicationEngine(parent);
+#ifdef NAVO_ANDROID_ACCEPTANCE
+ _engine->rootContext()->setContextProperty("navoAcceptance",new NavoAndroidAcceptance(_engine));
+#else
+ _engine->rootContext()->setContextProperty("navoAcceptance",QVariant::fromValue<QObject*>(nullptr));
+#endif
  _engine->addImportPath("qrc:/qml");
  _selector=new CustomOverrideInterceptor();
  _engine->addUrlInterceptor(_selector);

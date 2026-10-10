@@ -5,6 +5,8 @@ set(CMAKE_AUTOMOC ON)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Concurrent Sql Network Qml)
 add_executable(navo-kogger-replay replay.cpp ../../custom/src/NavoKoggerDecoder.cc ../../custom/src/NavoKoggerDecoder.h ../../custom/src/NavoKoggerReplay.cc ../../custom/src/NavoKoggerReplay.h)
 target_sources(navo-kogger-replay PRIVATE
+    ../../custom/src/NavoKoggerRecorder.cc
+    ../../custom/src/NavoKoggerRecorder.h
     ../../custom/src/NavoPersistence.cc
     ../../custom/src/NavoPersistence.h
     ../../custom/src/NavoEthernetTransport.cc
@@ -30,3 +32,21 @@ file(GLOB NAVO_TEST_ICONS "../../custom/icons/*.svg")
 qt_add_resources(navo-sonar-ui-replay navo-test-icons PREFIX "/qml/NavoSmart" BASE "../../custom" FILES ${NAVO_TEST_ICONS})
 
 target_link_libraries(navo-kogger-replay PRIVATE Qt6::Test)
+
+add_executable(navo-native-surface native-surface.cpp ../../third_party/KoggerApp/src/data_processor/surface_tile.cpp)
+target_link_libraries(navo-native-surface PRIVATE Qt6::Core Qt6::Gui)
+
+add_executable(navo-native-surface-view native-surface-view.cpp)
+target_link_libraries(navo-native-surface-view PRIVATE Qt6::Quick Qt6::Qml)
+
+add_executable(navo-servo-feedback servo-feedback.cpp)
+target_link_libraries(navo-servo-feedback PRIVATE Qt6::Gui Qt6::Qml)
+
+add_executable(navo-acceptance-scene acceptance-scene.cpp ../../custom/src/NavoAndroidAcceptance.h)
+target_link_libraries(navo-acceptance-scene PRIVATE Qt6::Quick Qt6::Qml)
+
+add_executable(navo-replay-pacing replay-pacing.cpp ../../custom/src/NavoKoggerReplay.cc ../../custom/src/NavoKoggerReplay.h)
+target_link_libraries(navo-replay-pacing PRIVATE Qt6::Core)
+
+add_executable(navo-sonar-recording recording.cpp ../../custom/src/NavoKoggerRecorder.cc ../../custom/src/NavoKoggerRecorder.h ../../custom/src/NavoKoggerReplay.cc ../../custom/src/NavoKoggerReplay.h)
+target_link_libraries(navo-sonar-recording PRIVATE Qt6::Core)

@@ -15,7 +15,7 @@ import NavoSmart.Backend 1.0
 
 Item {
     id: root
-    readonly property string activePageName: ["HARTA","SONAR","AREA SCAN","PUNCTE PESCUIT","BALȚILE MELE","CAMERA","SETARI","3D","NĂDIRE","SIGURANȚĂ","SONAR PRO"][activePage] || "HARTA"
+    readonly property string activePageName: ["HARTA","SONAR","MISIUNI","PUNCTE PESCUIT","BALȚILE MELE","CAMERA","SETARI","3D","NĂDIRE","SIGURANȚĂ","SONAR PRO"][activePage] || "HARTA"
     implicitWidth: 1280
     implicitHeight: 720
 
@@ -56,12 +56,32 @@ Item {
     property alias sonarMappingController: sonarMapping
     property alias hopperBridgeController: hopperBridge
     property alias sonarController: sonar
+    property alias replayMappingController: replayMapping
+    function saveRecordedReplayLake(name) {
+        replayBathymetryModel.rebuild(replayMapping.rawSamples)
+        var id=persistence.saveReplayLake(name,replayMapping.rawSamples,replayBathymetryModel.cells,sonar.nativeSurfaceMesh)
+        root.replaySaveStatus=id ? "Salvat în Bălțile mele: "+name : "Salvarea a eșuat; sunt necesare probe GPS și fund valid."
+        return id
+    }
+    Loader {
+        active: typeof navoAcceptance!=="undefined" && navoAcceptance!==null && navoAcceptance.active
+        sourceComponent: Component { NavoAndroidAcceptance { dashboard:root; backend:navoAcceptance } }
+    }
+    Connections {
+        target: sonar.nativeBridge
+        function onNativeSurfaceChanged() {
+            var mesh=sonar.nativeSurfaceMesh
+            if(!sonar.replayMode && scanCoordinator.lakeId.length && mesh && mesh.indices && mesh.indices.length)
+                scanCoordinator.nativeSurfaceMesh=mesh
+        }
+    }
     NavoFishingSpots { id: fishingSpots; onSpotSaved: scanCoordinator.checkpoint("spot-save"); onSpotRemoved: scanCoordinator.checkpoint("spot-delete"); onSpotUpdated: scanCoordinator.checkpoint("spot-update") }
     NavoFishDetections { id: fishStore }
     NavoBathymetryModel { id: bathymetryModel }
     property string replaySaveStatus: ""
     NavoBathymetryModel { id: replayBathymetryModel }
     NavoSonarMapping { id: replayMapping; visible:false; externalSampleIngestion:true; sonarConnected:true; scanning:true }
+    readonly property var displayNativeSurfaceMesh: sonar.replayMode ? sonar.nativeSurfaceMesh : scanCoordinator.nativeSurfaceMesh
     readonly property var displayBathymetryCells: sonar.replayMode ? replayBathymetryModel.cells : scanCoordinator.bathymetryCells
     Timer {
         interval:2000; repeat:true; running:sonar.replayMode
@@ -123,14 +143,90 @@ Item {
         }
         onRtlRequested: root.rtlMission()
         onStateChangedDetailed: function(state, text) { root.lastNavigationStatus="Nădire: "+text }
-        onCycleFinished: function(success, message) { root.lastNavigationStatus=message }
+        onCycleFinished: function(success, message) {
+            root.lastNavigationStatus=message
+            if(routePlan.active) routePlan.stepFinished(success,message)
+        }
     }
+    readonly property var routePlanController:routePlan
+    property bool routePreviousRtl: true
+    property real routeLegDistanceM: 0
+    property bool missionScanSelected: true
+    property real scanEstimateSpeedMps: 1.5
+    readonly property bool missionBusy: routePlan.active || baitingController.enabled || scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || missionUploader.uploadInProgress
+    readonly property var scanEstimate: {
+        var points=areaScanController.generatedPoints
+        var origin=root.vehicle ? root.vehicle.coordinate : null
+        var home=root.vehicle ? root.vehicle.homePosition : null
+        if(!points.length || !origin || !origin.isValid || !home || !home.isValid || !isFinite(root.scanEstimateSpeedMps) || root.scanEstimateSpeedMps<=0)return {valid:false}
+        var d=0,prev=origin
+        for(var i=0;i<points.length;i++){d+=prev.distanceTo(points[i]);prev=points[i]}
+        if(root.areaScanFinishAction==="RTL")d+=prev.distanceTo(home)
+        return {valid:isFinite(d),distanceM:d,durationSeconds:d/root.scanEstimateSpeedMps}
+    }
+    function missionStateLabel(state) {
+        var labels={DRAFT:"Schiță",RUNNING:"În curs",DISPATCHED:"Acțiuni comandate",STOPPED:"Oprit",IDLE:"Pregătit",READY:"Pregătit pentru START",RESUME_READY:"Reluare pregătită",SCANNING:"În curs",PAUSED:"Pauză",RTL:"Întoarcere HOME comandată",COMPLETE:"Încheiată"}
+        return labels[state] || state
+    }
+    function selectMission(index) {
+        if(root.missionBusy || sonar.replayMode || !Number.isInteger(index) || index<0 || index>2)return false
+        if(index!==2 && !routePlan.selectKind(index===0 ? "point" : "route"))return false
+        root.missionScanSelected=index===2
+        root.pendingBaitPointPick=false
+        root.pendingAreaDrawMode="none"
+        return true
+    }
+    NavoRoutePlan {
+        id:routePlan
+        readOnly:root.sonarController.replayMode
+        onActiveChanged:if(!active) baitingController.rtlAfterDrop=root.routePreviousRtl
+        onChanged:if(!root.sonarController.replayMode)scanCoordinator.checkpoint("route-edit")
+        onStatus:function(text){root.lastNavigationStatus=text}
+        onStepRequested:function(stop){
+            if(!root.startRouteStop(stop)) routePlan.cancel(root.lastNavigationStatus)
+        }
+        onFinishRequested:function(action){root.finishRoute(action)}
+    }
+    readonly property var routeEstimate: routePlan.estimate(root.vehicle ? root.vehicle.coordinate : null,
+                                                           root.vehicle ? root.vehicle.homePosition : null, baitingController)
+    readonly property string routeEnergyText: root.routeEstimate.valid
+        ? energyGuard.message(root.routeEstimate.energyDistanceM,root.battery && root.battery.percentRemaining ? Number(root.battery.percentRemaining.rawValue) : NaN) : ""
+    NavoSteeringAssist {
+        id:steeringAssist
+        vehicle:root.vehicle
+        readOnly:sonar.replayMode
+        operationsBusy:root.missionBusy || digitalAnchor.active
+        preLaunchReady:preLaunchCheck.navigationReady
+        onStatus:function(text){root.lastNavigationStatus=text}
+    }
+    readonly property bool steeringModeBusy:steeringAssist.busy
     NavoDigitalAnchor {
         id: digitalAnchor
         vehicle: root.vehicle
         onStatus: function(text) { root.lastNavigationStatus=text }
     }
     NavoEnergyGuard { id: energyGuard }
+    NavoPreLaunchCheck {
+        id: preLaunchCheck
+        vehicleConnected: root.linkAlive
+        gpsReady: !!root.vehicle && !!root.vehicle.gps && Number(root.vehicle.gps.lock.rawValue) >= 3 && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
+        homeReady: !!root.vehicle && !!root.vehicle.homePosition && root.vehicle.homePosition.isValid
+        batteryReady: !!root.battery && !!root.battery.percentRemaining && isFinite(Number(root.battery.percentRemaining.rawValue)) && Number(root.battery.percentRemaining.rawValue) > 20
+        nanoReady: nanoTelemetry.connected
+        sonarReady: root.sonarConnected
+        cameraReady: root.cameraConnected
+        hoppersReady: hopperSettings.confirmed && hopperSettings.leftOutput !== hopperSettings.rightOutput
+    }
+    Settings {
+        id: energySettings
+        category:"NavoEnergy"
+        property bool confirmed:false
+        property real reservePercent:25
+        property real consumptionPercentPerKm:12
+    }
+    Binding { target:energyGuard;property:"calibrated";value:energySettings.confirmed }
+    Binding { target:energyGuard;property:"reservePercent";value:energySettings.reservePercent }
+    Binding { target:energyGuard;property:"consumptionPercentPerKm";value:energySettings.consumptionPercentPerKm }
     NavoFailsafeController {
         id: failsafeController
         vehicle: root.vehicle
@@ -161,6 +257,7 @@ Item {
     NavoScanCoordinator {
         id: scanCoordinator
         readOnlyReplay: root.sonarController.replayMode
+        routePlan: root.routePlanController
         areaScan: areaScanController
         persistence: root.lakePersistence
         fishingSpots: root.fishingSpotsController
@@ -175,7 +272,7 @@ Item {
             }
         }
         onStatus: function(message) { root.lastNavigationStatus = message }
-        onLakeActivated: function(id) { sessionSettings.activeLakeId=id; missionUploader.invalidate(); baitingController.targetWaypoint=null }
+        onLakeActivated: function(id) { sessionSettings.activeLakeId=id; missionUploader.invalidate(); baitingController.targetWaypoint=null; if(!sonar.replayMode)sonar.nativeBridge.clear() }
         onScanFinished: function(bathymetrySaved, sampleCount) {
             missionUploader.invalidate()
             root.awaitingMissionStart=false
@@ -256,7 +353,7 @@ Item {
     }
     property bool awaitingMissionStart: false
     property string areaScanFinishAction: "HOLD"
-    onVehicleChanged: { nanoMissingSinceMs=0; nanoHopperFallback=false; proBoatTrack=[]; awaitingMissionStart=false; if(baitingController && baitingController.enabled) baitingController.abortCycle("Autopilot schimbat"); if(scanCoordinator && scanCoordinator.state==="SCANNING") scanCoordinator.pause("Autopilot schimbat") }
+    onVehicleChanged: { if(routePlan && routePlan.active) routePlan.cancel("Autopilot schimbat"); nanoMissingSinceMs=0; nanoHopperFallback=false; proBoatTrack=[]; awaitingMissionStart=false; if(baitingController && baitingController.enabled) baitingController.abortCycle("Autopilot schimbat"); if(scanCoordinator && scanCoordinator.state==="SCANNING") scanCoordinator.pause("Autopilot schimbat") }
     property string pendingMode: ""
     property string pendingModeLabel: ""
     Timer {
@@ -339,6 +436,7 @@ Item {
         id: sonar
         vehicle: root.vehicle
         onReplayModeChanged: {
+            if(sonar.replayMode && routePlan.active) root.stopMission()
             root.pendingAreaDrawMode="none"; root.pendingBaitPointPick=false
             root.replaySaveStatus=""
             replayMapping.rawSamples=[]; replayMapping.trackCoordinates=[]
@@ -448,6 +546,11 @@ Item {
         rightOpenPwm: hopperSettings.rightOpen
         onCommandSent: function(message) { root.lastNavigationStatus = message }
         onCommandRejected: function(reason) { root.lastNavigationStatus = "Cuve: " + reason }
+        onServoCommandFailed:function(reason){
+            if(routePlan.active)root.stopMission()
+            else if(baitingController.enabled)baitingController.abortCycle(reason)
+            root.lastNavigationStatus=reason
+        }
     }
     NavoSafetyManager {
         id: safetyManager
@@ -467,6 +570,13 @@ Item {
         }
     }
 
+    NavoG20Controller {
+        id: g20Controller
+        vehicle: root.vehicle
+        inputAllowed: root.linkAlive && !root.sonarController.replayMode
+        onActionRequested: function(control, action) { root.dispatchG20Action(control, action) }
+    }
+
     function dispatchG20Action(control, action) {
         if(action==="NONE") return
         if(action==="CUVA_STANGA") { openHopper("stanga"); return }
@@ -474,7 +584,7 @@ Item {
         if(action==="CUVE_AMBELE") { openHopper("ambele"); return }
         if(action==="SONAR") { activePage=1; lastNavigationStatus="G20 "+control+" • SONAR"; return }
         if(action==="CAMERA") { activePage=5; cameraFullscreen=!cameraFullscreen; lastNavigationStatus="G20 "+control+" • CAMERA FAȚĂ"; return }
-        if(action==="HOLD") { holdMission(true); lastNavigationStatus="G20 "+control+" • HOLD"; return }
+        if(action==="HOLD") { holdMission(); lastNavigationStatus="G20 "+control+" • HOLD"; return }
         if(action==="RTL") { homeRtlConfirm.open(); lastNavigationStatus="G20 "+control+" • confirmă RTL / ACASĂ"; return }
         if(action==="MANUAL") {
             if(vehicle) { vehicle.flightMode="Manual"; pendingMode="Manual"; pendingModeLabel="MANUAL"; lastNavigationStatus="G20 • MANUAL solicitat" }
@@ -504,6 +614,7 @@ Item {
         return root.accent
     }
     function openHopper(side) {
+        if(routePlan.active) {root.lastNavigationStatus="Oprește traseul înainte de eliberarea manuală";return}
         if (!root.hopperControlsEnabled) {
             root.lastNavigationStatus = "Cuve blocate: mergi aproape de punct sau treci pe MANUAL"
             return
@@ -522,8 +633,88 @@ Item {
         }
         return true
     }
+    function toggleDigitalAnchor(){
+        if(root.steeringModeBusy){root.lastNavigationStatus="Oprește asistența cârmei înainte de navigare/misiune";return false}
+        if(digitalAnchor.active){root.holdMission();return true}
+        if(!root.allowLiveAction())return false
+        if(!root.linkAlive || scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || (baitingController.enabled || (routePlan && routePlan.active))){root.lastNavigationStatus="Ancora indisponibilă: verifică legătura și oprește misiunea/nădirea";return false}
+        return digitalAnchor.engage()
+    }
+    function routeDistanceWithReturn(points){
+        if(!vehicle || !vehicle.coordinate || !vehicle.coordinate.isValid || !vehicle.homePosition || !vehicle.homePosition.isValid || !points || !points.length)return NaN
+        var distance=0,previous=vehicle.coordinate
+        for(var i=0;i<points.length;i++){
+            var p=points[i]
+            if(!p || !p.isValid)return NaN
+            var segment=previous.distanceTo(p)
+            if(!isFinite(segment)||segment<0)return NaN
+            distance+=segment;previous=p
+        }
+        var homeDistance=previous.distanceTo(vehicle.homePosition)
+        return isFinite(homeDistance)&&homeDistance>=0 ? distance+homeDistance : NaN
+    }
+    function checkEnergyForRoute(points){
+        if(!energyGuard.calibrated)return true
+        var distance=routeDistanceWithReturn(points)
+        var percent=battery && battery.percentRemaining ? Number(battery.percentRemaining.rawValue) : NaN
+        if(!energyGuard.canStart(distance,percent)){root.lastNavigationStatus=energyGuard.message(distance,percent);return false}
+        return true
+    }
+    function startRouteStop(stop) {
+        if(!root.allowLiveAction() || !root.linkAlive || !root.vehicle || !root.vehicle.guidedModeGotoLocation ||
+           !root.vehicle.guidedModeChangeGroundSpeedMetersSecond || !root.vehicle.pauseVehicle ||
+           scanCoordinator.state==="SCANNING" || root.awaitingMissionStart ||
+           (stop.hopper!==0 && !hopperBridge.calibrated)) {
+            root.lastNavigationStatus="Traseu blocat: verifică legătura, comenzile H743 și calibrarea cuvelor"; return false
+        }
+        var leg=root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.distanceTo(routePlan.coordinate(stop)) : NaN
+        root.routeLegDistanceM=isFinite(leg) ? leg : 0
+        digitalAnchor.release()
+        baitingController.rtlAfterDrop=false
+        return baitingController.startCycle({coordinate:routePlan.coordinate(stop)},stop.name,stop.hopper)
+    }
+    function startRoute(loadConfirmed) {
+        if(root.steeringModeBusy){root.lastNavigationStatus="Oprește asistența cârmei înainte de navigare/misiune";return false}
+        if(!root.requireActiveLakeForPointSave())return false
+        if(!preLaunchCheck.navigationReady) {root.lastNavigationStatus=preLaunchCheck.blockingMessage;return false}
+        if(!root.allowLiveAction() || !root.linkAlive || baitingController.enabled || routePlan.active ||
+           scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || missionUploader.uploadInProgress) {
+            root.lastNavigationStatus="Oprește operația activă înainte de START traseu"; return false
+        }
+        var estimate=root.routeEstimate
+        if(!estimate.valid) {root.lastNavigationStatus="Traseu blocat: verifică GPS, HOME și vitezele";return false}
+        var percent=battery && battery.percentRemaining ? Number(battery.percentRemaining.rawValue) : NaN
+        if(!energyGuard.canStart(estimate.energyDistanceM,percent)) {
+            root.lastNavigationStatus=energyGuard.message(estimate.energyDistanceM,percent);return false
+        }
+        if(routePlan.finishAction==="RTL" && !root.vehicle.guidedModeRTL) {root.lastNavigationStatus="RTL indisponibil";return false}
+        if(!scanCoordinator.checkpoint("route-before-start"))return false
+        root.routePreviousRtl=baitingController.rtlAfterDrop
+        root.missionScanSelected=false
+        return routePlan.start(loadConfirmed)
+    }
+    function finishRoute(action) {
+        // Dispatch only: neither ACK nor elapsed time proves HOME/anchor arrival.
+        if(!root.allowLiveAction() || !root.linkAlive) {routePlan.state="STOPPED";return false}
+        var ok=action==="RTL" ? root.rtlMission() : action==="ANCHOR" ? digitalAnchor.engage() : root.holdMission()
+        if(!ok) {routePlan.state="STOPPED";root.lastNavigationStatus="Acțiunea finală a eșuat"}
+        scanCoordinator.checkpoint("route-dispatched")
+        return ok
+    }
+    function startBaiting(waypoint,name,hopper){
+        if(root.steeringModeBusy){root.lastNavigationStatus="Oprește asistența cârmei înainte de navigare/misiune";return false}
+        if(routePlan && routePlan.active) {root.lastNavigationStatus="Oprește traseul înainte de altă nădire";return false}
+        if(!root.allowLiveAction())return false
+        if(!root.linkAlive || scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || (hopper!==0 && !hopperBridge.calibrated)){root.lastNavigationStatus="Nădire blocată: verifică legătura, misiunea activă și calibrarea cuvelor";return false}
+        if(!waypoint || !root.checkEnergyForRoute([waypoint.coordinate]))return false
+        digitalAnchor.release()
+        return baitingController.startCycle(waypoint,name,hopper)
+    }
     function startMission() {
+        if(root.steeringModeBusy){root.lastNavigationStatus="Oprește asistența cârmei înainte de navigare/misiune";return false}
+        if((routePlan && routePlan.active) || (baitingController && baitingController.enabled)) {root.lastNavigationStatus="Oprește traseul/nădirea înainte de Area Scan";return false}
         if(!root.allowLiveAction()) return false
+        if (!preLaunchCheck.navigationReady) { root.lastNavigationStatus = preLaunchCheck.blockingMessage; return false }
         if (!root.vehicle) {
             root.lastNavigationStatus = "START blocat: autopilot neconectat"
             return false
@@ -540,6 +731,8 @@ Item {
         return missionUploader.uploadPrepared()
     }
     function startUploadedMission() {
+        if(root.steeringModeBusy){root.lastNavigationStatus="Oprește asistența cârmei înainte de navigare/misiune";return false}
+        if((routePlan && routePlan.active) || (baitingController && baitingController.enabled)) {root.lastNavigationStatus="Oprește traseul/nădirea înainte de START Area Scan";return false}
         if(!root.allowLiveAction()) return false
         if (!root.linkAlive || !root.vehicle.rover) {
             root.lastNavigationStatus = "Upload confirmat, dar autopilotul nu mai este conectat"
@@ -557,9 +750,12 @@ Item {
             root.lastNavigationStatus = "START Area Scan blocat: sonar fără date live"
             return false
         }
+        var route=scanCoordinator.state==="RESUME_READY" ? areaScanController.resumeRoute(root.vehicle.coordinate) : areaScanController.generatedPoints
+        if(!root.checkEnergyForRoute(route))return false
         // QGC Vehicle::startMission() is the normal MAVLink mission-start path.
         // Never report AUTO before the vehicle reports the resulting mode.
         if (root.vehicle.startMission) {
+            digitalAnchor.release()
             root.awaitingMissionStart = true
             root.vehicle.startMission()
             root.lastNavigationStatus = "Upload confirmat • comandă START AUTOPILOT trimisă"
@@ -570,6 +766,7 @@ Item {
     }
     function holdMission(keepBaiting) {
         root.awaitingMissionStart = false
+        if(!keepBaiting && routePlan.active) routePlan.cancel("HOLD utilizator")
         if(!keepBaiting && baitingController.enabled) baitingController.abortCycle("HOLD utilizator")
         digitalAnchor.release()
         if(scanCoordinator.state==="SCANNING") scanCoordinator.pause("HOLD utilizator")
@@ -580,6 +777,7 @@ Item {
         return true
     }
     function rtlMission() {
+        if(routePlan.active) routePlan.cancel("RTL solicitat")
         root.awaitingMissionStart = false
         digitalAnchor.release()
         if(baitingController.enabled) baitingController.abortCycle("RTL solicitat")
@@ -591,6 +789,7 @@ Item {
         return true
     }
     function stopMission() {
+        if(routePlan.active) routePlan.cancel("STOP utilizator")
         root.awaitingMissionStart = false
         if(baitingController.enabled) baitingController.abortCycle("STOP utilizator")
         digitalAnchor.release()
@@ -618,22 +817,27 @@ Item {
         return false
     }
     function navigateToCoordinate(c) {
+        if(root.steeringModeBusy){root.lastNavigationStatus="Oprește asistența cârmei înainte de navigare/misiune";return false}
         if(!root.allowLiveAction()) return false
-        if (!vehicle || !c || !c.isValid) {
+        if (!root.linkAlive || !vehicle || !c || !c.isValid) {
             root.lastNavigationStatus = "Navigatie indisponibila"
-            return
+            return false
         }
+        if(scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || (baitingController.enabled || (routePlan && routePlan.active))){root.lastNavigationStatus="Oprește misiunea/nădirea înainte de navigarea către alt punct";return false}
         if (!vehicle.guidedModeGotoLocation) {
             root.lastNavigationStatus = "Navigație indisponibilă: comanda GUIDED nu este expusă de autopilot"
-            return
+            return false
         }
+        if(!root.checkEnergyForRoute([c]))return false
+        digitalAnchor.release()
         vehicle.guidedModeGotoLocation(c)
         root.lastNavigationStatus = "Comandă GUIDED trimisă către punct"
+        return true
     }
 
 
-    Dialog { id:homeRtlConfirm; parent:Overlay.overlay; anchors.centerIn:parent; modal:true; title:"Întoarcere la HOME?"; standardButtons:Dialog.Yes | Dialog.No; closePolicy:Popup.NoAutoClose
-        Label { width:320; wrapMode:Text.WordWrap; text:"Comanzi RTL către H743/ArduPilot. Barca se va întoarce la HOME salvat de autopilot." }
+    Dialog { id:homeRtlConfirm; parent:Overlay.overlay; anchors.centerIn:parent; modal:true; width:Math.min(360,root.width-24); title:"Întoarcere la HOME?"; standardButtons:Dialog.Yes | Dialog.No; closePolicy:Popup.NoAutoClose
+        Label { width:Math.min(320,root.width-56); wrapMode:Text.WordWrap; text:"Comanzi RTL către H743/ArduPilot. Barca se va întoarce la HOME salvat de autopilot." }
         onAccepted: root.rtlMission()
     }
 
@@ -719,7 +923,7 @@ Item {
                 NavButton { text: "HARTA"; iconSource: "qrc:/qml/NavoSmart/icons/map.svg"; active: root.activePage === 0; onClicked: root.activePage = 0 }
                 NavButton { text: "SONAR"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 1; onClicked: root.activePage = 1 }
                 NavButton { text: "SONAR PRO"; proBadge: true; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 10; onClicked: root.activePage = 10 }
-                NavButton { text: "AREA SCAN"; iconSource: "qrc:/qml/NavoSmart/icons/scan.svg"; active: root.activePage === 2; onClicked: root.activePage = 2 }
+                NavButton { text: "MISIUNI"; iconSource: "qrc:/qml/NavoSmart/icons/scan.svg"; active: root.activePage === 2; onClicked: root.activePage = 2 }
                 NavButton { text: "PUNCTE PESCUIT"; iconSource: "qrc:/qml/NavoSmart/icons/fish.svg"; active: root.activePage === 3; onClicked: root.activePage = 3 }
                 NavButton { text: "BALȚILE MELE"; iconSource: "qrc:/qml/NavoSmart/icons/lake.svg"; active: root.activePage === 4; onClicked: root.activePage = 4 }
                 NavButton { text: "CAMERA"; iconSource: "qrc:/qml/NavoSmart/icons/camera.svg"; active: root.activePage === 5; onClicked: root.activePage = 5 }
@@ -732,9 +936,25 @@ Item {
         }
     }
 
+    NavoMissionStatus {
+        id:missionStrip
+        visible:root.missionBusy || root.activePage===2
+        anchors.left:root.mapMaximized || root.activePage===10 ? parent.left : sidebar.right
+        anchors.right:parent.right
+        anchors.top:root.activePage===10 ? parent.top : header.bottom
+        height:visible ? implicitHeight : 0
+        z:6001
+        active:root.missionBusy
+        connected:root.linkAlive
+        homeAvailable:!sonar.replayMode && !!root.vehicle && !!root.vehicle.guidedModeRTL && !!root.vehicle.homePosition && root.vehicle.homePosition.isValid
+        progress:routePlan.active ? 100*(routePlan.currentIndex+Math.min(0.95,Math.max(0,root.routeLegDistanceM>0 && isFinite(baitingController.distanceToTarget()) ? 1-baitingController.distanceToTarget()/root.routeLegDistanceM : 0)))/Math.max(1,routePlan.runningStops.length) : root.missionScanSelected ? areaScanController.progressPercent() : routePlan.state==="DISPATCHED" ? 100 : 0
+        statusText:routePlan.active ? (routePlan.missionKind==="point" ? "Mergi la punct" : "Traseu cu opriri")+" • oprire "+(routePlan.currentIndex+1)+"/"+routePlan.runningStops.length+" • "+baitingController.stateText(baitingController.state) : root.missionScanSelected ? "Scanare • "+root.missionStateLabel(scanCoordinator.state) : "Misiune • "+root.missionStateLabel(routePlan.state)
+        onPauseRequested:root.holdMission()
+        onHomeRequested:homeRtlConfirm.open()
+    }
     Rectangle {
         id: content
-        anchors.left: root.mapMaximized || root.activePage === 10 ? parent.left : sidebar.right; anchors.right: parent.right; anchors.top: root.activePage === 10 ? parent.top : header.bottom; anchors.bottom: parent.bottom
+        anchors.left: root.mapMaximized || root.activePage === 10 ? parent.left : sidebar.right; anchors.right: parent.right; anchors.top: missionStrip.bottom; anchors.bottom: parent.bottom
         // Fullscreen sonar controls must render above the Dashboard header (z: 2000).
         z: root.activePage === 10 ? 3000 : 0
         color: root.bg
@@ -780,6 +1000,9 @@ Item {
             id: fishingPageRoot
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             NavoMap {
+                routeActive:routePlan.active
+                routeStops:routePlan.active ? routePlan.runningStops : routePlan.stops
+                routeReturnsHome:(routePlan.active ? routePlan.runningFinishAction : routePlan.finishAction)==="RTL"
                 recordedReplay: sonar.replayMode
                 id: navoMap
                 anchors.fill: parent
@@ -797,6 +1020,8 @@ Item {
                 waypointNames: root.waypointNames
                 fishModel: fishStore
                 fishingSpotsModel: fishingSpots
+                nativeSurfaceMesh: root.displayNativeSurfaceMesh
+                nativeSurfaceBridge: sonar.nativeBridge
                 bathymetryCells: root.displayBathymetryCells
                         replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
                         replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
@@ -816,6 +1041,7 @@ Item {
                     var pts=scanCoordinator.prepareRectangle(cornerA,cornerB)
                     root.lastNavigationStatus=pts.length ? "Area Scan dreptunghi pregătit • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP • apasă PREGĂTEȘTE MISIUNEA" : "Dreptunghi respins: "+areaScanController.lastError
                     root.pendingAreaDrawMode="none"
+                    root.missionScanSelected=true
                     root.activePage=2
                 }
                 onAreaPolygonRequested: function(polygon) {
@@ -824,6 +1050,7 @@ Item {
                     var pts=scanCoordinator.preparePolygon(polygon)
                     root.lastNavigationStatus=pts.length ? "Area Scan poligon • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP generate" : areaScanController.lastError
                     root.pendingAreaDrawMode="none"
+                    root.missionScanSelected=true
                     root.activePage=2
                 }
                 onSaveNamedPointRequested: function(coordinate,name,markerColor) {
@@ -863,6 +1090,7 @@ Item {
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/lan.svg"; title:"LAN"; value:sonar.transport&&sonar.transport.connected?"ON":"OFF"; good:sonar.transport&&sonar.transport.connected }
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/sonar.svg"; title:"SONAR"; value:root.sonarConnected?"ON":"OFF"; good:root.sonarConnected }
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/nano.svg"; title:"NANO"; value:nanoTelemetry.connected?"ON":"OFF"; good:nanoTelemetry.connected }
+                MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/navigate.svg";title:"ANCORĂ";value:digitalAnchor.active?"CERUTĂ":"OFF";good:digitalAnchor.guidedConfirmed;clickable:true;toolTipText:digitalAnchor.active?"Dezactivează ancora GPS și solicită HOLD":"Menține poziția GPS curentă";onClicked:root.toggleDigitalAnchor() }
                 MiniStatus {
                     iconSource:"qrc:/qml/NavoSmart/icons/camera.svg"; title:"CAM"; value:root.cameraConnected?"ON":"OFF"; good:root.cameraConnected
                     clickable:true
@@ -893,13 +1121,11 @@ Item {
             replaySaveStatus: root.replaySaveStatus
             replaySampleCount: replayMapping.rawSamples.length
             onSaveReplayRequested: function(name) {
-                replayBathymetryModel.rebuild(replayMapping.rawSamples)
-                var id=persistence.saveReplayLake(name,replayMapping.rawSamples,replayBathymetryModel.cells)
-                root.replaySaveStatus=id ? "Salvat în Bălțile mele: "+name : "Salvarea a eșuat; sunt necesare probe GPS și fund valid."
+                root.saveRecordedReplayLake(name)
             }
             onClosed: root.activePage = 0
             connected: sonar.connected || sonar.replayMode
-            depthM: sonar.depthM
+            depthM: root.depthM
             waterTempC: root.waterTempC
             samples: sonar.echoSamples
             chartResolution: sonar.chartResolution
@@ -998,26 +1224,93 @@ Item {
             ColumnLayout {
                 anchors.fill: parent; anchors.margins: root.responsiveMargin; spacing: root.responsiveGap
                 RowLayout {
-                    Layout.fillWidth: true
-                    Label { text: areaScanController.progressPercent() + "%"; color: root.accent; font.bold: true }
-                    ProgressBar { Layout.fillWidth: true; from: 0; to: 100; value: areaScanController.progressPercent() }
-                    Label { text: scanCoordinator.state==="COMPLETE" ? "FINISHED" : scanCoordinator.state; color: root.modeColor(); font.bold: true }
+                    Layout.fillWidth:true
+                    Button {
+                        text:missionOptions.opened ? "Închide opțiunile" : "⚙ Configurare misiune"
+                        Accessible.name:"Configurare misiune"
+                        onClicked:missionOptions.opened ? missionOptions.close() : missionOptions.open()
+                    }
+                    Label {
+                        Layout.fillWidth:true; color:root.muted; elide:Text.ElideRight
+                        text:root.missionScanSelected ? "Scanează zona" : (routePlan.missionKind==="point" ? "Mergi la punct" : "Traseu cu opriri")
+                    }
                 }
-                Label {
-                    Layout.fillWidth: true
-                    text: areaScanController.laneCount() ?
-                          (areaScanController.completedLanes.length + " / " + areaScanController.laneCount() + " culoare • WP autopilot " + scanCoordinator.missionCurrentIndex) :
-                          "Definește zona de scanare pe hartă."
-                    color: root.muted
+                Popup {
+                    id:missionOptions
+                    parent:Overlay.overlay
+                    x:Math.max(12,(parent.width-width)/2)
+                    y:Math.max(12,Math.min(110,parent.height-height-12))
+                    width:Math.min(760,parent.width-24)
+                    height:Math.min(310,parent.height-24)
+                    modal:false; focus:true; closePolicy:Popup.CloseOnEscape|Popup.CloseOnPressOutside
+                    padding:12
+                    background:Rectangle { color:"#101b25";radius:10;border.color:"#21b7ff";border.width:2 }
+                    contentItem:ScrollView {
+                        clip:true;contentWidth:availableWidth
+                        ColumnLayout {
+                            width:missionOptions.availableWidth
+                            spacing:8
+                            Flow {
+                                Layout.fillWidth:true
+                                spacing:6
+                                Repeater {
+                                    model:["Mergi la punct","Traseu cu opriri","Scanează zona"]
+                                    delegate:Button {
+                                        implicitHeight:36
+                                        leftPadding:9;rightPadding:9;topPadding:4;bottomPadding:4
+                                        font.pixelSize:12
+                                        required property string modelData
+                                        required property int index
+                                        text:modelData
+                                        highlighted:root.missionScanSelected ? index===2 : index===(routePlan.missionKind==="point" ? 0 : 1)
+                                        enabled:!root.missionBusy && !sonar.replayMode
+                                        onClicked:root.selectMission(index)
+                                    }
+                                }
+                            }
+                            Label {
+                                Layout.fillWidth:true; wrapMode:Text.WordWrap; color:root.muted
+                                visible:!root.missionScanSelected && routePlan.state==="STOPPED"
+                                text:"HOLD oprește ciclul de nădire. Verifică cuvele și folosește un nou START; nu se reia automat o eliberare."
+                            }
+                            GridLayout {
+                                columns:2
+                                visible:root.missionScanSelected
+                                Layout.fillWidth:true
+                                Label {Layout.fillWidth:true;wrapMode:Text.WordWrap;text:"Viteză estimare (m/s)";color:"white"}
+                                SpinBox {
+                                    implicitWidth:132; implicitHeight:38
+                                    from:1;to:30;value:Math.round(root.scanEstimateSpeedMps*10)
+                                    enabled:!root.missionBusy && !sonar.replayMode
+                                    textFromValue:function(v,locale){return Number(v/10).toLocaleString(locale,'f',1)}
+                                    onValueModified:root.scanEstimateSpeedMps=value/10
+                                }
+                                Label {text:"La final";color:"white"}
+                                ComboBox { implicitWidth:132; implicitHeight:38; enabled:!root.missionBusy && !sonar.replayMode; model:["HOLD","RTL"]; currentIndex:root.areaScanFinishAction==="RTL"?1:0; onActivated:root.areaScanFinishAction=currentIndex===1?"RTL":"HOLD" }
+                            }
+                            Label {
+                                visible:root.missionScanSelected
+                                Layout.fillWidth:true;wrapMode:Text.WordWrap;color:root.muted
+                                text:"Cuve: fără eliberare • AUTO folosește viteza configurată în H743.\n"+
+                                    (root.scanEstimate.valid ? "~"+Math.ceil(root.scanEstimate.distanceM)+" m • ~"+Math.ceil(root.scanEstimate.durationSeconds/60)+" min (estimare fără viraje)" : "Definește zona; GPS și HOME sunt necesare pentru estimare.")
+                            }
+            
+                            Button { text:"Închide";Layout.alignment:Qt.AlignRight;onClicked:missionOptions.close() }
+                        }
+                    }
                 }
-                RowLayout {
+                GridLayout {
+                    columns:root.missionScanSelected || width>=700 ? 2 : 1
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    spacing: 8
+                    rowSpacing:8;columnSpacing:8
                     Rectangle {
-                        Layout.fillWidth: true; Layout.fillHeight: true
+                        Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight:120
                         radius: 8; color: root.bg; border.color: root.line; clip: true
                         NavoMap {
+                routeActive:routePlan.active
+                routeStops:routePlan.active ? routePlan.runningStops : routePlan.stops
+                routeReturnsHome:(routePlan.active ? routePlan.runningFinishAction : routePlan.finishAction)==="RTL"
                 recordedReplay: sonar.replayMode
                             id: areaScanMap
                             anchors.fill: parent; anchors.margins: 2
@@ -1026,7 +1319,9 @@ Item {
                             waypointNames: root.waypointNames
                             fishModel: fishStore
                             fishingSpotsModel: fishingSpots
-                            bathymetryCells: root.displayBathymetryCells
+                            nativeSurfaceMesh: root.displayNativeSurfaceMesh
+                            nativeSurfaceBridge: sonar.nativeBridge
+                bathymetryCells: root.displayBathymetryCells
                         replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
                         replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
                             baitingController: root.mapBaitingController
@@ -1035,7 +1330,8 @@ Item {
                             savedWaterTempC: root.waterTempC
                             maximized: root.mapMaximized
                             baitPointPickMode: root.pendingBaitPointPick
-                            onBaitPointPicked: function(coordinate) { root.pendingBaitPointPick=false; baitingController.targetWaypoint={coordinate:coordinate,name:"Punct hartă",sequenceNumber:0}; root.lastNavigationStatus="Punct de nădire selectat pe hartă"; root.activePage=8 }
+                            onNavigateRequested:function(coordinate){if(!root.missionBusy){baitingController.targetWaypoint={coordinate:coordinate,name:"Punct hartă",sequenceNumber:0};root.lastNavigationStatus="Punct selectat pentru misiune"}}
+                            onBaitPointPicked: function(coordinate) { root.pendingBaitPointPick=false; baitingController.targetWaypoint={coordinate:coordinate,name:"Punct hartă",sequenceNumber:0}; root.lastNavigationStatus="Punct selectat • aplică destinația sau adaugă oprirea" }
                             onMaximizeRequested: root.mapMaximized = !root.mapMaximized
                             onAreaRectangleRequested: function(cornerA, cornerB) {
                             if(!root.allowLiveAction()) return; missionUploader.invalidate(); var pts=scanCoordinator.prepareRectangle(cornerA,cornerB); root.lastNavigationStatus=pts.length ? "Area Scan dreptunghi pregătit • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP • apasă PREGĂTEȘTE MISIUNEA" : "Dreptunghi respins: "+areaScanController.lastError; root.pendingAreaDrawMode="none" }
@@ -1044,10 +1340,39 @@ Item {
                             onSavePointRequested: function(coordinate) { if(!root.requireActiveLakeForPointSave()) return; var spot=fishingSpots.saveSpot(coordinate,root.depthM,root.waterTempC,"","",null); if(spot) scanCoordinator.checkpoint("fishing-spot") }
                         }
                     }
-                    Flow {
+                    ScrollView {
+                        visible:!root.missionScanSelected
+                        Layout.fillWidth:parent.columns===1
+                        Layout.preferredWidth:parent.columns===1 ? parent.width : 300
+                        Layout.minimumHeight:130
+                        Layout.fillHeight:true
+                        clip:true
+                        contentWidth:availableWidth
+                        NavoRoutePanel {
+                            width:parent.width
+                            implicitHeight:650
+                            routePlan:root.routePlanController
+                            waypoint:baitingController.targetWaypoint
+                            availableSpots:fishingSpots.fishingSpots
+                            estimate:root.routeEstimate
+                            energyText:root.routeEnergyText
+                            speedMps:baitingController.silentMode ? baitingController.silentSpeedMps : baitingController.normalSpeedMps
+                            speedEditable:!root.missionBusy
+                            onSpeedRequested:function(speed){if(!root.missionBusy && root.allowLiveAction()){if(baitingController.silentMode)baitingController.silentSpeedMps=speed;else baitingController.normalSpeedMps=speed}}
+                            onSpotChosen:function(spot){baitingController.targetWaypoint={coordinate:QtPositioning.coordinate(spot.lat,spot.lon),name:spot.name,sequenceNumber:0}}
+                            onChooseOnMapRequested:{root.pendingBaitPointPick=true;root.lastNavigationStatus="Atinge destinația pe hartă"}
+                            onStartRequested:function(loadConfirmed){root.startRoute(loadConfirmed)}
+                            onStopRequested:root.stopMission()
+                        }
+                    }
+                    ScrollView {
+                        visible:root.missionScanSelected
                         Layout.preferredWidth: root.compactUi ? 112 : 126
                         Layout.minimumWidth: 106; Layout.maximumWidth: 132
                         Layout.fillHeight: true
+                        clip:true;contentWidth:availableWidth
+                        Flow {
+                        width:parent.width
                         spacing: 6
                         component ScanIconButton: Button {
                             width: 52; height: 46; padding: 0
@@ -1058,13 +1383,13 @@ Item {
                         }
                         ScanIconButton {
                             hint: "Desenează dreptunghi"
-                            enabled: scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
+                            enabled: !root.missionBusy && !sonar.replayMode
                             contentItem: Canvas { anchors.fill: parent; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.strokeRect(12,11,28,24)} }
                             onClicked: { root.pendingAreaDrawMode="rectangle"; Qt.callLater(function(){if(areaScanMap){areaScanMap.beginAreaRectangle();root.pendingAreaDrawMode="none"}}); root.lastNavigationStatus="Atinge două colțuri pe hartă pentru dreptunghi" }
                         }
                         ScanIconButton {
                             hint: "Desenează poligon"
-                            enabled: scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
+                            enabled: !root.missionBusy && !sonar.replayMode
                             contentItem: Canvas { anchors.fill: parent; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.beginPath();p.moveTo(12,31);p.lineTo(17,12);p.lineTo(38,9);p.lineTo(42,30);p.lineTo(27,37);p.closePath();p.stroke()} }
                             onClicked: { root.pendingAreaDrawMode="polygon"; Qt.callLater(function(){if(areaScanMap){areaScanMap.beginAreaPolygon();root.pendingAreaDrawMode="none"}}); root.lastNavigationStatus="Atinge cel puțin trei puncte și apoi TERMINĂ" }
                         }
@@ -1089,7 +1414,7 @@ Item {
                         ScanIconButton { hint:"HOLD"; enabled:scanCoordinator.state==="SCANNING"||root.awaitingMissionStart; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.fillStyle="#ffc857";p.fillRect(15,12,7,23);p.fillRect(30,12,7,23)}} onClicked:root.holdMission() }
                         ScanIconButton { hint:"RTL / întoarcere acasă"; enabled:scanCoordinator.state==="SCANNING"||scanCoordinator.state==="PAUSED"||scanCoordinator.state==="RESUME_READY"; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#21b7ff";p.lineWidth=2;p.beginPath();p.moveTo(10,25);p.lineTo(26,11);p.lineTo(42,25);p.moveTo(16,22);p.lineTo(16,37);p.lineTo(36,37);p.lineTo(36,22);p.stroke()}} onClicked:root.rtlMission() }
                         ScanIconButton { hint:"STOP"; enabled:scanCoordinator.state==="SCANNING"||scanCoordinator.state==="PAUSED"||scanCoordinator.state==="READY"||scanCoordinator.state==="RESUME_READY"||root.awaitingMissionStart; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.fillStyle="#ff5c5c";p.fillRect(15,12,23,23)}} onClicked:root.stopMission() }
-                        ComboBox { width:110; height:34; model:["HOLD","RTL"]; currentIndex:root.areaScanFinishAction==="RTL"?1:0; ToolTip.visible:hovered; ToolTip.text:"Acțiune la finalul scanării"; onActivated:root.areaScanFinishAction=currentIndex===1?"RTL":"HOLD" }
+                        }
                     }
                 }
             }
@@ -1111,13 +1436,16 @@ Item {
                     Layout.minimumWidth: 320
                     radius:8; color:root.bg; border.color:root.line; clip:true
                     NavoMap {
+                routeActive:routePlan.active
+                routeStops:routePlan.active ? routePlan.runningStops : routePlan.stops
+                routeReturnsHome:(routePlan.active ? routePlan.runningFinishAction : routePlan.finishAction)==="RTL"
                 recordedReplay: sonar.replayMode
                         id:fishingMap
                         anchors.fill:parent
                         property real targetAspect: 16/9
                         property real availableAspect: width / Math.max(1,height)
                         vehicle:root.vehicle; planController:root.planController; waypointNames:root.waypointNames
-                        fishModel:fishStore; fishingSpotsModel:fishingSpots; bathymetryCells:root.displayBathymetryCells
+                        fishModel:fishStore; fishingSpotsModel:fishingSpots; nativeSurfaceMesh:root.displayNativeSurfaceMesh; nativeSurfaceBridge:sonar.nativeBridge; bathymetryCells:root.displayBathymetryCells
                         replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
                         replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
                         baitingController: root.mapBaitingController; areaScanController: root.mapAreaScanController
@@ -1402,6 +1730,9 @@ Item {
                     Layout.fillWidth: true; Layout.fillHeight: true
                     radius: 8; color: root.panel; border.color: root.line; clip: true
                     NavoMap {
+                routeActive:routePlan.active
+                routeStops:routePlan.active ? routePlan.runningStops : routePlan.stops
+                routeReturnsHome:(routePlan.active ? routePlan.runningFinishAction : routePlan.finishAction)==="RTL"
                 recordedReplay: sonar.replayMode
                         anchors.fill: parent; anchors.margins: 2
                         vehicle: root.vehicle
@@ -1409,7 +1740,9 @@ Item {
                         waypointNames: root.waypointNames
                         fishModel: fishStore
                         fishingSpotsModel: fishingSpots
-                        bathymetryCells: root.displayBathymetryCells
+                        nativeSurfaceMesh: root.displayNativeSurfaceMesh
+                        nativeSurfaceBridge: sonar.nativeBridge
+                bathymetryCells: root.displayBathymetryCells
                         replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
                         replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
                         baitingController: root.mapBaitingController
@@ -1445,6 +1778,9 @@ Item {
                         anchors.fill: parent
                         anchors.margins: 8
                         controller: baitingController
+                        routePlan:root.routePlanController; routeEstimate:root.routeEstimate; routeEnergyText:root.routeEnergyText
+                        onRouteStartRequested:function(loaded){root.startRoute(loaded)}
+                        onRouteStopRequested:root.stopMission()
                         hopperBridge: root.hopperBridgeController
                         waypoint: baitingController.targetWaypoint
                         availableSpots: sonar.replayMode ? [] : fishingSpots.fishingSpots
@@ -1461,11 +1797,9 @@ Item {
                             root.lastNavigationStatus="Punct de nădire ales: "+spot.name
                         }
                         onStartConfirmed: function(waypoint,name,hopper) {
-                            if(!root.allowLiveAction()) return;
-                            if(!root.linkAlive || scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || (hopper!==0 && !hopperBridge.calibrated)){root.lastNavigationStatus="Nădire blocată: verifică legătura, misiunea activă și calibrarea cuvelor";return}
-                            digitalAnchor.release(); baitingController.startCycle(waypoint,name,hopper)
+                            root.startBaiting(waypoint,name,hopper)
                         }
-                        onAbortRequested: baitingController.abortCycle("Oprit de utilizator")
+                        onAbortRequested:root.stopMission()
                     }
                 }
             }
@@ -1599,6 +1933,8 @@ Item {
         Item {
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             ScrollView {
+                id: settingsScroll
+                contentWidth: availableWidth
                 anchors.fill: parent
                 anchors.margins: root.responsiveMargin
                 clip: true
@@ -1606,23 +1942,24 @@ Item {
                 ScrollBar.vertical.policy: contentHeight > availableHeight ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
 
                 ColumnLayout {
-                    width: parent.width
+                    width: settingsScroll.availableWidth
                     spacing: root.responsiveGap
+                    Button {
+                        Layout.maximumWidth: 230
+                        text: g20Advanced.visible ? "Închide Avansat • G20" : "Avansat • integrare G20"
+                        onClicked: g20Advanced.visible = !g20Advanced.visible
+                    }
                     NavoG20Settings {
-                        id: g20Settings
+                        id: g20Advanced
+                        visible: false
                         Layout.fillWidth: true
-                        Layout.preferredHeight: root.compactUi ? 430 : 360
-                        positionMode: lightSettings.positionMode
-                        onPositionModeRequested: function(mode) { root.setPositionLightMode(mode) }
-                        onActionRequested: function(control, action) { root.dispatchG20Action(control, action) }
-                        onZoomRequested: function(direction) {
-                            if (root.mapController && root.mapController.adjustZoom)
-                                root.mapController.adjustZoom(direction)
-                            else {
-                                root.activePage=0
-                                root.lastNavigationStatus=direction>0 ? "G20 • Zoom +" : "G20 • Zoom −"
-                            }
-                        }
+                        Layout.preferredHeight: implicitHeight
+                        controller: g20Controller
+                    }
+                    NavoSteeringPanel {
+                        Layout.fillWidth:true
+                        controller:steeringAssist
+                        onEnableRequested:steeringAssist.enable()
                     }
                     NavoEthernetSettings {
                         id: ethernetSettings
@@ -1634,6 +1971,22 @@ Item {
                         onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
                         onStatus: function(text) { root.lastNavigationStatus=text }
                         onUnitsRequested: { if (typeof mainWindow !== "undefined" && mainWindow.showSettingsTool) mainWindow.showSettingsTool() }
+                    }
+                    GroupBox {
+                        title:"Rezervă energie • traseu + întoarcere HOME"
+                        Layout.fillWidth:true
+                        ColumnLayout {
+                            anchors.fill:parent
+                            Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;color:root.muted;text:"Activează verificarea numai după măsurarea consumului pe barcă. Estimarea verifică navigarea, nădirea și START Area Scan; nu comandă automat RTL." }
+                            GridLayout {
+                                columns:2;Layout.fillWidth:true
+                                Label { text:"Rezervă %";color:root.text }
+                                SpinBox { Layout.fillWidth:true;from:5;to:80;value:energySettings.reservePercent;onValueModified:{energySettings.confirmed=false;energySettings.reservePercent=value} }
+                                Label { text:"Consum %/km";color:root.text }
+                                SpinBox { Layout.fillWidth:true;from:1;to:100;value:energySettings.consumptionPercentPerKm;onValueModified:{energySettings.confirmed=false;energySettings.consumptionPercentPerKm=value} }
+                            }
+                            CheckBox { text:"Consum verificat • activează verificarea înainte de plecare";palette.windowText:"#d7e3ee";checked:energySettings.confirmed;onToggled:energySettings.confirmed=checked }
+                        }
                     }
                 }
             }
