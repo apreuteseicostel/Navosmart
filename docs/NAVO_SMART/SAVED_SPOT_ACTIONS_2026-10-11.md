@@ -52,3 +52,12 @@ Android phase require their new workflows; they are not claimed passed locally.
 Local validation includes the production acceptance state transitions with explicit
 UI doubles, refusal to report success for an unsafe START, actual Qt stop replacement
 clearing load acknowledgement, and the existing real Qt marker/map/Missions tests.
+
+Android #839 compiled both APKs and passed recording, map/3D and restart/Resume,
+but timed out in the first saved-point long press. Its input coordinates could be
+reported before the viewport was focused and the marker transform polished. The
+next change publishes coordinates only after map readiness, one-time focus and a
+render-settling interval; ADB waits for that readiness and logs the actual physical
+point. Local driver regressions reject pre-focus coordinates. The marker test now
+uses touch events over a QGC-style touch area. The expanded Android phase still
+requires its new run; the timeout is not considered closed by local tests alone.

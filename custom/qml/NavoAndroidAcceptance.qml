@@ -14,6 +14,7 @@ Item {
     property string liveId:""
     property string replayId:""
     property string liveBefore:""
+    property double spotFocusStarted:0
     property var savedSpot:null
     property int samples:0
     property var evidence:({})
@@ -23,7 +24,7 @@ Item {
     property double progressed:Date.now()
     function fail(message){evidence.failedStage=stage;evidence.error=message;stage="failed";backend.report(reportState("failed"));clock.stop()}
     function require(ok,message){if(!ok)throw new Error(message)}
-    function advance(next){stage=next;entered=Date.now();evidence.sceneReady=false;publish("running")}
+    function advance(next){stage=next;entered=Date.now();evidence.sceneReady=false;spotFocusStarted=0;publish("running")}
     function reportState(status){
         var state={status:status,phase:backend.configuration.phase,stage:stage,liveId:liveId,replayId:replayId,samples:samples}
         var sonar=dashboard.sonarController
@@ -37,7 +38,10 @@ Item {
         state.activePage=dashboard.activePage
         state.nativeSurfaceIndices=sonar.nativeSurfaceMesh.indices ? sonar.nativeSurfaceMesh.indices.length : 0
         for(var key in evidence)state[key]=evidence[key]
-        if(stage.indexOf("spots-pin-")===0)state.spotPin=backend.savedSpotPinPosition(dashboard)
+        if(stage.indexOf("spots-pin-")===0 && evidence.sceneReady) {
+            state.spotPin=backend.savedSpotPinPosition(dashboard)
+            evidence.lastSpotPin=state.spotPin
+        }
         var metrics=backend.inspect(dashboard)
         for(var metric in metrics)state[metric]=metrics[metric]
         return state
@@ -107,7 +111,16 @@ Item {
         if(stage.indexOf("spots-pin-")===0) {
             require(Date.now()-entered<60000,"Saved point long press did not open details")
             if(Date.now()-entered<1000)return
-            require(backend.focusSavedSpot(dashboard,QtPositioning.coordinate(savedSpot.lat,savedSpot.lon)),"Cannot focus installed map")
+            if(!spotFocusStarted) {
+                if(!backend.focusSavedSpot(dashboard,QtPositioning.coordinate(savedSpot.lat,savedSpot.lon)))return
+                spotFocusStarted=Date.now();return
+            }
+            // Marker transforms are updated on a later render/polish pass.
+            // Never publish tap coordinates from the pre-focus/default viewport.
+            if(Date.now()-spotFocusStarted<750)return
+            var pin=backend.savedSpotPinPosition(dashboard)
+            if(pin.x===undefined || pin.y===undefined)return
+            evidence.sceneReady=true
             var popup=backend.control(dashboard,"savedSpotDetails")
             var unexpected=backend.control(dashboard,"newSpotDialog")
             require(!unexpected || !unexpected.visible,"Long press opened a new point instead of saved details")

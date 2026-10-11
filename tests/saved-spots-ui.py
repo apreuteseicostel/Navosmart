@@ -5,7 +5,7 @@ os.environ.setdefault('QT_QUICK_BACKEND','software')
 from pathlib import Path
 import tempfile,shutil
 from PySide6.QtCore import QUrl,QObject,QMetaObject,QPointF,QPoint,Qt
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QGuiApplication,QInputDevice
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtTest import QTest
 from PySide6.QtQuick import QQuickWindow,QQuickItem
@@ -32,7 +32,12 @@ ApplicationWindow {
  QtObject{id:spots;property var fishingSpots:[{id:"green",name:"Lanseta verde",lat:52,lon:0,depth:2.4,temp:18,note:"Prag observat",createdAt:1000}]}
  TextField{id:fishingName;visible:false}
  Dialog{id:fishingSaveDialog;objectName:"newSpotDialog";title:"Punct nou"}
- Map{id:liveMap;anchors.fill:parent;plugin:Plugin{name:"itemsoverlay"}center:QtPositioning.coordinate(52,0);zoomLevel:17}
+ Map{id:liveMap;anchors.fill:parent;plugin:Plugin{name:"itemsoverlay"}center:QtPositioning.coordinate(52,0);zoomLevel:17
+ // QGC FlightMap also has a touch area under the NAVO map input layer.
+ MultiPointTouchArea { anchors.fill:parent;maximumTouchPoints:1;mouseEnabled:true
+  onGestureStarted:function(gesture){gesture.grab()}
+ }
+}
  NavoBathymetryOverlay {
   id:savedPointsOverlay;objectName:"savedPointsOverlay";map:liveMap;fishingSpotsModel:spots
   onSpotActionRequested:function(spot,action,hopper,size){root.actions++;root.lastAction=action;root.lastHopper=hopper;root.lastSize=size}
@@ -40,7 +45,7 @@ ApplicationWindow {
  function clearSpots(){spots.fishingSpots=[]}
 }'''
 wrapper=wrapper[:-1]+inputLayer+'}'
-app=QGuiApplication([]);engine=QQmlApplicationEngine();errors=[]
+app=QGuiApplication([]);device=QTest.createTouchDevice(QInputDevice.DeviceType.TouchScreen);engine=QQmlApplicationEngine();errors=[]
 engine.warnings.connect(lambda ws:errors.extend(str(w) for w in ws))
 with tempfile.TemporaryDirectory() as folder:
  folder=Path(folder);shutil.copy(repo/'custom/qml/NavoBathymetryOverlay.qml',folder)
@@ -57,7 +62,7 @@ with tempfile.TemporaryDirectory() as folder:
     if found is not None:return found
   pin=findVisual(window.contentItem(),'savedSpotPin');assert pin
   pos=pin.mapToScene(QPointF(pin.width()/2,pin.height()/2));point=QPoint(round(pos.x()),round(pos.y()))
-  QTest.mousePress(window,Qt.LeftButton,Qt.NoModifier,point);QTest.qWait(900);QTest.mouseRelease(window,Qt.LeftButton,Qt.NoModifier,point);QTest.qWait(40)
+  QTest.touchEvent(window,device).press(0,point,window).commit();QTest.qWait(1200);QTest.touchEvent(window,device).release(0,point,window).commit();QTest.qWait(40)
   assert dialog.property('visible'),errors
   assert not window.findChild(QObject,'newSpotDialog').property('visible')
   assert dialog.property('width')<=width-20 and dialog.property('height')<=height-20

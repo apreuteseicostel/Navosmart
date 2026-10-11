@@ -90,7 +90,7 @@ public:
     }
     Q_INVOKABLE bool focusSavedSpot(QObject* dashboard,const QVariant& coordinate) const {
         auto* object=control(dashboard,QStringLiteral("navoLiveMap"));
-        if(!coordinate.isValid() || !object || !object->property("visible").toBool())return false;
+        if(!coordinate.isValid() || !object || !object->property("visible").toBool() || !object->property("mapReady").toBool())return false;
         return object->setProperty("center",coordinate) && object->setProperty("zoomLevel",17.0);
     }
     Q_INVOKABLE QVariantMap savedSpotPinPosition(QObject* dashboard) const {
