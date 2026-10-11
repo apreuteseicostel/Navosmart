@@ -71,7 +71,7 @@ ColumnLayout {
     RowLayout {
         Layout.fillWidth:true
         Label { Layout.fillWidth:true; text:root.waypoint ? root.waypoint.name||"Punct hartă" : "Alege punctul"; color:"#21b7ff"; elide:Text.ElideRight }
-        Button { text:"Hartă"; enabled:!!root.routePlan && (!root.routePlan.active && !root.routePlan.readOnly); onClicked:root.chooseOnMapRequested() }
+        Button { objectName:"routeChooseOnMap";text:"Hartă"; enabled:!!root.routePlan && (!root.routePlan.active && !root.routePlan.readOnly); onClicked:root.chooseOnMapRequested() }
     }
     RowLayout {
         Layout.fillWidth:true
@@ -80,7 +80,8 @@ ColumnLayout {
             onClicked:{if(root.singlePoint ? root.routePlan.setPoint(root.waypoint,root.waypoint.name,actionBox.currentIndex) : root.routePlan.addStop(root.waypoint,root.waypoint.name,actionBox.currentIndex))loadCheck.checked=false} }
     }
     ListView {
-        Layout.fillWidth:true; Layout.fillHeight:true; Layout.minimumHeight:root.singlePoint ? 64 : 90
+        Layout.fillWidth:true; Layout.preferredHeight:Math.max(64,Math.min(5,root.routePlan ? root.routePlan.stops.length : 0)*68)
+        ScrollBar.vertical:ScrollBar {}
         clip:true; spacing:4; model:root.routePlan ? root.routePlan.stops : []
         delegate:Rectangle {
             required property var modelData

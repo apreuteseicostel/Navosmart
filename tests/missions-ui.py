@@ -74,6 +74,11 @@ ApplicationWindow {
   if(!startRoute(false) || selectMission(1))return false
   return true
  }
+ function seedEditor(){
+  if(routePlan.missionKind==="point")return routePlan.setPoint(baitingController.targetWaypoint,"Lanseta verde",0)
+  if(routePlan.stops.length)return true
+  return routePlan.addStop(baitingController.targetWaypoint,"Lanseta verde",1) && routePlan.addStop(baitingController.targetWaypoint,"Lanseta roșie",2) && routePlan.addStop(baitingController.targetWaypoint,"Punct salvat",0)
+ }
  function choose(index){return selectMission(index)}
 }'''
 wrapper=wrapper[:-1]+selection+strip+page+'}'
@@ -107,11 +112,34 @@ with tempfile.TemporaryDirectory() as folder:
  QMetaObject.invokeMethod(dialog,'accept');QTest.qWait(20);assert window.property('homes')==1
  QMetaObject.invokeMethod(pause,'clicked');QTest.qWait(30)
  assert window.property('pauses')==1 and not pause.property('enabled')
+ window.setProperty('mapMaximized',False)
  for mode in [0,1,2]:
   assert call('choose',mode)
+  if mode!=2:assert call('seedEditor')
   for width,height in [(236,600),(320,640),(480,720),(900,650)]:
    window.setWidth(width);window.setHeight(height);QTest.qWait(100)
    assert window.grabWindow().save(f'/tmp/navo-missions-{mode}-{width}.png')
+   if mode!=2:
+    details=window.findChild(QObject,'missionDetails')
+    editor=window.findChild(QObject,'missionRouteEditor')
+    QMetaObject.invokeMethod(details,'clicked');QTest.qWait(60)
+    assert editor.property('visible') and editor.property('height')<=height-24
+    hide=window.findChild(QObject,'missionHideDetails')
+    assert hide.property('visible') and hide.property('y')+hide.property('height')<80
+    scroll=window.findChild(QObject,'missionRouteScroll')
+    assert scroll.property('contentHeight')>0
+    if width==236:assert scroll.property('contentHeight')>scroll.property('availableHeight')
+    flick=scroll.property('contentItem')
+    flick.setProperty('contentY',max(0,scroll.property('contentHeight')-scroll.property('availableHeight')))
+    QTest.qWait(30)
+    assert window.grabWindow().save(f'/tmp/navo-missions-editor-bottom-{mode}-{width}.png')
+    assert window.grabWindow().save(f'/tmp/navo-missions-editor-{mode}-{width}.png')
+    chooseMap=window.findChild(QObject,'routeChooseOnMap')
+    QMetaObject.invokeMethod(chooseMap,'clicked');QTest.qWait(30)
+    assert not editor.property('visible') and window.property('pendingBaitPointPick')
+    QMetaObject.invokeMethod(details,'clicked');QTest.qWait(20)
+    QMetaObject.invokeMethod(hide,'clicked');QTest.qWait(20)
+    assert not editor.property('visible')
    status=window.findChild(QObject,'navoMissionStatus');assert status.property('height')<=68
    configure=window.findChild(QObject,'missionConfigure');assert configure.property('width')<=44
    mapItem=window.findChild(QObject,'testMissionMap');before=(mapItem.property('width'),mapItem.property('height'))
@@ -124,11 +152,16 @@ with tempfile.TemporaryDirectory() as folder:
    QMetaObject.invokeMethod(expand,'clicked');QTest.qWait(40)
    assert not window.property('mapMaximized')
  assert call('exercise')
- expand=window.findChild(QObject,'missionExpand');QMetaObject.invokeMethod(expand,'clicked');QTest.qWait(50)
+ QTest.qWait(50)
  assert window.property('mapMaximized') and pause.property('enabled') and home.property('enabled')
+ details=window.findChild(QObject,'missionDetails');editor=window.findChild(QObject,'missionRouteEditor')
+ QMetaObject.invokeMethod(details,'clicked');QTest.qWait(30)
+ assert editor.property('visible') and not window.findChild(QObject,'routeChooseOnMap').property('enabled')
+ QMetaObject.invokeMethod(window.findChild(QObject,'missionHideDetails'),'clicked');QTest.qWait(20)
+ assert not editor.property('visible') and window.property('mapMaximized')
  QMetaObject.invokeMethod(home,'clicked');QTest.qWait(20);assert dialog.property('visible')
  QMetaObject.invokeMethod(dialog,'reject')
  QMetaObject.invokeMethod(pause,'clicked');QTest.qWait(20)
  assert window.property('pauses')==2 and not pause.property('enabled')
  assert not errors,errors
- print('PASS production Missions layout in three modes at 236/320/480/900; immutable active selection, PAUZĂ/HOME dispatch and link-loss controls')
+ print('PASS Missions at 236/320/480/900: scrollable stop editor, map picking, hide/reopen while active, auto-expanded START, PAUZĂ/HOME and link-loss controls')

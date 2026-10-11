@@ -1266,7 +1266,17 @@ Item {
                         background:Rectangle { radius:6;color:missionOptions.opened ? "#176b86" : "#102b3b";border.color:missionOptions.opened ? "#45d5f5" : "#31506a" }
                         contentItem:Image { source:"qrc:/qml/NavoSmart/icons/settings.svg";fillMode:Image.PreserveAspectFit }
                         Accessible.name:"Configurare misiune"
-                        onClicked:missionOptions.opened ? missionOptions.close() : missionOptions.open()
+                        onClicked:{routeEditor.close();missionOptions.opened ? missionOptions.close() : missionOptions.open()}
+                    }
+                    Button {
+                        objectName:"missionDetails"
+                        visible:!root.missionScanSelected
+                        implicitHeight:34
+                        text:routePlan.active ? "Detalii" : "Opriri"
+                        Accessible.name:"Arată sau ascunde opririle misiunii"
+                        background:Rectangle { radius:6;color:routeEditor.opened ? "#176b86" : "#102b3b";border.color:"#31506a" }
+                        contentItem:Label { text:parent.text;color:"#e3f4ff";horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter }
+                        onClicked:{missionOptions.close();routeEditor.opened ? routeEditor.close() : routeEditor.open()}
                     }
                     Label {
                         Layout.fillWidth:true; color:root.muted; elide:Text.ElideRight
@@ -1279,7 +1289,7 @@ Item {
                         Accessible.name:text;ToolTip.visible:hovered;ToolTip.text:text
                         background:Rectangle { radius:6;color:root.mapMaximized ? "#176b86" : "#102b3b";border.color:"#38badb" }
                         contentItem:Image { source:"qrc:/qml/NavoSmart/icons/fullscreen.svg";fillMode:Image.PreserveAspectFit }
-                        onClicked:{missionOptions.close();root.mapMaximized=!root.mapMaximized}
+                        onClicked:{missionOptions.close();routeEditor.close();root.mapMaximized=!root.mapMaximized}
                     }
                 }
                 Popup {
@@ -1346,13 +1356,63 @@ Item {
                         }
                     }
                 }
+                Popup {
+                    id:routeEditor;objectName:"missionRouteEditor"
+                    parent:Overlay.overlay
+                    width:Math.min(380,parent.width-24)
+                    y:missionStrip.y+missionStrip.height+48
+                    height:Math.max(100,parent.height-y-12)
+                    x:parent.width-width-12
+                    modal:false;focus:true;padding:10
+                    closePolicy:Popup.CloseOnEscape
+                    background:Rectangle { color:"#0b1c2e";radius:8;border.color:"#38badb" }
+                    onClosed:root.pendingBaitPointPick=false
+                    Connections {
+                        target:root.routePlanController
+                        function onActiveChanged(){if(root.routePlanController.active){routeEditor.close();root.mapMaximized=true}}
+                    }
+                    Connections {
+                        target:root
+                        function onMissionScanSelectedChanged(){if(root.missionScanSelected)routeEditor.close()}
+                    }
+                    contentItem:ColumnLayout {
+                        spacing:6
+                        RowLayout {
+                            Layout.fillWidth:true
+                            Label { Layout.fillWidth:true;text:routePlan.active ? "Misiune activă" : "Configurare opriri";elide:Text.ElideRight;color:"white";font.bold:true }
+                            Button { objectName:"missionHideDetails";text:"Ascunde";implicitHeight:34;onClicked:routeEditor.close() }
+                        }
+                        ScrollView {
+                            id:routeEditorScroll;objectName:"missionRouteScroll"
+                            Layout.fillWidth:true;Layout.fillHeight:true
+                            clip:true;contentWidth:availableWidth
+                            ScrollBar.vertical.policy:ScrollBar.AlwaysOn
+                            NavoRoutePanel {
+                                width:routeEditorScroll.availableWidth
+                                routePlan:root.routePlanController
+                                waypoint:baitingController.targetWaypoint
+                                availableSpots:fishingSpots.fishingSpots
+                                estimate:root.routeEstimate
+                                energyText:root.routeEnergyText
+                                speedMps:baitingController.silentMode ? baitingController.silentSpeedMps : baitingController.normalSpeedMps
+                                speedEditable:!root.missionBusy
+                                onSpeedRequested:function(speed){if(!root.missionBusy && root.allowLiveAction()){if(baitingController.silentMode)baitingController.silentSpeedMps=speed;else baitingController.normalSpeedMps=speed}}
+                                onSpotChosen:function(spot){baitingController.targetWaypoint={coordinate:QtPositioning.coordinate(spot.lat,spot.lon),name:spot.name,sequenceNumber:0}}
+                                onChooseOnMapRequested:{routeEditor.close();root.pendingBaitPointPick=true;root.lastNavigationStatus="Atinge destinația pe hartă"}
+                                onStartRequested:function(loadConfirmed){root.startRoute(loadConfirmed)}
+                                onStopRequested:root.stopMission()
+                            }
+                        }
+                    }
+                }
                 GridLayout {
-                    columns:root.mapMaximized ? 1 : root.missionScanSelected || width>=700 ? 2 : 1
+                    columns:root.missionScanSelected && !root.mapMaximized ? 2 : 1
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     rowSpacing:8;columnSpacing:8
                     Rectangle {
                         Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight:120
+                        Layout.rightMargin:routeEditor.opened && !root.missionScanSelected && parent.width>=700 ? routeEditor.width+8 : 0
                         radius: 8; color: root.bg; border.color: root.line; clip: true
                         NavoMap {
                 routeActive:routePlan.active
@@ -1385,31 +1445,6 @@ Item {
                             onAreaPolygonRequested: function(polygon) {
                             if(!root.allowLiveAction()) return; missionUploader.invalidate(); var pts=scanCoordinator.preparePolygon(polygon); root.lastNavigationStatus=pts.length ? "Area Scan poligon pregătit • "+areaScanController.laneCount()+" culoare • "+pts.length+" WP • apasă PREGĂTEȘTE MISIUNEA" : "Poligon respins: "+areaScanController.lastError; root.pendingAreaDrawMode="none" }
                             onSavePointRequested: function(coordinate) { if(!root.requireActiveLakeForPointSave()) return; var spot=fishingSpots.saveSpot(coordinate,root.depthM,root.waterTempC,"","",null); if(spot) scanCoordinator.checkpoint("fishing-spot") }
-                        }
-                    }
-                    ScrollView {
-                        visible:!root.missionScanSelected && !root.mapMaximized
-                        Layout.fillWidth:parent.columns===1
-                        Layout.preferredWidth:parent.columns===1 ? parent.width : 300
-                        Layout.minimumHeight:130
-                        Layout.fillHeight:true
-                        clip:true
-                        contentWidth:availableWidth
-                        NavoRoutePanel {
-                            width:parent.width
-                            implicitHeight:650
-                            routePlan:root.routePlanController
-                            waypoint:baitingController.targetWaypoint
-                            availableSpots:fishingSpots.fishingSpots
-                            estimate:root.routeEstimate
-                            energyText:root.routeEnergyText
-                            speedMps:baitingController.silentMode ? baitingController.silentSpeedMps : baitingController.normalSpeedMps
-                            speedEditable:!root.missionBusy
-                            onSpeedRequested:function(speed){if(!root.missionBusy && root.allowLiveAction()){if(baitingController.silentMode)baitingController.silentSpeedMps=speed;else baitingController.normalSpeedMps=speed}}
-                            onSpotChosen:function(spot){baitingController.targetWaypoint={coordinate:QtPositioning.coordinate(spot.lat,spot.lon),name:spot.name,sequenceNumber:0}}
-                            onChooseOnMapRequested:{root.pendingBaitPointPick=true;root.lastNavigationStatus="Atinge destinația pe hartă"}
-                            onStartRequested:function(loadConfirmed){root.startRoute(loadConfirmed)}
-                            onStopRequested:root.stopMission()
                         }
                     }
                     ScrollView {
