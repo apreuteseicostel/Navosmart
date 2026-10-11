@@ -77,8 +77,21 @@ with tempfile.TemporaryDirectory() as folder:
   QTest.touchEvent(window,device).press(0,point,window).commit();QTest.qWait(1200);QTest.touchEvent(window,device).release(0,point,window).commit();QTest.qWait(40)
   assert dialog.property('visible'),errors
   assert not window.findChild(QObject,'newSpotDialog').property('visible')
-  assert dialog.property('width')<=width-20 and dialog.property('height')<=height-20
+  assert dialog.property('width')<=min(320,width-20) and dialog.property('height')<=height*.48
+  assert not dialog.property('modal') and not dialog.property('dim')
+  assert not dialog.property('expanded')
+  QMetaObject.invokeMethod(window.findChild(QObject,'savedSpotMore'),'clicked');QTest.qWait(30)
+  assert dialog.property('expanded')
+  QMetaObject.invokeMethod(window.findChild(QObject,'savedSpotMore'),'clicked');QTest.qWait(30)
+  assert not dialog.property('expanded')
   assert window.grabWindow().save(f'/tmp/navo-saved-spot-{width}.png')
+  outside=QPoint(25,25)
+  QTest.touchEvent(window,device).press(0,outside,window).commit();QTest.qWait(40)
+  QTest.touchEvent(window,device).release(0,outside,window).commit();QTest.qWait(40)
+  assert not dialog.property('visible')
+  QMetaObject.invokeMethod(dialog,'open');QTest.qWait(30)
+  QMetaObject.invokeMethod(window.findChild(QObject,'savedSpotClose'),'clicked');QTest.qWait(30)
+  assert not dialog.property('visible')
   for name,action in [('savedSpotNavigate','navigate'),('savedSpotBait','bait'),('savedSpotScan','scan')]:
    if not dialog.property('visible'):QMetaObject.invokeMethod(dialog,'open');QTest.qWait(30)
    button=window.findChild(QObject,name);assert button.property('enabled')

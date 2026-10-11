@@ -86,7 +86,7 @@ def run_phase(config):
                 else:shell('input','tap',str(pin['x']),str(pin['y']))
                 interactions.add(stage)
             elif stage.startswith('spots-action-'):
-                labels={'navigation':'NAVIGHEAZĂ LA PUNCT','bait':'NĂDIRE LA PUNCT','scan':'SCANARE ÎN JURUL PUNCTULUI'}
+                labels={'navigation':'Navighează la punct','bait':'Nădire la punct','scan':'Scanare în jurul punctului'}
                 tap_saved_spot_action(labels[stage.removeprefix('spots-action-')]);interactions.add(stage)
         if report.get('status') == 'failed':
             (screens / ('acceptance-' + phase + '-failed.png')).write_bytes(adb('exec-out','screencap','-p'))

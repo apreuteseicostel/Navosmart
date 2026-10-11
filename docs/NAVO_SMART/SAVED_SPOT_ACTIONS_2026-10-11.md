@@ -75,3 +75,19 @@ Real Qt touch checks pass at 236/320/900 px with the production input layer.
 The Android installed phase now uses taps for navigation and scan, and retains
 a long press for bait; the new APK workflow must complete before installed tap
 acceptance can be claimed. Existing APKs need updating to receive this fix.
+
+## Compact details card
+
+The saved-point popup is now a non-modal, undimmed card at the bottom right:
+maximum width 320 px and default height 250 px, capped at 48% of viewport height.
+It exposes saved depth/temperature and boat distance immediately, with small
+navigation, hopper/bait and scan-size/scan rows. Dark rounded controls and cyan
+accents replace the large standard dialog. The visible X, Escape and outside
+press close it; the map remains usable.
+
+GPS, saved time and notes are under Details; the expanded card stays capped at
+48% height and scrolls when necessary. Edit/List shortcuts and guarded mission
+preparation remain intact. Real Qt touch/layout checks pass at 236/320/900 px,
+including collapsed/expanded sizing, outside-close and the X. Installed Android
+action lookup uses the buttons' explicit accessible names. The new workflow
+must verify the final APK before installed acceptance is claimed.
