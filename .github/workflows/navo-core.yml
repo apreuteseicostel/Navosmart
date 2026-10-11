@@ -35,6 +35,7 @@ jobs:
           /tmp/navo-ui-env/bin/pip install PySide6-Essentials==6.8.3 PySide6-Addons==6.8.3
           /tmp/navo-ui-env/bin/python tests/qml-module-import.py
           /tmp/navo-ui-env/bin/python tests/missions-ui.py
+          /tmp/navo-ui-env/bin/python tests/map-framing-ui.py
           /tmp/navo-ui-env/bin/python tests/steering-ui.py
           /tmp/navo-ui-env/bin/python tests/sonar-recording-ui.py
       - uses: actions/upload-artifact@v4

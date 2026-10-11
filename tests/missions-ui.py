@@ -18,7 +18,7 @@ start=source.index('    Component {\n        id: areaPage')
 page=source[start:source.index('    Component {\n        id: fishingPage',start)]
 map_start=page.index('                        NavoMap {')
 map_end=page.index('                        }\n                    }\n                    ScrollView',map_start)+len('                        }')
-page=page[:map_start]+'''Rectangle {objectName:"testMissionMap";anchors.fill:parent;color:"#133046";Label{anchors.centerIn:parent;text:"Hartă (substitut test)";color:"white"}}'''+page[map_end:]
+page=page[:map_start]+'''Rectangle {id:areaScanMap;property bool canFitMission:true;function fitMission(){root.fits++;return true}objectName:"testMissionMap";anchors.fill:parent;color:"#133046";Label{anchors.centerIn:parent;text:"Hartă (substitut test)";color:"white"}}'''+page[map_end:]
 strip_start=source.index('    NavoMissionStatus {')
 strip=source[strip_start:source.index('    Rectangle {\n        id: content',strip_start)]
 selection=source[source.index('    function missionStateLabel('):source.index('    NavoRoutePlan {',source.index('    function selectMission('))]
@@ -52,6 +52,7 @@ ApplicationWindow {
  property string routeEnergyText:"Energie: consum de calibrat"
  property var scanEstimate:({valid:true,distanceM:520,durationSeconds:350})
  readonly property bool missionBusy:routePlan.active || scanCoordinator.state==="SCANNING" || awaitingMissionStart || missionUploader.uploadInProgress
+ property int fits:0
  property int pauses:0
  property int homes:0
  function holdMission(){pauses++;routePlan.cancel("HOLD");scanCoordinator.state="PAUSED"}
@@ -140,6 +141,8 @@ with tempfile.TemporaryDirectory() as folder:
     QMetaObject.invokeMethod(details,'clicked');QTest.qWait(20)
     QMetaObject.invokeMethod(hide,'clicked');QTest.qWait(20)
     assert not editor.property('visible')
+   fit=window.findChild(QObject,'missionFitRoute');QMetaObject.invokeMethod(fit,'clicked');QTest.qWait(30)
+   assert window.property('fits')>0
    status=window.findChild(QObject,'navoMissionStatus');assert status.property('height')<=68
    configure=window.findChild(QObject,'missionConfigure');assert configure.property('width')<=44
    mapItem=window.findChild(QObject,'testMissionMap');before=(mapItem.property('width'),mapItem.property('height'))

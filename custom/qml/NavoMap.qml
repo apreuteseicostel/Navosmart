@@ -129,6 +129,7 @@ Item {
     function followBoat() {
         if (replayPreview) { autoFollowBoat=true; followReplay(); return }
         if (!vehicle || !vehicle.coordinate || !vehicle.coordinate.isValid) return
+        pendingMissionFit=false
         autoFollowBoat = true
         liveMap.center = vehicle.coordinate
         adjustBoatFraming()
@@ -143,6 +144,53 @@ Item {
             if (liveMap.zoomLevel > 3) liveMap.zoomLevel = Math.max(3,liveMap.zoomLevel-0.5)
         }
     }
+    // Frame only this mission, excluding unrelated lake markers and sonar history.
+    function missionCoordinates() {
+        if(recordedReplay) return []
+        var points=[]
+        function append(c) {
+            if(c && typeof c.latitude==="number" && typeof c.longitude==="number" &&
+               isFinite(c.latitude) && isFinite(c.longitude) && Math.abs(c.latitude)<=90 && Math.abs(c.longitude)<=180)
+                points.push(QtPositioning.coordinate(c.latitude,c.longitude))
+        }
+        if(routeStops.length) {
+            for(var i=0;i<routeStops.length;i++) append(routeStops[i])
+        } else if(areaScanController && areaScanController.generatedPoints) {
+            for(var j=0;j<areaScanController.generatedPoints.length;j++) append(areaScanController.generatedPoints[j])
+        }
+        if(!points.length) return []
+        if(vehicle) {
+            append(vehicle.coordinate)
+            if(routeReturnsHome) append(vehicle.homePosition)
+        }
+        return points
+    }
+    readonly property bool canFitMission: missionCoordinates().length>0
+    property bool pendingMissionFit: false
+    function fitMission() {
+        var points=missionCoordinates()
+        if(!points.length) {pendingMissionFit=false;return false}
+        if(!liveMap.mapReady || liveMap.width<100 || liveMap.height<100) {pendingMissionFit=true;return false}
+        pendingMissionFit=false
+        initialCenterApplied=true
+        autoFollowBoat=false
+        headingUp=false
+        // Give coincident/single destinations a local viewport rather than a world view.
+        var region=QtPositioning.rectangle(points)
+        if(region.width<0.00001 && region.height<0.00001) {
+            points.push(points[0].atDistanceAndAzimuth(40,0))
+            points.push(points[0].atDistanceAndAzimuth(40,180))
+            points.push(points[0].atDistanceAndAzimuth(40,90))
+            points.push(points[0].atDistanceAndAzimuth(40,270))
+            region=QtPositioning.rectangle(points)
+        }
+        liveMap.visibleRegion=region
+        // Extra room for marker labels and the map controls, in both orientations.
+        liveMap.zoomLevel=Math.max(liveMap.minimumZoomLevel,liveMap.zoomLevel-1)
+        layerSettings.plannedVisible=true
+        return true
+    }
+    onRouteActiveChanged:if(routeActive)Qt.callLater(fitMission)
     function resetView() {
         followBoat()
         liveMap.zoomLevel=Math.max(liveMap.zoomLevel,lakeZoomLevel)
@@ -193,6 +241,7 @@ Item {
         id: liveMap
         anchors.fill: parent
         bearing: !root.recordedReplay && root.headingUp && isFinite(root.boatHeadingDeg) ? root.boatHeadingDeg : 0
+        onMapReadyChanged:if(mapReady && root.pendingMissionFit)Qt.callLater(root.fitMission)
         Behavior on bearing { NumberAnimation { duration: 250 } }
     }
 
@@ -529,7 +578,7 @@ Item {
         MapTool { text:"+"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-in.svg";ToolTip.visible:hovered;ToolTip.text:"Mărește harta";onClicked:{root.autoFollowBoat=false;liveMap.zoomLevel=liveMap.zoomLevel+1} }
         MapTool { text:"-"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-out.svg";ToolTip.visible:hovered;ToolTip.text:"Micșorează harta";onClicked:{root.autoFollowBoat=false;liveMap.zoomLevel=liveMap.zoomLevel-1} }
         MapTool { checkable:true;checked:layersPopup.visible;Accessible.name:"Straturi hartă"; iconSource:"qrc:/qml/NavoSmart/icons/layers.svg"; ToolTip.visible:hovered||down; ToolTip.text:"Straturi hartă"; onClicked:layersPopup.open() }
-        MapTool { text:"CTR"; iconSource:"qrc:/qml/NavoSmart/icons/center.svg";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:"Reîncadrează harta și revine la orientarea Nord sus";onClicked:root.resetView() }
+        MapTool { objectName:"mapFitMission";text:"CTR"; iconSource:root.canFitMission ? "qrc:/qml/NavoSmart/icons/route.svg" : "qrc:/qml/NavoSmart/icons/center.svg";font.pixelSize:10;Accessible.name:root.canFitMission ? "Încadrează întregul traseu" : "Resetează vederea hărții";ToolTip.visible:hovered;ToolTip.text:Accessible.name;onClicked:root.canFitMission ? root.fitMission() : root.resetView() }
     }
     Column {
         anchors.right:parent.right; anchors.top:parent.top; anchors.rightMargin:10; anchors.topMargin:10; spacing:5; z:200

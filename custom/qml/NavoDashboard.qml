@@ -1283,6 +1283,16 @@ Item {
                         text:root.missionScanSelected ? "Scanează zona" : (routePlan.missionKind==="point" ? "Mergi la punct" : "Traseu cu opriri")
                     }
                     Button {
+                        objectName:"missionFitRoute"
+                        implicitWidth:36;implicitHeight:34;padding:7
+                        enabled:areaScanMap.canFitMission
+                        Accessible.name:"Încadrează traseul pe hartă"
+                        ToolTip.visible:hovered;ToolTip.text:Accessible.name
+                        background:Rectangle { radius:6;color:"#102b3b";border.color:parent.enabled ? "#38badb" : "#31506a" }
+                        contentItem:Image { source:"qrc:/qml/NavoSmart/icons/route.svg";fillMode:Image.PreserveAspectFit;opacity:parent.enabled ? 1 : .4 }
+                        onClicked:{routeEditor.close();Qt.callLater(areaScanMap.fitMission)}
+                    }
+                    Button {
                         objectName:"missionExpand"
                         implicitWidth:36;implicitHeight:34;padding:7
                         text:root.mapMaximized ? "Revino la configurare" : "Mărește harta"
@@ -1416,8 +1426,8 @@ Item {
                         radius: 8; color: root.bg; border.color: root.line; clip: true
                         NavoMap {
                 routeActive:routePlan.active
-                routeStops:routePlan.active ? routePlan.runningStops : routePlan.stops
-                routeReturnsHome:(routePlan.active ? routePlan.runningFinishAction : routePlan.finishAction)==="RTL"
+                routeStops:root.missionScanSelected ? [] : routePlan.active ? routePlan.runningStops : routePlan.stops
+                routeReturnsHome:root.missionScanSelected ? root.areaScanFinishAction==="RTL" : (routePlan.active ? routePlan.runningFinishAction : routePlan.finishAction)==="RTL"
                 recordedReplay: sonar.replayMode
                             id: areaScanMap
                             anchors.fill: parent; anchors.margins: 2
