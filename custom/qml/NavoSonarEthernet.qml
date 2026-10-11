@@ -13,6 +13,12 @@ QtObject {
  readonly property double replayPosition: replayObject.position
  readonly property double replaySize: replayObject.size
  readonly property string replayError: replayObject.error
+ readonly property var replayAnnotationAnchor: replayObject.annotationAnchor
+ readonly property var replayAnnotations: replayObject.annotations
+ readonly property string replayAnnotationError: replayObject.annotationError
+ function saveReplayAnnotation(anchor,text,depth,temp) { return replayMode && replayObject.saveAnnotation(anchor,text,depth,temp) }
+ function editReplayAnnotation(id,text) { return replayMode && replayObject.editAnnotation(id,text) }
+ function removeReplayAnnotation(id) { return replayMode && replayObject.removeAnnotation(id) }
  readonly property bool recording: recorderObject.recording
  readonly property double recordingBytes: recorderObject.bytes
  readonly property string recordingError: recorderObject.error

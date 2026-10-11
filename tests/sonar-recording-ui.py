@@ -33,6 +33,15 @@ QtObject {
  property bool replayPaused:false
  property double replaySpeed:1
  property string replayError:""
+ property var replayAnnotationAnchor:({source:"recorded",frame:7,milliseconds:1000,latitude:52,longitude:0})
+ property var replayAnnotations:[]
+ property string replayAnnotationError:""
+ property var echoSamples:[.2,.3,.1]
+ property var compensatedSamples:[.2,.3,.1]
+ property real chartOffsetMeters:0
+ property real chartRangeMeters:4
+ property int chartSequence:7
+ property bool nativeChannelReady:false
  property bool recording:false
  property bool dataAlive:true
  property double recordingBytes:1048576
@@ -45,7 +54,6 @@ QtObject {
  function stopRecording(){recording=false;recordingSavedName=lastName;return true}
  function refreshRecordings(){}
  function startReplay(url){lastReplay=String(url);replayMode=true;return true}
- signal echoSamplesChanged()
  signal bottomColumnReady(int sequence,real depth)
 }''',QUrl())
 source=component.create();assert source,component.errors()
@@ -98,6 +106,13 @@ name.setProperty('text','Balta mea');QMetaObject.invokeMethod(recording,'accepte
 assert source.property('lastName')=='Balta mea' and source.property('recording')
 QMetaObject.invokeMethod(recordings,'open');QTest.qWait(150)
 items=root.findChild(QObject,'sonarRecordingsList');assert items
+# Production pushHistory captures the delivered replay anchor before future frames.
+source.setProperty('replayMode',True);QTest.qWait(20)
+QMetaObject.invokeMethod(root,'pushHistory');QTest.qWait(20)
+entry=root.property('history').toVariant()[-1]
+assert entry['replayAnchor']['frame']==7 and entry['replayAnchor']['milliseconds']==1000
+source.setProperty('replayAnnotationAnchor',{'source':'recorded','frame':8,'milliseconds':1200,'latitude':None,'longitude':None})
+assert root.property('history').toVariant()[-1]['replayAnchor']['frame']==7
 # A stale display source with no recording API must keep old PRO views warning-free.
 root.setProperty('chartSource',None);QTest.qWait(30)
 assert not errors,errors

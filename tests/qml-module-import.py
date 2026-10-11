@@ -18,6 +18,7 @@ cmake = (repo / 'custom/CMakeLists.txt').read_text()
 qml_files, resources = cmake.split('    QML_FILES\n', 1)[1].split('    RESOURCES\n', 1)
 helper = 'qml/NavoBottomAnalysis.js'
 assert helper in qml_files or helper in resources, 'Analysis helper must be packaged'
+assert 'qml/NavoReplayNotes.qml' in qml_files, 'Replay notes component must be packaged'
 app = QGuiApplication([])
 with tempfile.TemporaryDirectory() as directory:
     root = Path(directory)

@@ -97,6 +97,10 @@ Rectangle {
             }
         }
     }
+    NavoReplayNotes {
+        id:replayNotes;source:root.chartSource
+        viewWidth:root.width;viewHeight:root.height
+    }
     property real depthM: NaN
     property real waterTempC: NaN
     property var vehicle: null
@@ -290,6 +294,7 @@ Rectangle {
         h.push({rawSamples:raw,samples:chartSource && koggerCompensation ? column.slice(0) : raw, offset: offset, range: range, sequence: chartSource ? chartSource.chartSequence : 0,
                 latitude:c ? c.latitude : NaN,longitude:c ? c.longitude : NaN,time:Date.now(),
                 temp:root.waterTempC,lakeId:root.activeLakeId,replay:root.replayMode,
+                replayAnchor:root.replayMode && chartSource && chartSource.replayAnnotationAnchor ? Object.assign({},chartSource.replayAnnotationAnchor,{columnSequence:chartSource.chartSequence}) : null,
                 bottom: chartSource && chartSource.nativeChannelReady ? NaN : (isFinite(root.depthM) && root.depthM >= 0 ? root.depthM : NaN)})
         if (h.length > historyColumns) h.splice(0, h.length - historyColumns)
         history = h
@@ -635,6 +640,8 @@ Rectangle {
                 MenuAction { text: 'Deschide fișier sonar'; onClicked: {root.menuOpen=false; replayPicker.open()} }
                 MenuAction { visible:root.replayActive; selected:!!(root.chartSource && root.chartSource.replayPaused); text:root.chartSource && root.chartSource.replayPaused ? 'Continuă replay' : 'Pauză replay'; onClicked:root.chartSource.pauseReplay(!root.chartSource.replayPaused) }
                 MenuAction { visible:root.replayActive; selected:root.replayActive; text:'Viteză replay: '+(root.chartSource ? root.chartSource.replaySpeed : 1)+'×'; onClicked:root.chartSource.setReplaySpeed(root.chartSource.replaySpeed>=5 ? 0.5 : root.chartSource.replaySpeed*2) }
+                MenuAction { visible:root.replayMode; enabled:!!(root.displayedColumn && root.displayedColumn.replayAnchor && root.displayedColumn.replayAnchor.frame); text:"Adnotează coloana afișată";onClicked:{root.menuOpen=false;replayNotes.begin(root.displayedColumn)} }
+                MenuAction { visible:root.replayMode; text:"Note replay";onClicked:{root.menuOpen=false;replayNotes.showNotes()} }
                 MenuAction { visible:root.replayMode; enabled:root.replaySampleCount>=3; text:"Salvează replay în Bălțile mele"; onClicked:{root.menuOpen=false;replaySaveDialog.open()} }
                 Label { visible:root.replaySaveStatus.length>0; Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.replaySaveStatus; color:"#d7e7f1"; font.pixelSize:11 }
                 MenuAction { visible:root.replayMode; text:'Închide replay'; onClicked:root.chartSource.stopReplay() }
