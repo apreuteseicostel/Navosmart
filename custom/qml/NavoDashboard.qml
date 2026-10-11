@@ -845,6 +845,48 @@ Item {
         noActiveLakeDialog.open()
         return false
     }
+    property string pendingSpotEditId:""
+    signal savedSpotEditRequested()
+    signal savedSpotPrepared()
+    function prepareFishingSpotAction(spot,action,hopper,scanSizeM) {
+        if(!spot || !root.requireActiveLakeForPointSave() || !root.allowLiveAction())return false
+        if(root.missionBusy || baitingController.enabled || root.steeringModeBusy) {
+            root.lastNavigationStatus="Oprește operația activă înainte de a pregăti alt punct";return false
+        }
+        // Resolve by ID in the current lake: never use stale popup coordinates.
+        var current=null
+        for(var i=0;i<fishingSpots.fishingSpots.length;i++)if(fishingSpots.fishingSpots[i].id===spot.id){current=fishingSpots.fishingSpots[i];break}
+        if(!current || typeof current.lat!=="number" || typeof current.lon!=="number" || !isFinite(current.lat) || !isFinite(current.lon) || Math.abs(current.lat)>90 || Math.abs(current.lon)>180)return false
+        if(action==="edit") {
+            root.pendingSpotEditId=current.id;root.mapMaximized=false;root.activePage=3
+            root.savedSpotEditRequested();return true
+        }
+        var c=QtPositioning.coordinate(current.lat,current.lon)
+        if(action==="scan") {
+            if(typeof scanSizeM!=="number" || !isFinite(scanSizeM) || scanSizeM<10 || scanSizeM>100 || Math.abs(c.latitude)>85)return false
+            var north=c.atDistanceAndAzimuth(scanSizeM/2,0),south=c.atDistanceAndAzimuth(scanSizeM/2,180)
+            var west=c.atDistanceAndAzimuth(scanSizeM/2,270),east=c.atDistanceAndAzimuth(scanSizeM/2,90)
+            var a=QtPositioning.coordinate(north.latitude,west.longitude),b=QtPositioning.coordinate(south.latitude,east.longitude)
+            // The rectangle generator does not support date-line crossing.
+            if(Math.abs(a.longitude-b.longitude)>180)return false
+            missionUploader.invalidate()
+            var points=scanCoordinator.prepareRectangle(a,b)
+            if(!points.length){root.lastNavigationStatus="Zona respinsă: "+areaScanController.lastError;return false}
+            root.missionScanSelected=true
+            root.lastNavigationStatus="Zona din jurul punctului "+current.name+" pregătită • verifică limitele și apasă PREGĂTEȘTE MISIUNEA"
+        } else {
+            if(action!=="navigate" && action!=="bait")return false
+            if(action==="bait" && (!Number.isInteger(hopper) || hopper<1 || hopper>3))return false
+            if(!routePlan.selectKind("point") || !routePlan.setPoint({coordinate:c},current.name,action==="bait" ? hopper : 0))return false
+            root.missionScanSelected=false
+            baitingController.targetWaypoint={coordinate:c,name:current.name,sequenceNumber:0}
+            root.lastNavigationStatus="Destinație: "+current.name+" • verifică misiunea și confirmă START"
+        }
+        root.pendingBaitPointPick=false;root.pendingAreaDrawMode="none";root.mapMaximized=false
+        root.activePage=2
+        root.savedSpotPrepared()
+        return true
+    }
     function navigateToCoordinate(c) {
         if(root.steeringModeBusy){root.lastNavigationStatus="Oprește asistența cârmei înainte de navigare/misiune";return false}
         if(!root.allowLiveAction()) return false
@@ -1030,6 +1072,10 @@ Item {
             id: fishingPageRoot
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             NavoMap {
+                spotActionsAllowed:!root.missionBusy && !sonar.replayMode && !root.steeringModeBusy
+                onFishingSpotActionRequested:function(spot,action,hopper,size){root.prepareFishingSpotAction(spot,action,hopper,size)}
+                onFishingSpotRenameRequested:function(spot){root.prepareFishingSpotAction(spot,"edit",0,0)}
+                onFishingSpotsRequested:function(spot){root.mapMaximized=false;root.activePage=3}
                 routeActive:routePlan.active
                 routeStops:routePlan.active ? routePlan.runningStops : routePlan.stops
                 routeReturnsHome:(routePlan.active ? routePlan.runningFinishAction : routePlan.finishAction)==="RTL"
@@ -1368,6 +1414,7 @@ Item {
                 }
                 Popup {
                     id:routeEditor;objectName:"missionRouteEditor"
+                    Component.onCompleted:if(!root.missionScanSelected && routePlan.stops.length && !routePlan.active && !root.mapMaximized)Qt.callLater(routeEditor.open)
                     parent:Overlay.overlay
                     width:Math.min(380,parent.width-24)
                     y:missionStrip.y+missionStrip.height+48
@@ -1384,6 +1431,7 @@ Item {
                     Connections {
                         target:root
                         function onMissionScanSelectedChanged(){if(root.missionScanSelected)routeEditor.close()}
+                        function onSavedSpotPrepared(){if(!root.missionScanSelected)routeEditor.open();else routeEditor.close()}
                     }
                     contentItem:ColumnLayout {
                         spacing:6
@@ -1425,6 +1473,10 @@ Item {
                         Layout.rightMargin:routeEditor.opened && !root.missionScanSelected && parent.width>=700 ? routeEditor.width+8 : 0
                         radius: 8; color: root.bg; border.color: root.line; clip: true
                         NavoMap {
+                spotActionsAllowed:!root.missionBusy && !sonar.replayMode && !root.steeringModeBusy
+                onFishingSpotActionRequested:function(spot,action,hopper,size){root.prepareFishingSpotAction(spot,action,hopper,size)}
+                onFishingSpotRenameRequested:function(spot){root.prepareFishingSpotAction(spot,"edit",0,0)}
+                onFishingSpotsRequested:function(spot){root.mapMaximized=false;root.activePage=3}
                 routeActive:routePlan.active
                 routeStops:root.missionScanSelected ? [] : routePlan.active ? routePlan.runningStops : routePlan.stops
                 routeReturnsHome:root.missionScanSelected ? root.areaScanFinishAction==="RTL" : (routePlan.active ? routePlan.runningFinishAction : routePlan.finishAction)==="RTL"
@@ -1517,6 +1569,13 @@ Item {
         id: fishingPage
         Item {
             id: fishingPageRoot
+            function openPendingSpotEdit(){
+                if(!root.pendingSpotEditId)return
+                for(var i=0;i<fishingSpots.fishingSpots.length;i++)if(fishingSpots.fishingSpots[i].id===root.pendingSpotEditId){openEdit(fishingSpots.fishingSpots[i]);break}
+                root.pendingSpotEditId=""
+            }
+            Component.onCompleted:Qt.callLater(openPendingSpotEdit)
+            Connections { target:root;function onSavedSpotEditRequested(){fishingPageRoot.openPendingSpotEdit()} }
             property string spotEditId: ""
             property string spotEditColor: "#31d67b"
             property bool mapExpanded: false
@@ -1528,6 +1587,10 @@ Item {
                     Layout.minimumWidth: 320
                     radius:8; color:root.bg; border.color:root.line; clip:true
                     NavoMap {
+                spotActionsAllowed:!root.missionBusy && !sonar.replayMode && !root.steeringModeBusy
+                onFishingSpotActionRequested:function(spot,action,hopper,size){root.prepareFishingSpotAction(spot,action,hopper,size)}
+                onFishingSpotRenameRequested:function(spot){root.prepareFishingSpotAction(spot,"edit",0,0)}
+                onFishingSpotsRequested:function(spot){fishingPageRoot.mapExpanded=false;root.mapMaximized=false;root.activePage=3}
                 routeActive:routePlan.active
                 routeStops:routePlan.active ? routePlan.runningStops : routePlan.stops
                 routeReturnsHome:(routePlan.active ? routePlan.runningFinishAction : routePlan.finishAction)==="RTL"
@@ -1544,9 +1607,7 @@ Item {
                         savedDepthM:root.depthM; savedWaterTempC:root.waterTempC; showStatusHint:false
                         maximized:fishingPageRoot.mapExpanded
                         onMaximizeRequested:fishingPageRoot.mapExpanded=!fishingPageRoot.mapExpanded
-                        onFishingSpotsRequested:function(spot){fishingPageRoot.mapExpanded=false;root.lastNavigationStatus="Punct selectat: "+(spot&&spot.name?spot.name:"--")}
                         onNavigateRequested:function(c){root.navigateToCoordinate(c)}
-                        onFishingSpotRenameRequested:function(spot){fishingPageRoot.openEdit(spot)}
                         onBaitingWaypointSelected:function(wp){baitingController.targetWaypoint=wp;root.lastNavigationStatus="Punct de nădire ales: "+wp.name}
                         onSaveNamedPointRequested:function(c,name,markerColor){
                             if(!root.requireActiveLakeForPointSave()) return
@@ -1561,8 +1622,8 @@ Item {
                     }
                     Rectangle {
                         anchors.left:parent.left; anchors.top:parent.top; anchors.leftMargin:76; anchors.topMargin:10
-                        width:hint.implicitWidth+20; height:30; radius:7; color:"#071827ee"; border.color:root.line
-                        Label { id:hint; anchors.centerIn:parent; text:"ȚINE APĂSAT PE HARTĂ PENTRU PUNCT NOU"; color:root.text; font.pixelSize:10; font.bold:true }
+                        width:Math.min(parent.width-90,hint.implicitWidth+20); height:30; radius:7; color:"#071827ee"; border.color:root.line
+                        Label { id:hint; anchors.fill:parent;anchors.margins:6;elide:Text.ElideRight;verticalAlignment:Text.AlignVCenter;text:"ȚINE APĂSAT: PUNCT SALVAT = ACȚIUNI • HARTĂ = PUNCT NOU"; color:root.text; font.pixelSize:10; font.bold:true }
                     }
                 }
                 Rectangle {
@@ -1822,6 +1883,10 @@ Item {
                     Layout.fillWidth: true; Layout.fillHeight: true
                     radius: 8; color: root.panel; border.color: root.line; clip: true
                     NavoMap {
+                spotActionsAllowed:!root.missionBusy && !sonar.replayMode && !root.steeringModeBusy
+                onFishingSpotActionRequested:function(spot,action,hopper,size){root.prepareFishingSpotAction(spot,action,hopper,size)}
+                onFishingSpotRenameRequested:function(spot){root.prepareFishingSpotAction(spot,"edit",0,0)}
+                onFishingSpotsRequested:function(spot){root.mapMaximized=false;root.activePage=3}
                 routeActive:routePlan.active
                 routeStops:routePlan.active ? routePlan.runningStops : routePlan.stops
                 routeReturnsHome:(routePlan.active ? routePlan.runningFinishAction : routePlan.finishAction)==="RTL"
@@ -1856,7 +1921,6 @@ Item {
                             if(!root.requireActiveLakeForPointSave()) return
                             fishingSpots.saveSpot(coordinate,NaN,NaN,name,"Punct ales pe hartă",null,markerColor)
                         }
-                        onFishingSpotRenameRequested: function(spot) { root.lastNavigationStatus="Redenumirea punctului este disponibilă în PUNCTE PESCUIT" }
                         onNavigateRequested: function(c) { root.navigateToCoordinate(c) }
                         onMaximizeRequested: root.mapMaximized=!root.mapMaximized
                     }

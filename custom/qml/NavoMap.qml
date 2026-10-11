@@ -79,6 +79,8 @@ Item {
     signal baitingWaypointSelected(var waypoint)
     signal baitPointPicked(var coordinate)
     signal maximizeRequested()
+    property bool spotActionsAllowed: true
+    signal fishingSpotActionRequested(var spot, string action, int hopper, real scanSizeM)
     signal fishingSpotRenameRequested(var spot)
     signal fishingSpotsRequested(var spot)
 
@@ -362,6 +364,10 @@ Item {
         resolution: root.maximized ? 34 : 28
     }
     NavoBathymetryOverlay {
+        id:savedPointsOverlay
+        boatCoordinate:root.vehicle ? root.vehicle.coordinate : null
+        actionsAllowed:root.spotActionsAllowed && !root.recordedReplay && !root.routeActive && !(root.baitingController && root.baitingController.enabled)
+        onSpotActionRequested:function(spot,action,hopper,scanSizeM){if(!root.recordedReplay)root.fishingSpotActionRequested(spot,action,hopper,scanSizeM)}
         map: liveMap
         bathymetryCells: root.bathymetryCells
         showBathymetryCells: !root.bathymetryHDEnabled
@@ -490,6 +496,7 @@ Item {
         enabled: !root.recordedReplay && root.areaDrawMode === "none" && !root.baitPointPickMode && !root.rulerMode
         acceptedButtons: Qt.LeftButton
         onPressAndHold: function(mouse) {
+            if(savedPointsOverlay.openSpotAtPosition(mouse.x,mouse.y))return
             var c=liveMap.toCoordinate(Qt.point(mouse.x,mouse.y),false)
             if(!c || !c.isValid)return
             root.pendingFishingCoordinate=c

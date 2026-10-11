@@ -28,6 +28,7 @@ import QtQuick.Layouts
 import QtPositioning
 ApplicationWindow {
  id:root;width:900;height:700;visible:true;color:"#0b1c2e"
+ signal savedSpotPrepared()
  property int activePage:2
  property bool mapMaximized:false
  property bool missionScanSelected:true

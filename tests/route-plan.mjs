@@ -46,6 +46,31 @@ test('Sonar point save checks source lake, rolls back disk failure and prepares 
  assert.equal(route.missionKind,'point');assert.equal(route.stops[0].latitude,52);assert.equal(route.stops[0].hopper,0);assert(!route.active);assert.equal(dashboard.activePage,2);
  dashboard.scanCoordinator.lakeId='different';assert(!dashboard.saveSonarPoint(pro,entry,'B','',true));assert.equal(spots.fishingSpots.length,1);
 });
+test('Saved fishing spot actions resolve current coordinates and prepare point/bait/scan without START',()=>{
+ const route=plan().c;let rectangles=[],prepared=0,invalidated=0;
+ const d=context('NavoDashboard.qml',{QtPositioning:{coordinate:coord},routePlan:route,
+ fishingSpots:{fishingSpots:[{id:'green',name:'Lanseta verde',lat:52,lon:.01}]},
+ scanCoordinator:{lakeId:'A',state:'IDLE',prepareRectangle(a,b){rectangles.push([a,b]);return [a,b]}},
+ baitingController:{enabled:false},missionUploader:{invalidate(){invalidated++}},areaScanController:{lastError:''},
+ missionBusy:false,steeringModeBusy:false,savedSpotPrepared(){prepared++}});
+ d.requireActiveLakeForPointSave=()=>true;d.allowLiveAction=()=>true;
+ const stale={id:'green',lat:10,lon:10};
+ assert(d.prepareFishingSpotAction(stale,'navigate',0,0));assert.equal(route.stops[0].latitude,52);assert.equal(route.stops[0].hopper,0);assert(!route.active);assert.equal(d.activePage,2);
+ for(const hopper of [1,2,3]){assert(d.prepareFishingSpotAction(stale,'bait',hopper,0));assert.equal(route.stops[0].hopper,hopper);assert(!route.active)}
+ assert(d.prepareFishingSpotAction(stale,'scan',0,20));assert.equal(rectangles.length,1);assert.equal(invalidated,1);assert(d.missionScanSelected);assert.equal(prepared,5);
+ assert(rectangles[0][0].latitude>52 && rectangles[0][1].latitude<52);
+ assert(rectangles[0][0].longitude<.01 && rectangles[0][1].longitude>.01);
+ const before=route.snapshot();
+ for(const prop of ['missionBusy','steeringModeBusy']){d[prop]=true;assert(!d.prepareFishingSpotAction(stale,'bait',1,0));d[prop]=false}
+ d.baitingController.enabled=true;assert(!d.prepareFishingSpotAction(stale,'navigate',0,0));d.baitingController.enabled=false;
+ d.allowLiveAction=()=>false;assert(!d.prepareFishingSpotAction(stale,'scan',0,20));d.allowLiveAction=()=>true;
+ assert(!d.prepareFishingSpotAction({id:'foreign'},'navigate',0,0));
+ for(const h of [0,4,1.5])assert(!d.prepareFishingSpotAction(stale,'bait',h,0));
+ for(const size of [NaN,5,101])assert(!d.prepareFishingSpotAction(stale,'scan',0,size));
+ assert(!d.prepareFishingSpotAction(stale,'unknown',0,0));
+ assert.equal(JSON.stringify(route.snapshot()),JSON.stringify(before));assert.equal(rectangles.length,1);
+ d.fishingSpots.fishingSpots=[];assert(!d.prepareFishingSpotAction(stale,'navigate',0,0));
+});
 test('Named mission library survives restart, loads a draft and isolates edits',()=>{
  const {c,dispatched}=plan();c.addStop(wp(52,0),'left',1);c.addStop(wp(52,.001),'right',2);
  assert(c.savePreset('Morning'));assert(!c.savePreset('Morning'));assert(!c.savePreset(' '));

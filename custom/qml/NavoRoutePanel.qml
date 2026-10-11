@@ -19,6 +19,7 @@ ColumnLayout {
     signal chooseOnMapRequested()
     signal startRequested(bool loadConfirmed)
     signal stopRequested()
+    Connections { target:root.routePlan;function onStopsChanged(){loadCheck.checked=false} }
     spacing: 8
     Button { Layout.fillWidth:true;text:"MISIUNI SALVATE";objectName:"missionLibraryButton"
         enabled:!!root.routePlan && !!root.routePlan.libraryAvailable && !root.routePlan.active && !root.routePlan.readOnly

@@ -12,6 +12,29 @@ Item {
     property var fishingSpotsModel
     property var selectedCell: null
     property var selectedSpot: null
+    property bool actionsAllowed: true
+    property var boatCoordinate:null
+    readonly property var currentSpot: {
+        if(!selectedSpot || !fishingSpotsModel)return null
+        var spots=fishingSpotsModel.fishingSpots
+        for(var i=0;i<spots.length;i++)if(spots[i].id===selectedSpot.id)return spots[i]
+        return null
+    }
+    readonly property bool spotCoordinateValid: !!currentSpot && typeof currentSpot.lat==="number" && typeof currentSpot.lon==="number" && isFinite(currentSpot.lat) && isFinite(currentSpot.lon) && Math.abs(currentSpot.lat)<=90 && Math.abs(currentSpot.lon)<=180
+    onCurrentSpotChanged:if(!currentSpot)spotDetails.close()
+    function openSpotAtPosition(x,y) {
+        for(var i=0;i<spotMarkers.count;i++) {
+            var marker=spotMarkers.itemAt(i)
+            if(!marker || !marker.sourceItem || !marker.visible)continue
+            var pin=marker.sourceItem,p=pin.mapFromItem(root.map,x,y)
+            if(p.x>=0 && p.x<=pin.width && p.y>=0 && p.y<=pin.height) {
+                openSpotDetails(marker.modelData);return true
+            }
+        }
+        return false
+    }
+    function openSpotDetails(spot){selectedSpot=spot;selectedCell=null;spotDetails.open()}
+    signal spotActionRequested(var spot, string action, int hopper, real scanSizeM)
     signal status(string text)
     signal navigateSpotRequested(var spot)
     signal baitSpotRequested(var spot)
@@ -47,6 +70,7 @@ Item {
     }
 
     Repeater {
+        id:spotMarkers
         model: root.fishingSpotsModel ? root.fishingSpotsModel.fishingSpots : []
         delegate: MapQuickItem {
             required property var modelData
@@ -64,7 +88,12 @@ Item {
                 Rectangle { anchors.left:parent.left; anchors.leftMargin:22; anchors.verticalCenter:parent.verticalCenter; width:pinText.implicitWidth+12; height:24; radius:6; color:"#071827d9"; border.color:"#20384a"
                     Label { id:pinText; anchors.centerIn:parent; text:modelData.name; color:"white"; font.bold:true; font.pixelSize:11 }
                 }
-                MouseArea { anchors.fill:parent; onClicked:{root.selectedSpot=modelData;root.selectedCell=null} onDoubleClicked:{root.selectedSpot=modelData;root.selectedCell=null;spotDetails.open()} }
+                MouseArea {
+                    objectName:"savedSpotPin";anchors.fill:parent;pressAndHoldInterval:600
+                    onClicked:{root.selectedSpot=modelData;root.selectedCell=null}
+                    onPressAndHold:root.openSpotDetails(modelData)
+                    onDoubleClicked:root.openSpotDetails(modelData)
+                }
             }
         }
     }
@@ -89,25 +118,38 @@ Item {
     }
 
     Dialog {
-        id: spotDetails
-        modal:true; anchors.centerIn:parent
-        title: root.selectedSpot ? root.selectedSpot.name : "Punct pescuit"
-        standardButtons: Dialog.Close
-        ColumnLayout {
-            width:340
-            Label { text: root.selectedSpot && root.selectedSpot.depth!==null && isFinite(Number(root.selectedSpot.depth)) ? "Adâncime: "+Number(root.selectedSpot.depth).toFixed(2)+" m" : "Adâncime: --"; font.bold:true }
-            Label { text: root.selectedSpot && root.selectedSpot.temp!==null && isFinite(Number(root.selectedSpot.temp)) ? "Temperatură apă: "+Number(root.selectedSpot.temp).toFixed(1)+" °C" : "Temperatură apă: --" }
-            Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.selectedSpot ? ("GPS: "+Number(root.selectedSpot.lat).toFixed(6)+", "+Number(root.selectedSpot.lon).toFixed(6)) : "" }
-            Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.selectedSpot && root.selectedSpot.createdAt ? "Salvat: "+new Date(root.selectedSpot.createdAt).toLocaleString() : "" }
-            Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.selectedSpot ? root.selectedSpot.note : "" }
-            RowLayout {
-                Layout.fillWidth:true
-                Button { text:"NAVIGHEAZĂ"; onClicked:{root.navigateSpotRequested(root.selectedSpot);spotDetails.close()} }
-                Button { text:"NĂDIRE"; onClicked:{root.baitSpotRequested(root.selectedSpot);spotDetails.close()} }
-                Button { text:"EDITARE"; onClicked:{root.renameSpotRequested(root.selectedSpot);spotDetails.close()} }
-                Button { text:"PUNCTE"; onClicked:{root.openFishingSpotsRequested(root.selectedSpot);spotDetails.close()} }
+        id:spotDetails;objectName:"savedSpotDetails";parent:Overlay.overlay
+        modal:true;anchors.centerIn:parent
+        width:Math.min(420,parent.width-24);height:Math.min(540,parent.height-24)
+        title:root.currentSpot ? root.currentSpot.name : "Punct pescuit"
+        standardButtons:Dialog.Close
+        contentItem:ScrollView {
+            clip:true;contentWidth:availableWidth
+            ColumnLayout {
+                width:spotDetails.availableWidth;spacing:8
+                Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;text:root.currentSpot && typeof root.currentSpot.depth==="number" && isFinite(root.currentSpot.depth) ? "Adâncime salvată: "+root.currentSpot.depth.toFixed(2)+" m" : "Adâncime: --" }
+                Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;text:root.currentSpot && typeof root.currentSpot.temp==="number" && isFinite(root.currentSpot.temp) ? "Temperatură salvată: "+root.currentSpot.temp.toFixed(1)+" °C" : "Temperatură apă: --" }
+                Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;text:root.spotCoordinateValid ? "GPS: "+root.currentSpot.lat.toFixed(6)+", "+root.currentSpot.lon.toFixed(6) : "Coordonate indisponibile" }
+                Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;text:root.spotCoordinateValid && root.boatCoordinate && root.boatCoordinate.isValid ? "Distanță de la barcă: "+Math.round(root.boatCoordinate.distanceTo(QtPositioning.coordinate(root.currentSpot.lat,root.currentSpot.lon)))+" m" : "Distanță de la barcă: --" }
+                Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;text:root.currentSpot && root.currentSpot.createdAt ? "Salvat: "+new Date(root.currentSpot.createdAt).toLocaleString() : "" }
+                Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;text:root.currentSpot ? root.currentSpot.note||"" : "" }
+                Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;text:"Pregătești misiunea la coordonatele salvate. Pornirea se confirmă separat prin START.";color:"#91a3b5" }
+                Button { objectName:"savedSpotNavigate";Layout.fillWidth:true;text:"NAVIGHEAZĂ LA PUNCT";enabled:root.actionsAllowed && root.spotCoordinateValid
+                    onClicked:{var spot=root.currentSpot;spotDetails.close();root.spotActionRequested(spot,"navigate",0,0)} }
+                ComboBox { id:spotHopper;objectName:"savedSpotHopper";Layout.fillWidth:true;model:["Cuva stângă","Cuva dreaptă","Ambele cuve"];enabled:root.actionsAllowed }
+                Button { objectName:"savedSpotBait";Layout.fillWidth:true;text:"NĂDIRE LA PUNCT";enabled:root.actionsAllowed && root.spotCoordinateValid
+                    onClicked:{var spot=root.currentSpot,h=spotHopper.currentIndex+1;spotDetails.close();root.spotActionRequested(spot,"bait",h,0)} }
+                RowLayout {
+                    Layout.fillWidth:true
+                    Label { Layout.fillWidth:true;text:"Latura zonei (m)";wrapMode:Text.WordWrap }
+                    SpinBox { id:spotScanSize;objectName:"savedSpotScanSize";from:10;to:100;stepSize:5;value:20;enabled:root.actionsAllowed;implicitWidth:120 }
+                }
+                Button { objectName:"savedSpotScan";Layout.fillWidth:true;text:"SCANARE ÎN JURUL PUNCTULUI";enabled:root.actionsAllowed && root.spotCoordinateValid
+                    onClicked:{var spot=root.currentSpot,size=spotScanSize.value;spotDetails.close();root.spotActionRequested(spot,"scan",0,size)} }
+                Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;text:"Scanare: pătrat centrat pe punct; verifică limitele bălții înainte de pregătire/upload și START.";color:"#91a3b5" }
+                Button { Layout.fillWidth:true;text:"EDITARE PUNCT";enabled:root.actionsAllowed && !!root.currentSpot;onClicked:{var spot=root.currentSpot;spotDetails.close();root.renameSpotRequested(spot)} }
+                Button { Layout.fillWidth:true;text:"LISTA PUNCTELOR";onClicked:{var spot=root.currentSpot;spotDetails.close();root.openFishingSpotsRequested(spot)} }
             }
-            Button { text:"ȘTERGE PUNCTUL"; enabled:root.selectedSpot!==null; onClicked:{if(root.fishingSpotsModel&&root.selectedSpot){root.fishingSpotsModel.removeSpot(root.selectedSpot.id);root.status("Punct șters");root.selectedSpot=null;spotDetails.close()}} }
         }
     }
 }
