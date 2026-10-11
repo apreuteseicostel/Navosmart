@@ -1,4 +1,4 @@
-"""Long press through the production map input layer; real offline QtLocation markers."""
+"""Tap/hold through the production map input layer; real offline QtLocation markers."""
 import os
 os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
 os.environ.setdefault('QT_QUICK_BACKEND','software')
@@ -62,6 +62,18 @@ with tempfile.TemporaryDirectory() as folder:
     if found is not None:return found
   pin=findVisual(window.contentItem(),'savedSpotPin');assert pin
   pos=pin.mapToScene(QPointF(pin.width()/2,pin.height()/2));point=QPoint(round(pos.x()),round(pos.y()))
+  # A tap on either the coloured dot or its label opens the existing point.
+  for localX in [9,pin.width()*.7]:
+   tap=pin.mapToScene(QPointF(localX,pin.height()/2));tapPoint=QPoint(round(tap.x()),round(tap.y()))
+   QTest.touchEvent(window,device).press(0,tapPoint,window).commit();QTest.qWait(40)
+   QTest.touchEvent(window,device).release(0,tapPoint,window).commit();QTest.qWait(40)
+   assert dialog.property('visible'),errors
+   QMetaObject.invokeMethod(dialog,'close');QTest.qWait(20)
+  emptyPoint=QPoint(30,height-40)
+  QTest.touchEvent(window,device).press(0,emptyPoint,window).commit();QTest.qWait(40)
+  QTest.touchEvent(window,device).release(0,emptyPoint,window).commit();QTest.qWait(40)
+  assert not dialog.property('visible')
+  assert not window.findChild(QObject,'newSpotDialog').property('visible')
   QTest.touchEvent(window,device).press(0,point,window).commit();QTest.qWait(1200);QTest.touchEvent(window,device).release(0,point,window).commit();QTest.qWait(40)
   assert dialog.property('visible'),errors
   assert not window.findChild(QObject,'newSpotDialog').property('visible')
@@ -77,4 +89,4 @@ with tempfile.TemporaryDirectory() as folder:
  for name in ['savedSpotNavigate','savedSpotBait','savedSpotScan']:assert not window.findChild(QObject,name).property('enabled')
  QMetaObject.invokeMethod(window,'clearSpots');QTest.qWait(30);assert not dialog.property('visible')
  assert not errors,errors
- print('PASS saved spot long press through production map layer, responsive details/actions, operation gates and removed/lake-switched spot closure')
+ print('PASS saved spot dot/label tap and long press through production map layer, responsive details/actions, operation gates and removed/lake-switched spot closure')

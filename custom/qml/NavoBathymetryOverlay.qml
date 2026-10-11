@@ -90,7 +90,7 @@ Item {
                 }
                 MouseArea {
                     objectName:"savedSpotPin";anchors.fill:parent;pressAndHoldInterval:600
-                    onClicked:{root.selectedSpot=modelData;root.selectedCell=null}
+                    onClicked:root.openSpotDetails(modelData)
                     onPressAndHold:root.openSpotDetails(modelData)
                     onDoubleClicked:root.openSpotDetails(modelData)
                 }

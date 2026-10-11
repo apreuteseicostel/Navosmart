@@ -80,8 +80,10 @@ def run_phase(config):
             captured.add(stage)
         if phase=='spots' and stage not in interactions:
             if stage.startswith('spots-pin-') and report.get('sceneReady') and report.get('spotPin'):
-                pin=report['spotPin'];print('Saved point long press:',stage,pin,flush=True)
-                shell('input','swipe',str(pin['x']),str(pin['y']),str(pin['x']),str(pin['y']),'1500')
+                pin=report['spotPin'];long_press=stage.endswith('-bait')
+                print('Saved point gesture:',stage,'hold' if long_press else 'tap',pin,flush=True)
+                if long_press:shell('input','swipe',str(pin['x']),str(pin['y']),str(pin['x']),str(pin['y']),'1500')
+                else:shell('input','tap',str(pin['x']),str(pin['y']))
                 interactions.add(stage)
             elif stage.startswith('spots-action-'):
                 labels={'navigation':'NAVIGHEAZĂ LA PUNCT','bait':'NĂDIRE LA PUNCT','scan':'SCANARE ÎN JURUL PUNCTULUI'}

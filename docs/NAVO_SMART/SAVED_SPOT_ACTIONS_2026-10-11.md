@@ -1,7 +1,7 @@
 # Saved fishing point actions — 11 October 2026
 
-Hold a saved fishing marker or its label for about 600 ms to open its details.
-Double click remains supported. The map input layer hit-tests the actual marker
+Tap a saved fishing marker or its label to open its details.
+Holding it for about 600 ms and double click remain supported. The map input layer hit-tests the actual marker
 bounds before offering a new point, so a long press on an existing label does not
 create a duplicate at the pointer position.
 
@@ -28,7 +28,7 @@ inside the lake before upload. The viewport and GPS do not guarantee physical
 arrival accuracy, safe passage, a sonar reading or hopper movement.
 
 Validation: actual QtLocation markers and the production map press handler pass
-long press, responsive details/actions, disabled operations and removed-point
+dot/label taps, long press, responsive details/actions, disabled operations and removed-point
 closure at 236/320/900 px. Production route/Dashboard JS verifies current-ID
 resolution, navigation/hopper choices, centred scan corners, no START and blocked
 operations. Existing route/Missions Qt checks and 51 audit regressions pass.
@@ -61,3 +61,17 @@ render-settling interval; ADB waits for that readiness and logs the actual physi
 point. Local driver regressions reject pre-focus coordinates. The marker test now
 uses touch events over a QGC-style touch area. The expanded Android phase still
 requires its new run; the timeout is not considered closed by local tests alone.
+
+## Ordinary tap correction
+
+Android #840 passed on `805ec1dd`, including the installed saved-point long press,
+all three action drafts and disconnected START refusal. The readiness correction
+closed the #839 timeout. Kogger #104 and firmware/persistence #142 also passed.
+
+Ordinary taps previously only selected the marker; the top map input layer did
+not forward them to its details dialog. Both handlers now open existing-point
+details for a tap on the dot or label. Tapping empty map space opens no dialog.
+Real Qt touch checks pass at 236/320/900 px with the production input layer.
+The Android installed phase now uses taps for navigation and scan, and retains
+a long press for bait; the new APK workflow must complete before installed tap
+acceptance can be claimed. Existing APKs need updating to receive this fix.

@@ -496,6 +496,7 @@ Item {
         anchors.fill: parent
         enabled: !root.recordedReplay && root.areaDrawMode === "none" && !root.baitPointPickMode && !root.rulerMode
         acceptedButtons: Qt.LeftButton
+        onClicked:function(mouse){savedPointsOverlay.openSpotAtPosition(mouse.x,mouse.y)}
         onPressAndHold: function(mouse) {
             if(savedPointsOverlay.openSpotAtPosition(mouse.x,mouse.y))return
             var c=liveMap.toCoordinate(Qt.point(mouse.x,mouse.y),false)
