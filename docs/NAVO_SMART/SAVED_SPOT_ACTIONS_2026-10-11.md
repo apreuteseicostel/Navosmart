@@ -33,3 +33,22 @@ closure at 236/320/900 px. Production route/Dashboard JS verifies current-ID
 resolution, navigation/hopper choices, centred scan corners, no START and blocked
 operations. Existing route/Missions Qt checks and 51 audit regressions pass.
 Android/G20 and physical boat acceptance remain separate. PR #20 stays draft.
+
+## Installed acceptance extension
+
+Android #838 completed successfully on commit `63844bf`; its existing installed
+checks cover replay, native map/3D, persistence/restart and Area Scan resume.
+The saved-point gestures/actions had only the local Qt/controller evidence above.
+
+The next commit adds an explicit installed `spots` phase after record/restore:
+real marker long press via ADB, screenshots of all three action dialogs, navigation
+draft with no release, both-hopper bait draft with cleared load confirmation,
+40 m scan geometry centred on the saved coordinate, and refusal of disconnected
+START. Scene lookup distinguishes visible controls and converts marker position
+from Qt logical coordinates to physical input pixels. ARM64 release builds keep
+this acceptance helper disabled. Native helper compilation and the expanded
+Android phase require their new workflows; they are not claimed passed locally.
+
+Local validation includes the production acceptance state transitions with explicit
+UI doubles, refusal to report success for an unsafe START, actual Qt stop replacement
+clearing load acknowledgement, and the existing real Qt marker/map/Missions tests.

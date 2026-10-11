@@ -119,7 +119,7 @@ ColumnLayout {
             return "Ultimul traseu: "+new Date(entry.finishedAt).toLocaleString()+" • "+entry.completedStops+"/"+entry.stopCount+" opriri • "+(entry.result==="DISPATCHED"?"acțiuni comandate":"oprit")
         }
     }
-    CheckBox { id:loadCheck; visible:!!root.routePlan && root.routePlan.stops.some(function(s){return s.hopper!==0}); Layout.fillWidth:true; text:"Am încărcat/reîncărcat cuvele"; palette.windowText:"white"; enabled:!!root.routePlan && (!root.routePlan.active && !root.routePlan.readOnly) }
+    CheckBox { id:loadCheck;objectName:"routeLoadCheck"; visible:!!root.routePlan && root.routePlan.stops.some(function(s){return s.hopper!==0}); Layout.fillWidth:true; text:"Am încărcat/reîncărcat cuvele"; palette.windowText:"white"; enabled:!!root.routePlan && (!root.routePlan.active && !root.routePlan.readOnly) }
     Label { Layout.fillWidth:true; text:root.routePlan ? root.routePlan.lastError : ""; color:"#ffc857"; wrapMode:Text.WordWrap; visible:text.length>0 }
     RowLayout {
         Button { text:root.routePlan && root.routePlan.state==="DISPATCHED" ? "REPETĂ" : "START"; enabled:!!root.routePlan && (!root.routePlan.active && !root.routePlan.readOnly) && root.routePlan.stops.length>0

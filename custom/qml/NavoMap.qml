@@ -241,6 +241,7 @@ Item {
 
     FlightMap {
         id: liveMap
+        objectName:"navoLiveMap"
         anchors.fill: parent
         bearing: !root.recordedReplay && root.headingUp && isFinite(root.boatHeadingDeg) ? root.boatHeadingDeg : 0
         onMapReadyChanged:if(mapReady && root.pendingMissionFit)Qt.callLater(root.fitMission)
@@ -530,7 +531,7 @@ Item {
         Label { id:pickLabel; anchors.centerIn:parent; text:"ATINGE HARTA PENTRU PUNCTUL DE NĂDIRE"; color:"white"; font.bold:true; font.pixelSize:11 }
     }
     Dialog {
-        id: fishingSaveDialog; parent: Overlay.overlay; anchors.centerIn: parent; modal: true
+        id: fishingSaveDialog;objectName:"newSpotDialog"; parent: Overlay.overlay; anchors.centerIn: parent; modal: true
         title: "Salvează punct de pescuit"; standardButtons: Dialog.Save | Dialog.Cancel
         Column {
             spacing: 8

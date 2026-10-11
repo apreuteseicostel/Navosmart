@@ -81,6 +81,7 @@ ApplicationWindow {
   if(routePlan.stops.length)return true
   return routePlan.addStop(baitingController.targetWaypoint,"Lanseta verde",1) && routePlan.addStop(baitingController.targetWaypoint,"Lanseta roșie",2) && routePlan.addStop(baitingController.targetWaypoint,"Punct salvat",0)
  }
+ function replaceBaitPoint(hopper){return routePlan.setPoint(baitingController.targetWaypoint,"Noua destinație",hopper)}
  function choose(index){return selectMission(index)}
 }'''
 wrapper=wrapper[:-1]+selection+strip+page+'}'
@@ -155,6 +156,11 @@ with tempfile.TemporaryDirectory() as folder:
    assert window.grabWindow().save(f'/tmp/navo-missions-expanded-{mode}-{width}.png')
    QMetaObject.invokeMethod(expand,'clicked');QTest.qWait(40)
    assert not window.property('mapMaximized')
+ assert call('choose',0) and call('replaceBaitPoint',1)
+ load=window.findChild(QObject,'routeLoadCheck');assert load
+ load.setProperty('checked',True)
+ assert call('replaceBaitPoint',2);QTest.qWait(20)
+ assert not load.property('checked')
  assert call('exercise')
  QTest.qWait(50)
  assert window.property('mapMaximized') and pause.property('enabled') and home.property('enabled')

@@ -30,7 +30,7 @@ public:
     }
     QVariantMap configuration() const{return configuration_;}
     QString directory() const{return dir_;}
-    bool active() const{return configuration_.value("phase")=="record" || configuration_.value("phase")=="restore";}
+    bool active() const{return configuration_.value("phase")=="record" || configuration_.value("phase")=="restore" || configuration_.value("phase")=="spots";}
     Q_INVOKABLE bool claim(QObject* dashboard) {
         auto* item=qobject_cast<QQuickItem*>(dashboard);
         if(!item || !item->isVisible() || !item->window() || !item->window()->isVisible()
@@ -76,6 +76,30 @@ public:
         if(!dashboard)return;
         for(auto* object:sceneObjects(dashboard))
             if(object->objectName()=="navoMap" && object->property("visible").toBool())object->setProperty("bathymetryHDEnabled",true);
+    }
+    Q_INVOKABLE QObject* control(QObject* dashboard,const QString& name) const {
+        auto* root=qobject_cast<QQuickItem*>(dashboard);
+        if(!root || !root->window())return nullptr;
+        QObject* fallback=nullptr;
+        for(auto* object:sceneObjects(root->window()->contentItem())) {
+            if(object->objectName()!=name)continue;
+            if(object->property("visible").toBool())return object;
+            if(!fallback)fallback=object;
+        }
+        return fallback;
+    }
+    Q_INVOKABLE bool focusSavedSpot(QObject* dashboard,const QVariant& coordinate) const {
+        auto* object=control(dashboard,QStringLiteral("navoLiveMap"));
+        if(!coordinate.isValid() || !object || !object->property("visible").toBool())return false;
+        return object->setProperty("center",coordinate) && object->setProperty("zoomLevel",17.0);
+    }
+    Q_INVOKABLE QVariantMap savedSpotPinPosition(QObject* dashboard) const {
+        auto* pin=qobject_cast<QQuickItem*>(control(dashboard,QStringLiteral("savedSpotPin")));
+        if(!pin || !pin->isVisible() || !pin->window() || pin->width()<=0 || pin->height()<=0)return {};
+        const auto point=pin->mapToScene(QPointF(pin->width()/2,pin->height()/2));
+        const auto ratio=pin->window()->devicePixelRatio();
+        if(point.x()<0 || point.y()<0 || point.x()>=pin->window()->width() || point.y()>=pin->window()->height())return {};
+        return {{"x",qRound(point.x()*ratio)},{"y",qRound(point.y()*ratio)}};
     }
 private:
     static int listSize(const QVariant& value) {

@@ -4,6 +4,7 @@ Requires a disposable rootable emulator. Never connects a vehicle or installs
 mock backends. ARM64 release builds keep the acceptance switch disabled.
 """
 import hashlib, json, re, subprocess, sys, time
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 package, activity, fixture = sys.argv[1:4]
@@ -29,6 +30,23 @@ shell('chown', owner, directory + '/00028_DownView.klf')
 shell('chmod', '600', directory + '/00028_DownView.klf')
 shell('restorecon', directory + '/00028_DownView.klf')
 
+def tap_saved_spot_action(label):
+    for attempt in range(5):
+        shell('uiautomator','dump','/sdcard/navo-spot-ui.xml')
+        xml=ET.fromstring(shell('cat','/sdcard/navo-spot-ui.xml'))
+        (out/'saved-spot-ui.xml').write_bytes(ET.tostring(xml))
+        bounds=[list(map(int,re.findall(r'-?\d+',node.get('bounds','')))) for node in xml.iter('node')]
+        bounds=[b for b in bounds if len(b)==4]
+        width=max(b[2] for b in bounds);height=max(b[3] for b in bounds)
+        for node in xml.iter('node'):
+            if label not in (node.get('text'),node.get('content-desc')):continue
+            b=list(map(int,re.findall(r'-?\d+',node.get('bounds',''))))
+            if len(b)==4 and 0<=b[0]<b[2]<=width and 0<=b[1]<b[3]<=height and b[3]-b[1]>=20:
+                shell('input','tap',str((b[0]+b[2])//2),str((b[1]+b[3])//2));return
+        shell('input','swipe',str(width//2),str(int(height*.72)),str(width//2),str(int(height*.42)),'400')
+        time.sleep(.3)
+    raise RuntimeError('Installed saved-point action unavailable: '+label)
+
 def run_phase(config):
     phase = config['phase']
     request = out / (phase + '-request.json'); request.write_text(json.dumps(config))
@@ -38,7 +56,7 @@ def run_phase(config):
     adb('push', str(request), remote); shell('chown', owner, remote)
     shell('chmod', '600', remote); shell('restorecon', remote)
     shell('am', 'start', '-W', '-n', package + '/' + activity)
-    started = time.monotonic(); captured = set(); previous_stage = None; last_progress_capture = 0
+    started = time.monotonic(); captured = set(); interactions=set(); previous_stage = None; last_progress_capture = 0
     while time.monotonic() - started < 750:
         time.sleep(1)
         if not shell('pidof', package).strip():
@@ -60,11 +78,19 @@ def run_phase(config):
         if stage not in captured and (stage == 'sonar-evidence' or report.get('sceneReady')):
             (screens / ('acceptance-' + phase + '-' + stage + '.png')).write_bytes(adb('exec-out', 'screencap', '-p'))
             captured.add(stage)
+        if phase=='spots' and stage not in interactions:
+            if stage.startswith('spots-pin-') and report.get('spotPin'):
+                pin=report['spotPin'];shell('input','swipe',str(pin['x']),str(pin['y']),str(pin['x']),str(pin['y']),'900')
+                interactions.add(stage)
+            elif stage.startswith('spots-action-'):
+                labels={'navigation':'NAVIGHEAZĂ LA PUNCT','bait':'NĂDIRE LA PUNCT','scan':'SCANARE ÎN JURUL PUNCTULUI'}
+                tap_saved_spot_action(labels[stage.removeprefix('spots-action-')]);interactions.add(stage)
         if report.get('status') == 'failed':
             (screens / ('acceptance-' + phase + '-failed.png')).write_bytes(adb('exec-out','screencap','-p'))
             raise RuntimeError(report.get('error'))
         if report.get('status') == 'passed':
-            assert {'3d', 'native-map' if phase == 'record' else 'restored-map'} <= captured, 'Rendered scene evidence missing'
+            expected={'spots-action-navigation','spots-action-bait','spots-action-scan'} if phase=='spots' else {'3d', 'native-map' if phase == 'record' else 'restored-map'}
+            assert expected <= captured, 'Rendered scene evidence missing'
             return report
     raise RuntimeError('No terminal installed acceptance report for ' + phase)
 
@@ -72,7 +98,9 @@ try:
     recorded = run_phase({'phase': 'record'})
     restored = run_phase({'phase': 'restore', 'replayId': recorded['replayId'], 'liveId': recorded['liveId'], 'samples': recorded['samples']})
     assert restored.get('areaResumeConfirmed'), 'Area Scan resume not verified'
-    print('PASS installed x86_64 APK: original Kogger replay, Sonar PRO, native QtLocation surface, 3D mesh, separate lake save, forced process restart and Area Scan resume. No hardware acceptance.', flush=True)
+    spots=run_phase({'phase':'spots','liveId':recorded['liveId']})
+    assert all(spots.get(key) for key in ['savedSpotNavigationVerified','savedSpotBaitVerified','savedSpotScanVerified','savedSpotDisconnectedStartBlocked']), 'Saved point actions not verified'
+    print('PASS installed x86_64 APK: original Kogger replay, Sonar PRO, native QtLocation surface, 3D mesh, separate lake save, forced process restart Area Scan resume and saved-point long press/navigation/bait/scan with disconnected START blocked. No hardware acceptance.', flush=True)
 finally:
     (out / 'logcat.txt').write_bytes(adb('logcat', '-d'))
     shell('am', 'force-stop', package)

@@ -28,6 +28,7 @@ jobs:
         run: |
           node tests/audit-regressions.mjs
           node tests/route-plan.mjs
+          node tests/installed-spots-driver.mjs
           node tests/steering-bottom.mjs
       - name: Render production Missions UI with Qt 6.8.3
         run: |

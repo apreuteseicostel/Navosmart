@@ -14,6 +14,7 @@ Item {
     property string liveId:""
     property string replayId:""
     property string liveBefore:""
+    property var savedSpot:null
     property int samples:0
     property var evidence:({})
     property bool stepping:false
@@ -36,6 +37,7 @@ Item {
         state.activePage=dashboard.activePage
         state.nativeSurfaceIndices=sonar.nativeSurfaceMesh.indices ? sonar.nativeSurfaceMesh.indices.length : 0
         for(var key in evidence)state[key]=evidence[key]
+        if(stage.indexOf("spots-pin-")===0)state.spotPin=backend.savedSpotPinPosition(dashboard)
         var metrics=backend.inspect(dashboard)
         for(var metric in metrics)state[metric]=metrics[metric]
         return state
@@ -66,6 +68,13 @@ Item {
         var sonar=dashboard.sonarController,persistence=dashboard.lakePersistence,coordinator=dashboard.areaCoordinator
         var area=dashboard.mapAreaScanController
         if(stage==="start") {
+            if(backend.configuration.phase==="spots") {
+                liveId=backend.configuration.liveId
+                require(coordinator.activateLake(liveId,"CI live isolation"),"Cannot activate saved-point lake")
+                savedSpot=dashboard.fishingSpotsController.saveSpot(QtPositioning.coordinate(40.1612,44.4742),2.4,18,"CI Lanseta verde","Installed point actions",null,"#31d67b")
+                require(savedSpot && coordinator.checkpoint("acceptance-saved-spot"),"Cannot save installed fishing point")
+                dashboard.activePage=0;dashboard.mapMaximized=false;advance("spots-pin-navigation");return
+            }
             if(backend.configuration.phase==="restore") {
                 liveId=backend.configuration.liveId;replayId=backend.configuration.replayId;samples=backend.configuration.samples
                 require(coordinator.lakeId===replayId,"Selected lake not restored automatically after process restart")
@@ -94,6 +103,50 @@ Item {
             sonar.setReplaySpeed(5)
             require(sonar.startReplay("file://"+backend.directory+"/00028_DownView.klf"),"Installed replay did not open original fixture")
             advance("replay");return
+        }
+        if(stage.indexOf("spots-pin-")===0) {
+            require(Date.now()-entered<60000,"Saved point long press did not open details")
+            if(Date.now()-entered<1000)return
+            require(backend.focusSavedSpot(dashboard,QtPositioning.coordinate(savedSpot.lat,savedSpot.lon)),"Cannot focus installed map")
+            var popup=backend.control(dashboard,"savedSpotDetails")
+            var unexpected=backend.control(dashboard,"newSpotDialog")
+            require(!unexpected || !unexpected.visible,"Long press opened a new point instead of saved details")
+            if(popup && popup.visible) {
+                var action=stage.slice("spots-pin-".length)
+                if(action==="bait")backend.control(dashboard,"savedSpotHopper").currentIndex=2
+                if(action==="scan")backend.control(dashboard,"savedSpotScanSize").value=40
+                advance("spots-action-"+action);evidence.sceneReady=true;publish("running");return
+            }
+            publish("running");return
+        }
+        if(stage.indexOf("spots-action-")===0) {
+            require(Date.now()-entered<60000,"Saved point action did not open Missions")
+            if(dashboard.activePage!==2)return
+            var chosen=stage.slice("spots-action-".length),plan=dashboard.routePlanController
+            require(!plan.active,"Saved point shortcut started navigation without confirmation")
+            if(chosen==="navigation" || chosen==="bait") {
+                require(plan.missionKind==="point" && plan.stops.length===1,"Saved point did not prepare a single destination")
+                var destination=plan.stops[0]
+                require(destination.latitude===savedSpot.lat && destination.longitude===savedSpot.lon,"Saved point coordinates changed")
+                require(destination.hopper===(chosen==="bait" ? 3 : 0),"Saved point hopper action differs")
+                require(!dashboard.startRoute(true) && !plan.active,"Disconnected START was allowed")
+                if(chosen==="bait") {
+                    var load=backend.control(dashboard,"routeLoadCheck")
+                    require(load && !load.checked,"New bait destination inherited load confirmation")
+                }
+                evidence[chosen==="bait" ? "savedSpotBaitVerified" : "savedSpotNavigationVerified"]=true
+                dashboard.activePage=0;advance(chosen==="navigation" ? "spots-pin-bait" : "spots-pin-scan");return
+            }
+            require(chosen==="scan" && dashboard.missionScanSelected && coordinator.state==="AREA_DEFINED","Scan shortcut did not prepare geometry")
+            require(area.generatedPoints.length>4 && area.completedLanes.length===0,"Scan shortcut did not generate fresh lanes")
+            var north=-90,south=90,east=-180,west=180
+            for(var i=0;i<area.generatedPoints.length;i++) {
+                var p=area.generatedPoints[i];north=Math.max(north,p.latitude);south=Math.min(south,p.latitude);east=Math.max(east,p.longitude);west=Math.min(west,p.longitude)
+            }
+            require(Math.abs((north+south)/2-savedSpot.lat)<0.00005 && Math.abs((east+west)/2-savedSpot.lon)<0.00005,"Scan lanes are not centred on saved point")
+            evidence.savedSpotScanVerified=true;evidence.savedSpotDisconnectedStartBlocked=true
+            require(coordinator.checkpoint("acceptance-saved-spot-actions"),"Cannot checkpoint point actions")
+            publish("passed");clock.stop();return
         }
         if(stage==="replay") {
             require(!sonar.dataAlive,"Replay claims live telemetry")
