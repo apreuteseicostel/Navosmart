@@ -5,8 +5,9 @@ import os
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 os.environ.setdefault('QT_QUICK_BACKEND', 'software')
 from pathlib import Path
-import tempfile, shutil
-from PySide6.QtCore import QUrl, QMetaObject, Q_RETURN_ARG, Q_ARG, QObject
+import tempfile, shutil, subprocess
+import PySide6
+from PySide6.QtCore import QUrl, QMetaObject, Q_RETURN_ARG, Q_ARG, QObject, QResource
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow
@@ -17,7 +18,7 @@ start=source.index('    Component {\n        id: areaPage')
 page=source[start:source.index('    Component {\n        id: fishingPage',start)]
 map_start=page.index('                        NavoMap {')
 map_end=page.index('                        }\n                    }\n                    ScrollView',map_start)+len('                        }')
-page=page[:map_start]+'''Rectangle {anchors.fill:parent;color:"#133046";Label{anchors.centerIn:parent;text:"Hartă (substitut test)";color:"white"}}'''+page[map_end:]
+page=page[:map_start]+'''Rectangle {objectName:"testMissionMap";anchors.fill:parent;color:"#133046";Label{anchors.centerIn:parent;text:"Hartă (substitut test)";color:"white"}}'''+page[map_end:]
 strip_start=source.index('    NavoMissionStatus {')
 strip=source[strip_start:source.index('    Rectangle {\n        id: content',strip_start)]
 selection=source[source.index('    function missionStateLabel('):source.index('    NavoRoutePlan {',source.index('    function selectMission('))]
@@ -81,6 +82,11 @@ engine=QQmlApplicationEngine();errors=[]
 engine.warnings.connect(lambda ws:errors.extend(str(w) for w in ws))
 with tempfile.TemporaryDirectory() as folder:
  folder=Path(folder)
+ qrc=folder/'icons.qrc'
+ qrc.write_text('<RCC><qresource prefix="/qml/NavoSmart/icons">'+''.join(f'<file alias="{p.name}">{p}</file>' for p in (repo/'custom/icons').glob('*.svg'))+'</qresource></RCC>')
+ resource=folder/'icons.rcc'
+ subprocess.run([str(Path(PySide6.__file__).parent/'Qt/libexec/rcc'),'--binary',str(qrc),'-o',str(resource)],check=True)
+ assert QResource.registerResource(str(resource))
  for name in ['NavoRoutePanel.qml','NavoRoutePlan.qml','NavoMissionStatus.qml']:
   shutil.copy(repo/'custom/qml'/name,folder/name)
  (folder/'Test.qml').write_text(wrapper)
@@ -106,5 +112,23 @@ with tempfile.TemporaryDirectory() as folder:
   for width,height in [(236,600),(320,640),(480,720),(900,650)]:
    window.setWidth(width);window.setHeight(height);QTest.qWait(100)
    assert window.grabWindow().save(f'/tmp/navo-missions-{mode}-{width}.png')
+   status=window.findChild(QObject,'navoMissionStatus');assert status.property('height')<=68
+   configure=window.findChild(QObject,'missionConfigure');assert configure.property('width')<=44
+   mapItem=window.findChild(QObject,'testMissionMap');before=(mapItem.property('width'),mapItem.property('height'))
+   expand=window.findChild(QObject,'missionExpand');assert expand
+   QMetaObject.invokeMethod(expand,'clicked');QTest.qWait(100)
+   assert window.property('mapMaximized')
+   assert mapItem.property('width')>=before[0] and mapItem.property('height')>=before[1]
+   assert mapItem.property('width')>=width-32
+   assert window.grabWindow().save(f'/tmp/navo-missions-expanded-{mode}-{width}.png')
+   QMetaObject.invokeMethod(expand,'clicked');QTest.qWait(40)
+   assert not window.property('mapMaximized')
+ assert call('exercise')
+ expand=window.findChild(QObject,'missionExpand');QMetaObject.invokeMethod(expand,'clicked');QTest.qWait(50)
+ assert window.property('mapMaximized') and pause.property('enabled') and home.property('enabled')
+ QMetaObject.invokeMethod(home,'clicked');QTest.qWait(20);assert dialog.property('visible')
+ QMetaObject.invokeMethod(dialog,'reject')
+ QMetaObject.invokeMethod(pause,'clicked');QTest.qWait(20)
+ assert window.property('pauses')==2 and not pause.property('enabled')
  assert not errors,errors
  print('PASS production Missions layout in three modes at 236/320/480/900; immutable active selection, PAUZĂ/HOME dispatch and link-loss controls')

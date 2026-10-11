@@ -881,9 +881,10 @@ Item {
 
     Rectangle {
         id: header
-        visible: root.activePage !== 10
+        visible: root.activePage !== 10 && !(root.activePage===2 && root.mapMaximized)
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
-        height: 64; color: "#101822"; border.color: root.line; z: 2000
+        height: root.activePage===2 ? (root.mapMaximized ? 0 : 48) : 64
+        color: "#101822"; border.color: root.line; z: 2000
         Flickable {
             anchors.fill: parent
             clip: false
@@ -900,8 +901,8 @@ Item {
                     id: titleLabels
                     anchors.fill: parent
                     spacing: 0
-                    Label { text: "NAVO SMART"; color: root.text; font.pixelSize: 22; font.bold: true }
-                    Label { text: "Pescarul lu Peste"; color: root.muted; font.pixelSize: 11 }
+                    Label { text: "NAVO SMART"; color: root.text; font.pixelSize: root.activePage===2 ? 18 : 22; font.bold: true }
+                    Label { visible:root.activePage!==2; text: "Pescarul lu Peste"; color: root.muted; font.pixelSize: 11 }
                 }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.mapMaximized=false; root.activePage=0 } }
             }
@@ -917,8 +918,8 @@ Item {
             StatusPill { pillWidth: 58; iconSource:"qrc:/qml/NavoSmart/icons/mode.svg"; title: "MOD"; value: root.flightMode.length ? root.flightMode : "OFF"; good: vehicle !== null }
             NavoHeadingCompass {
                 id: headingCompass
-                Layout.preferredWidth: 54
-                Layout.preferredHeight: 54
+                Layout.preferredWidth: root.activePage===2 ? 40 : 54
+                Layout.preferredHeight: root.activePage===2 ? 40 : 54
                 headingDeg: root.headingDeg
                 waypointBearingDeg: root.waypointBearingDeg
                 rollDeg: root.rollDeg
@@ -1258,13 +1259,27 @@ Item {
                 RowLayout {
                     Layout.fillWidth:true
                     Button {
-                        text:missionOptions.opened ? "Închide opțiunile" : "⚙ Configurare misiune"
+                        objectName:"missionConfigure"
+                        implicitWidth:36;implicitHeight:34;padding:7
+                        text:"Configurare misiune"
+                        ToolTip.visible:hovered;ToolTip.text:text
+                        background:Rectangle { radius:6;color:missionOptions.opened ? "#176b86" : "#102b3b";border.color:missionOptions.opened ? "#45d5f5" : "#31506a" }
+                        contentItem:Image { source:"qrc:/qml/NavoSmart/icons/settings.svg";fillMode:Image.PreserveAspectFit }
                         Accessible.name:"Configurare misiune"
                         onClicked:missionOptions.opened ? missionOptions.close() : missionOptions.open()
                     }
                     Label {
                         Layout.fillWidth:true; color:root.muted; elide:Text.ElideRight
                         text:root.missionScanSelected ? "Scanează zona" : (routePlan.missionKind==="point" ? "Mergi la punct" : "Traseu cu opriri")
+                    }
+                    Button {
+                        objectName:"missionExpand"
+                        implicitWidth:36;implicitHeight:34;padding:7
+                        text:root.mapMaximized ? "Revino la configurare" : "Mărește harta"
+                        Accessible.name:text;ToolTip.visible:hovered;ToolTip.text:text
+                        background:Rectangle { radius:6;color:root.mapMaximized ? "#176b86" : "#102b3b";border.color:"#38badb" }
+                        contentItem:Image { source:"qrc:/qml/NavoSmart/icons/fullscreen.svg";fillMode:Image.PreserveAspectFit }
+                        onClicked:{missionOptions.close();root.mapMaximized=!root.mapMaximized}
                     }
                 }
                 Popup {
@@ -1332,7 +1347,7 @@ Item {
                     }
                 }
                 GridLayout {
-                    columns:root.missionScanSelected || width>=700 ? 2 : 1
+                    columns:root.mapMaximized ? 1 : root.missionScanSelected || width>=700 ? 2 : 1
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     rowSpacing:8;columnSpacing:8
@@ -1373,7 +1388,7 @@ Item {
                         }
                     }
                     ScrollView {
-                        visible:!root.missionScanSelected
+                        visible:!root.missionScanSelected && !root.mapMaximized
                         Layout.fillWidth:parent.columns===1
                         Layout.preferredWidth:parent.columns===1 ? parent.width : 300
                         Layout.minimumHeight:130
@@ -1398,7 +1413,7 @@ Item {
                         }
                     }
                     ScrollView {
-                        visible:root.missionScanSelected
+                        visible:root.missionScanSelected && !root.mapMaximized
                         Layout.preferredWidth: root.compactUi ? 112 : 126
                         Layout.minimumWidth: 106; Layout.maximumWidth: 132
                         Layout.fillHeight: true
