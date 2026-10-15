@@ -7,6 +7,7 @@ QtObject {
  property var hardwareTelemetry: null
  property var nextRequest: null
  property int onboardRequest: 0
+ property bool onboardCycleComplete: false
  property var vehicle
  property int leftServoOutput: 9
  property int rightServoOutput: 10
@@ -36,10 +37,18 @@ QtObject {
  }
  onVehicleChanged: {
   resetServoFeedback()
-  if(onboardTiming){onboardWatchdog.stop();onboardRequest=0;commandPending=false;leftOpen=false;rightOpen=false}
+  if(onboardTiming){onboardWatchdog.stop();onboardRequest=0;onboardCycleComplete=false;commandPending=false;leftOpen=false;rightOpen=false}
  }
  function receiveServoResult(vehicleId,component,command,result,failure){
-  if(!vehicle || vehicleId!==vehicle.id || component!==mavCompAutopilot1 || command!==mavCmdDoSetServo)return false
+  if(!vehicle || vehicleId!==vehicle.id || component!==mavCompAutopilot1)return false
+  if(onboardTiming && command===31001 && commandPending){
+   if(failure!==0 || (result!==0 && result!==5)){
+    onboardWatchdog.stop();commandPending=false;onboardCycleComplete=false
+    servoCommandFailed("H743 a respins ciclul cuvelor sau nu a confirmat comanda")
+   }
+   return true
+  }
+  if(command!==mavCmdDoSetServo)return false
   // QGC's result is command-level and cannot identify an individual output.
   // Never use this to assert the physical position of either hopper.
   if(failure===1)servoResponse="Servo H743: fără răspuns (timeout)"
@@ -82,7 +91,7 @@ QtObject {
   if(action===3 && (!calibrated || !releaseAllowed || commandPending || hardwareTelemetry.hopperMask!==0)){commandRejected("Cuve necalibrate sau ciclu activ");return false}
   var request=nextRequest ? nextRequest() : 0
   if(!request){commandRejected("Secvența comenzilor V3 indisponibilă");return false}
-  onboardRequest=request;commandPending=true
+  onboardRequest=request;onboardCycleComplete=false;commandPending=true
   vehicle.sendCommand(mavCompAutopilot1,31001,true,action,value,request,
       leftServoOutput+32*rightServoOutput,leftClosedPwm+4096*leftOpenPwm,
       rightClosedPwm+4096*rightOpenPwm,releaseHoldMs)
@@ -96,7 +105,7 @@ QtObject {
   leftOpen=(hardwareTelemetry.hopperMask & 1)!==0
   rightOpen=(hardwareTelemetry.hopperMask & 2)!==0
   if(onboardRequest && hardwareTelemetry.lastRequest===onboardRequest && hardwareTelemetry.hopperMask===0){
-   commandPending=false;onboardRequest=0;onboardWatchdog.stop()
+   commandPending=false;onboardRequest=0;onboardCycleComplete=true;onboardWatchdog.stop()
    commandSent("H743 raportează ciclul închis; poziția mecanică neconfirmată")
   }
  }

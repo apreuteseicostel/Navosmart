@@ -33,6 +33,7 @@ QtObject {
     property int rampIntervalMs: 100
     property double guidedRequestedAtMs: 0
     property bool guidedConfirmed: false
+    property bool releaseComplete: true
     property double invalidGpsSinceMs: 0
 
     readonly property int idleState:0
@@ -162,6 +163,7 @@ QtObject {
         onTriggered:{
             if(!root.enabled || root.state!==root.releaseState || !root.vehicleCoordinateValid()) return
             if(root.hopper===0) {root.finishExit();return}
+            if(!root.releaseComplete) {restart();return}
             root.exitCoordinate=root.makeExitCoordinate()
             if(root.exitCoordinate&&root.exitCoordinate.isValid){root.setState(root.exitState);root.setTargetSpeed(root.silentSpeedMps);root.requestGoto(root.exitCoordinate,"clear-bait-zone")}
             else root.finishExit()

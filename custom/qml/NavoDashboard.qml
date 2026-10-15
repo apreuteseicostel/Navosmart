@@ -155,6 +155,7 @@ Item {
     NavoBaitingController {
         id: baitingController
         vehicle: root.vehicle
+        releaseComplete: !root.v3Hardware || (hopperBridge.onboardCycleComplete && nanoTelemetry.hopperStateValid && nanoTelemetry.hopperMask===0)
         onGotoRequested: function(coordinate, reason) { if(root.vehicle && root.vehicle.guidedModeGotoLocation) root.vehicle.guidedModeGotoLocation(coordinate) }
         onSpeedRequested: function(metersPerSecond) {
             if(root.vehicle && root.vehicle.guidedModeChangeGroundSpeedMetersSecond)
@@ -654,6 +655,7 @@ Item {
         if(!vehicle || !vehicle.sendCommand) { lastNavigationStatus=label+" indisponibil: H743 deconectat"; return false }
         if(!root.linkAlive || root.sonarController.replayMode) { lastNavigationStatus=label+" indisponibil: legătură inactivă sau replay"; return false }
         if(root.v3Hardware) {
+            if(root.hopperBridgeController && root.hopperBridgeController.commandPending) {lastNavigationStatus="Așteaptă încheierea ciclului cuvelor";return false}
             if(!(nanoTelemetry.capabilities & 1) || !nanoTelemetry.lightsValid || !nanoTelemetry.hopperStateValid) {
                 lastNavigationStatus=label+" indisponibil: serviciul H743/V3 nu este pregătit"; return false
             }

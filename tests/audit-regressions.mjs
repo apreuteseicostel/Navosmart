@@ -14,7 +14,7 @@ function callable(source, start) {
 }
 function context(file, values={}) {
   const source=fs.readFileSync(path.join(dir,file),'utf8');
-  const c=vm.createContext({routePlan:null,baitingController:null,servoCommandFailed:()=>{},onboardTiming:false,...values}); c.root=c;
+  const c=vm.createContext({routePlan:null,baitingController:null,servoCommandFailed:()=>{},onboardTiming:false,releaseComplete:true,...values}); c.root=c;
   const re=/\bfunction\s+([A-Za-z_][A-Za-z_0-9]*)\s*\(/g;
   let m;
   while((m=re.exec(source))) {
@@ -468,4 +468,14 @@ test('V3 light converts toggle into explicit state and never sends legacy comman
  c.nextHardwareRequest=()=>100;
  assert(c.commandNanoLight(1,2,'Far'));assert.equal(sent[0][1],31001);assert.equal(sent[0][4],1);assert.equal(sent[0][5],100);
  c.nanoTelemetry.lightsValid=false;assert(!c.commandNanoLight(1,2,'Far'));assert.equal(sent.length,1);
+});
+test('V3 rejected command aborts the cycle without claiming closure',()=>{
+ let failed=0;const c=context('NavoHopperBridge.qml',{onboardTiming:true,commandPending:true,onboardCycleComplete:false,
+ vehicle:{id:1},mavCompAutopilot1:1,mavCmdDoSetServo:183,onboardWatchdog:{stop(){}},servoCommandFailed:()=>failed++});
+ assert(c.receiveServoResult(1,1,31001,4,0));assert.equal(failed,1);assert(!c.onboardCycleComplete);
+});
+test('Baiting waits for onboard closure instead of leaving after a phone delay',()=>{
+ let restarted=0,exited=0;const c=context('NavoBaitingController.qml',{enabled:true,state:5,releaseState:5,hopper:1,releaseComplete:false,
+ restart:()=>restarted++});c.vehicleCoordinateValid=()=>true;c.makeExitCoordinate=()=>{exited++;return {isValid:true}};
+ timerHandler('NavoBaitingController.qml','postDropTimer',c)();assert.equal(restarted,1);assert.equal(exited,0);
 });
