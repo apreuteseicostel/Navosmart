@@ -4,7 +4,7 @@ Actualizat: 15 octombrie 2026. Document de lucru pentru stabilirea configurație
 
 ## Situația reală
 
-Costel a confirmat că deține Matek H743-WING V3, dar nu a instalat/configurat încă firmware-ul. Nu există un export `.param` al instalației de verificat în această etapă. Configurația se proiectează de la zero; după instalare vom salva aici și exportul verificat. Imaginile primite sunt de prezentare comercială; fotografia plăcii fizice urmează.
+Costel a confirmat că deține Matek H743-WING V3, dar nu a instalat/configurat încă firmware-ul. Nu există un export `.param` al instalației de verificat în această etapă. Configurația se proiectează de la zero; după instalare vom salva aici și exportul verificat. Au fost analizate fotografiile plăcilor reale și capturile comerciale, inclusiv AK994/UM982. Dosarul [Schema conexiuni R1](hardware/2026-10-15/Schema_conexiuni_R1.md) conține alocările propuse, pinout-urile și verificările fizice restante; albumul are 39 fișiere / 35 imagini distincte.
 
 Inventarul de mai jos este extras din codul și documentația repository-ului, baza PR #21 `dfa5ecb1323845890828634c3d74e225a45599e5`. Nu reprezintă o citire live a G20/GR01. Nu au fost modificate setări radio, firmware sau parametri hardware pentru acest document.
 
@@ -65,10 +65,10 @@ Niciun rând de mai jos nu este confirmare de cablare. Propunerile istorice sunt
 | RGB | Ieșire serialLED → PCB V3 J7; LED la J8 | S13 / pad LED propus | Se verifică aliasul padului, suportul serialLED și ordinea culorilor |
 | Temperatură baterie | PCB V3 J10 → ADC H743 | RSSI / PC5 / ADC8 propus | Numerotare ADC și divizor Rev F de verificat; NTC la J9 |
 | Apă măsurare | PCB V3 J12 → ADC H743 | CU2 / PA7 / ADC7 propus | Se verifică front-end-ul ADC și domeniul de tensiune; electrozi la J11 |
-| GR01 comandă RC | GR01 SBUS → intrare RC H743 | Fără pad stabilit | Se verifică protocolul, inversia și intrarea potrivită |
-| GR01 telemetrie | UART MAVLink H743 ↔ GR01 | TELEM generic în documentația veche | UART fizic și SERIALx nealocate |
-| UM982 | UART H743 ↔ GNSS | UART/GPS generic | Se stabilesc conexiunile pentru poziție și heading conform modulului real |
-| USR-TCP232-ED2 | UART ↔ Ethernet, dacă păstrăm această cale | Fără UART stabilit | Stabilim dacă MAVLink trece prin ED2, prin GR01 sau pe legături separate |
+| GR01 comandă RC | GR01 SBUS → intrare RC H743 | RX6, intrare RC implicită MatekH743 | Propunere R1; GND comun, verificare cablu |
+| GR01 telemetrie | UART MAVLink H743 ↔ GR01 | TX7/RX7/G, UART7 = SERIAL1 | Propunere R1, TX↔RX; verificare logică 3,3V |
+| UM982 | UART H743 ↔ GNSS | TX2/RX2 = SERIAL3; DA1/CL1 pentru IST8310 | AK994, 5V extern; verificare niveluri și antenă master |
+| USR-TCP232-ED2 | UART ↔ Ethernet, dacă păstrăm această cale | ED2 UART0 RXD0 pin7 / TXD0 pin6 pentru Kogger | R1: sonar prin ED2, MAVLink prin GR01; fără UART H743 suplimentar |
 | Camera și Kogger | Rețea Ethernet planificată | Switch / GR01 / ED2 conform arhitecturii finale | Nu rezervăm ieșiri servo sau canale RC pentru date video/sonar |
 | Nano UART | Nu există pe PCB V3 | UART4/J18 apare în documentele V2 | Învechit pentru V3; nu rezervăm UART4 automat |
 
@@ -78,7 +78,7 @@ Niciun rând de mai jos nu este confirmare de cablare. Propunerile istorice sunt
 
 Documentul arhivat de bază V2 consemnează PWM0–PWM2 asociate CH9–CH11. Această afirmație este păstrată ca **informație istorică de reverificat în manualul/revizia GR01**, nu ca pinout aprobat. Arhitectura NAVO folosește H743 pentru motor, cârmă și cuve; nu conectăm în paralel ieșiri active GR01 și H743 către același servo. Faptul că presetul folosește CH15/CH16 nu presupune că receptorul are 16 conectori PWM.
 
-## Ce completăm după primirea fotografiilor și prima conectare
+## Ce completăm la prima conectare și validare fizică
 
 1. Revizia fizică H743/GR01, orientarea și etichetele conectorilor.
 2. Firmware-ul ales și identificatorul exact de placă; înainte de instalare consultăm documentația oficială.
