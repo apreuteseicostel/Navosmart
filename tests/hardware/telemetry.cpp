@@ -24,6 +24,11 @@ private slots:
   send(v,"NV3VER",2);QVERIFY(!t.connected());
   send(v,"NV3VER",1);QVERIFY(t.temperatureValid());QCOMPARE(t.batteryTempC(),24.0);
   send(v,"NV3WATER",0);send(v,"NV3WFAULT",0);QVERIFY(t.waterValid());
+  send(v,"NV3CAP",9);QCOMPARE(t.capabilities(),9);
+  send(v,"NV3HEAD",1);send(v,"NV3POS",0);QVERIFY(t.lightsValid());
+  send(v,"NV3HOP",3);send(v,"NV3REQ",42);QVERIFY(t.hopperStateValid());QCOMPARE(t.hopperMask(),3);QCOMPARE(t.lastRequest(),42);
+  send(v,"NV3HOP",0.5f);QVERIFY(!t.hopperStateValid());
+  send(v,"NV3CAP",NAN);QCOMPARE(t.capabilities(),0);
   send(v,"NV3WATER",NAN);QVERIFY(!t.waterValid());
   send(v,"NV3TEMP",-1000);QVERIFY(!t.temperatureValid());
   t.setVehicle(nullptr);QVERIFY(!t.connected());QVERIFY(!t.waterValid());

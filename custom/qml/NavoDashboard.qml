@@ -53,6 +53,7 @@ Item {
         id: hardwareSettings
         category: "NavoHardware"
         property string profile: "V2"
+        property int requestSequence: 0
     }
     readonly property bool v3Hardware: hardwareSettings.profile === "V3"
     readonly property string hardwareLabel: v3Hardware ? "H743 / V3" : "Nano / V2"
@@ -576,6 +577,9 @@ Item {
     NavoHopperBridge {
         id: hopperBridge
         vehicle: root.vehicle
+        onboardTiming: root.v3Hardware
+        hardwareTelemetry: nanoTelemetry
+        nextRequest: root.nextHardwareRequest
         calibrated: hopperSettings.confirmed && hopperSettings.leftOutput!==hopperSettings.rightOutput && root.linkAlive
         releaseAllowed: root.linkAlive && (root.v3Hardware || nanoTelemetry.connected || root.nanoHopperFallback)
         leftServoOutput: hopperSettings.leftOutput
@@ -640,11 +644,27 @@ Item {
         if(action==="POZITII") { commandNanoLight(2,2,"Poziții"); return }
     }
 
+    function nextHardwareRequest() {
+        var current=Math.max(hardwareSettings.requestSequence,nanoTelemetry.lastRequest)
+        if(current>=16777215) return 0
+        hardwareSettings.requestSequence=current+1
+        return hardwareSettings.requestSequence
+    }
     function commandNanoLight(target, mode, label) {
-        // V3 GPIO service and confirmed pin allocation are not available yet.
-        // Never route V3 actions into the legacy Nano UART bridge.
-        if(root.v3Hardware) { lastNavigationStatus=label+" indisponibil: serviciul de lumini H743/V3 nu este validat"; return false }
+        if(!vehicle || !vehicle.sendCommand) { lastNavigationStatus=label+" indisponibil: H743 deconectat"; return false }
         if(!root.linkAlive || root.sonarController.replayMode) { lastNavigationStatus=label+" indisponibil: legătură inactivă sau replay"; return false }
+        if(root.v3Hardware) {
+            if(!(nanoTelemetry.capabilities & 1) || !nanoTelemetry.lightsValid || !nanoTelemetry.hopperStateValid) {
+                lastNavigationStatus=label+" indisponibil: serviciul H743/V3 nu este pregătit"; return false
+            }
+            var desired=mode
+            if(mode===2) desired=(target===1 ? nanoTelemetry.headlightOn : nanoTelemetry.positionLightsOn) ? 0 : 1
+            var request=nextHardwareRequest()
+            if(!request || (desired!==0 && desired!==1))return false
+            vehicle.sendCommand(1,31001,true,target,desired,request,0,0,0,0)
+            lastNavigationStatus=label+" • solicitat H743; fără confirmare fizică"
+            return true
+        }
         // MAV_CMD_WAYPOINT_USER_1 (31000), consumed only by navo_nano_bridge.lua.
         // param1: 1=headlight, 2=position; param2: 0=OFF, 1=ON, 2=TOGGLE.
         if(!vehicle || !vehicle.sendCommand) { lastNavigationStatus=label+" indisponibil: H743 deconectat"; return false }
@@ -670,6 +690,7 @@ Item {
         root.selectedHopper = side
     }
     function closeHoppers() {
+        if(root.v3Hardware && !hopperBridge.closeOnboard())return
         root.selectedHopper = "none"
     }
     function allowLiveAction() {
@@ -2072,7 +2093,7 @@ Item {
                             onActivated: { hardwareSettings.profile=currentIndex===1 ? "V3" : "V2"; hopperSettings.confirmed=false }
                         }
                         Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; color:root.muted; font.pixelSize:11
-                            text:root.v3Hardware ? "V3: cuve direct H743. Senzori și lumini necesită serviciul de bord validat. Schimbă profilul cu barca deconectată." : "V2: senzori și lumini prin Nano. Schimbă profilul cu barca deconectată."
+                            text:root.v3Hardware ? "V3: cuve direct H743. Senzori, lumini și cuve necesită serviciul de bord configurat. Schimbă profilul cu barca deconectată." : "V2: senzori și lumini prin Nano. Schimbă profilul cu barca deconectată."
                         }
                         Label { text:"CUVE & SIGURANȚĂ HARDWARE"; color:"#f4f7fb"; font.pixelSize:15; font.bold:true }
                         GridLayout {

@@ -14,7 +14,7 @@ function callable(source, start) {
 }
 function context(file, values={}) {
   const source=fs.readFileSync(path.join(dir,file),'utf8');
-  const c=vm.createContext({routePlan:null,baitingController:null,servoCommandFailed:()=>{},...values}); c.root=c;
+  const c=vm.createContext({routePlan:null,baitingController:null,servoCommandFailed:()=>{},onboardTiming:false,...values}); c.root=c;
   const re=/\bfunction\s+([A-Za-z_][A-Za-z_0-9]*)\s*\(/g;
   let m;
   while((m=re.exec(source))) {
@@ -438,7 +438,7 @@ test('Vehicle change clears pending and latched water evidence',()=>{
   assert(!c.waterConfirmed && !c.criticalLatched);assert.equal(c.state,'UNKNOWN');
 });
 test('V3 and replay light actions cannot reach the Nano bridge',()=>{
-  let sent=0;const c=context('NavoDashboard.qml',{v3Hardware:true,linkAlive:true,
+  let sent=0;const c=context('NavoDashboard.qml',{v3Hardware:true,nanoTelemetry:{capabilities:0},linkAlive:true,
     sonarController:{replayMode:false},vehicle:{sendCommand:()=>sent++}});
   assert.equal(c.commandNanoLight(1,2,'Far'),false);assert.equal(sent,0);
   c.v3Hardware=false;c.sonarController.replayMode=true;
@@ -446,3 +446,26 @@ test('V3 and replay light actions cannot reach the Nano bridge',()=>{
   c.sonarController.replayMode=false;assert(c.commandNanoLight(1,1,'Far'));assert.equal(sent,1);
 });
 console.log(`${passed} total regression scenarios passed`);
+test('V3 hopper sends one onboard cycle with matching calibration and no phone close timer',()=>{
+ const sent=[];let timers=0;
+ const c=context('NavoHopperBridge.qml',{onboardTiming:true,calibrated:true,releaseAllowed:true,commandPending:false,
+  hardwareTelemetry:{capabilities:8,hopperStateValid:true,hopperMask:0,lastRequest:0},
+  nextRequest:()=>42,onboardWatchdog:{restart(){timers++},stop(){}},closeTimer:{restart(){throw Error('phone timer must not run')}},
+  vehicle:{sendCommand:(...args)=>sent.push(args),vehicleLinkManager:{communicationLost:false}},
+  mavCompAutopilot1:1,leftServoOutput:9,rightServoOutput:10,leftClosedPwm:1500,leftOpenPwm:1900,
+  rightClosedPwm:1500,rightOpenPwm:1900,releaseHoldMs:900,commandRejected:noop,commandSent:noop});
+ assert(c.release(3));assert.equal(sent.length,1);assert.equal(sent[0][1],31001);
+ assert.equal(sent[0][6],329);assert.equal(sent[0][9],900);assert.equal(timers,1);
+ assert(!c.release(1));
+ c.hardwareTelemetry.lastRequest=42;c.hardwareTelemetry.hopperMask=3;c.updateOnboard();assert(c.commandPending && c.leftOpen && c.rightOpen);
+ c.hardwareTelemetry.hopperMask=0;c.updateOnboard();assert(!c.commandPending && !c.leftOpen && !c.rightOpen);
+ c.hardwareTelemetry.capabilities=0;assert(!c.release(1));assert.equal(sent.length,1);
+});
+test('V3 light converts toggle into explicit state and never sends legacy command',()=>{
+ const sent=[];const c=context('NavoDashboard.qml',{v3Hardware:true,linkAlive:true,
+  nanoTelemetry:{capabilities:1,lightsValid:true,hopperStateValid:true,headlightOn:false},
+  sonarController:{replayMode:false},vehicle:{sendCommand:(...args)=>sent.push(args)}});
+ c.nextHardwareRequest=()=>100;
+ assert(c.commandNanoLight(1,2,'Far'));assert.equal(sent[0][1],31001);assert.equal(sent[0][4],1);assert.equal(sent[0][5],100);
+ c.nanoTelemetry.lightsValid=false;assert(!c.commandNanoLight(1,2,'Far'));assert.equal(sent.length,1);
+});

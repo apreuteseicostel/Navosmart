@@ -3,6 +3,10 @@ import QtQuick
 QtObject {
  id:root
  signal servoCommandFailed(string reason)
+ property bool onboardTiming: false
+ property var hardwareTelemetry: null
+ property var nextRequest: null
+ property int onboardRequest: 0
  property var vehicle
  property int leftServoOutput: 9
  property int rightServoOutput: 10
@@ -30,7 +34,10 @@ QtObject {
  function resetServoFeedback(){
   servoResponse="Niciun răspuns servo H743";servoResponseAtMs=0
  }
- onVehicleChanged: resetServoFeedback()
+ onVehicleChanged: {
+  resetServoFeedback()
+  if(onboardTiming){onboardWatchdog.stop();onboardRequest=0;commandPending=false;leftOpen=false;rightOpen=false}
+ }
  function receiveServoResult(vehicleId,component,command,result,failure){
   if(!vehicle || vehicleId!==vehicle.id || component!==mavCompAutopilot1 || command!==mavCmdDoSetServo)return false
   // QGC's result is command-level and cannot identify an individual output.
@@ -69,8 +76,42 @@ QtObject {
   lastCommand="SERVO "+output+" -> "+pwm+" us"
   return true
  }
+ function sendOnboard(action,value){
+  if(!vehicle || !vehicle.sendCommand || !vehicle.vehicleLinkManager || vehicle.vehicleLinkManager.communicationLost){commandRejected("H743 deconectat");return false}
+  if(!hardwareTelemetry || !(hardwareTelemetry.capabilities & 8) || !hardwareTelemetry.hopperStateValid){commandRejected("Serviciul cuve H743/V3 indisponibil");return false}
+  if(action===3 && (!calibrated || !releaseAllowed || commandPending || hardwareTelemetry.hopperMask!==0)){commandRejected("Cuve necalibrate sau ciclu activ");return false}
+  var request=nextRequest ? nextRequest() : 0
+  if(!request){commandRejected("Secvența comenzilor V3 indisponibilă");return false}
+  onboardRequest=request;commandPending=true
+  vehicle.sendCommand(mavCompAutopilot1,31001,true,action,value,request,
+      leftServoOutput+32*rightServoOutput,leftClosedPwm+4096*leftOpenPwm,
+      rightClosedPwm+4096*rightOpenPwm,releaseHoldMs)
+  onboardWatchdog.restart()
+  commandSent("Ciclu cuve solicitat H743; temporizare la bord")
+  return true
+ }
+ function closeOnboard(){return sendOnboard(4,0)}
+ function updateOnboard(){
+  if(!onboardTiming || !hardwareTelemetry || !hardwareTelemetry.hopperStateValid)return
+  leftOpen=(hardwareTelemetry.hopperMask & 1)!==0
+  rightOpen=(hardwareTelemetry.hopperMask & 2)!==0
+  if(onboardRequest && hardwareTelemetry.lastRequest===onboardRequest && hardwareTelemetry.hopperMask===0){
+   commandPending=false;onboardRequest=0;onboardWatchdog.stop()
+   commandSent("H743 raportează ciclul închis; poziția mecanică neconfirmată")
+  }
+ }
+ property Connections onboardUpdates: Connections {
+  target:root.hardwareTelemetry
+  ignoreUnknownSignals:true
+  function onTelemetryChanged(){root.updateOnboard()}
+ }
+ property Timer onboardWatchdog: Timer {
+  interval:5000;repeat:false
+  onTriggered:{root.servoCommandFailed("Ciclu H743 neconfirmat; verifică telemetria și cuvele");root.commandPending=false}
+ }
  function release(hopper){
   if(hopper!==1 && hopper!==2 && hopper!==3){commandRejected("Selecție cuvă invalidă");return false}
+  if(onboardTiming)return sendOnboard(3,hopper)
   if(commandPending){commandRejected("Comandă cuvă deja în curs");return false}
   if(!calibrated){commandRejected("Cuve necalibrate - comanda blocată");return false}
   if(!releaseAllowed){commandRejected("Așteaptă telemetria Nano sau timeout-ul de două secunde");return false}
@@ -88,6 +129,7 @@ QtObject {
   return true
  }
  function closePending(){
+  if(onboardTiming)return closeOnboard()
   var ok=true
   if((pendingHopper===1||pendingHopper===3) && leftOpen){
    if(setServo(leftServoOutput,leftClosedPwm))leftOpen=false

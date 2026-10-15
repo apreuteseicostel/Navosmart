@@ -118,3 +118,9 @@ Temporizarea închiderii cuvelor rămâne în aplicație. Nu există încă gara
 Serviciul H743 trebuie să implementeze citirea ADC, excitația sondei, conversia NTC Rev F, lumini, RGB, cicluri locale cuve și protecții locale. Nu încărca parametri GPIO/servo propuși fără exportul .param, verificarea firmware-ului și a pinilor ocupați. Nu au fost introduse în acest commit atribuiri de pini sau conversii analogice presupuse.
 
 Validare locală: 56 scenarii audit, 7 G20, 20 rute și 10 steering/bottom; teste Qt 6.8.3 pentru safety, alerte și importul modulului. Testele C++ ale parserului real sunt adăugate în CI cu transport MAVLink simulat; compilarea locală a lor este blocată de lipsa Qt development, instalarea apt fiind indisponibilă în mediu. Build-ul APK și acceptanța fizică nu sunt confirmate.
+
+
+## Actualizare: serviciul V3 și integrarea comenzilor
+Etapa de mai sus descrie primul commit. Ulterior au fost adăugate serviciul Lua, conversia NTC configurabilă, citirea pulsată a apei, lumini, RGB de stare și cicluri cuve temporizate la bord. Aplicația V3 folosește acum 31001 și capabilități cu expirare; nu mai folosește temporizarea locală pentru cuve. Luminile sunt disponibile numai când serviciul configurat raportează capabilitatea și stări proaspete. Butonul closeHoppers cere închidere la bord în V3.
+
+Configurația livrată rămâne dezactivată și fără pini presupuşi. Detalii și limite actualizate: `ardupilot/NAVO_V3_SERVICE.md`. Nu este încă o configurație validată a bărcii. Protecțiile autonome de navigație, configurarea fizică și testarea pe firmware-ul instalat rămân deschise.
