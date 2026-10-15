@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.16)
+project(navo_hardware_test LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_AUTOMOC ON)
+find_package(Qt6 REQUIRED COMPONENTS Core Test)
+add_executable(navo-hardware-test telemetry.cpp Vehicle.h ../../custom/src/NavoNanoTelemetry.cc ../../custom/src/NavoNanoTelemetry.h)
+target_include_directories(navo-hardware-test PRIVATE . ../../custom/src)
+target_link_libraries(navo-hardware-test PRIVATE Qt6::Core Qt6::Test)

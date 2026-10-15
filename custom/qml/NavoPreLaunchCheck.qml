@@ -7,6 +7,7 @@ QtObject {
     property bool homeReady: false
     property bool batteryReady: false
     property bool nanoReady: false
+    property string sensorLabel: "Nano"
     property bool sonarReady: false
     property bool cameraReady: false
     property bool hoppersReady: false
@@ -24,7 +25,7 @@ QtObject {
         {name:"UM982 / GPS", ok:gpsReady, critical:true},
         {name:"HOME", ok:homeReady, critical:true},
         {name:"Baterie", ok:batteryReady, critical:true},
-        {name:"Nano", ok:nanoReady, critical:false},
+        {name:sensorLabel, ok:nanoReady, critical:false},
         {name:"Kogger", ok:sonarReady, critical:false},
         {name:"Camera", ok:cameraReady, critical:false},
         {name:"Cuve", ok:hoppersReady, critical:false}

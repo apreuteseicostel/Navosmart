@@ -404,3 +404,45 @@ test('Area Scan checks energy before START and uses only remaining corridors on 
  c.checkEnergyForRoute=()=>true;assert(c.startUploadedMission());assert.equal(started,1);assert.equal(released,1);
 });
 console.log(`${passed} regression scenarios passed`);
+
+function safety(values={}) {
+  return context('NavoSafetyManager.qml',{
+    enabled:true,vehicle:null,temperatureValid:true,waterValid:true,
+    batteryTempC:20,criticalTempC:55,warningTempC:45,waterConfirmed:false,
+    waterDetected:false,criticalLatched:false,state:'UNKNOWN',reason:'',
+    stateChangedDetailed:noop,warning:noop,holdRequested:noop,rtlRequested:noop,
+    waterTimer:{running:false,stop(){this.running=false},restart(){this.running=true}},...values
+  });
+}
+test('Missing water data cannot suppress a valid critical temperature',()=>{
+  let holds=0;const c=safety({waterValid:false,batteryTempC:60,holdRequested:()=>holds++});
+  c.evaluate();assert.equal(c.state,'CRITICAL');assert.equal(holds,1);
+  c.evaluate();assert.equal(holds,1);
+});
+test('Missing temperature cannot suppress confirmed water; unknown is not recovery',()=>{
+  const c=safety({temperatureValid:false,waterConfirmed:true});c.evaluate();assert.equal(c.state,'CRITICAL');
+  c.waterConfirmed=false;c.waterValid=false;c.evaluate();assert.equal(c.state,'UNKNOWN');assert(c.criticalLatched);
+  c.waterValid=true;c.temperatureValid=true;c.evaluate();assert.equal(c.state,'NORMAL');assert(!c.criticalLatched);
+});
+test('Stale water cancels pending confirmation and recovery needs a new interval',()=>{
+  const c=safety({waterDetected:true});c.updateWater();assert(c.waterTimer.running);
+  c.waterValid=false;c.updateWater();assert(!c.waterTimer.running);
+  timerHandler('NavoSafetyManager.qml','waterTimer',c)();assert(!c.waterConfirmed);
+  c.waterValid=true;c.updateWater();assert(c.waterTimer.running);
+  timerHandler('NavoSafetyManager.qml','waterTimer',c)();assert(c.waterConfirmed);
+  c.waterValid=false;c.updateWater();assert(c.waterConfirmed);
+  c.waterValid=true;c.waterDetected=false;c.updateWater();assert(!c.waterConfirmed);
+});
+test('Vehicle change clears pending and latched water evidence',()=>{
+  const c=safety({waterConfirmed:true,criticalLatched:true});c.resetVehicle();
+  assert(!c.waterConfirmed && !c.criticalLatched);assert.equal(c.state,'UNKNOWN');
+});
+test('V3 and replay light actions cannot reach the Nano bridge',()=>{
+  let sent=0;const c=context('NavoDashboard.qml',{v3Hardware:true,linkAlive:true,
+    sonarController:{replayMode:false},vehicle:{sendCommand:()=>sent++}});
+  assert.equal(c.commandNanoLight(1,2,'Far'),false);assert.equal(sent,0);
+  c.v3Hardware=false;c.sonarController.replayMode=true;
+  assert.equal(c.commandNanoLight(2,1,'Poziții'),false);assert.equal(sent,0);
+  c.sonarController.replayMode=false;assert(c.commandNanoLight(1,1,'Far'));assert.equal(sent,1);
+});
+console.log(`${passed} total regression scenarios passed`);

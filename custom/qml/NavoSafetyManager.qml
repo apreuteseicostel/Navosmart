@@ -5,6 +5,8 @@ QtObject {
     property var vehicle
     property bool enabled: true
     property bool telemetryLive: false
+    property bool temperatureValid: telemetryLive && isFinite(batteryTempC)
+    property bool waterValid: telemetryLive && !waterSensorFault
     property bool waterSensorFault: false
     property bool waterDetected: false
     property real batteryTempC: NaN
@@ -33,12 +35,8 @@ QtObject {
     }
     function evaluate() {
         if (!enabled) return
-        if(!waterConfirmed && (!telemetryLive || waterSensorFault || !isFinite(batteryTempC))) {
-            setState("UNKNOWN", !telemetryLive ? "Telemetrie Nano indisponibilă" : "Senzor apă/temperatură invalid")
-            warning(reason); return
-        }
-        var hot = (!isNaN(batteryTempC) && batteryTempC >= criticalTempC)
-        var warm = (!isNaN(batteryTempC) && batteryTempC >= warningTempC)
+        var hot = temperatureValid && isFinite(batteryTempC) && batteryTempC >= criticalTempC
+        var warm = temperatureValid && isFinite(batteryTempC) && batteryTempC >= warningTempC
 
         if (waterConfirmed || hot) {
             var r = waterConfirmed ? "Apă confirmată în compartimentul electronic" : "Temperatură critică"
@@ -52,21 +50,42 @@ QtObject {
             criticalLatched=false
             setState("WARNING","Temperatură ridicată")
             warning(reason)
+        } else if (!temperatureValid || !waterValid) {
+            setState("UNKNOWN", "Senzor apă sau temperatură indisponibil")
+            warning(reason)
         } else {
             criticalLatched=false
-            setState("NORMAL","Sistem sigur")
+            setState("NORMAL","Senzori în limite")
         }
     }
-    onWaterDetectedChanged: {
-        if (waterDetected) waterTimer.restart()
-        else { waterTimer.stop(); waterConfirmed=false; evaluate() }
+    function updateWater() {
+        if (!waterValid) {
+            // Loss stops pending confirmation, but does not clear a known leak.
+            waterTimer.stop()
+        } else if (!waterDetected) {
+            waterTimer.stop()
+            waterConfirmed=false
+        } else if (!waterConfirmed && !waterTimer.running) {
+            waterTimer.restart()
+        }
+        evaluate()
     }
+    function resetVehicle() {
+        waterTimer.stop()
+        waterConfirmed=false
+        criticalLatched=false
+        setState("UNKNOWN", "Aștept datele senzorilor")
+    }
+    onVehicleChanged: resetVehicle()
+    onWaterDetectedChanged: updateWater()
+    onWaterValidChanged: updateWater()
+    onTemperatureValidChanged: evaluate()
     onBatteryTempCChanged: evaluate()
     onTelemetryLiveChanged: evaluate()
-    onWaterSensorFaultChanged: evaluate()
+    onWaterSensorFaultChanged: updateWater()
 
     property Timer waterTimer: Timer {
         interval: root.waterConfirmMs; repeat:false
-        onTriggered: { if(root.waterDetected){root.waterConfirmed=true;root.evaluate()} }
+        onTriggered: { if(root.waterValid && root.waterDetected){root.waterConfirmed=true;root.evaluate()} }
     }
 }
