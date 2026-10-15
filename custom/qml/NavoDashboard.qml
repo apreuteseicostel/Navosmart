@@ -15,7 +15,7 @@ import NavoSmart.Backend 1.0
 
 Item {
     id: root
-    readonly property string activePageName: ["HARTA","SONAR","MISIUNI","PUNCTE PESCUIT","BALȚILE MELE","CAMERA","SETARI","3D","NĂDIRE","SIGURANȚĂ","SONAR PRO"][activePage] || "HARTA"
+    readonly property string activePageName: ["HARTA","SONAR","MISIUNI","PUNCTE PESCUIT","BALȚILE MELE","CAMERA","SETARI","3D","NĂDIRE","SIGURANȚĂ","SONAR PRO","JURNAL","HĂRȚI OFFLINE"][activePage] || "HARTA"
     implicitWidth: 1280
     implicitHeight: 720
 
@@ -50,6 +50,20 @@ Item {
     }
 
     NavoPersistence { id: persistence }
+    NavoAlertAudio { id:alertAudio;volume:alerts.volume }
+    NavoAlerts {
+        id:alerts;output:alertAudio;vehicle:root.vehicle;replayMode:sonar.replayMode
+        nanoConnected:nanoTelemetry.connected
+        waterConfirmed:safetyManager.waterConfirmed
+        batteryTempC:nanoTelemetry.batteryTempC
+        batteryPercent:root.battery && root.battery.percentRemaining ? Number(root.battery.percentRemaining.rawValue) : NaN
+        gpsHealthy:failsafeController.gpsHealthy()
+        linkHealthy:failsafeController.linkHealthy()
+    }
+    Connections {
+        target:baitingController
+        function onCycleFinished(success,message){if(success)alerts.notify("bait-cycle","Ciclul de nădire s-a încheiat",false)}
+    }
     property alias lakePersistence: persistence
     property alias fishingSpotsController: fishingSpots
     property alias fishStoreController: fishStore
@@ -386,6 +400,19 @@ Item {
     property bool hopperStatusExpanded: false
     property bool mapFullscreen: false
     property bool headingOverlayOpen: false
+    property var offlineRegion: ({})
+    property var offlineViewRequest: null
+    function openOfflineMaps(region) { offlineRegion=region;mapMaximized=false;activePage=12 }
+    function showOfflineRegion(region,mapType) {
+        var providers=QGroundControl.mapEngineManager.mapProviderList
+        for(var i=0;i<providers.length;i++)if(mapType.indexOf(providers[i]+" ")===0){
+            QGroundControl.settingsManager.flightMapSettings.mapProvider.rawValue=providers[i]
+            QGroundControl.settingsManager.flightMapSettings.mapType.rawValue=mapType.slice(providers[i].length+1)
+            break
+        }
+        offlineViewRequest=region;activePage=0
+        Qt.callLater(function(){if(root.mapController){root.mapController.showOfflineRegion(region);root.offlineViewRequest=null}})
+    }
     property var mapController: null
     property string pendingAreaDrawMode: "none"
     property bool pendingBaitPointPick: false
@@ -997,6 +1024,8 @@ Item {
                 NavButton { text: "SONAR PRO"; proBadge: true; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 10; onClicked: root.activePage = 10 }
                 NavButton { text: "MISIUNI"; iconSource: "qrc:/qml/NavoSmart/icons/scan.svg"; active: root.activePage === 2; onClicked: root.activePage = 2 }
                 NavButton { text: "PUNCTE PESCUIT"; iconSource: "qrc:/qml/NavoSmart/icons/fish.svg"; active: root.activePage === 3; onClicked: root.activePage = 3 }
+                NavButton { text:"HĂRȚI OFFLINE";iconSource:"qrc:/qml/NavoSmart/icons/save.svg";active:root.activePage===12;onClicked:{if(root.mapController)root.offlineRegion=root.mapController.offlineRegion();root.activePage=12} }
+                NavButton { text:"JURNAL"; iconSource:"qrc:/qml/NavoSmart/icons/edit.svg"; active:root.activePage===11; onClicked:root.activePage=11 }
                 NavButton { text: "BALȚILE MELE"; iconSource: "qrc:/qml/NavoSmart/icons/lake.svg"; active: root.activePage === 4; onClicked: root.activePage = 4 }
                 NavButton { text: "CAMERA"; iconSource: "qrc:/qml/NavoSmart/icons/camera.svg"; active: root.activePage === 5; onClicked: root.activePage = 5 }
                 NavButton { text: "3D"; iconSource: "qrc:/qml/NavoSmart/icons/cube.svg"; active: root.activePage === 7; onClicked: root.activePage = 7 }
@@ -1034,7 +1063,9 @@ Item {
             Accessible.role: Accessible.Pane
             Accessible.name: status === Loader.Ready ? "Pagina " + root.activePageName : "Se încarcă pagina"
             anchors.fill: parent; anchors.margins: root.activePage === 10 ? 0 : 10
-            sourceComponent: root.activePage === 0 ? mapPage :
+            sourceComponent: root.activePage === 12 ? offlineMapsPage :
+                             root.activePage === 11 ? journalPage :
+                             root.activePage === 0 ? mapPage :
                              root.activePage === 1 ? sonarPage :
                              root.activePage === 10 ? sonarProPage :
                              root.activePage === 2 ? areaPage :
@@ -1075,6 +1106,7 @@ Item {
                 spotActionsAllowed:!root.missionBusy && !sonar.replayMode && !root.steeringModeBusy
                 onFishingSpotActionRequested:function(spot,action,hopper,size){root.prepareFishingSpotAction(spot,action,hopper,size)}
                 onFishingSpotRenameRequested:function(spot){root.prepareFishingSpotAction(spot,"edit",0,0)}
+                onOfflineMapsRequested:function(region){root.openOfflineMaps(region)}
                 onFishingSpotsRequested:function(spot){root.mapMaximized=false;root.activePage=3}
                 routeActive:routePlan.active
                 routeStops:routePlan.active ? routePlan.runningStops : routePlan.stops
@@ -1085,6 +1117,7 @@ Item {
                 anchors.leftMargin: 8; anchors.topMargin: 8; anchors.bottomMargin: 8; anchors.rightMargin: 72
                 Component.onCompleted: {
                     root.mapController = navoMap
+                    if(root.offlineViewRequest){navoMap.showOfflineRegion(root.offlineViewRequest);root.offlineViewRequest=null}
                     if (root.pendingAreaDrawMode === "rectangle") navoMap.beginAreaRectangle()
                     else if (root.pendingAreaDrawMode === "polygon") navoMap.beginAreaPolygon()
                     root.pendingAreaDrawMode = "none"
@@ -1476,6 +1509,7 @@ Item {
                 spotActionsAllowed:!root.missionBusy && !sonar.replayMode && !root.steeringModeBusy
                 onFishingSpotActionRequested:function(spot,action,hopper,size){root.prepareFishingSpotAction(spot,action,hopper,size)}
                 onFishingSpotRenameRequested:function(spot){root.prepareFishingSpotAction(spot,"edit",0,0)}
+                onOfflineMapsRequested:function(region){root.openOfflineMaps(region)}
                 onFishingSpotsRequested:function(spot){root.mapMaximized=false;root.activePage=3}
                 routeActive:routePlan.active
                 routeStops:root.missionScanSelected ? [] : routePlan.active ? routePlan.runningStops : routePlan.stops
@@ -1590,6 +1624,7 @@ Item {
                 spotActionsAllowed:!root.missionBusy && !sonar.replayMode && !root.steeringModeBusy
                 onFishingSpotActionRequested:function(spot,action,hopper,size){root.prepareFishingSpotAction(spot,action,hopper,size)}
                 onFishingSpotRenameRequested:function(spot){root.prepareFishingSpotAction(spot,"edit",0,0)}
+                onOfflineMapsRequested:function(region){root.openOfflineMaps(region)}
                 onFishingSpotsRequested:function(spot){fishingPageRoot.mapExpanded=false;root.mapMaximized=false;root.activePage=3}
                 routeActive:routePlan.active
                 routeStops:routePlan.active ? routePlan.runningStops : routePlan.stops
@@ -1874,6 +1909,31 @@ Item {
     }
 
     Component {
+        id:offlineMapsPage
+        NavoOfflineMaps {
+            manager:QGroundControl.mapEngineManager
+            region:root.offlineRegion
+            lakeName:scanCoordinator.lakeName
+            tileLimit:Number(QGroundControl.settingsManager.offlineMapsSettings.maxTilesForDownload.rawValue)
+            onChooseRegionRequested:root.activePage=0
+            onShowRegionRequested:function(region,mapType){root.showOfflineRegion(region,mapType)}
+        }
+    }
+
+    Component {
+        id:journalPage
+        NavoFishingJournal {
+            persistence:root.lakePersistence
+            lakeId:scanCoordinator.lakeId
+            lakeName:scanCoordinator.lakeName
+            vehicle:root.vehicle
+            replayMode:sonar.replayMode
+            depthM:sonar.replayMode ? NaN : root.depthM
+            waterTempC:sonar.replayMode ? NaN : root.waterTempC
+        }
+    }
+
+    Component {
         id: baitingPage
         Item {
             RowLayout {
@@ -1886,6 +1946,7 @@ Item {
                 spotActionsAllowed:!root.missionBusy && !sonar.replayMode && !root.steeringModeBusy
                 onFishingSpotActionRequested:function(spot,action,hopper,size){root.prepareFishingSpotAction(spot,action,hopper,size)}
                 onFishingSpotRenameRequested:function(spot){root.prepareFishingSpotAction(spot,"edit",0,0)}
+                onOfflineMapsRequested:function(region){root.openOfflineMaps(region)}
                 onFishingSpotsRequested:function(spot){root.mapMaximized=false;root.activePage=3}
                 routeActive:routePlan.active
                 routeStops:routePlan.active ? routePlan.runningStops : routePlan.stops
@@ -2112,6 +2173,7 @@ Item {
                         Layout.preferredHeight: implicitHeight
                         controller: g20Controller
                     }
+                    NavoAlertSettings { Layout.fillWidth:true;controller:alerts;audio:alertAudio }
                     NavoSteeringPanel {
                         Layout.fillWidth:true
                         controller:steeringAssist

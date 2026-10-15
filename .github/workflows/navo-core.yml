@@ -41,6 +41,9 @@ jobs:
           /tmp/navo-ui-env/bin/python tests/steering-ui.py
           /tmp/navo-ui-env/bin/python tests/sonar-recording-ui.py
           /tmp/navo-ui-env/bin/python tests/replay-notes-ui.py
+          /tmp/navo-ui-env/bin/python tests/fishing-journal-ui.py
+          /tmp/navo-ui-env/bin/python tests/offline-maps-ui.py
+          /tmp/navo-ui-env/bin/python tests/alerts-ui.py
       - uses: actions/upload-artifact@v4
         with:
           name: NAVO-NANO-FIRMWARE

@@ -69,6 +69,20 @@ Item {
     readonly property var operatorCoordinate: QGroundControl.qgcPositionManger && QGroundControl.qgcPositionManger.gcsPosition && QGroundControl.qgcPositionManger.gcsPosition.isValid ? QGroundControl.qgcPositionManger.gcsPosition : operatorPositionSource.position.coordinate
     readonly property bool operatorLocationValid: operatorCoordinate && operatorCoordinate.isValid
 
+    signal offlineMapsRequested(var region)
+    function offlineRegion() {
+        var corners=[liveMap.toCoordinate(Qt.point(0,0),false),liveMap.toCoordinate(Qt.point(liveMap.width,0),false),liveMap.toCoordinate(Qt.point(0,liveMap.height),false),liveMap.toCoordinate(Qt.point(liveMap.width,liveMap.height),false)]
+        var west=180,east=-180,north=-90,south=90
+        for(var i=0;i<corners.length;i++){if(!corners[i].isValid)return ({});west=Math.min(west,corners[i].longitude);east=Math.max(east,corners[i].longitude);north=Math.max(north,corners[i].latitude);south=Math.min(south,corners[i].latitude)}
+        if(east-west>180)return ({})
+        return {west:west,east:east,north:north,south:south,zoom:liveMap.zoomLevel,mapType:liveMap.activeMapType.name}
+    }
+    function showOfflineRegion(region) {
+        if(!region || !isFinite(region.west) || !isFinite(region.east))return
+        autoFollowBoat=false;initialCenterApplied=true
+        liveMap.center=QtPositioning.coordinate((region.north+region.south)/2,(region.west+region.east)/2)
+        liveMap.zoomLevel=region.zoom
+    }
     signal navigateRequested(var coordinate)
     signal savePointRequested(var coordinate)
     signal saveNamedPointRequested(var coordinate, string name, string markerColor)
@@ -614,6 +628,7 @@ Item {
             CheckBox{text:"Traseu planificat / Area Scan";palette.windowText:"white";checked:layerSettings.plannedVisible;onToggled:layerSettings.plannedVisible=checked}
             CheckBox{text:"Marcaje sonar";palette.windowText:"white";checked:layerSettings.fishVisible;onToggled:layerSettings.fishVisible=checked}
             CheckBox{text:"Batimetrie HD";palette.windowText:"#e9f2fa";checked:root.bathymetryHDEnabled;onToggled:root.bathymetryHDEnabled=checked}
+            Button{text:"Salvează zona offline";onClicked:{var region=root.offlineRegion();layersPopup.close();root.offlineMapsRequested(region)}}
             Button{text:"Închide";onClicked:layersPopup.close()}
         }
     }
