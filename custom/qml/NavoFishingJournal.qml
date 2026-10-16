@@ -46,8 +46,13 @@ Item {
     Component.onCompleted: { if(activeTrip)selectedId=activeTrip.id;else if(trips.length)selectedId=trips[0].id }
     onLakeIdChanged: entryDialog.close()
     onReplayModeChanged: entryDialog.close()
-    ColumnLayout {
-        anchors.fill: parent; spacing: 6
+    ScrollView {
+        anchors.fill: parent
+        clip: true
+        ScrollBar.vertical.policy: ScrollBar.AsNeeded
+        ColumnLayout {
+        width: Math.max(0, root.width - 18)
+        spacing: 6
         Label { text:"JURNAL DE PARTIDĂ"; color:"#21b7ff"; font.bold:true }
         Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; color:"#bbcbd9"; text:root.activeTrip ? "În desfășurare: "+root.activeTrip.title+" • "+root.activeTrip.lakeName : "Începe o partidă pe balta activă pentru capturi și observații." }
         RowLayout {
@@ -69,7 +74,7 @@ Item {
             ToolButton { text:"×"; Accessible.name:"Șterge partida"; enabled:!!root.selected; onClicked:{root.pendingDeleteId=root.selectedId;deleteDialog.open()} }
         }
         ListView {
-            objectName:"journalEntries"; Layout.fillWidth:true; Layout.fillHeight:true; clip:true; spacing:6
+            objectName:"journalEntries"; Layout.fillWidth:true; Layout.preferredHeight: Math.max(220, contentHeight); interactive:false; clip:true; spacing:6
             model:root.selected ? root.selected.entries : []
             ScrollBar.vertical:ScrollBar {}
             delegate:Rectangle {
@@ -87,6 +92,7 @@ Item {
                 }
             }
             Label { anchors.centerIn:parent;visible:parent.count===0;text:"Nicio însemnare";color:"#bbcbd9" }
+        }
         }
     }
     Dialog {
