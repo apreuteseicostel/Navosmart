@@ -222,12 +222,13 @@ Item {
         onStatus: function(text) { root.lastNavigationStatus=text }
     }
     NavoEnergyGuard { id: energyGuard }
+    property bool preLaunchBatteryOverride: false
     NavoPreLaunchCheck {
         id: preLaunchCheck
         vehicleConnected: root.linkAlive
         gpsReady: !!root.vehicle && !!root.vehicle.gps && Number(root.vehicle.gps.lock.rawValue) >= 3 && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
         homeReady: !!root.vehicle && !!root.vehicle.homePosition && root.vehicle.homePosition.isValid
-        batteryReady: !!root.battery && !!root.battery.percentRemaining && isFinite(Number(root.battery.percentRemaining.rawValue)) && Number(root.battery.percentRemaining.rawValue) > 20
+        batteryReady: root.preLaunchBatteryOverride || (!!root.battery && !!root.battery.percentRemaining && isFinite(Number(root.battery.percentRemaining.rawValue)) && Number(root.battery.percentRemaining.rawValue) > 20)
         nanoReady: nanoTelemetry.connected
         sonarReady: root.sonarConnected
         cameraReady: root.cameraConnected
@@ -743,7 +744,7 @@ Item {
         if(root.steeringModeBusy){root.lastNavigationStatus="Oprește asistența cârmei înainte de navigare/misiune";return false}
         if((routePlan && routePlan.active) || (baitingController && baitingController.enabled)) {root.lastNavigationStatus="Oprește traseul/nădirea înainte de Area Scan";return false}
         if(!root.allowLiveAction()) return false
-        if (!preLaunchCheck.navigationReady) { root.lastNavigationStatus = preLaunchCheck.blockingMessage; return false }
+        if (!preLaunchCheck.navigationReady) { root.lastNavigationStatus = preLaunchCheck.blockingMessage; preLaunchSkipDialog.open(); return false }
         if (!root.vehicle) {
             root.lastNavigationStatus = "START blocat: autopilot neconectat"
             return false
@@ -933,6 +934,31 @@ Item {
         return true
     }
 
+
+    Dialog {
+        id: preLaunchSkipDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        modal: true
+        title: "Pre-Launch • verificare"
+        standardButtons: Dialog.Cancel
+        ColumnLayout {
+            width: Math.min(350, root.width-50)
+            spacing: 10
+            Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: preLaunchCheck.blockingMessage }
+            Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; text: "SKIP poate ignora doar citirea bateriei din pre-check, în această sesiune. Nu dezactivează GPS, HOME, legătura H743, failsafe-ul autopilotului sau Energy Guard." }
+            Button {
+                Layout.fillWidth: true
+                text: "SKIP CITIRE BATERIE • CONFIRM"
+                enabled: root.linkAlive && preLaunchCheck.gpsReady && preLaunchCheck.homeReady && !preLaunchCheck.batteryReady
+                onClicked: {
+                    root.preLaunchBatteryOverride = true
+                    root.lastNavigationStatus = "Pre-Launch: citire baterie ignorată manual; verifică tensiunea fizic înainte de plecare"
+                    preLaunchSkipDialog.close()
+                }
+            }
+        }
+    }
 
     Dialog { id:homeRtlConfirm; parent:Overlay.overlay; anchors.centerIn:parent; modal:true; width:Math.min(360,root.width-24); title:"Întoarcere la HOME?"; standardButtons:Dialog.Yes | Dialog.No; closePolicy:Popup.NoAutoClose
         Label { width:Math.min(320,root.width-56); wrapMode:Text.WordWrap; text:"Comanzi RTL către H743/ArduPilot. Barca se va întoarce la HOME salvat de autopilot." }
