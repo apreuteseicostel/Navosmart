@@ -142,11 +142,28 @@ Item {
         }
     }
     NavoAreaScan { id: areaScanController }
+    property int pendingBaitJournalHopper: 0
+    property string pendingBaitJournalOutcome: ""
+    Dialog {
+        id: baitJournalTripDialog
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        modal: true
+        title: "Jurnal nădire automată"
+        standardButtons: Dialog.Yes | Dialog.No
+        Label { width: Math.min(340, root.width-60); wrapMode: Text.WordWrap; text: "Nu există o partidă activă pentru această baltă. Creezi acum o partidă și salvezi comanda de nădire? Nădirea nu va fi repetată." }
+        onAccepted: {
+            if(!scanCoordinator.lakeId || sonar.replayMode) return
+            var id=persistence.startFishingTrip(scanCoordinator.lakeId,scanCoordinator.lakeName || "Partidă de pescuit")
+            if(id) root.recordAutomaticBaiting(root.pendingBaitJournalHopper,root.pendingBaitJournalOutcome)
+            else root.lastNavigationStatus="Jurnal: partida nu a putut fi creată"
+        }
+    }
     function recordAutomaticBaiting(hopper, outcome) {
         if (sonar.replayMode || !scanCoordinator.lakeId || !persistence) return false
         var trips=persistence.fishingTrips || [], trip=null
         for(var i=0;i<trips.length;i++) if(!trips[i].endedAt && trips[i].lakeId===scanCoordinator.lakeId) {trip=trips[i];break}
-        if(!trip) return false
+        if(!trip) { root.pendingBaitJournalHopper=hopper; root.pendingBaitJournalOutcome=outcome; baitJournalTripDialog.open(); return false }
         var hopperName=hopper===1 ? "stânga" : hopper===2 ? "dreapta" : hopper===3 ? "ambele" : "fără cuvă"
         var message="Nădire automată • "+(baitingController.targetName||"punct fără nume")+" • cuva "+hopperName+" • "+outcome+" • Nadă folosită: de completat"
         var entry={type:"bait",text:message}
