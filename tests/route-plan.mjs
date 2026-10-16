@@ -181,7 +181,7 @@ test('Per-lake snapshots include route and history; active route prevents lake c
  route.start(true);assert.equal(c.activateLake('another','Other'),false);assert.equal(c.deleteLake('lake'),false);assert.equal(c.clearActiveLake(),false);
 });
 test('Foreign servo results are ignored; rejected/timeout commands emit failure instead of success',()=>{
- const failures=[];const c=context('NavoHopperBridge.qml',{vehicle:{id:42},mavCompAutopilot1:1,mavCmdDoSetServo:183,Date,servoCommandFailed:r=>failures.push(r)});
+ const failures=[];const c=context('NavoHopperBridge.qml',{onboardTiming:false,vehicle:{id:42},mavCompAutopilot1:1,mavCmdDoSetServo:183,Date,servoCommandFailed:r=>failures.push(r)});
  assert.equal(c.receiveServoResult(99,1,183,2,0),false);assert.equal(failures.length,0);
  c.receiveServoResult(42,1,183,0,0);c.receiveServoResult(42,1,183,5,0);assert.equal(failures.length,0);
  c.receiveServoResult(42,1,183,2,0);c.receiveServoResult(42,1,183,0,1);assert.equal(failures.length,2);

@@ -20,8 +20,12 @@ jobs:
         run: bash tests/firmware/build-nano.sh
       - name: Test H743 Lua UART bridge under fragmented and malformed input
         run: lua5.3 tests/firmware/nano-bridge.lua
+      - name: Test V3 onboard service and bounded hopper cycles
+        run: lua5.3 tests/firmware/v3-service.lua
       - name: Build and test persistence under write failures
         run: cmake -S tests/persistence -B /tmp/navo-persistence && cmake --build /tmp/navo-persistence -j2 && /tmp/navo-persistence/navo-persistence-test
+      - name: Hardware profiles and independent sensor expiry
+        run: cmake -S tests/hardware -B /tmp/navo-hardware && cmake --build /tmp/navo-hardware -j2 && /tmp/navo-hardware/navo-hardware-test
       - name: G20 physical RC input regressions
         run: node tests/g20-input.mjs
       - name: Controller regressions
@@ -44,6 +48,7 @@ jobs:
           /tmp/navo-ui-env/bin/python tests/fishing-journal-ui.py
           /tmp/navo-ui-env/bin/python tests/offline-maps-ui.py
           /tmp/navo-ui-env/bin/python tests/alerts-ui.py
+          /tmp/navo-ui-env/bin/python tests/hardware-safety-ui.py
       - uses: actions/upload-artifact@v4
         with:
           name: NAVO-NANO-FIRMWARE

@@ -14,7 +14,7 @@ function callable(source, start) {
 }
 function context(file, values={}) {
   const source=fs.readFileSync(path.join(dir,file),'utf8');
-  const c=vm.createContext({routePlan:null,baitingController:null,servoCommandFailed:()=>{},...values}); c.root=c;
+  const c=vm.createContext({routePlan:null,baitingController:null,servoCommandFailed:()=>{},onboardTiming:false,releaseComplete:true,...values}); c.root=c;
   const re=/\bfunction\s+([A-Za-z_][A-Za-z_0-9]*)\s*\(/g;
   let m;
   while((m=re.exec(source))) {
@@ -404,3 +404,78 @@ test('Area Scan checks energy before START and uses only remaining corridors on 
  c.checkEnergyForRoute=()=>true;assert(c.startUploadedMission());assert.equal(started,1);assert.equal(released,1);
 });
 console.log(`${passed} regression scenarios passed`);
+
+function safety(values={}) {
+  return context('NavoSafetyManager.qml',{
+    enabled:true,vehicle:null,temperatureValid:true,waterValid:true,
+    batteryTempC:20,criticalTempC:55,warningTempC:45,waterConfirmed:false,
+    waterDetected:false,criticalLatched:false,state:'UNKNOWN',reason:'',
+    stateChangedDetailed:noop,warning:noop,holdRequested:noop,rtlRequested:noop,
+    waterTimer:{running:false,stop(){this.running=false},restart(){this.running=true}},...values
+  });
+}
+test('Missing water data cannot suppress a valid critical temperature',()=>{
+  let holds=0;const c=safety({waterValid:false,batteryTempC:60,holdRequested:()=>holds++});
+  c.evaluate();assert.equal(c.state,'CRITICAL');assert.equal(holds,1);
+  c.evaluate();assert.equal(holds,1);
+});
+test('Missing temperature cannot suppress confirmed water; unknown is not recovery',()=>{
+  const c=safety({temperatureValid:false,waterConfirmed:true});c.evaluate();assert.equal(c.state,'CRITICAL');
+  c.waterConfirmed=false;c.waterValid=false;c.evaluate();assert.equal(c.state,'UNKNOWN');assert(c.criticalLatched);
+  c.waterValid=true;c.temperatureValid=true;c.evaluate();assert.equal(c.state,'NORMAL');assert(!c.criticalLatched);
+});
+test('Stale water cancels pending confirmation and recovery needs a new interval',()=>{
+  const c=safety({waterDetected:true});c.updateWater();assert(c.waterTimer.running);
+  c.waterValid=false;c.updateWater();assert(!c.waterTimer.running);
+  timerHandler('NavoSafetyManager.qml','waterTimer',c)();assert(!c.waterConfirmed);
+  c.waterValid=true;c.updateWater();assert(c.waterTimer.running);
+  timerHandler('NavoSafetyManager.qml','waterTimer',c)();assert(c.waterConfirmed);
+  c.waterValid=false;c.updateWater();assert(c.waterConfirmed);
+  c.waterValid=true;c.waterDetected=false;c.updateWater();assert(!c.waterConfirmed);
+});
+test('Vehicle change clears pending and latched water evidence',()=>{
+  const c=safety({waterConfirmed:true,criticalLatched:true});c.resetVehicle();
+  assert(!c.waterConfirmed && !c.criticalLatched);assert.equal(c.state,'UNKNOWN');
+});
+test('V3 and replay light actions cannot reach the Nano bridge',()=>{
+  let sent=0;const c=context('NavoDashboard.qml',{v3Hardware:true,nanoTelemetry:{capabilities:0},linkAlive:true,
+    sonarController:{replayMode:false},vehicle:{sendCommand:()=>sent++}});
+  assert.equal(c.commandNanoLight(1,2,'Far'),false);assert.equal(sent,0);
+  c.v3Hardware=false;c.sonarController.replayMode=true;
+  assert.equal(c.commandNanoLight(2,1,'Poziții'),false);assert.equal(sent,0);
+  c.sonarController.replayMode=false;assert(c.commandNanoLight(1,1,'Far'));assert.equal(sent,1);
+});
+console.log(`${passed} total regression scenarios passed`);
+test('V3 hopper sends one onboard cycle with matching calibration and no phone close timer',()=>{
+ const sent=[];let timers=0;
+ const c=context('NavoHopperBridge.qml',{onboardTiming:true,calibrated:true,releaseAllowed:true,commandPending:false,
+  hardwareTelemetry:{capabilities:8,hopperStateValid:true,hopperMask:0,lastRequest:0},
+  nextRequest:()=>42,onboardWatchdog:{restart(){timers++},stop(){}},closeTimer:{restart(){throw Error('phone timer must not run')}},
+  vehicle:{sendCommand:(...args)=>sent.push(args),vehicleLinkManager:{communicationLost:false}},
+  mavCompAutopilot1:1,leftServoOutput:9,rightServoOutput:10,leftClosedPwm:1500,leftOpenPwm:1900,
+  rightClosedPwm:1500,rightOpenPwm:1900,releaseHoldMs:900,commandRejected:noop,commandSent:noop});
+ assert(c.release(3));assert.equal(sent.length,1);assert.equal(sent[0][1],31001);
+ assert.equal(sent[0][6],329);assert.equal(sent[0][9],900);assert.equal(timers,1);
+ assert(!c.release(1));
+ c.hardwareTelemetry.lastRequest=42;c.hardwareTelemetry.hopperMask=3;c.updateOnboard();assert(c.commandPending && c.leftOpen && c.rightOpen);
+ c.hardwareTelemetry.hopperMask=0;c.updateOnboard();assert(!c.commandPending && !c.leftOpen && !c.rightOpen);
+ c.hardwareTelemetry.capabilities=0;assert(!c.release(1));assert.equal(sent.length,1);
+});
+test('V3 light converts toggle into explicit state and never sends legacy command',()=>{
+ const sent=[];const c=context('NavoDashboard.qml',{v3Hardware:true,linkAlive:true,
+  nanoTelemetry:{capabilities:1,lightsValid:true,hopperStateValid:true,headlightOn:false},
+  sonarController:{replayMode:false},vehicle:{sendCommand:(...args)=>sent.push(args)}});
+ c.nextHardwareRequest=()=>100;
+ assert(c.commandNanoLight(1,2,'Far'));assert.equal(sent[0][1],31001);assert.equal(sent[0][4],1);assert.equal(sent[0][5],100);
+ c.nanoTelemetry.lightsValid=false;assert(!c.commandNanoLight(1,2,'Far'));assert.equal(sent.length,1);
+});
+test('V3 rejected command aborts the cycle without claiming closure',()=>{
+ let failed=0;const c=context('NavoHopperBridge.qml',{onboardTiming:true,commandPending:true,onboardCycleComplete:false,
+ vehicle:{id:1},mavCompAutopilot1:1,mavCmdDoSetServo:183,onboardWatchdog:{stop(){}},servoCommandFailed:()=>failed++});
+ assert(c.receiveServoResult(1,1,31001,4,0));assert.equal(failed,1);assert(!c.onboardCycleComplete);
+});
+test('Baiting waits for onboard closure instead of leaving after a phone delay',()=>{
+ let restarted=0,exited=0;const c=context('NavoBaitingController.qml',{enabled:true,state:5,releaseState:5,hopper:1,releaseComplete:false,
+ restart:()=>restarted++});c.vehicleCoordinateValid=()=>true;c.makeExitCoordinate=()=>{exited++;return {isValid:true}};
+ timerHandler('NavoBaitingController.qml','postDropTimer',c)();assert.equal(restarted,1);assert.equal(exited,0);
+});
