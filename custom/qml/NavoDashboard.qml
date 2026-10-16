@@ -142,6 +142,21 @@ Item {
         }
     }
     NavoAreaScan { id: areaScanController }
+    function recordAutomaticBaiting(hopper, outcome) {
+        if (sonar.replayMode || !scanCoordinator.lakeId || !persistence) return false
+        var trips=persistence.fishingTrips || [], trip=null
+        for(var i=0;i<trips.length;i++) if(!trips[i].endedAt && trips[i].lakeId===scanCoordinator.lakeId) {trip=trips[i];break}
+        if(!trip) return false
+        var hopperName=hopper===1 ? "stânga" : hopper===2 ? "dreapta" : hopper===3 ? "ambele" : "fără cuvă"
+        var message="Nădire automată • "+(baitingController.targetName||"punct fără nume")+" • cuva "+hopperName+" • "+outcome+" • Nadă folosită: de completat"
+        var entry={type:"bait",text:message}
+        if(root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid && root.linkAlive && root.vehicle.gps && Number(root.vehicle.gps.lock.rawValue)>=3) {
+            entry.positionValid=true;entry.lat=root.vehicle.coordinate.latitude;entry.lon=root.vehicle.coordinate.longitude
+        }
+        if(isFinite(root.depthM) && root.depthM>0) entry.depth=root.depthM
+        if(isFinite(root.waterTempC)) entry.temperature=root.waterTempC
+        return !!persistence.saveFishingEntry(trip.id,entry)
+    }
     NavoBaitingController {
         id: baitingController
         vehicle: root.vehicle
@@ -154,6 +169,7 @@ Item {
         onHopperReleaseRequested: function(hopper) {
             if(!hopperBridge.release(hopper))
                 baitingController.abortCycle("Cuva nu a putut fi comandată")
+            else root.recordAutomaticBaiting(hopper, "comandă de eliberare trimisă; confirmarea fizică nu este disponibilă")
         }
         onRtlRequested: root.rtlMission()
         onStateChangedDetailed: function(state, text) { root.lastNavigationStatus="Nădire: "+text }
