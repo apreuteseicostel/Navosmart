@@ -142,8 +142,10 @@ Item {
         }
     }
     NavoAreaScan { id: areaScanController }
-    property int pendingBaitJournalHopper: 0
-    property string pendingBaitJournalOutcome: ""
+    // Snapshot each accepted release command immediately. Do not overwrite events while
+    // the user is deciding whether to start a fishing trip.
+    property var pendingBaitJournalEvents: []
+    property int baitJournalSequence: 0
     Dialog {
         id: baitJournalTripDialog
         parent: Overlay.overlay
@@ -151,28 +153,57 @@ Item {
         modal: true
         title: "Jurnal nădire automată"
         standardButtons: Dialog.Yes | Dialog.No
-        Label { width: Math.min(340, root.width-60); wrapMode: Text.WordWrap; text: "Nu există o partidă activă pentru această baltă. Creezi acum o partidă și salvezi comanda de nădire? Nădirea nu va fi repetată." }
-        onAccepted: {
-            if(!scanCoordinator.lakeId || sonar.replayMode) return
-            var id=persistence.startFishingTrip(scanCoordinator.lakeId,scanCoordinator.lakeName || "Partidă de pescuit")
-            if(id) root.recordAutomaticBaiting(root.pendingBaitJournalHopper,root.pendingBaitJournalOutcome)
-            else root.lastNavigationStatus="Jurnal: partida nu a putut fi creată"
+        Label {
+            width: Math.min(340, root.width-60)
+            wrapMode: Text.WordWrap
+            text: "Ai "+root.pendingBaitJournalEvents.length+" comenzi de nădire neînregistrate. Creezi o partidă pentru balta selectată și le salvezi? Nu se repetă eliberarea nadei."
+        }
+        onAccepted: root.flushPendingBaitJournal(true)
+        onRejected: {
+            root.pendingBaitJournalEvents=[]
+            root.lastNavigationStatus="Jurnal: înregistrarea automată a nădirilor a fost refuzată"
         }
     }
+    function activeBaitJournalTrip(lakeId) {
+        var trips=persistence ? (persistence.fishingTrips || []) : []
+        for(var i=0;i<trips.length;i++) if(!trips[i].endedAt && trips[i].lakeId===lakeId)return trips[i]
+        return null
+    }
+    function flushPendingBaitJournal(allowCreate) {
+        var queue=root.pendingBaitJournalEvents.slice()
+        if(!queue.length || !persistence)return false
+        var remaining=[], failed=false
+        for(var i=0;i<queue.length;i++) {
+            var event=queue[i]
+            var trip=root.activeBaitJournalTrip(event.lakeId)
+            if(!trip && allowCreate && event.lakeId===scanCoordinator.lakeId) {
+                var tripId=persistence.startFishingTrip(event.lakeId,event.lakeName || "Partidă de pescuit")
+                if(tripId)trip=root.activeBaitJournalTrip(event.lakeId)
+            }
+            if(!trip || !persistence.saveFishingEntry(trip.id,event.entry)) {
+                remaining.push(event);failed=true
+            }
+        }
+        root.pendingBaitJournalEvents=remaining
+        if(failed)root.lastNavigationStatus="Jurnal: "+remaining.length+" nădiri nesalvate; păstrate în sesiune pentru reîncercare"
+        return !failed
+    }
     function recordAutomaticBaiting(hopper, outcome) {
-        if (sonar.replayMode || !scanCoordinator.lakeId || !persistence) return false
-        var trips=persistence.fishingTrips || [], trip=null
-        for(var i=0;i<trips.length;i++) if(!trips[i].endedAt && trips[i].lakeId===scanCoordinator.lakeId) {trip=trips[i];break}
-        if(!trip) { root.pendingBaitJournalHopper=hopper; root.pendingBaitJournalOutcome=outcome; baitJournalTripDialog.open(); return false }
+        if(sonar.replayMode || !scanCoordinator.lakeId || !persistence)return false
+        var lakeId=scanCoordinator.lakeId
         var hopperName=hopper===1 ? "stânga" : hopper===2 ? "dreapta" : hopper===3 ? "ambele" : "fără cuvă"
         var message="Nădire automată • "+(baitingController.targetName||"punct fără nume")+" • cuva "+hopperName+" • "+outcome+" • Nadă folosită: de completat"
         var entry={type:"bait",text:message}
         if(root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid && root.linkAlive && root.vehicle.gps && Number(root.vehicle.gps.lock.rawValue)>=3) {
             entry.positionValid=true;entry.lat=root.vehicle.coordinate.latitude;entry.lon=root.vehicle.coordinate.longitude
         }
-        if(isFinite(root.depthM) && root.depthM>0) entry.depth=root.depthM
-        if(isFinite(root.waterTempC)) entry.temperature=root.waterTempC
-        return !!persistence.saveFishingEntry(trip.id,entry)
+        if(isFinite(root.depthM) && root.depthM>0)entry.depth=root.depthM
+        if(isFinite(root.waterTempC))entry.temperature=root.waterTempC
+        var event={sequence:++root.baitJournalSequence,lakeId:lakeId,lakeName:scanCoordinator.lakeName,entry:entry}
+        root.pendingBaitJournalEvents=root.pendingBaitJournalEvents.concat([event])
+        if(root.activeBaitJournalTrip(lakeId))return root.flushPendingBaitJournal(false)
+        if(!baitJournalTripDialog.visible)baitJournalTripDialog.open()
+        return false
     }
     NavoBaitingController {
         id: baitingController
