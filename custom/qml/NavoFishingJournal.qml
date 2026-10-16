@@ -19,6 +19,7 @@ Item {
     property string editingId: ""
     property string pendingDeleteId: ""
     property string pendingEntryId: ""
+    property string baitPrefix: ""
     function findTrip(id) { for(var i=0;i<trips.length;i++)if(trips[i].id===id)return trips[i];return null }
     function findActive() { for(var i=0;i<trips.length;i++)if(!trips[i].endedAt)return trips[i];return null }
     function when(value) { return value ? new Date(value).toLocaleString(Qt.locale(),Locale.ShortFormat) : "" }
@@ -33,13 +34,16 @@ Item {
             captured={positionValid:valid,depth:depthM,temperature:waterTempC}
             if(valid){captured.lat=c.latitude;captured.lon=c.longitude}
         }
+        baitPrefix = entry && entry.type==="bait" && entry.text.indexOf(" • Nadă folosită:")>=0 ? entry.text.split(" • Nadă folosită:")[0] : ""
+        baitDetails.text = baitPrefix ? entry.text.split(" • Nadă folosită:").slice(1).join(" • Nadă folosită:").trim().replace(/^de completat$/, "") : ""
         entryText.text=entry ? entry.text : ""
         entryType.currentIndex=entry ? ["note","catch","bait"].indexOf(entry.type) : 0
         entryDialog.open();return true
     }
     function saveEntry() {
         if(!selected || (!editingId && (replayMode || selected.lakeId!==lakeId)))return false
-        var data=Object.assign({},captured,{id:editingId,text:entryText.text,type:["note","catch","bait"][entryType.currentIndex]})
+        var finalText = baitPrefix && entryType.currentIndex===2 ? baitPrefix+" • Nadă folosită: "+baitDetails.text.trim() : entryText.text
+        var data=Object.assign({},captured,{id:editingId,text:finalText,type:["note","catch","bait"][entryType.currentIndex]})
         if(!persistence.saveFishingEntry(selectedId,data))return false
         entryDialog.close();return true
     }
@@ -106,9 +110,11 @@ Item {
         id:entryDialog;objectName:"journalEntryEditor";parent:Overlay.overlay;anchors.centerIn:parent;width:Math.min(440,root.width);height:Math.min(420,root.height);modal:true;title:root.editingId ? "Editează însemnarea" : "Însemnare nouă";standardButtons:Dialog.Cancel
         contentItem:ColumnLayout {
             ComboBox { id:entryType;objectName:"journalEntryType";Layout.fillWidth:true;model:["Observație","Captură","Nădire"] }
-            ScrollView { Layout.fillWidth:true;Layout.fillHeight:true;TextArea { id:entryText;objectName:"journalEntryText";wrapMode:TextEdit.Wrap;placeholderText:"Observație, specie/greutate sau nadă folosită…";selectByMouse:true } }
+            Label { visible:root.baitPrefix.length>0 && entryType.currentIndex===2; Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.baitPrefix; color:"#bbcbd9" }
+            TextField { id:baitDetails; visible:root.baitPrefix.length>0 && entryType.currentIndex===2; Layout.fillWidth:true; placeholderText:"Tip nadă și cantitate (ex.: boilies 500 g)" }
+            ScrollView { visible:!(root.baitPrefix.length>0 && entryType.currentIndex===2); Layout.fillWidth:true;Layout.fillHeight:true;TextArea { id:entryText;objectName:"journalEntryText";wrapMode:TextEdit.Wrap;placeholderText:"Observație, specie/greutate sau nadă folosită…";selectByMouse:true } }
             Label { Layout.fillWidth:true;color:"#b83d28";wrapMode:Text.WordWrap;text:entryText.text.length+" / 1000"+(root.persistence && root.persistence.journalError ? " • "+root.persistence.journalError : "") }
-            Button { text:"Salvează";enabled:entryText.text.trim().length>0 && entryText.text.length<=1000;onClicked:root.saveEntry() }
+            Button { text:"Salvează";enabled:root.baitPrefix.length>0 && entryType.currentIndex===2 ? baitDetails.text.trim().length>0 && (root.baitPrefix.length+baitDetails.text.length+18)<=1000 : entryText.text.trim().length>0 && entryText.text.length<=1000;onClicked:root.saveEntry() }
         }
     }
     Dialog {
