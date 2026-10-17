@@ -192,14 +192,11 @@ test('PRO impulse filter removes an isolated spike and preserves sustained retur
   assert.equal(c.sampleStrength([.8,NaN,.8],1),0);
   c.gain=3;assert.equal(c.sampleStrength([.8,.9,.8],1),1);
 });
-test('Nano absence permits calibrated H743 control after two seconds, with reconnect/link reset',()=>{
-  const c=context('NavoDashboard.qml',{vehicle:{},linkAlive:true,nanoTelemetry:{lastUpdateMs:0},nanoMissingSinceMs:0,nanoHopperFallback:false});
-  c.updateNanoHopperAvailability(10000);assert.equal(c.nanoHopperFallback,false);
-  c.updateNanoHopperAvailability(11999);assert.equal(c.nanoHopperFallback,false);
-  c.updateNanoHopperAvailability(12000);assert.equal(c.nanoHopperFallback,true);
-  c.nanoTelemetry.lastUpdateMs=12000;c.updateNanoHopperAvailability(12001);assert.equal(c.nanoHopperFallback,false);
-  c.updateNanoHopperAvailability(14000);assert.equal(c.nanoHopperFallback,true);
-  c.linkAlive=false;c.updateNanoHopperAvailability(14001);assert.equal(c.nanoHopperFallback,false);assert.equal(c.nanoMissingSinceMs,0);
+test('V3 hopper control does not depend on legacy Nano timeout',()=>{
+  const q=qml('NavoDashboard.qml');
+  assert.ok(!q.includes('updateNanoHopperAvailability('));
+  assert.ok(!q.includes('nanoHopperFallback'));
+  assert.ok(q.includes('releaseAllowed: root.linkAlive && hopperSettings.confirmed'));
 });
 test('Replay cannot create live fish detections or checkpoints, including delayed detection events',()=>{
   let added=0,saved=0;const c=context('NavoDashboard.qml',{sonar:{replayMode:true,depthM:5},linkAlive:true,vehicle:{coordinate:coord(52,0),gps:{lock:{rawValue:3}}},fishStore:{addDetection(){added++;return {}}},scanCoordinator:{checkpoint(){saved++}}});
