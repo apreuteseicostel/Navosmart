@@ -194,6 +194,8 @@ QString NavoPersistence::saveFishingEntry(const QString& tripId,const QVariantMa
  auto trips=_fishingTrips;
  for(int i=0;i<trips.size();++i){auto trip=trips[i].toMap();if(trip.value("id").toString()!=tripId)continue;
   auto entries=trip.value("entries").toList();QString id=input.value("id").toString();int index=-1;
+  const QString eventKey=input.value("clientEventId").toString();
+  if(!eventKey.isEmpty())for(const auto& item:entries){const auto existing=item.toMap();if(existing.value("clientEventId").toString()==eventKey)return existing.value("id").toString();}
   for(int j=0;j<entries.size();++j)if(entries[j].toMap().value("id").toString()==id){index=j;break;}
   if(!id.isEmpty() && index<0){journalFailure(QStringLiteral("Însemnarea nu mai există."));return {};}
   QVariantMap entry;
@@ -202,6 +204,7 @@ QString NavoPersistence::saveFishingEntry(const QString& tripId,const QVariantMa
    if(!trip.value("endedAt").toString().isEmpty() || entries.size()>=1000){journalFailure(QStringLiteral("Partida este încheiată sau are deja 1000 însemnări."));return {};}
    id=QUuid::createUuid().toString(QUuid::WithoutBraces);
    entry={{"id",id},{"text",text},{"type",type},{"createdAt",QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs)}};
+   if(!eventKey.isEmpty() && eventKey.size()<=128)entry["clientEventId"]=eventKey;
    bool latOk=false,lonOk=false;const double lat=input.value("lat").toDouble(&latOk),lon=input.value("lon").toDouble(&lonOk);
    if(input.value("positionValid").toBool() && latOk && lonOk && std::isfinite(lat) && std::isfinite(lon) && std::abs(lat)<=90 && std::abs(lon)<=180){entry["lat"]=lat;entry["lon"]=lon;}
    for(const auto& key:{QStringLiteral("depth"),QStringLiteral("temperature")}){bool ok=false;const double value=input.value(key).toDouble(&ok);if(ok && std::isfinite(value) && (key!="depth" || value>0))entry[key]=value;}
