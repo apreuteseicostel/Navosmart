@@ -87,8 +87,9 @@ QtObject {
  }
  function sendOnboard(action,value){
   if(!vehicle || !vehicle.sendCommand || !vehicle.vehicleLinkManager || vehicle.vehicleLinkManager.communicationLost){commandRejected("H743 deconectat");return false}
-  if(!hardwareTelemetry || !(hardwareTelemetry.capabilities & 8) || !hardwareTelemetry.hopperStateValid){commandRejected("Serviciul cuve H743/V3 indisponibil");return false}
-  if(action===3 && (!calibrated || !releaseAllowed || commandPending || hardwareTelemetry.hopperMask!==0)){commandRejected("Cuve necalibrate sau ciclu activ");return false}
+  if(!hardwareTelemetry || !hardwareTelemetry.connected || !(hardwareTelemetry.capabilities & 8) || !hardwareTelemetry.hopperStateValid){commandRejected("Serviciul cuve H743/V3 indisponibil");return false}
+  if(commandPending){commandRejected("Există deja o comandă H743 în așteptare");return false}
+  if(action===3 && (!calibrated || !releaseAllowed || hardwareTelemetry.hopperMask!==0)){commandRejected("Cuve necalibrate sau ciclu activ");return false}
   var request=nextRequest ? nextRequest() : 0
   if(!request){commandRejected("Secvența comenzilor V3 indisponibilă");return false}
   onboardRequest=request;onboardCycleComplete=false;commandPending=true
@@ -104,7 +105,7 @@ QtObject {
   if(!onboardTiming || !hardwareTelemetry || !hardwareTelemetry.hopperStateValid)return
   leftOpen=(hardwareTelemetry.hopperMask & 1)!==0
   rightOpen=(hardwareTelemetry.hopperMask & 2)!==0
-  if(onboardRequest && hardwareTelemetry.lastRequest===onboardRequest && hardwareTelemetry.hopperMask===0){
+  if(commandPending && onboardRequest && hardwareTelemetry.lastRequest===onboardRequest && hardwareTelemetry.hopperMask===0){
    commandPending=false;onboardRequest=0;onboardCycleComplete=true;onboardWatchdog.stop()
    commandSent("H743 raportează ciclul închis; poziția mecanică neconfirmată")
   }
@@ -116,7 +117,7 @@ QtObject {
  }
  property Timer onboardWatchdog: Timer {
   interval:5000;repeat:false
-  onTriggered:{root.servoCommandFailed("Ciclu H743 neconfirmat; verifică telemetria și cuvele");root.commandPending=false}
+  onTriggered:{root.servoCommandFailed("Ciclu H743 neconfirmat; verifică telemetria și cuvele");root.commandPending=false;root.onboardRequest=0;root.onboardCycleComplete=false}
  }
  function release(hopper){
   if(hopper!==1 && hopper!==2 && hopper!==3){commandRejected("Selecție cuvă invalidă");return false}
