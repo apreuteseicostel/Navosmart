@@ -11,6 +11,23 @@ static QByteArray jsonMap(const QVariantMap& m){return QJsonDocument(QJsonObject
 static QByteArray jsonList(const QVariantList& l){return QJsonDocument(QJsonArray::fromVariantList(l)).toJson(QJsonDocument::Compact);}
 
 NavoPersistence::NavoPersistence(QObject* p):QObject(p){_sonarSaveTimer.setSingleShot(true);_sonarSaveTimer.setInterval(2000);connect(&_sonarSaveTimer,&QTimer::timeout,this,&NavoPersistence::flushSonar);load();}
+QVariantList NavoPersistence::pendingBaitJournalEvents() const {
+ QSettings s;
+ const auto raw=s.value("navo/pendingBaitJournalV1").toByteArray();
+ const auto doc=QJsonDocument::fromJson(raw);
+ return doc.isArray()?doc.array().toVariantList():QVariantList{};
+}
+bool NavoPersistence::storePendingBaitJournalEvents(const QVariantList& events) {
+ if(events.size()>500)return false;
+ QSettings s;s.setAtomicSyncRequired(true);
+ const bool existed=s.contains("navo/pendingBaitJournalV1");
+ const QVariant previous=s.value("navo/pendingBaitJournalV1");
+ s.setValue("navo/pendingBaitJournalV1",jsonList(events));s.sync();
+ if(s.status()==QSettings::NoError)return true;
+ if(existed)s.setValue("navo/pendingBaitJournalV1",previous);
+ else s.remove("navo/pendingBaitJournalV1");
+ s.sync();return false;
+}
 NavoPersistence::~NavoPersistence(){if(_sonarSaveTimer.isActive())flushSonar();}
 void NavoPersistence::syncSettings(){QSettings s;s.sync();}
 void NavoPersistence::load() {
