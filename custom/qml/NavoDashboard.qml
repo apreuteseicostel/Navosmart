@@ -2359,8 +2359,15 @@ Item {
         property bool active: false
         property bool proBadge: false
         property url iconSource: ""
-        ToolTip.visible: hovered
+        // Mouse hover on desktop, sustained touch on Android/G20.
+        property bool longPressHint: false
+        ToolTip.visible: hovered || longPressHint
         ToolTip.text: text
+        ToolTip.delay: hovered ? 450 : 0
+        ToolTip.timeout: longPressHint ? 2200 : -1
+        onPressAndHold: longPressHint = true
+        onReleased: longPressHint = false
+        onCanceled: longPressHint = false
         Layout.fillWidth: true
         Layout.preferredHeight: Math.max(38, Math.min(46, (sidebar.height - 58) / 9))
         background: Rectangle { radius: 6; color: parent.active ? "#183248" : "transparent"; border.color: parent.active ? root.accent : "transparent" }
