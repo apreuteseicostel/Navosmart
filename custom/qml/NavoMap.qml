@@ -685,6 +685,12 @@ Item {
     }
     Component.onCompleted: { centerOnBoatOnce(); centerOnOperatorOnce() }
     onOperatorLocationValidChanged: if(operatorLocationValid)centerOnOperatorOnce()
+    // A valid fix can arrive after the QGC position manager or PositionSource
+    // has already been initialized; react to fresh coordinates as well.
+    Connections {
+        target: operatorPositionSource
+        function onPositionChanged() { root.centerOnOperatorOnce() }
+    }
     onVehicleChanged: { initialCenterApplied=false; centerOnBoatOnce() }
 
     Connections {
