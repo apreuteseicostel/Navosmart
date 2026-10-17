@@ -2,9 +2,9 @@ name: Sonar display regression and performance
 on:
   push:
     branches: [main, 'fix/**', feature/kogger-native-dataset-adapter-20261002]
-    paths: ['custom/qml/NavoDashboard.qml', 'custom/qml/NavoSonarFullScreen.qml', 'custom/qml/NavoSonarPro.qml', 'custom/qml/NavoBathymetryHDOverlay.qml', 'tests/sonar-performance/**', '.github/workflows/navo-sonar-display.yml']
+    paths: ['custom/qml/NavoDashboard.qml', 'custom/qml/NavoBathymetry3D.qml', 'custom/qml/NavoDigitalAnchor.qml', 'custom/qml/NavoEnergyGuard.qml', 'custom/qml/NavoSonarFullScreen.qml', 'custom/qml/NavoSonarPro.qml', 'custom/qml/NavoBathymetryHDOverlay.qml', 'tests/sonar-performance/**', '.github/workflows/navo-sonar-display.yml']
   pull_request:
-    paths: ['custom/qml/NavoDashboard.qml', 'custom/qml/NavoSonarFullScreen.qml', 'custom/qml/NavoSonarPro.qml', 'custom/qml/NavoBathymetryHDOverlay.qml', 'tests/sonar-performance/**', '.github/workflows/navo-sonar-display.yml']
+    paths: ['custom/qml/NavoDashboard.qml', 'custom/qml/NavoBathymetry3D.qml', 'custom/qml/NavoDigitalAnchor.qml', 'custom/qml/NavoEnergyGuard.qml', 'custom/qml/NavoSonarFullScreen.qml', 'custom/qml/NavoSonarPro.qml', 'custom/qml/NavoBathymetryHDOverlay.qml', 'tests/sonar-performance/**', '.github/workflows/navo-sonar-display.yml']
   workflow_dispatch:
 permissions:
   contents: read

@@ -34,7 +34,7 @@ QtObject {
   if(!lh){
    if(!linkLost){linkLost=true;linkLostSince=now();linkFailsafeIssued=false;status="LINK PIERDUT • reconectare"}
    var ls=Math.floor((now()-linkLostSince)/1000)
-   if(ls>=linkGraceSeconds){status="LINK PIERDUT • failsafe H743";if(!linkFailsafeIssued){linkFailsafeIssued=true;rtlRequested("Legătura G20/GR01 nu a revenit")}}
+   if(ls>=linkGraceSeconds){status="LINK PIERDUT • verifică failsafe H743 (RTL neconfirmat)";if(!linkFailsafeIssued){linkFailsafeIssued=true; /* Link absent: no MAVLink RTL command can be relied upon. H743 must own this failsafe. */ }}
   } else if(linkLost){
    linkLost=false;linkLostSince=0;linkFailsafeIssued=false;status="LINK RESTABILIT";recovered("LINK","Control disponibil din nou")
   }

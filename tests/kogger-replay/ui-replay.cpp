@@ -61,6 +61,14 @@ int main(int argc,char**argv){
   check(!day.isNull() && day!=night,"DAY palette did not change the rendered ecogram");
   check(day.save("kogger-sonar-pro-day.png"),"cannot save day screenshot");
   view.resize(540,960);events();verifyControls();check(view.grabWindow().save("kogger-sonar-pro-portrait.png"),"cannot save portrait screenshot");
+  view.resize(320,600);events();
+  for(const char* name:{"sonarRecordingDialog","sonarRecordingsDialog"}) {
+      auto* popup=root->findChild<QObject*>(name);check(popup,"recording popup missing");
+      check(QMetaObject::invokeMethod(popup,"open"),"cannot open recording popup");events();
+      check(popup->property("visible").toBool() && popup->property("width").toDouble()<=320 && popup->property("height").toDouble()<=600,"recording popup outside portrait viewport");
+      check(view.grabWindow().save(QString("kogger-%1-320.png").arg(name)),"recording screenshot failed");
+      check(QMetaObject::invokeMethod(popup,"close"),"cannot close recording popup");
+  }
   QSignalSpy closeSignal(root,SIGNAL(closed()));
   auto* close=root->findChild<QQuickItem*>("sonarProCloseButton");
   QTest::mouseClick(&view,Qt::LeftButton,Qt::NoModifier,close->mapToScene(QPointF(close->width()/2,close->height()/2)).toPoint());events();

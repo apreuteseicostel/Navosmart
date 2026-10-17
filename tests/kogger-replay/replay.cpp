@@ -1,5 +1,6 @@
 #include "../../custom/src/NavoKoggerDecoder.h"
 #include "../../custom/src/NavoKoggerReplay.h"
+#include "../../custom/src/NavoKoggerRecorder.h"
 #include <QGuiApplication>
 #include <QQmlEngine>
 #include <QQmlContext>
@@ -30,6 +31,7 @@
 #include <algorithm>
 
 static QVariantList recordedGeoSamples;
+static QVariantMap recordedNativeSurface;
 static void require(bool ok, const char* message) {
     if (!ok) throw std::runtime_error(message);
 }
@@ -226,6 +228,19 @@ static void recordedProcessors(const QByteArray& bytes) {
     }
     require(surfaceCells>0 && triangulated>0,"native tiles contain no triangulated depth cells");
     cells.close();
+    recordedNativeSurface=navoNativeSurfaceMesh(service.tiles(),service.dataset().getLlaRef());
+    require(recordedNativeSurface.value("indices").toList().size()>3,"native render topology empty");
+    const auto geographicVertices=recordedNativeSurface.value("vertices").toList();
+    for(const auto& vertex:geographicVertices) {
+        const auto point=vertex.toList();
+        require(point.size()==4 && std::abs(point[0].toDouble()-40.16)<0.02 &&
+            std::abs(point[1].toDouble()-44.47)<0.02 && point[2].toDouble()>0,
+            "native surface not georeferenced to recorded GPS");
+    }
+    QFile nativeMesh("kogger-native-surface.json");require(nativeMesh.open(QIODevice::WriteOnly),"cannot save native render fixture");
+    nativeMesh.write(QJsonDocument(QJsonObject::fromVariantMap(recordedNativeSurface)).toJson(QJsonDocument::Compact));
+    std::cout<<"PASS native render mesh: "<<geographicVertices.size()<<" georeferenced vertices, "
+        <<recordedNativeSurface.value("indices").toList().size()/3<<" triangles\n";
     std::cout<<"PASS surface height evidence: "<<surfaceCells<<" cells, "<<triangulated<<" triangulated cells\n";
     std::cout<<"PASS native processors: "<<accepted<<" recorded epochs, "<<located<<" with original GPS, "<<depths
              <<" processed depth updates, "<<service.tileCount()<<" visible bathymetry tiles\n";
@@ -251,7 +266,8 @@ static void recordedProcessors(const QByteArray& bytes) {
     service.clear();
 
 }
-static void qmlBathymetryPipeline(const QString& directory,const QVariantList& samples) {
+static void qmlBathymetryPipeline(const QString& directory,const QVariantList& samples,const QVariantMap& surface=QVariantMap()) {
+    const auto nativeSurface=surface.isEmpty()?recordedNativeSurface:surface;
     require(samples.size()>14000,"recorded bathymetry samples missing");
     QQmlEngine engine;
     const auto load=[&](const QString& name){
@@ -287,7 +303,7 @@ static void qmlBathymetryPipeline(const QString& directory,const QVariantList& s
         liveLakeId=persistence.saveLake({{"name","Live lake"}});
         require(persistence.saveLakeState(liveLakeId,liveState),"cannot prepare active lake");
         require(persistence.saveReplayLake(" ",mapped,cells).isEmpty(),"unnamed replay should not be saved");
-        replayLakeId=persistence.saveReplayLake("Recorded DownView",mapped,cells);
+        replayLakeId=persistence.saveReplayLake("Recorded DownView",mapped,cells,nativeSurface);
         require(!replayLakeId.isEmpty() && replayLakeId!=liveLakeId,"recording must have a separate lake identity");
         require(QJsonObject::fromVariantMap(persistence.lakeState(liveLakeId))==storedLiveState,"replay save changed live lake");
         for(const auto& sample:mapped)persistence.addSonarSample(sample.toMap());
@@ -297,6 +313,7 @@ static void qmlBathymetryPipeline(const QString& directory,const QVariantList& s
     require(replayState.value("recordedReplay").toBool() && replayState.value("state").toString()=="COMPLETE","recorded lake provenance/state lost");
     require(replayState.value("sonarSamples").toList().size()==mapped.size(),"recorded lake samples did not reload");
     require(replayState.value("bathymetryCells").toList().size()==cells.size(),"recorded lake cells did not reload");
+    require(QJsonObject::fromVariantMap(replayState.value("nativeSurfaceMesh").toMap())==QJsonObject::fromVariantMap(nativeSurface),"native topology changed after saved lake restart");
     require(replayState.value("missionLanes").toList().isEmpty(),"recording acquired an autopilot mission");
     require(QJsonObject::fromVariantMap(restored.lakeState(liveLakeId))==storedLiveState,"reloaded replay changed live lake");
     const auto lakeSamples=replayState.value("sonarSamples").toList();
@@ -310,6 +327,7 @@ static void qmlBathymetryPipeline(const QString& directory,const QVariantList& s
 }
 
 static void qmlTransportRoundTrip(const QString& source) {
+    qmlRegisterType<NavoKoggerRecorder>("NavoSmart.Backend",1,0,"NavoKoggerRecorder");
     qmlRegisterType<NavoKoggerReplay>("NavoSmart.Backend",1,0,"NavoKoggerReplay");
     qmlRegisterType<NavoKoggerDecoder>("NavoSmart.Backend",1,0,"NavoKoggerDecoder");
     qmlRegisterType<NavoKoggerChartBridge>("NavoSmart.Backend",1,0,"NavoKoggerChartBridge");
@@ -344,15 +362,37 @@ QtObject {
     auto& service=NavoKoggerService::instance();
     require(!service.dataset().getLlaRef().isInit,"QML accepted a coordinate without GPS fix");
     auto* gps=vehicle->property("gps").value<QObject*>();auto* lock=gps->property("lock").value<QObject*>();lock->setProperty("rawValue",3);
-    send();
-    require(wait([&]{return sonar->property("nativeChartRecords").toInt()>=2;}),"located column did not reach bridge");
+    auto* recorder=qobject_cast<NavoKoggerRecorder*>(sonar->property("recorder").value<QObject*>());
+    require(recorder,"production recorder missing");
+    QVariant recordingStarted;
+    require(QMetaObject::invokeMethod(sonar.get(),"startRecording",Q_RETURN_ARG(QVariant,recordingStarted),Q_ARG(QVariant,QVariant("TCP archive"))) && recordingStarted.toBool(),"cannot record live sonar");
+    // CHART publication trails a column boundary. Complete a located column
+    // while the fix is still valid before the following GPS-loss chunk.
+    send();send();
+    require(wait([&]{return sonar->property("nativeChartRecords").toInt()>=3;}),"located column did not reach bridge");
     require(service.dataset().getLlaRef().isInit && std::abs(service.dataset().getLlaRef().refLla.latitude-40.1616)<1e-6,"QML did not establish origin after GPS fix");
     lock->setProperty("rawValue",1);send();
-    require(wait([&]{return sonar->property("nativeChartRecords").toInt()>=3;}),"GPS-loss column did not reach bridge");
+    require(wait([&]{return sonar->property("nativeChartRecords").toInt()>=4;}),"GPS-loss column did not reach bridge");
     require(!service.dataset().fromIndexCopy(service.dataset().endIndex()).getPositionGNSS().lla.isCoordinatesValid(),"QML retained located samples after GPS fix loss");
     require(QMetaObject::invokeMethod(sonar.get(),"disconnectSonar"),"cannot disconnect production transport");
     require(!sonar->property("dataAlive").toBool(),"sonar heartbeat remained live after disconnect");
+    require(!recorder->recording() && recorder->bytes()>0 && !recorder->sessions().isEmpty(),"disconnect did not finalize received sonar");
+    const auto archive=recorder->sessions().first().toMap().value("url").toUrl();
+    // Connected vehicle has a different valid GPS: replay must use the saved fix.
+    lock->setProperty("rawValue",3);
+    vehicle->property("coordinate").value<QObject*>()->setProperty("latitude",52.0);
+    QVariant archiveOpened;
+    require(QMetaObject::invokeMethod(sonar.get(),"startReplay",Q_RETURN_ARG(QVariant,archiveOpened),Q_ARG(QVariant,QVariant(archive))) && archiveOpened.toBool(),"cannot reopen production archive");
+    auto* replay=qobject_cast<NavoKoggerReplay*>(sonar->property("replay").value<QObject*>());
+    require(wait([&]{return !replay->active();}),"archive replay did not finish");
+    require(wait([&]{return sonar->property("nativeChartRecords").toInt()>=1;}),"offline archive bypassed actual decoder");
+    require(service.dataset().getLlaRef().isInit,"offline archive has no completed located column");
+    require(std::abs(service.dataset().getLlaRef().refLla.latitude-40.1616)<1e-6,"offline archive substituted connected live GPS");
+    require(!service.dataset().fromIndexCopy(service.dataset().endIndex()).getPositionGNSS().lla.isCoordinatesValid(),"offline archive retained GPS after recorded fix loss");
+    require(!sonar->property("dataAlive").toBool() && !recorder->recording(),"replay claimed live recording");
+    require(QMetaObject::invokeMethod(sonar.get(),"disconnectSonar"),"stop offline archive");
     service.clear();
+    std::cout<<"PASS production TCP -> atomic recording -> offline replay -> actual decoder/Dataset with saved GPS and no live GPS substitution\n";
     std::cout<<"PASS production SonarEthernet QML: real localhost TCP -> decoder -> channel bridge -> Dataset, CHART-only heartbeat and GPS fix/loss gating\n";
 }
 
@@ -407,8 +447,12 @@ static void qmlRecordedReplay(const QString& source,const QString& fixture) {
     bridge->requestReplaySurface();
     timer.restart();while(timer.elapsed()<6000){QCoreApplication::processEvents(QEventLoop::AllEvents,20);QThread::msleep(1);}
     require(service.tileCount()>0,"actual file replay generated no native surface tiles");
-    qmlBathymetryPipeline(QFileInfo(source).absolutePath(),samples);
+    const auto mesh=sonar->property("nativeSurfaceMesh").toMap();
+    require(mesh.value("indices").toList().size()>3,"native mesh did not reach production QML");
+    require(!bridge->requestNativeViewport(qQNaN(),44,40,45),"invalid viewport accepted");
+    qmlBathymetryPipeline(QFileInfo(source).absolutePath(),samples,mesh);
     require(QMetaObject::invokeMethod(sonar.get(),"stopReplay"),"cannot stop actual replay");
+    require(bridge->nativeSurfaceMesh().isEmpty(),"explicit replay stop retained render geometry");
     require(!sonar->property("replayMode").toBool() && service.dataset().size()==0,"explicit replay stop retained native session");
     std::cout<<"PASS actual file replay -> recorded GPS -> production QML bridge -> native bottom/tiles -> mapping/persistence/HD; pause, EOF and stop\n";
 }

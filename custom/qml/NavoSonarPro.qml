@@ -5,9 +5,11 @@ import QtQuick.Dialogs
 import QtPositioning
 import QtLocation
 import QGroundControl.FlightMap
+import "NavoBottomAnalysis.js" as BottomAnalysis
 
 Rectangle {
     id: root
+    objectName:"navoSonarPro"
     property int chartResolution: 0
     property int chartAbsoluteOffset: 0
     property int chartVersion: 0
@@ -20,7 +22,85 @@ Rectangle {
     property bool connected: false
     readonly property bool replayMode: chartSource ? chartSource.replayMode : false
     readonly property bool replayActive: chartSource ? chartSource.replayActive : false
-    FileDialog { id: replayPicker; title: 'Încarcă înregistrare Kogger'; nameFilters: ['Kogger (*.klf)', 'Toate fișierele (*)']; onAccepted: { if(root.chartSource) {root.history=[];root.chartSource.startReplay(selectedFile)} } }
+    function sourceStatusText() {
+        if(chartSource && chartSource.replayMode)return replayActive ? "REPLAY" : "REPLAY • FINAL"
+        return connected ? (chartSource && chartSource.recording ? "REC ●" : (paused ? "PAUZĂ" : "LIVE")) : "OFFLINE"
+    }
+    FileDialog { id: replayPicker; title: 'Încarcă înregistrare sonar'; nameFilters: ['Sonar NAVO / Kogger (*.navosonar *.klf)', 'Toate fișierele (*)']; onAccepted: { if(root.chartSource) {root.history=[];root.chartSource.startReplay(selectedFile)} } }
+    readonly property var bottomAnalysis: bottomAnalysisDialog.visible && displayedColumn
+        ? BottomAnalysis.column(displayedColumn.rawSamples,displayedColumn.offset,displayedColumn.range,displayedColumn.bottom) : ({valid:false})
+    readonly property var bottomProfile: bottomAnalysisDialog.visible ? BottomAnalysis.profile(history) : ({valid:false})
+    Dialog {
+        id:bottomAnalysisDialog;objectName:"sonarBottomAnalysisDialog"
+        title:"Fund & ecouri • analiză relativă";modal:true
+        width:Math.min(440,root.width-16);height:Math.min(420,root.height-16);anchors.centerIn:parent
+        footer:DialogButtonBox {Button{text:"Închide";DialogButtonBox.buttonRole:DialogButtonBox.RejectRole}}
+        contentItem:ScrollView {
+            clip:true;contentWidth:availableWidth
+            ColumnLayout {
+                width:parent.width;spacing:10
+                Label {Layout.fillWidth:true;wrapMode:Text.WordWrap;text:"Sursă: "+root.sourceStatusText()+" • ultima coloană afișată"}
+                Label {Layout.fillWidth:true;wrapMode:Text.WordWrap;text:"Material: NECLASIFICAT. Mâl, pietriș și vegetație necesită măsurători de referință. Aceasta este analiza CHART 2D, nu un mod DownScan."}
+                Label {Layout.fillWidth:true;wrapMode:Text.WordWrap;text:root.bottomAnalysis.valid ?
+                    "Fund: "+root.bottomAnalysis.bottomM.toFixed(2)+" m\nEcou brut maxim: "+Math.round(root.bottomAnalysis.peak*100)+"% din scala amplitudinii\nEcou mediu în fereastră: "+Math.round(root.bottomAnalysis.mean*100)+"%\nLățime la jumătatea maximului: "+(root.bottomAnalysis.widthLimited ? "≥ " : "")+root.bottomAnalysis.widthM.toFixed(2)+" m\nRezoluție verticală: "+root.bottomAnalysis.stepM.toFixed(3)+" m" : root.bottomAnalysis.reason || "Aștept fundul procesat al coloanei CHART curente."}
+                Label {Layout.fillWidth:true;wrapMode:Text.WordWrap;text:root.bottomAnalysis.valid && root.bottomAnalysis.aboveEchoes!==null ?
+                    "Grupuri de ecouri deasupra fundului: "+root.bottomAnalysis.aboveEchoes+(isFinite(root.bottomAnalysis.aboveHeightM) ? "\nÎnălțime maximă relativă: "+root.bottomAnalysis.aboveHeightM.toFixed(2)+" m" : "")+"\nPot proveni din pești, vegetație, obiecte sau zgomot; nu sunt identificări confirmate." : "Coloană de apă insuficientă pentru analiza ecourilor de deasupra fundului."}
+                Label {Layout.fillWidth:true;wrapMode:Text.WordWrap;text:root.bottomProfile.valid ?
+                    "Profil recent ("+root.bottomProfile.count+" coloane): "+root.bottomProfile.minM.toFixed(2)+"–"+root.bottomProfile.maxM.toFixed(2)+" m\nVariație verticală: "+root.bottomProfile.variationM.toFixed(2)+" m. Nu indică panta fără distanță GPS validată." : "Profil recent: sunt necesare cel puțin 3 coloane cu fund valid."}
+                Label {Layout.fillWidth:true;wrapMode:Text.WordWrap;text:"Valorile provin din ecoul brut, înainte de paletă, sensibilitate și filtrele afișării. Intensitatea ecoului nu este duritatea fizică a fundului."}
+            }
+        }
+    }
+    Dialog {
+        id: recordingDialog
+        objectName: "sonarRecordingDialog"
+        title: "Înregistrare sonar"
+        modal: true
+        width: Math.min(360, root.width-16)
+        anchors.centerIn: parent
+        footer: DialogButtonBox {
+            Button { text:"Pornește"; DialogButtonBox.buttonRole:DialogButtonBox.AcceptRole }
+            Button { text:"Renunță"; DialogButtonBox.buttonRole:DialogButtonBox.RejectRole }
+        }
+        contentItem: ColumnLayout {
+            TextField { id: recordingName; objectName:"sonarRecordingName"; Layout.fillWidth:true; placeholderText:"Nume baltă / sesiune"; maximumLength:120 }
+            Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; text:"Salvează ecourile brute și poziția GPS la recepție. Oprește înregistrarea pentru a o păstra offline." }
+        }
+        onAccepted: { if(root.chartSource)root.chartSource.startRecording(recordingName.text) }
+    }
+    Dialog {
+        id: recordingsDialog
+        objectName: "sonarRecordingsDialog"
+        title: "Sesiuni sonar offline"
+        modal:true
+        width:Math.min(440,root.width-16)
+        height:Math.min(420,root.height-16)
+        anchors.centerIn:parent
+        footer:DialogButtonBox { Button {text:"Închide"; DialogButtonBox.buttonRole:DialogButtonBox.RejectRole} }
+        onOpened: { if(root.chartSource)root.chartSource.refreshRecordings() }
+        contentItem: ColumnLayout {
+            Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; text:"Redeschide o sesiune salvată pe acest dispozitiv. Replay-ul nu comandă barca." }
+            Label { visible:!root.chartSource || !root.chartSource.recordings || root.chartSource.recordings.length===0; text:"Nu ai sesiuni salvate încă." }
+            ListView {
+                id: recordingsList
+                objectName:"sonarRecordingsList"
+                Layout.fillWidth:true; Layout.fillHeight:true
+                clip:true; spacing:5
+                model:root.chartSource && root.chartSource.recordings ? root.chartSource.recordings : []
+                delegate: Button {
+                    required property var modelData
+                    width:recordingsList.width
+                    text:modelData.name + " · " + (modelData.size/1048576).toFixed(1) + " MiB\n" + modelData.createdUtc
+                    onClicked: {root.history=[];root.chartSource.startReplay(modelData.url);recordingsDialog.close()}
+                }
+                ScrollBar.vertical:ScrollBar {}
+            }
+        }
+    }
+    NavoReplayNotes {
+        id:replayNotes;source:root.chartSource
+        viewWidth:root.width;viewHeight:root.height
+    }
     property real depthM: NaN
     property real waterTempC: NaN
     property var vehicle: null
@@ -32,6 +112,61 @@ Rectangle {
     property bool menuOpen: false
     property bool paused: false
     property var history: []
+    property string activeLakeId: ""
+    property string pointSaveStatus: ""
+    property bool pointPicking: false
+    property bool pointPreviousPaused: false
+    property var selectedSonarPoint: null
+    signal sonarPointRequested(var entry, string name, string note, bool prepareMission)
+    function beginPointPick() {
+        if(replayMode || !activeLakeId.length || !history.length)return false
+        pointPreviousPaused=paused;paused=true;pointPicking=true;pointSaveStatus=""
+        return true
+    }
+    function endPointPick() {
+        if(pointPicking)paused=pointPreviousPaused
+        pointPicking=false
+    }
+    function closePointDialog() { sonarPointDialog.close();endPointPick() }
+    function selectSonarPoint(x, chartWidth) {
+        if(!pointPicking || !(chartWidth>0) || x<0 || x>=chartWidth)return false
+        var index=Math.floor(x/chartWidth*historyColumns)-(historyColumns-history.length)
+        if(index<0 || index>=history.length)return false
+        var e=history[index]
+        selectedSonarPoint={latitude:e.latitude,longitude:e.longitude,time:e.time,
+            temp:e.temp,bottom:e.bottom,sequence:e.sequence,offset:e.offset,range:e.range,
+            lakeId:e.lakeId,replay:e.replay}
+        sonarPointName.text="";sonarPointNote.text="";pointSaveStatus=""
+        sonarPointDialog.open();return true
+    }
+    function sonarPointValid(e) {
+        return e && !e.replay && !replayMode && e.lakeId===activeLakeId && activeLakeId.length>0 &&
+            typeof e.latitude==="number" && isFinite(e.latitude) && Math.abs(e.latitude)<=90 &&
+            typeof e.longitude==="number" && isFinite(e.longitude) && Math.abs(e.longitude)<=180
+    }
+    Dialog {
+        id:sonarPointDialog;objectName:"sonarPointDialog";title:"Punct din ecogramă"
+        parent:Overlay.overlay;anchors.centerIn:parent;modal:true
+        width:Math.min(420,root.width-16);height:Math.min(390,root.height-16)
+        onClosed:root.endPointPick()
+        contentItem:ScrollView {
+            clip:true;contentWidth:availableWidth
+            ColumnLayout {
+                width:parent.width;spacing:8
+                Label { Layout.fillWidth:true;wrapMode:Text.WordWrap
+                    text:root.sonarPointValid(root.selectedSonarPoint) ? "GPS-ul coloanei selectate • "+new Date(root.selectedSonarPoint.time).toLocaleTimeString()+"\nFund: "+(isFinite(root.selectedSonarPoint.bottom) ? root.selectedSonarPoint.bottom.toFixed(2)+" m" : "indisponibil") : "Această coloană nu are GPS valid în balta activă. Nu poate fi salvată pe hartă." }
+                TextField { id:sonarPointName;objectName:"sonarPointName";Layout.fillWidth:true;maximumLength:80;placeholderText:"Nume (opțional)" }
+                TextField { id:sonarPointNote;Layout.fillWidth:true;maximumLength:300;placeholderText:"Notă (opțional)" }
+                Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;text:root.pointSaveStatus }
+                Button { objectName:"saveSonarPoint";Layout.fillWidth:true;text:"SALVEAZĂ PUNCT";enabled:root.sonarPointValid(root.selectedSonarPoint)
+                    onClicked:root.sonarPointRequested(root.selectedSonarPoint,sonarPointName.text.trim(),sonarPointNote.text.trim(),false) }
+                Button { objectName:"prepareSonarPoint";Layout.fillWidth:true;text:"SALVEAZĂ ȘI PREGĂTEȘTE MISIUNEA";enabled:root.sonarPointValid(root.selectedSonarPoint)
+                    onClicked:root.sonarPointRequested(root.selectedSonarPoint,sonarPointName.text.trim(),sonarPointNote.text.trim(),true) }
+                Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;text:"Pregătirea deschide Mergi la punct. Alegi cuvele și confirmi START separat." }
+                Button { Layout.fillWidth:true;text:"ÎNCHIDE";onClicked:sonarPointDialog.close() }
+            }
+        }
+    }
     // Cache only display pixels; retain all original samples for processing/save.
     // Bounded cache also works with QVariant-backed QML arrays.
     property var rasterCache: []
@@ -150,8 +285,16 @@ Rectangle {
         var available = chartSource ? (chartSource.connected || root.replayMode) : connected
         if (paused || !available || !column || !column.length ||
                 !isFinite(offset) || !isFinite(range) || range <= 0) return
+        var raw=chartSource ? chartSource.echoSamples.slice(0) : column.slice(0)
         var h = history.slice(0)
-        h.push({samples: column.slice(0), offset: offset, range: range, sequence: chartSource ? chartSource.chartSequence : 0,
+        var v=root.vehicle
+        var fix=!root.replayMode && v && v.gps && v.gps.lock.rawValue>=3 &&
+            v.vehicleLinkManager && !v.vehicleLinkManager.communicationLost
+        var c=fix && v.coordinate && v.coordinate.isValid ? v.coordinate : null
+        h.push({rawSamples:raw,samples:chartSource && koggerCompensation ? column.slice(0) : raw, offset: offset, range: range, sequence: chartSource ? chartSource.chartSequence : 0,
+                latitude:c ? c.latitude : NaN,longitude:c ? c.longitude : NaN,time:Date.now(),
+                temp:root.waterTempC,lakeId:root.activeLakeId,replay:root.replayMode,
+                replayAnchor:root.replayMode && chartSource && chartSource.replayAnnotationAnchor ? Object.assign({},chartSource.replayAnnotationAnchor,{columnSequence:chartSource.chartSequence}) : null,
                 bottom: chartSource && chartSource.nativeChannelReady ? NaN : (isFinite(root.depthM) && root.depthM >= 0 ? root.depthM : NaN)})
         if (h.length > historyColumns) h.splice(0, h.length - historyColumns)
         history = h
@@ -196,18 +339,20 @@ Rectangle {
     // Read the source getters synchronously: all metadata is published before
     // this signal. Capture every column even when one TCP chunk holds several.
     Connections {
-        target: root.chartSource
+        target: root.chartSource || null
         function onEchoSamplesChanged() { root.captureGeoChart(); root.pushHistory() }
         function onBottomColumnReady(sequence,depth) { root.updateHistoryBottom(sequence,depth) }
     }
     onSamplesChanged: if (!chartSource) Qt.callLater(pushHistory)
     Component.onCompleted: Qt.callLater(pushHistory)
     onHistoryChanged: { if (!history.length) rasterCache = []; repaint() }
+    onActiveLakeIdChanged: { endPointPick();sonarPointDialog.close();history=[] }
+    onReplayModeChanged: { endPointPick();sonarPointDialog.close();history=[] }
     onGainChanged: repaint()
     onNoiseFloorChanged: repaint()
     onNoiseFilterEnabledChanged: repaint()
     onDayPaletteChanged: repaint()
-    onReplayActiveChanged: { history=[]; root.menuOpen=false }
+    onReplayActiveChanged: { if(replayActive)history=[]; root.menuOpen=false }
     onKoggerCompensationChanged: { history = []; pushHistory(); repaint() }
     onShowBottomTrackChanged: repaint()
     // Freeze scale together with the displayed history while paused.
@@ -294,6 +439,15 @@ Rectangle {
                         }
                     }
                 }
+                MouseArea {
+                    anchors.fill:parent;enabled:root.pointPicking;cursorShape:Qt.CrossCursor
+                    onClicked:function(mouse){root.selectSonarPoint(mouse.x,width)}
+                }
+            }
+            Label {
+                anchors.horizontalCenter:echogram.horizontalCenter;anchors.bottom:parent.bottom
+                visible:root.pointPicking;z:2;text:"Atinge coloana sonar • PAUZĂ";color:"#ffffff"
+                background:Rectangle { color:"#176b86";radius:4 }
             }
             Label {
                 anchors.centerIn: parent
@@ -430,7 +584,7 @@ Rectangle {
         Label {
             id: telemetry; objectName: "sonarProTelemetry"; font.pixelSize: 14; anchors.fill: parent; anchors.margins: 8; elide: Text.ElideRight
             color: root.connected ? "#21b7ff" : "#9db2c5"
-            text: "PRO  •  " + (root.connected ? (root.replayActive ? "TEST REPLAY" : (root.paused ? "PAUZĂ" : "LIVE")) : "OFFLINE") + "   " + (isFinite(root.depthM)?root.depthM.toFixed(1)+" m":"— m") + "   " + (isFinite(root.waterTempC)?root.waterTempC.toFixed(1)+" °C":"— °C")
+            text: "PRO  •  " + root.sourceStatusText() + "   " + (isFinite(root.depthM)?root.depthM.toFixed(1)+" m":"— m") + "   " + (isFinite(root.waterTempC)?root.waterTempC.toFixed(1)+" °C":"— °C")
         }
     }
     IconButton {
@@ -473,12 +627,24 @@ Rectangle {
                     palette.buttonText: selected ? "#ffffff" : "#d7e7f1"
                     background: Rectangle { radius: 5; color: action.selected ? root.selectedMenuColor : (action.hovered ? "#183c51" : "#102435"); border.color: action.selected ? root.selectedMenuBorder : "#31536c"; border.width: action.selected ? 2 : 1 }
                 }
-                MenuAction { text: 'Deschide KLF (TEST)'; onClicked: {root.menuOpen=false; replayPicker.open()} }
-                MenuAction { visible:root.replayActive; selected:root.chartSource && root.chartSource.replayPaused; text:root.chartSource && root.chartSource.replayPaused ? 'Continuă replay' : 'Pauză replay'; onClicked:root.chartSource.pauseReplay(!root.chartSource.replayPaused) }
+                MenuAction { visible:!!(root.chartSource && !root.replayMode); enabled:!!(root.chartSource && (root.chartSource.recording || root.chartSource.dataAlive)); selected:!!(root.chartSource && root.chartSource.recording); text:root.chartSource && root.chartSource.recording ? 'Oprește și salvează REC' : 'Înregistrează sesiunea'; onClicked: {root.menuOpen=false;if(root.chartSource.recording)root.chartSource.stopRecording();else recordingDialog.open()} }
+                MenuAction { text:'Analiză fund și ecouri'; enabled:root.history.length>0; onClicked:{root.menuOpen=false;bottomAnalysisDialog.open()} }
+                MenuAction { text:root.pointPicking ? 'Anulează alegerea punctului' : 'Salvează punct din ecogramă'; selected:root.pointPicking
+                    enabled:root.pointPicking || (!root.replayMode && root.activeLakeId.length>0 && root.history.length>0)
+                    onClicked:{root.menuOpen=false;if(root.pointPicking)root.endPointPick();else root.beginPointPick()} }
+                MenuAction { text:'Sesiuni offline'; onClicked:{root.menuOpen=false;recordingsDialog.open()} }
+                Label { visible:!!(root.chartSource && root.chartSource.recording); Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.chartSource ? 'REC · '+(root.chartSource.recordingBytes/1048576).toFixed(1)+' MiB' : ''; color:'#ffbd69'; font.pixelSize:11 }
+                Label { visible:!!(root.chartSource && root.chartSource.recordingError && root.chartSource.recordingError.length>0); Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.chartSource ? root.chartSource.recordingError || '' : ''; color:'#ffbd69'; font.pixelSize:11 }
+                Label { visible:!!(root.chartSource && !root.chartSource.recording && root.chartSource.recordingSavedName && root.chartSource.recordingSavedName.length>0); Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.chartSource ? 'Salvat: '+(root.chartSource.recordingSavedName || '') : ''; color:'#d7e7f1'; font.pixelSize:11 }
+                Label { visible:!!(root.chartSource && root.chartSource.replayError && root.chartSource.replayError.length>0); Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.chartSource ? root.chartSource.replayError || '' : ''; color:'#ffbd69'; font.pixelSize:11 }
+                MenuAction { text: 'Deschide fișier sonar'; onClicked: {root.menuOpen=false; replayPicker.open()} }
+                MenuAction { visible:root.replayActive; selected:!!(root.chartSource && root.chartSource.replayPaused); text:root.chartSource && root.chartSource.replayPaused ? 'Continuă replay' : 'Pauză replay'; onClicked:root.chartSource.pauseReplay(!root.chartSource.replayPaused) }
                 MenuAction { visible:root.replayActive; selected:root.replayActive; text:'Viteză replay: '+(root.chartSource ? root.chartSource.replaySpeed : 1)+'×'; onClicked:root.chartSource.setReplaySpeed(root.chartSource.replaySpeed>=5 ? 0.5 : root.chartSource.replaySpeed*2) }
+                MenuAction { visible:root.replayMode; enabled:!!(root.displayedColumn && root.displayedColumn.replayAnchor && root.displayedColumn.replayAnchor.frame); text:"Adnotează coloana afișată";onClicked:{root.menuOpen=false;replayNotes.begin(root.displayedColumn)} }
+                MenuAction { visible:root.replayMode; text:"Note replay";onClicked:{root.menuOpen=false;replayNotes.showNotes()} }
                 MenuAction { visible:root.replayMode; enabled:root.replaySampleCount>=3; text:"Salvează replay în Bălțile mele"; onClicked:{root.menuOpen=false;replaySaveDialog.open()} }
                 Label { visible:root.replaySaveStatus.length>0; Layout.fillWidth:true; wrapMode:Text.WordWrap; text:root.replaySaveStatus; color:"#d7e7f1"; font.pixelSize:11 }
-                MenuAction { visible:root.replayActive; text:'Oprește replay'; onClicked:root.chartSource.stopReplay() }
+                MenuAction { visible:root.replayMode; text:'Închide replay'; onClicked:root.chartSource.stopReplay() }
                 MenuAction { selected:root.mapEnabled; text: root.mapEnabled ? "Ascunde harta" : "Activează harta"; onClicked: {root.mapEnabled=!root.mapEnabled;root.menuOpen=false} }
                 MenuAction { selected:root.paused; text: root.paused ? "Continuă ecograma" : "Pauză ecogramă"; onClicked: root.paused=!root.paused }
                 MenuAction { selected:root.dayPalette; text: root.dayPalette ? "Paletă NAVO" : "Paletă de zi"; onClicked: root.dayPalette=!root.dayPalette }
