@@ -53,9 +53,9 @@ Item {
     NavoAlertAudio { id:alertAudio;volume:alerts.volume }
     NavoAlerts {
         id:alerts;output:alertAudio;vehicle:root.vehicle;replayMode:sonar.replayMode
-        nanoConnected:nanoTelemetry.connected
+        telemetryConnected:h743Telemetry.connected
         waterConfirmed:safetyManager.waterConfirmed
-        batteryTempC:nanoTelemetry.batteryTempC
+        batteryTempC:h743Telemetry.batteryTempC
         batteryPercent:root.battery && root.battery.percentRemaining ? Number(root.battery.percentRemaining.rawValue) : NaN
         gpsHealthy:failsafeController.gpsHealthy()
         linkHealthy:failsafeController.linkHealthy()
@@ -468,13 +468,13 @@ Item {
     onBoatActiveChanged: {
         if(lightSettings.positionMode==="AUTO" && lastAutoPositionState!==boatActive) {
             lastAutoPositionState=boatActive
-            commandNanoLight(2,boatActive?1:0,"Poziții AUTO")
+            commandH743Light(2,boatActive?1:0,"Poziții AUTO")
         }
     }
     function setPositionLightMode(mode) {
         lightSettings.positionMode=mode
-        if(mode==="AUTO") { lastAutoPositionState=boatActive; commandNanoLight(2,boatActive?1:0,"Poziții AUTO") }
-        else commandNanoLight(2,mode==="ON"?1:0,"Poziții")
+        if(mode==="AUTO") { lastAutoPositionState=boatActive; commandH743Light(2,boatActive?1:0,"Poziții AUTO") }
+        else commandH743Light(2,mode==="ON"?1:0,"Poziții")
     }
     property bool awaitingMissionStart: false
     property string areaScanFinishAction: "HOLD"
@@ -645,15 +645,15 @@ Item {
         function onEchoSamplesChanged() { if (!sonar.replayMode) fishDetector.analyze(sonar.echoSamples, root.depthM, sonar.chartOffsetMeters, sonar.chartRangeMeters) }
     }
 
-    NavoNanoTelemetry {
-        id: nanoTelemetry
+    NavoH743Telemetry {
+        id: h743Telemetry
         vehicle: root.vehicle
-        v3Profile: false // V3 requires explicit hardware profile migration before enabling commands
+        v3Profile: true // NAVO V3 receives only NV3* messages from H743
     }
     NavoHopperBridge {
         id: hopperBridge
-        onboardTiming: nanoTelemetry.v3Profile
-        hardwareTelemetry: nanoTelemetry
+        onboardTiming: h743Telemetry.v3Profile
+        hardwareTelemetry: h743Telemetry
         vehicle: root.vehicle
         calibrated: hopperSettings.confirmed && hopperSettings.leftOutput!==hopperSettings.rightOutput && root.linkAlive
         releaseAllowed: root.linkAlive && hopperSettings.confirmed
@@ -674,10 +674,10 @@ Item {
     NavoSafetyManager {
         id: safetyManager
         vehicle: root.vehicle
-        telemetryLive: nanoTelemetry.connected
-        waterSensorFault: nanoTelemetry.waterSensorFault
-        waterDetected: nanoTelemetry.waterDetected
-        batteryTempC: nanoTelemetry.batteryTempC
+        telemetryLive: h743Telemetry.connected
+        waterSensorFault: h743Telemetry.waterSensorFault
+        waterDetected: h743Telemetry.waterDetected
+        batteryTempC: h743Telemetry.batteryTempC
         onWarning: function(reason) { root.lastNavigationStatus = "AVERTISMENT: " + reason }
         onHoldRequested: function(reason) {
             root.lastNavigationStatus = "SIGURANTA HOLD: " + reason
@@ -713,13 +713,13 @@ Item {
             lastNavigationStatus="G20 • AUTO selectat • folosește START pentru pornirea misiunii"
             return
         }
-        if(action==="FAR") { commandNanoLight(1,2,"Far"); return }
-        if(action==="POZITII") { commandNanoLight(2,2,"Poziții"); return }
+        if(action==="FAR") { commandH743Light(1,2,"Far"); return }
+        if(action==="POZITII") { commandH743Light(2,2,"Poziții"); return }
     }
 
-    function commandNanoLight(target, mode, label) {
+    function commandH743Light(target, mode, label) {
         // V3 does not contain the legacy Nano bridge; never send command 31000.
-        root.lastNavigationStatus=label+" indisponibil pe V3: maparea luminilor H743 nu este validată"
+        root.lastNavigationStatus=label+" indisponibil: maparea luminilor H743 nu este validată"
         return false
     }
 
@@ -1095,7 +1095,7 @@ Item {
             StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/speed.svg"; title: "VITEZĂ"; value: vehicle && vehicle.groundSpeed ? Number(vehicle.groundSpeed.rawValue * 3.6).toFixed(1) + " km/h" : "--"; good: !!vehicle }
             StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/target.svg"; title: "ȚINTĂ"; value: root.distanceToTarget > 0 ? Number(root.distanceToTarget).toFixed(0) + " m" : "--"; good: root.distanceToTarget > 0 }
             StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/battery.svg"; title: "BATERIE"; value: battery ? Number(battery.percentRemaining.rawValue).toFixed(0) + "%" : "--"; good: battery && battery.percentRemaining.rawValue > 20 }
-            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/temp.svg"; title: "TEMP"; value: nanoTelemetry.connected && !isNaN(nanoTelemetry.batteryTempC) ? Number(nanoTelemetry.batteryTempC).toFixed(1) + "°" : "--"; good: nanoTelemetry.connected && safetyManager.state !== "CRITICAL" }
+            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/temp.svg"; title: "TEMP"; value: h743Telemetry.connected && !isNaN(h743Telemetry.batteryTempC) ? Number(h743Telemetry.batteryTempC).toFixed(1) + "°" : "--"; good: h743Telemetry.connected && safetyManager.state !== "CRITICAL" }
             StatusPill { pillWidth: 58; iconSource:"qrc:/qml/NavoSmart/icons/mode.svg"; title: "MOD"; value: root.flightMode.length ? root.flightMode : "OFF"; good: vehicle !== null }
             NavoHeadingCompass {
                 id: headingCompass
@@ -2205,7 +2205,7 @@ Item {
                             checked:hopperSettings.confirmed
                             enabled: true
                             ToolTip.visible: hovered
-                            ToolTip.text: "Confirmarea mecanică este disponibilă și cu Nano offline"
+                            ToolTip.text: "Confirmarea mecanică nu necesită telemetrie, dar comenzile V3 cer serviciul H743 validat"
                             onToggled:hopperSettings.confirmed=checked
                         }
                         Rectangle {
@@ -2215,16 +2215,16 @@ Item {
                                 anchors.fill:parent; anchors.margins:9
                                 ColumnLayout {
                                     Label { text:"SENZORI"; color:root.muted; font.pixelSize:10 }
-                                    Label { text:nanoTelemetry.connected?"Nano ONLINE":"Nano OFFLINE"; color:nanoTelemetry.connected?root.ok:root.warn; font.bold:true }
+                                    Label { text:h743Telemetry.connected?"H743 ONLINE":"H743 OFFLINE"; color:h743Telemetry.connected?root.ok:root.warn; font.bold:true }
                                 }
                                 Item { Layout.fillWidth:true }
                                 ColumnLayout {
                                     Label { text:"TEMP BATERIE"; color:root.muted; font.pixelSize:10 }
-                                    Label { text:nanoTelemetry.connected&&!isNaN(nanoTelemetry.batteryTempC)?Number(nanoTelemetry.batteryTempC).toFixed(1)+" °C":"--"; color:root.text; font.bold:true }
+                                    Label { text:h743Telemetry.connected&&!isNaN(h743Telemetry.batteryTempC)?Number(h743Telemetry.batteryTempC).toFixed(1)+" °C":"--"; color:root.text; font.bold:true }
                                 }
                                 ColumnLayout {
                                     Label { text:"APĂ"; color:root.muted; font.pixelSize:10 }
-                                    Label { text:nanoTelemetry.waterDetected?"DETECTATĂ":"OK"; color:nanoTelemetry.waterDetected?root.danger:(nanoTelemetry.connected?root.ok:root.muted); font.bold:true }
+                                    Label { text:h743Telemetry.waterDetected?"DETECTATĂ":"OK"; color:h743Telemetry.waterDetected?root.danger:(h743Telemetry.connected?root.ok:root.muted); font.bold:true }
                                 }
                             }
                         }

@@ -173,8 +173,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoLanDiscovery.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoLanDiscovery.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoNanoTelemetry.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoNanoTelemetry.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoH743Telemetry.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoH743Telemetry.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoBathymetryMesh.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoBathymetryMesh.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoBathymetryGeometry.cc

@@ -6,7 +6,7 @@ QtObject {
     property var output:null
     property bool replayMode:false
     property var vehicle:null
-    property bool nanoConnected:false
+    property bool telemetryConnected:false
     property bool waterConfirmed:false
     property real batteryTempC:NaN
     property real batteryPercent:NaN
@@ -64,8 +64,8 @@ QtObject {
         edge("link",!linkHealthy,"Legătura cu barca este pierdută",true)
         edge("gps",linkHealthy ? !gpsHealthy : null,"Poziția GPS este pierdută",true)
         edge("battery",linkHealthy && isFinite(batteryPercent) && batteryPercent>=0 ? batteryPercent<=20 : null,"Bateria bărcii este scăzută",true)
-        edge("water",nanoConnected ? waterConfirmed : null,"Apă confirmată în barcă",true)
-        edge("temperature",nanoConnected && isFinite(batteryTempC) ? batteryTempC>=55 : null,"Temperatura bateriei este critică",true)
+        edge("water",telemetryConnected ? waterConfirmed : null,"Apă confirmată în barcă",true)
+        edge("temperature",telemetryConnected && isFinite(batteryTempC) ? batteryTempC>=55 : null,"Temperatura bateriei este critică",true)
     }
     function dispatch() {
         if(replayMode || !output || (!soundEnabled && !voiceEnabled))return

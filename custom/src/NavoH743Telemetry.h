@@ -4,7 +4,7 @@
 #include <QElapsedTimer>
 #include "QGCMAVLink.h"
 class Vehicle;
-class NavoNanoTelemetry : public QObject {
+class NavoH743Telemetry : public QObject {
  Q_OBJECT
  Q_PROPERTY(QObject* vehicle READ vehicle WRITE setVehicle NOTIFY vehicleChanged)
  Q_PROPERTY(int capabilities READ capabilities NOTIFY telemetryChanged)
@@ -28,7 +28,7 @@ class NavoNanoTelemetry : public QObject {
  Q_PROPERTY(int rudderUs READ rudderUs NOTIFY telemetryChanged)
  Q_PROPERTY(int alarmMask READ alarmMask NOTIFY telemetryChanged)
 public:
- explicit NavoNanoTelemetry(QObject* p=nullptr);
+ explicit NavoH743Telemetry(QObject* p=nullptr);
  int capabilities() const { return connected() && _fresh(_capMs) ? _caps : 0; }
  bool lightsValid() const { return connected() && _fresh(_headMs) && _fresh(_posMs); }
  bool hopperStateValid() const { return connected() && _fresh(_hopMs) && _fresh(_requestMs); }
@@ -49,7 +49,7 @@ private:
  void _reset();
  bool _fresh(qint64 timestamp) const;
  QElapsedTimer _clock;
- bool _v3=false;
+ bool _v3=true;
  int _caps=0,_hopperMask=0,_request=0;
  qint64 _capMs=-1,_headMs=-1,_posMs=-1,_hopMs=-1,_requestMs=-1;
  qint64 _tempMs=-1, _waterMs=-1, _faultMs=-1, _heartbeatMs=-1;

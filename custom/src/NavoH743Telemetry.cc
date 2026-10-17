@@ -1,34 +1,34 @@
-#include "NavoNanoTelemetry.h"
+#include "NavoH743Telemetry.h"
 #include "Vehicle.h"
 #include <QDateTime>
 #include <QTimer>
 #include <cstring>
 #include <cmath>
-NavoNanoTelemetry::NavoNanoTelemetry(QObject*p):QObject(p){_clock.start();auto*t=new QTimer(this);t->setInterval(1000);connect(t,&QTimer::timeout,this,&NavoNanoTelemetry::_timeout);t->start();}
-QObject* NavoNanoTelemetry::vehicle()const{return _vehicle.data();}
-void NavoNanoTelemetry::setVehicle(QObject*o){Vehicle*v=qobject_cast<Vehicle*>(o);if(v==_vehicle)return;if(_vehicle)disconnect(_vehicle,nullptr,this,nullptr);_vehicle=v;if(_vehicle)connect(_vehicle,&Vehicle::mavlinkMessageReceived,this,&NavoNanoTelemetry::_mavlink);_reset();emit vehicleChanged();emit telemetryChanged();}
-void NavoNanoTelemetry::_reset(){
+NavoH743Telemetry::NavoH743Telemetry(QObject*p):QObject(p){_clock.start();auto*t=new QTimer(this);t->setInterval(1000);connect(t,&QTimer::timeout,this,&NavoH743Telemetry::_timeout);t->start();}
+QObject* NavoH743Telemetry::vehicle()const{return _vehicle.data();}
+void NavoH743Telemetry::setVehicle(QObject*o){Vehicle*v=qobject_cast<Vehicle*>(o);if(v==_vehicle)return;if(_vehicle)disconnect(_vehicle,nullptr,this,nullptr);_vehicle=v;if(_vehicle)connect(_vehicle,&Vehicle::mavlinkMessageReceived,this,&NavoH743Telemetry::_mavlink);_reset();emit vehicleChanged();emit telemetryChanged();}
+void NavoH743Telemetry::_reset(){
  _capMs=_headMs=_posMs=_hopMs=_requestMs=-1;_caps=_hopperMask=_request=0;
  _lastMs=0; _batteryV=0; _tempC=qQNaN();
  _water=_waterFault=_head=_pos=false; _hl=_hr=_rud=_alarm=0;
  _tempMs=_waterMs=_faultMs=_heartbeatMs=-1;
 }
-void NavoNanoTelemetry::setV3Profile(bool value){
+void NavoH743Telemetry::setV3Profile(bool value){
  if(_v3==value)return;
  _v3=value; _reset(); emit telemetryChanged();
 }
-bool NavoNanoTelemetry::_fresh(qint64 timestamp)const{
+bool NavoH743Telemetry::_fresh(qint64 timestamp)const{
  return timestamp>=0 && _clock.elapsed()-timestamp<2500;
 }
-bool NavoNanoTelemetry::connected()const{return _fresh(_heartbeatMs);}
-bool NavoNanoTelemetry::temperatureValid()const{
+bool NavoH743Telemetry::connected()const{return _fresh(_heartbeatMs);}
+bool NavoH743Telemetry::temperatureValid()const{
  return connected() && _fresh(_tempMs) && std::isfinite(_tempC);
 }
-bool NavoNanoTelemetry::waterValid()const{
+bool NavoH743Telemetry::waterValid()const{
  return connected() && _fresh(_waterMs) && _fresh(_faultMs) && !_waterFault;
 }
-void NavoNanoTelemetry::_timeout(){emit telemetryChanged();}
-void NavoNanoTelemetry::_set(const char*n,float v){
+void NavoH743Telemetry::_timeout(){emit telemetryChanged();}
+void NavoH743Telemetry::_set(const char*n,float v){
  const qint64 now=_clock.elapsed();
  // V3 has a separate namespace: legacy Nano frames cannot impersonate it.
  if(_v3){
@@ -58,4 +58,4 @@ void NavoNanoTelemetry::_set(const char*n,float v){
  }
  _lastMs=QDateTime::currentMSecsSinceEpoch();emit telemetryChanged();
 }
-void NavoNanoTelemetry::_mavlink(const mavlink_message_t&m){if(!_vehicle || m.sysid!=_vehicle->id() || m.compid!=MAV_COMP_ID_AUTOPILOT1 || m.msgid!=MAVLINK_MSG_ID_NAMED_VALUE_FLOAT)return;mavlink_named_value_float_t p{};mavlink_msg_named_value_float_decode(&m,&p);char n[11]{};memcpy(n,p.name,10);_set(n,p.value);}
+void NavoH743Telemetry::_mavlink(const mavlink_message_t&m){if(!_vehicle || m.sysid!=_vehicle->id() || m.compid!=MAV_COMP_ID_AUTOPILOT1 || m.msgid!=MAVLINK_MSG_ID_NAMED_VALUE_FLOAT)return;mavlink_named_value_float_t p{};mavlink_msg_named_value_float_decode(&m,&p);char n[11]{};memcpy(n,p.name,10);_set(n,p.value);}
