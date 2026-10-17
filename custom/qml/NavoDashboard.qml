@@ -648,9 +648,12 @@ Item {
     NavoNanoTelemetry {
         id: nanoTelemetry
         vehicle: root.vehicle
+        v3Profile: false // V3 requires explicit hardware profile migration before enabling commands
     }
     NavoHopperBridge {
         id: hopperBridge
+        onboardTiming: nanoTelemetry.v3Profile
+        hardwareTelemetry: nanoTelemetry
         vehicle: root.vehicle
         calibrated: hopperSettings.confirmed && hopperSettings.leftOutput!==hopperSettings.rightOutput && root.linkAlive
         releaseAllowed: root.linkAlive && hopperSettings.confirmed
