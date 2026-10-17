@@ -2203,28 +2203,8 @@ Item {
                             checked:hopperSettings.confirmed
                             enabled: true
                             ToolTip.visible: hovered
-                            ToolTip.text: "Confirmarea mecanică este disponibilă și cu Nano offline"
+                            ToolTip.text: "Confirmați după verificarea mecanică a cuvelor"
                             onToggled:hopperSettings.confirmed=checked
-                        }
-                        Rectangle {
-                            Layout.fillWidth:true; Layout.preferredHeight:root.compactUi ? 58 : 64; radius:7
-                            color:root.panel; border.color:safetyManager.state==="CRITICAL"?root.danger:root.line
-                            RowLayout {
-                                anchors.fill:parent; anchors.margins:9
-                                ColumnLayout {
-                                    Label { text:"SENZORI"; color:root.muted; font.pixelSize:10 }
-                                    Label { text:nanoTelemetry.connected?"Nano ONLINE":"Nano OFFLINE"; color:nanoTelemetry.connected?root.ok:root.warn; font.bold:true }
-                                }
-                                Item { Layout.fillWidth:true }
-                                ColumnLayout {
-                                    Label { text:"TEMP BATERIE"; color:root.muted; font.pixelSize:10 }
-                                    Label { text:nanoTelemetry.connected&&!isNaN(nanoTelemetry.batteryTempC)?Number(nanoTelemetry.batteryTempC).toFixed(1)+" °C":"--"; color:root.text; font.bold:true }
-                                }
-                                ColumnLayout {
-                                    Label { text:"APĂ"; color:root.muted; font.pixelSize:10 }
-                                    Label { text:nanoTelemetry.waterDetected?"DETECTATĂ":"OK"; color:nanoTelemetry.waterDetected?root.danger:(nanoTelemetry.connected?root.ok:root.muted); font.bold:true }
-                                }
-                            }
                         }
                         Item { Layout.fillHeight:true }
                     }
