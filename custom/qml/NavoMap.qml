@@ -646,7 +646,7 @@ Item {
                    (root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ?
                     "Traseu: " + actualTrack.trackCoordinates.length + " • " +
                     (root.areaScanController ? root.areaScanController.laneCount() : 0) + " culoare" :
-                    "GPS: AȘTEPTARE"))
+                    (root.operatorLocationValid ? "GPS TELEFON: OK • BARCA: AȘTEPTARE" : "GPS TELEFON: AȘTEPTARE • verifică permisiunea de locație")))
             color: "white"; font.pixelSize: 11; elide: Text.ElideRight
             width: parent.width - 14
         }
