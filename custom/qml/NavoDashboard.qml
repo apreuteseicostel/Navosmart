@@ -314,7 +314,7 @@ Item {
         gpsReady: !!root.vehicle && !!root.vehicle.gps && Number(root.vehicle.gps.lock.rawValue) >= 3 && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
         homeReady: !!root.vehicle && !!root.vehicle.homePosition && root.vehicle.homePosition.isValid
         batteryReady: root.preLaunchBatteryOverride || (!!root.battery && !!root.battery.percentRemaining && isFinite(Number(root.battery.percentRemaining.rawValue)) && Number(root.battery.percentRemaining.rawValue) > 20)
-        nanoReady: nanoTelemetry.connected
+        nanoReady: true // V3 has no Nano; retained only for legacy pre-launch model compatibility
         sonarReady: root.sonarConnected
         cameraReady: root.cameraConnected
         hoppersReady: hopperSettings.confirmed && hopperSettings.leftOutput !== hopperSettings.rightOutput
@@ -1335,7 +1335,6 @@ Item {
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/autopilot.svg"; title:"AP"; value:vehicle?"ON":"OFF"; good:!!vehicle }
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/lan.svg"; title:"LAN"; value:sonar.transport&&sonar.transport.connected?"ON":"OFF"; good:sonar.transport&&sonar.transport.connected }
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/sonar.svg"; title:"SONAR"; value:root.sonarConnected?"ON":"OFF"; good:root.sonarConnected }
-                MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/nano.svg"; title:"NANO"; value:nanoTelemetry.connected?"ON":"OFF"; good:nanoTelemetry.connected }
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/navigate.svg";title:"ANCORĂ";value:digitalAnchor.active?"CERUTĂ":"OFF";good:digitalAnchor.guidedConfirmed;clickable:true;toolTipText:digitalAnchor.active?"Dezactivează ancora GPS și solicită HOLD":"Menține poziția GPS curentă";onClicked:root.toggleDigitalAnchor() }
                 MiniStatus {
                     iconSource:"qrc:/qml/NavoSmart/icons/camera.svg"; title:"CAM"; value:root.cameraConnected?"ON":"OFF"; good:root.cameraConnected
