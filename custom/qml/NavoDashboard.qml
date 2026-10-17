@@ -314,7 +314,6 @@ Item {
         gpsReady: !!root.vehicle && !!root.vehicle.gps && Number(root.vehicle.gps.lock.rawValue) >= 3 && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
         homeReady: !!root.vehicle && !!root.vehicle.homePosition && root.vehicle.homePosition.isValid
         batteryReady: root.preLaunchBatteryOverride || (!!root.battery && !!root.battery.percentRemaining && isFinite(Number(root.battery.percentRemaining.rawValue)) && Number(root.battery.percentRemaining.rawValue) > 20)
-        nanoReady: true // V3 has no Nano; retained only for legacy pre-launch model compatibility
         sonarReady: root.sonarConnected
         cameraReady: root.cameraConnected
         hoppersReady: hopperSettings.confirmed && hopperSettings.leftOutput !== hopperSettings.rightOutput
