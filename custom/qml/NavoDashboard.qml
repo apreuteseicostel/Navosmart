@@ -347,8 +347,8 @@ Item {
             var required=energyGuard.requiredPercent(distance)
             if(!isFinite(required))return
             if(percent<=required && !root.energyRtlIssued) {
-                root.energyRtlIssued=true
-                if(!root.rtlMission())root.lastNavigationStatus="ENERGIE CRITICĂ • RTL indisponibil; verifică H743"
+                if(root.rtlMission())root.energyRtlIssued=true
+                else root.lastNavigationStatus="ENERGIE CRITICĂ • RTL indisponibil; verifică H743"
             }
         }
     }
