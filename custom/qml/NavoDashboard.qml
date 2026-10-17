@@ -212,7 +212,8 @@ Item {
         }
         if(isFinite(root.depthM) && root.depthM>0)entry.depth=root.depthM
         if(isFinite(root.waterTempC))entry.temperature=root.waterTempC
-        var event={sequence:++root.baitJournalSequence,lakeId:lakeId,lakeName:scanCoordinator.lakeName,entry:entry}
+        entry.clientEventId="bait-"+Date.now().toString(36)+"-"+(++root.baitJournalSequence).toString(36)+"-"+Math.random().toString(36).slice(2)
+        var event={sequence:root.baitJournalSequence,lakeId:lakeId,lakeName:scanCoordinator.lakeName,entry:entry}
         if(!root.persistPendingBaitJournal(root.pendingBaitJournalEvents.concat([event])))return false
         if(root.activeBaitJournalTrip(lakeId))return root.flushPendingBaitJournal(false)
         if(!baitJournalTripDialog.visible)baitJournalTripDialog.open()
