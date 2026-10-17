@@ -16,6 +16,7 @@ private slots:
   send(v,"NV3VER",1,2);QVERIFY(!t.connected());
   send(v,"NV3VER",1,1,2);QVERIFY(!t.connected());
   send(v,"NVBATTEMP",21);QVERIFY(!t.connected());
+  t.setV3Profile(false);QVERIFY(t.v3Profile()); // legacy Nano cannot be enabled
   QVERIFY(!t.temperatureValid());
   send(v,"NVBATTEMP",21);QVERIFY(!t.connected());
   send(v,"NV3TEMP",24);QVERIFY(!t.temperatureValid());
