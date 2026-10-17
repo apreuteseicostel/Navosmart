@@ -14,8 +14,9 @@ void NavoH743Telemetry::_reset(){
  _tempMs=_waterMs=_faultMs=_heartbeatMs=-1;
 }
 void NavoH743Telemetry::setV3Profile(bool value){
- if(_v3==value)return;
- _v3=value; _reset(); emit telemetryChanged();
+ // NAVO V3 has no Nano: refuse legacy mode and keep the H743 namespace.
+ if(!value || _v3)return;
+ _v3=true; _reset(); emit telemetryChanged();
 }
 bool NavoH743Telemetry::_fresh(qint64 timestamp)const{
  return timestamp>=0 && _clock.elapsed()-timestamp<2500;
@@ -42,20 +43,8 @@ void NavoH743Telemetry::_set(const char*n,float v){
   else if(!strcmp(n,"NV3WATER")){_water=v==1.0f;_waterMs=(v==0.0f||v==1.0f)?now:-1;}
   else if(!strcmp(n,"NV3WFAULT")){_waterFault=v!=0.0f;_faultMs=(v==0.0f||v==1.0f)?now:-1;}
   else return;
- }else{
-  if(!strcmp(n,"NVBATV"))_batteryV=v;
-  else if(!strcmp(n,"NVBATTEMP")){_tempC=std::isfinite(v)&&v>-1000?v:qQNaN();_tempMs=now;}
-  else if(!strcmp(n,"NVWATER")){_water=v==1.0f;_waterMs=(v==0.0f||v==1.0f)?now:-1;}
-  else if(!strcmp(n,"NVWFAULT")){_waterFault=v!=0.0f;_faultMs=(v==0.0f||v==1.0f)?now:-1;}
-  else if(!strcmp(n,"NVHEAD"))_head=v>0.5f;
-  else if(!strcmp(n,"NVPOS"))_pos=v>0.5f;
-  else if(!strcmp(n,"NVHOPL")&&std::isfinite(v))_hl=qRound(v);
-  else if(!strcmp(n,"NVHOPR")&&std::isfinite(v))_hr=qRound(v);
-  else if(!strcmp(n,"NVRUD")&&std::isfinite(v))_rud=qRound(v);
-  else if(!strcmp(n,"NVALARM")&&std::isfinite(v))_alarm=qRound(v);
-  else return;
-  _heartbeatMs=now;
  }
+
  _lastMs=QDateTime::currentMSecsSinceEpoch();emit telemetryChanged();
 }
 void NavoH743Telemetry::_mavlink(const mavlink_message_t&m){if(!_vehicle || m.sysid!=_vehicle->id() || m.compid!=MAV_COMP_ID_AUTOPILOT1 || m.msgid!=MAVLINK_MSG_ID_NAMED_VALUE_FLOAT)return;mavlink_named_value_float_t p{};mavlink_msg_named_value_float_decode(&m,&p);char n[11]{};memcpy(n,p.name,10);_set(n,p.value);}
