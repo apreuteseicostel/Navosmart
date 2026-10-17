@@ -99,6 +99,14 @@ test('Disconnected H743 suppresses GPS HOLD requests even during simultaneous GP
   c.tick();now+=121000;c.tick();assert.equal(holds,0);assert.equal(rtls,0);
   assert.equal(c.gpsLost,true);assert.equal(c.linkLost,true);
 });
+test('H743 reconnection cannot replay a stale GPS timeout as automatic RTL',()=>{
+  let now=1790240400000,rtls=0,holds=0;
+  const vehicle={vehicleLinkManager:{communicationLost:true},gps:{lock:{rawValue:0}},coordinate:{isValid:false}};
+  const c=context('NavoFailsafeController.qml',{Date:{now:()=>now},enabled:true,vehicle,minGpsFix:3,linkLost:false,gpsLost:false,linkGraceSeconds:30,gpsRecoverySeconds:60,gpsReturnHomeSeconds:120,rtlRequested:()=>rtls++,holdRequested:()=>holds++,recovered:noop});
+  c.tick();now+=130000;c.tick();
+  vehicle.vehicleLinkManager.communicationLost=false;vehicle.gps.lock.rawValue=3;vehicle.coordinate.isValid=true;
+  c.tick();assert.equal(rtls,0);assert.equal(holds,0);assert.equal(c.gpsLost,false);assert.equal(c.gpsRtlPending,false);
+});
 test('Malformed sonar samples cannot enter the active lake',()=>{
   const c=context('NavoSonarMapping.qml',{bottomHardness:NaN,bottomEchoStrength:NaN,scanning:true,paused:false,sonarConnected:true,rawSamples:[],trackCoordinates:[],QtPositioning:{coordinate:coord}});
   for(const s of [{lat:52,lon:0,depth:null},{lat:52,lon:0,depth:-1},{lat:Infinity,lon:0,depth:2},{lat:52,lon:181,depth:2}])c.ingestSample(s);
