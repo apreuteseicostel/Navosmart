@@ -483,6 +483,34 @@ Item {
             sourceItem: Rectangle { width: 12; height: 12; radius: 6; color: "#26c6da"; border.color: "white" }
         }
     }
+    MapPolyline {
+        parent:liveMap
+        visible:root.offlinePickMode && root.offlinePickCorners.length===2
+        path:{
+            if(root.offlinePickCorners.length!==2)return []
+            var a=root.offlinePickCorners[0],b=root.offlinePickCorners[1]
+            return [a,QtPositioning.coordinate(a.latitude,b.longitude),b,QtPositioning.coordinate(b.latitude,a.longitude),a]
+        }
+        line.width:4;line.color:"#ffcc33"
+        Component.onCompleted:liveMap.addMapItem(this)
+        Component.onDestruction:liveMap.removeMapItem(this)
+    }
+    MouseArea {
+        anchors.fill:parent;z:100;enabled:root.offlinePickMode
+        onClicked:function(mouse){
+            var c=liveMap.toCoordinate(Qt.point(mouse.x,mouse.y),false)
+            if(!c || !c.isValid)return
+            var pts=root.offlinePickCorners.length===2 ? [] : root.offlinePickCorners.slice(0)
+            pts.push(c);root.offlinePickCorners=pts
+        }
+    }
+    Row {
+        z:101;visible:root.offlinePickMode;spacing:8
+        anchors.horizontalCenter:parent.horizontalCenter
+        anchors.bottom:parent.bottom;anchors.bottomMargin:12
+        Button { text:"ANULEAZĂ";onClicked:{root.offlinePickMode=false;root.offlinePickCorners=[]} }
+        Button { text:root.offlinePickCorners.length===0?"COLȚ 1":root.offlinePickCorners.length===1?"COLȚ 2":"CONFIRMĂ ZONA";enabled:root.offlinePickCorners.length===2;onClicked:root.finishOfflinePick() }
+    }
     MouseArea {
         anchors.fill: parent
         enabled: !root.recordedReplay && root.areaDrawMode !== "none"
