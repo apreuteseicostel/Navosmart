@@ -35,6 +35,25 @@ D P2: adnotări → jurnal → offline → alerte → umiditate → Stealth → 
 ## Protocol
 Clasificare pe funcție: IMPLEMENTAT / PARȚIAL / LIPSĂ / NECESITĂ TEST HARDWARE, cu fișiere și commituri. Android APK și replay verzi la același SHA; banc (link, baterie, cuve, manual/auto, restart, GNSS); apă progresiv cu recuperare și loguri; acceptanță documentată înainte de merge.
 
+## Audit de progres — 17 octombrie 2026 (PR #23)
+
+**Regulă:** existența codului sau un APK verde nu echivalează cu acceptanța funcției. Etichetele de mai jos sunt conservatoare și nu presupun teste pe barcă.
+
+| # | Clasificare | Dovezi de cod / lacune decisive |
+|---|---|---|
+| 1 | PARȚIAL / NECESITĂ TEST HARDWARE | `custom/qml/NavoDashboard.qml`: `failsafeController`, `energyGuard`, `rtlMission`; fără validare link/GNSS/baterie/motor la banc și pe apă. |
+| 2 | NECESITĂ AUDIT FIRMWARE | Stabilizarea ArduPilot/H743 nu are măsurători comparative anti-windup, curent/vânt sau feedback motor. |
+| 3 | PARȚIAL | `custom/qml/NavoDashboard.qml`: `scanCoordinator`, pauză/reluare; acceptanța misiunilor și geofence încă neconfirmată. |
+| 4 | PARȚIAL | Componente Kogger, replay și teste CHART; fără acceptanță completă canal real, sincronizare GNSS și mozaic pe G20. |
+| 5 | PARȚIAL | Mesh/batimetrie în backend; cache persistent, identitate live/replay și performanța G20 încă neconfirmate. |
+| 6 | DE VERIFICAT | Adnotările și jurnalul necesită test de persistență/restart/export, nu se declară finalizate. |
+| 7 | LIPSĂ ACCEPTANȚĂ | Hărți offline complete, misiune și replay fără internet nevalidate. |
+| 8 | LIPSĂ IMPLEMENTARE | DHT11 selectat; pin H743 nealocat și firmware fără citire/umiditate confirmată. |
+| 9 | PROPUS | Stealth necesită profil explicit fără reducerea siguranței, RTL sau geofence. |
+| 10 | CERCETARE | Clasificarea substratului/vegetației necesită mostre reale etichetate și raportarea fals-pozitivelor. |
+
+**Ordinea execuției:** (1) P0 RTL/failsafe + Co-Pilot; (2) P1 CHART Kogger + Area Scan + 3D/cache; (3) P2 adnotări/jurnal → offline → DHT11 → Stealth → substrat. Pentru fiecare: test automat, APK la același SHA, banc, apă, apoi acceptanță. Nu se face merge doar pentru că CI este verde.
+
 ## Riscuri
 CHART Kogger, UM982 calibrare, feedback turație, energie RTL, consum sonar/cameră, umiditate, resurse G20.
 
