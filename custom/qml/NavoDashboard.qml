@@ -480,7 +480,7 @@ Item {
     }
     property bool awaitingMissionStart: false
     property string areaScanFinishAction: "HOLD"
-    onVehicleChanged: { if(routePlan && routePlan.active) routePlan.cancel("Autopilot schimbat"); nanoMissingSinceMs=0; nanoHopperFallback=false; proBoatTrack=[]; awaitingMissionStart=false; if(baitingController && baitingController.enabled) baitingController.abortCycle("Autopilot schimbat"); if(scanCoordinator && scanCoordinator.state==="SCANNING") scanCoordinator.pause("Autopilot schimbat") }
+    onVehicleChanged: { if(routePlan && routePlan.active) routePlan.cancel("Autopilot schimbat"); proBoatTrack=[]; awaitingMissionStart=false; if(baitingController && baitingController.enabled) baitingController.abortCycle("Autopilot schimbat"); if(scanCoordinator && scanCoordinator.state==="SCANNING") scanCoordinator.pause("Autopilot schimbat") }
     property string pendingMode: ""
     property string pendingModeLabel: ""
     Timer {
@@ -651,33 +651,11 @@ Item {
         id: nanoTelemetry
         vehicle: root.vehicle
     }
-    // A missing Nano never removes H743 control: wait once, then permit
-    // calibrated servo commands. This does not issue a release automatically.
-    property double nanoMissingSinceMs: 0
-    property bool nanoHopperFallback: false
-    function updateNanoHopperAvailability(nowMs) {
-        if (!root.vehicle || !root.linkAlive) {
-            nanoMissingSinceMs = 0
-            nanoHopperFallback = false
-            return
-        }
-        if (nanoTelemetry.lastUpdateMs > 0) nanoMissingSinceMs = nanoTelemetry.lastUpdateMs
-        else if (!nanoMissingSinceMs) nanoMissingSinceMs = nowMs
-        nanoHopperFallback = nowMs - nanoMissingSinceMs >= 2000
-    }
-    Timer {
-        interval: 100; repeat: true; running: true
-        onTriggered: root.updateNanoHopperAvailability(Date.now())
-    }
-    Connections {
-        target: nanoTelemetry
-        function onTelemetryChanged() { root.updateNanoHopperAvailability(Date.now()) }
-    }
     NavoHopperBridge {
         id: hopperBridge
         vehicle: root.vehicle
         calibrated: hopperSettings.confirmed && hopperSettings.leftOutput!==hopperSettings.rightOutput && root.linkAlive
-        releaseAllowed: nanoTelemetry.connected || root.nanoHopperFallback
+        releaseAllowed: root.linkAlive && hopperSettings.confirmed
         leftServoOutput: hopperSettings.leftOutput
         rightServoOutput: hopperSettings.rightOutput
         leftClosedPwm: hopperSettings.leftClosed
