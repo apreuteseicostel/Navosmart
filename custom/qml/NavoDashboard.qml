@@ -146,6 +146,7 @@ Item {
     // the user is deciding whether to start a fishing trip.
     property var pendingBaitJournalEvents: []
     property int baitJournalSequence: 0
+    property bool baitJournalFlushBusy: false
     Dialog {
         id: baitJournalTripDialog
         parent: Overlay.overlay
@@ -170,21 +171,25 @@ Item {
         return null
     }
     function flushPendingBaitJournal(allowCreate) {
+        if(root.baitJournalFlushBusy || !persistence)return false
         var queue=root.pendingBaitJournalEvents.slice()
-        if(!queue.length || !persistence)return false
-        var remaining=[], failed=false
+        if(!queue.length)return true
+        root.baitJournalFlushBusy=true
+        var remaining=[], failed=false, tripCache=({})
         for(var i=0;i<queue.length;i++) {
             var event=queue[i]
-            var trip=root.activeBaitJournalTrip(event.lakeId)
+            var trip=tripCache[event.lakeId] || root.activeBaitJournalTrip(event.lakeId)
             if(!trip && allowCreate && event.lakeId===scanCoordinator.lakeId) {
                 var tripId=persistence.startFishingTrip(event.lakeId,event.lakeName || "Partidă de pescuit")
-                if(tripId)trip=root.activeBaitJournalTrip(event.lakeId)
+                if(tripId)trip={id:tripId,lakeId:event.lakeId}
             }
+            if(trip)tripCache[event.lakeId]=trip
             if(!trip || !persistence.saveFishingEntry(trip.id,event.entry)) {
                 remaining.push(event);failed=true
             }
         }
-        root.pendingBaitJournalEvents=remaining
+        root.pendingBaitJournalEvents=remaining.concat(root.pendingBaitJournalEvents.slice(queue.length))
+        root.baitJournalFlushBusy=false
         if(failed)root.lastNavigationStatus="Jurnal: "+remaining.length+" nădiri nesalvate; păstrate în sesiune pentru reîncercare"
         return !failed
     }
