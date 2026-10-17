@@ -2028,7 +2028,7 @@ Item {
             region:root.offlineRegion
             lakeName:scanCoordinator.lakeName
             tileLimit:Number(QGroundControl.settingsManager.offlineMapsSettings.maxTilesForDownload.rawValue)
-            onChooseRegionRequested:root.activePage=0
+            onChooseRegionRequested:{root.activePage=0;Qt.callLater(function(){if(root.mapController){root.mapController.autoFollowBoat=false;root.mapController.showStatusHint=true}})}
             onShowRegionRequested:function(region,mapType){root.showOfflineRegion(region,mapType)}
         }
     }
