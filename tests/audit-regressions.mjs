@@ -88,10 +88,10 @@ test('Valid stationary bait release dispatches; synchronous rejection prevents e
   let c=bait(.01);timerHandler('NavoBaitingController.qml','settleTimer',c)();assert(c.released && c.postStarted);
   c=bait(.01);c.hopperReleaseRequested=()=>c.abortCycle();timerHandler('NavoBaitingController.qml','settleTimer',c)();assert(!c.postStarted);
 });
-test('Failsafe grace uses full epoch milliseconds and correct QGC link property',()=>{
+test('Failsafe grace never claims RTL delivery after MAVLink communication loss',()=>{
   let now=1790240400000,rtl=0;
   const c=context('NavoFailsafeController.qml',{Date:{now:()=>now},enabled:true,vehicle:{vehicleLinkManager:{communicationLost:true},gps:{lock:{rawValue:3}},coordinate:coord(52,0)},minGpsFix:3,linkLost:false,gpsLost:false,linkGraceSeconds:30,gpsRecoverySeconds:60,gpsReturnHomeSeconds:120,rtlRequested:()=>rtl++,holdRequested:noop,recovered:noop});
-  c.tick();now+=29000;c.tick();assert.equal(rtl,0);now+=1000;c.tick();assert.equal(rtl,1);c.tick();assert.equal(rtl,1);
+  c.tick();now+=29000;c.tick();assert.equal(rtl,0);now+=1000;c.tick();assert.equal(rtl,0);assert(c.status.includes('RTL neconfirmat'));c.tick();assert.equal(rtl,0);
 });
 test('Malformed sonar samples cannot enter the active lake',()=>{
   const c=context('NavoSonarMapping.qml',{bottomHardness:NaN,bottomEchoStrength:NaN,scanning:true,paused:false,sonarConnected:true,rawSamples:[],trackCoordinates:[],QtPositioning:{coordinate:coord}});
