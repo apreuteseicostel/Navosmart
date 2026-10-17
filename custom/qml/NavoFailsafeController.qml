@@ -36,7 +36,10 @@ QtObject {
    var ls=Math.floor((now()-linkLostSince)/1000)
    if(ls>=linkGraceSeconds){status="LINK PIERDUT • verifică failsafe H743 (RTL neconfirmat)";if(!linkFailsafeIssued){linkFailsafeIssued=true; /* Link absent: no MAVLink RTL command can be relied upon. H743 must own this failsafe. */ }}
   } else if(linkLost){
-   linkLost=false;linkLostSince=0;linkFailsafeIssued=false;status="LINK RESTABILIT";recovered("LINK","Control disponibil din nou")
+   linkLost=false;linkLostSince=0;linkFailsafeIssued=false;
+   // A GPS outage observed while disconnected cannot justify an automatic RTL on reconnection.
+   gpsLost=false;gpsLostSince=0;gpsRtlPending=false;gpsHoldIssued=false;gpsRecoveryPending=false;
+   status="LINK RESTABILIT";recovered("LINK","Verifică poziția și modul H743 înainte de continuare")
   }
 
   var gh=gpsHealthy()
