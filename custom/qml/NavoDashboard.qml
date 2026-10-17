@@ -329,6 +329,29 @@ Item {
     Binding { target:energyGuard;property:"calibrated";value:energySettings.confirmed }
     Binding { target:energyGuard;property:"reservePercent";value:energySettings.reservePercent }
     Binding { target:energyGuard;property:"consumptionPercentPerKm";value:energySettings.consumptionPercentPerKm }
+    // App-side energy warning/RTL only with valid live telemetry and calibrated model.
+    property bool energyRtlIssued: false
+    Timer {
+        interval: 3000
+        repeat: true
+        running: energyGuard.calibrated && root.linkAlive
+        onTriggered: {
+            if(!root.vehicle || !root.vehicle.homePosition || !root.vehicle.homePosition.isValid ||
+               !root.vehicle.coordinate || !root.vehicle.coordinate.isValid ||
+               !root.vehicle.gps || Number(root.vehicle.gps.lock.rawValue)<3 ||
+               !root.battery || !root.battery.percentRemaining)return
+            var percent=Number(root.battery.percentRemaining.rawValue)
+            var distance=root.vehicle.coordinate.distanceTo(root.vehicle.homePosition)
+            if(!isFinite(percent) || percent<0 || percent>100 || !isFinite(distance) || distance<0)return
+            var required=energyGuard.requiredPercent(distance)
+            if(!isFinite(required))return
+            if(percent<=required && !root.energyRtlIssued) {
+                root.energyRtlIssued=true
+                root.lastNavigationStatus="ENERGIE CRITICĂ • solicit RTL; verifică modul H743"
+                root.rtlMission()
+            } else if(percent>required+5)root.energyRtlIssued=false
+        }
+    }
     NavoFailsafeController {
         id: failsafeController
         vehicle: root.vehicle
