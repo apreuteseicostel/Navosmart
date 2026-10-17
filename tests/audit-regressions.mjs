@@ -193,7 +193,7 @@ test('PRO impulse filter removes an isolated spike and preserves sustained retur
   c.gain=3;assert.equal(c.sampleStrength([.8,.9,.8],1),1);
 });
 test('V3 hopper control does not depend on legacy Nano timeout',()=>{
-  const q=qml('NavoDashboard.qml');
+  const q=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
   assert.ok(!q.includes('updateNanoHopperAvailability('));
   assert.ok(!q.includes('nanoHopperFallback'));
   assert.ok(q.includes('releaseAllowed: root.linkAlive && hopperSettings.confirmed'));
