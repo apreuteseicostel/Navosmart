@@ -70,6 +70,17 @@ Item {
     readonly property bool operatorLocationValid: operatorCoordinate && operatorCoordinate.isValid
 
     signal offlineMapsRequested(var region)
+    property bool offlinePickMode:false
+    property var offlinePickCorners:[]
+    function beginOfflinePick(){offlinePickCorners=[];offlinePickMode=true;autoFollowBoat=false}
+    function finishOfflinePick(){
+        if(offlinePickCorners.length!==2)return
+        var a=offlinePickCorners[0],b=offlinePickCorners[1]
+        var region={west:Math.min(a.longitude,b.longitude),east:Math.max(a.longitude,b.longitude),south:Math.min(a.latitude,b.latitude),north:Math.max(a.latitude,b.latitude),zoom:liveMap.zoomLevel,mapType:liveMap.activeMapType.name}
+        if(region.east-region.west<0.00001 || region.north-region.south<0.00001)return
+        offlinePickMode=false;offlinePickCorners=[]
+        offlineMapsRequested(region)
+    }
     function offlineRegion() {
         var corners=[liveMap.toCoordinate(Qt.point(0,0),false),liveMap.toCoordinate(Qt.point(liveMap.width,0),false),liveMap.toCoordinate(Qt.point(0,liveMap.height),false),liveMap.toCoordinate(Qt.point(liveMap.width,liveMap.height),false)]
         var west=180,east=-180,north=-90,south=90
