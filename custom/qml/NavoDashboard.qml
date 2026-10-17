@@ -147,6 +147,14 @@ Item {
     property var pendingBaitJournalEvents: []
     property int baitJournalSequence: 0
     property bool baitJournalFlushBusy: false
+    Component.onCompleted: {
+        if(persistence) root.pendingBaitJournalEvents=persistence.pendingBaitJournalEvents()
+    }
+    function persistPendingBaitJournal(events) {
+        if(!persistence || !persistence.storePendingBaitJournalEvents(events))return false
+        root.pendingBaitJournalEvents=events
+        return true
+    }
     Dialog {
         id: baitJournalTripDialog
         parent: Overlay.overlay
@@ -161,7 +169,7 @@ Item {
         }
         onAccepted: root.flushPendingBaitJournal(true)
         onRejected: {
-            root.pendingBaitJournalEvents=[]
+            root.persistPendingBaitJournal([])
             root.lastNavigationStatus="Jurnal: înregistrarea automată a nădirilor a fost refuzată"
         }
     }
@@ -188,7 +196,7 @@ Item {
                 remaining.push(event);failed=true
             }
         }
-        root.pendingBaitJournalEvents=remaining.concat(root.pendingBaitJournalEvents.slice(queue.length))
+        if(!root.persistPendingBaitJournal(remaining.concat(root.pendingBaitJournalEvents.slice(queue.length))))failed=true
         root.baitJournalFlushBusy=false
         if(failed)root.lastNavigationStatus="Jurnal: "+remaining.length+" nădiri nesalvate; păstrate în sesiune pentru reîncercare"
         return !failed
@@ -205,7 +213,7 @@ Item {
         if(isFinite(root.depthM) && root.depthM>0)entry.depth=root.depthM
         if(isFinite(root.waterTempC))entry.temperature=root.waterTempC
         var event={sequence:++root.baitJournalSequence,lakeId:lakeId,lakeName:scanCoordinator.lakeName,entry:entry}
-        root.pendingBaitJournalEvents=root.pendingBaitJournalEvents.concat([event])
+        if(!root.persistPendingBaitJournal(root.pendingBaitJournalEvents.concat([event])))return false
         if(root.activeBaitJournalTrip(lakeId))return root.flushPendingBaitJournal(false)
         if(!baitJournalTripDialog.visible)baitJournalTripDialog.open()
         return false
