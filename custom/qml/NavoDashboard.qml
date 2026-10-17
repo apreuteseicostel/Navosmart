@@ -331,11 +331,15 @@ Item {
     Binding { target:energyGuard;property:"consumptionPercentPerKm";value:energySettings.consumptionPercentPerKm }
     // App-side energy warning/RTL only with valid live telemetry and calibrated model.
     property bool energyRtlIssued: false
+    property var energyRtlVehicle: null
     Timer {
         interval: 3000
         repeat: true
         running: energyGuard.calibrated && root.linkAlive
         onTriggered: {
+            if(root.energyRtlVehicle!==root.vehicle){root.energyRtlVehicle=root.vehicle;root.energyRtlIssued=false}
+            if(!root.missionBusy || root.pendingModeLabel==="RTL" ||
+               (root.vehicle && root.vehicle.rtlFlightMode && root.flightMode===root.vehicle.rtlFlightMode))return
             if(!root.vehicle || !root.vehicle.homePosition || !root.vehicle.homePosition.isValid ||
                !root.vehicle.coordinate || !root.vehicle.coordinate.isValid ||
                !root.vehicle.gps || Number(root.vehicle.gps.lock.rawValue)<3 ||
@@ -347,9 +351,8 @@ Item {
             if(!isFinite(required))return
             if(percent<=required && !root.energyRtlIssued) {
                 root.energyRtlIssued=true
-                root.lastNavigationStatus="ENERGIE CRITICĂ • solicit RTL; verifică modul H743"
-                root.rtlMission()
-            } else if(percent>required+5)root.energyRtlIssued=false
+                if(!root.rtlMission())root.lastNavigationStatus="ENERGIE CRITICĂ • RTL indisponibil; verifică H743"
+            }
         }
     }
     NavoFailsafeController {
