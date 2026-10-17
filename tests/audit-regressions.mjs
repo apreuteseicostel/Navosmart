@@ -116,6 +116,12 @@ test('App energy RTL respects MANUAL and ACRO pilot modes',()=>{
   const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
   assert(dash.includes('root.flightMode==="MANUAL" || root.flightMode==="ACRO"'));
 });
+test('Failsafe treats missing GPS lock and invalid fixes as unhealthy without throwing',()=>{
+  const c=context('NavoFailsafeController.qml',{vehicle:{gps:{},coordinate:{isValid:true}},minGpsFix:3});
+  assert.equal(c.gpsHealthy(),false);
+  c.vehicle.gps.lock={rawValue:NaN};assert.equal(c.gpsHealthy(),false);
+  c.vehicle.gps.lock.rawValue=3;assert.equal(c.gpsHealthy(),true);
+});
 test('Malformed sonar samples cannot enter the active lake',()=>{
   const c=context('NavoSonarMapping.qml',{bottomHardness:NaN,bottomEchoStrength:NaN,scanning:true,paused:false,sonarConnected:true,rawSamples:[],trackCoordinates:[],QtPositioning:{coordinate:coord}});
   for(const s of [{lat:52,lon:0,depth:null},{lat:52,lon:0,depth:-1},{lat:Infinity,lon:0,depth:2},{lat:52,lon:181,depth:2}])c.ingestSample(s);
