@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import assert from 'node:assert/strict';
 function context(file, values) {
  const source=fs.readFileSync(new URL('../custom/qml/'+file,import.meta.url),'utf8');
- const c=vm.createContext(values);c.root=c;
+ const c=vm.createContext({onboardTiming:false,...values});c.root=c;
  const re=/\bfunction\s+([A-Za-z_][A-Za-z_0-9]*)\s*\(/g;let m;
  while((m=re.exec(source))) {
   let fn;for(let end=source.indexOf('}',m.index);end>=0;end=source.indexOf('}',end+1)){
