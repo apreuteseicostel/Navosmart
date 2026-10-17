@@ -666,7 +666,16 @@ Item {
             initialCenterApplied=true
         }
     }
-    Component.onCompleted: centerOnBoatOnce()
+    // When no boat GPS is available, open the map at the phone/operator GPS instead.
+    function centerOnOperatorOnce() {
+        if(replayPreview || initialCenterApplied || !operatorLocationEnabled || !operatorLocationValid)return
+        if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid)return
+        liveMap.center=operatorCoordinate
+        liveMap.zoomLevel=Math.max(liveMap.zoomLevel,lakeZoomLevel)
+        initialCenterApplied=true
+    }
+    onOperatorCoordinateChanged: Qt.callLater(centerOnOperatorOnce)
+    Component.onCompleted: { centerOnBoatOnce(); Qt.callLater(centerOnOperatorOnce) }
     onVehicleChanged: { initialCenterApplied=false; centerOnBoatOnce() }
 
     Connections {
