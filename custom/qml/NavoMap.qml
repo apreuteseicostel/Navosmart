@@ -82,7 +82,7 @@ Item {
         if(offlinePickCorners.length!==2)return
         var a=offlinePickCorners[0],b=offlinePickCorners[1]
         var region={west:Math.min(a.longitude,b.longitude),east:Math.max(a.longitude,b.longitude),south:Math.min(a.latitude,b.latitude),north:Math.max(a.latitude,b.latitude),zoom:liveMap.zoomLevel,mapType:liveMap.activeMapType.name}
-        if(region.east-region.west<0.00001 || region.north-region.south<0.00001)return
+        if(!isFinite(region.west) || !isFinite(region.east) || !isFinite(region.north) || !isFinite(region.south) || region.east-region.west<0.00001 || region.east-region.west>180 || region.north-region.south<0.00001 || region.south< -85 || region.north>85)return
         offlinePickMode=false;offlinePickCorners=[]
         offlineMapsRequested(region)
     }
