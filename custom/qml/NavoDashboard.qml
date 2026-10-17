@@ -135,6 +135,7 @@ Item {
     Component.onCompleted: {
         sonar.host=endpointSettings.sonarHost; sonar.port=endpointSettings.sonarPort; sonar.udp=endpointSettings.sonarUdp
         root.cameraStreamUrl=endpointSettings.cameraStreamUrl; root.cameraProtocol=endpointSettings.cameraProtocol
+        if(persistence) root.pendingBaitJournalEvents=persistence.pendingBaitJournalEvents()
         if(endpointSettings.connectOnStartup && sonar.host.length && sonar.port>0) sonar.connectSonar()
         for(var i=0;i<persistence.lakes.length;i++) {
             var lake=persistence.lakes[i]
@@ -148,9 +149,6 @@ Item {
     property int baitJournalSequence: 0
     property bool baitJournalFlushBusy: false
     readonly property int pendingBaitJournalCount: pendingBaitJournalEvents.length
-    Component.onCompleted: {
-        if(persistence) root.pendingBaitJournalEvents=persistence.pendingBaitJournalEvents()
-    }
     function persistPendingBaitJournal(events) {
         if(!persistence || !persistence.storePendingBaitJournalEvents(events))return false
         root.pendingBaitJournalEvents=events
