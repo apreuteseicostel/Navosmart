@@ -513,7 +513,7 @@ Item {
     }
     MouseArea {
         anchors.fill: parent
-        enabled: !root.recordedReplay && root.areaDrawMode !== "none"
+        enabled: !root.offlinePickMode && !root.recordedReplay && root.areaDrawMode !== "none"
         acceptedButtons: Qt.LeftButton
         preventStealing: root.areaDrawMode === "rectangle" && root.areaDraftPoints.length === 2
         onPressed: function(mouse) {
@@ -547,7 +547,7 @@ Item {
     }
     MouseArea {
         anchors.fill: parent
-        enabled: !root.recordedReplay && root.areaDrawMode === "none" && !root.baitPointPickMode && !root.rulerMode
+        enabled: !root.offlinePickMode && !root.recordedReplay && root.areaDrawMode === "none" && !root.baitPointPickMode && !root.rulerMode
         acceptedButtons: Qt.LeftButton
         onClicked:function(mouse){savedPointsOverlay.openSpotAtPosition(mouse.x,mouse.y)}
         onPressAndHold: function(mouse) {
@@ -561,13 +561,13 @@ Item {
         }
     }
     MouseArea {
-        anchors.fill:parent; z:20; enabled:root.rulerMode && root.areaDrawMode==="none" && !root.baitPointPickMode
+        anchors.fill:parent; z:20; enabled:!root.offlinePickMode && root.rulerMode && root.areaDrawMode==="none" && !root.baitPointPickMode
         onClicked:function(mouse){var c=liveMap.toCoordinate(Qt.point(mouse.x,mouse.y),false);if(!c||!c.isValid)return;var p=root.rulerPoints.slice(0);if(p.length>=2)p=[];p.push(c);root.rulerPoints=p}
     }
     MouseArea {
         anchors.fill: parent
         z: 40
-        enabled: !root.recordedReplay && root.baitPointPickMode && root.areaDrawMode === "none"
+        enabled: !root.offlinePickMode && !root.recordedReplay && root.baitPointPickMode && root.areaDrawMode === "none"
         acceptedButtons: Qt.LeftButton
         onClicked: function(mouse) {
             var c=liveMap.toCoordinate(Qt.point(mouse.x,mouse.y),false)
