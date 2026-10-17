@@ -335,7 +335,9 @@ Item {
         running: energyGuard.calibrated && root.linkAlive
         onTriggered: {
             if(root.energyRtlVehicle!==root.vehicle){root.energyRtlVehicle=root.vehicle;root.energyRtlIssued=false}
-            if(!root.missionBusy || root.pendingModeLabel==="RTL" ||
+            // Do not override a pilot-selected manual mode with an app-side energy RTL.
+            if(!root.missionBusy || root.flightMode==="MANUAL" || root.flightMode==="ACRO" ||
+               root.pendingModeLabel==="RTL" ||
                (root.vehicle && root.vehicle.rtlFlightMode && root.flightMode===root.vehicle.rtlFlightMode))return
             if(!root.vehicle || !root.vehicle.homePosition || !root.vehicle.homePosition.isValid ||
                !root.vehicle.coordinate || !root.vehicle.coordinate.isValid ||
