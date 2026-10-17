@@ -17,6 +17,8 @@ public:
  QVariantMap waypointNames() const{return _waypointNames;} QVariantList sonarSamples() const{return _sonarSamples;} QVariantList bathymetrySessions() const{return _bathymetrySessions;} QVariantList lakes() const{return _lakes;}
  QVariantList fishingTrips() const{return _fishingTrips;}
  QString journalError() const{return _journalError;}
+ Q_INVOKABLE QVariantList pendingBaitJournalEvents() const;
+ Q_INVOKABLE bool storePendingBaitJournalEvents(const QVariantList& events);
  Q_INVOKABLE QString startFishingTrip(const QString& lakeId,const QString& title);
  Q_INVOKABLE bool finishFishingTrip(const QString& tripId);
  Q_INVOKABLE bool deleteFishingTrip(const QString& tripId);
