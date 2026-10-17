@@ -217,7 +217,7 @@ Item {
     function toggleMapLayer() { bathymetryHDEnabled=!bathymetryHDEnabled; mapLayerMenuOpen=false }
     function operatorBoatDistanceText() {
         if(!operatorLocationValid || !vehicle || !vehicle.coordinate || !vehicle.coordinate.isValid) return "--"
-        var d=operatorPositionSource.position.coordinate.distanceTo(vehicle.coordinate)
+        var d=operatorCoordinate.distanceTo(vehicle.coordinate)
         return d>=1000 ? (d/1000).toFixed(2)+" km" : Math.round(d)+" m"
     }
     function rulerDistanceText() {
