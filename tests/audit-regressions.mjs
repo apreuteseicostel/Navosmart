@@ -112,6 +112,10 @@ test('Energy RTL only latches after command dispatch returns success',()=>{
   assert(dash.includes('if(root.rtlMission())root.energyRtlIssued=true'));
   assert(!dash.includes('root.energyRtlIssued=true\n                if(!root.rtlMission())'));
 });
+test('App energy RTL respects MANUAL and ACRO pilot modes',()=>{
+  const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+  assert(dash.includes('root.flightMode==="MANUAL" || root.flightMode==="ACRO"'));
+});
 test('Malformed sonar samples cannot enter the active lake',()=>{
   const c=context('NavoSonarMapping.qml',{bottomHardness:NaN,bottomEchoStrength:NaN,scanning:true,paused:false,sonarConnected:true,rawSamples:[],trackCoordinates:[],QtPositioning:{coordinate:coord}});
   for(const s of [{lat:52,lon:0,depth:null},{lat:52,lon:0,depth:-1},{lat:Infinity,lon:0,depth:2},{lat:52,lon:181,depth:2}])c.ingestSample(s);
