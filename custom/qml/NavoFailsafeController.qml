@@ -20,7 +20,7 @@ QtObject {
  signal holdRequested(string reason)
  signal rtlRequested(string reason)
  signal recovered(string subsystem,string action)
- onVehicleChanged: { linkLost=false; gpsLost=false; linkLostSince=0; gpsLostSince=0; gpsRtlPending=false; linkFailsafeIssued=false; status=vehicle?"Aștept telemetrie":"OFFLINE" }
+ onVehicleChanged: { linkLost=false; gpsLost=false; linkLostSince=0; gpsLostSince=0; gpsRtlPending=false; gpsHoldIssued=false; gpsRecoveryPending=false; linkFailsafeIssued=false; status=vehicle?"Aștept telemetrie":"OFFLINE" }
 
  function now(){return Date.now()}
  function gpsHealthy(){return vehicle && vehicle.gps && vehicle.gps.lock.rawValue>=minGpsFix && vehicle.coordinate && vehicle.coordinate.isValid}
@@ -40,6 +40,10 @@ QtObject {
   }
 
   var gh=gpsHealthy()
+  if(!lh){
+   if(!gh && !gpsLost){gpsLost=true;gpsLostSince=now();gpsRecoveryPending=true;gpsRtlPending=false}
+   return
+  }
   if(!gh){
    if(!gpsLost){gpsLost=true;gpsLostSince=now();gpsRecoveryPending=true;gpsHoldIssued=true;gpsRtlPending=false;status="GPS PIERDUT • HOLD";holdRequested("GPS/poziție invalidă")}
    var gs=Math.floor((now()-gpsLostSince)/1000)
