@@ -147,6 +147,7 @@ Item {
     property var pendingBaitJournalEvents: []
     property int baitJournalSequence: 0
     property bool baitJournalFlushBusy: false
+    readonly property int pendingBaitJournalCount: pendingBaitJournalEvents.length
     Component.onCompleted: {
         if(persistence) root.pendingBaitJournalEvents=persistence.pendingBaitJournalEvents()
     }
@@ -172,6 +173,12 @@ Item {
             root.persistPendingBaitJournal([])
             root.lastNavigationStatus="Jurnal: înregistrarea automată a nădirilor a fost refuzată"
         }
+    }
+    function retryPendingBaitJournal() {
+        if(!root.pendingBaitJournalEvents.length)return true
+        var success=root.flushPendingBaitJournal(false)
+        if(root.pendingBaitJournalEvents.length && !baitJournalTripDialog.visible)baitJournalTripDialog.open()
+        return success
     }
     function activeBaitJournalTrip(lakeId) {
         var trips=persistence ? (persistence.fishingTrips || []) : []
@@ -2026,7 +2033,25 @@ Item {
 
     Component {
         id:journalPage
-        NavoFishingJournal {
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 6
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 48
+                radius: 8
+                color: "#26384a"
+                visible: root.pendingBaitJournalCount>0
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.margins: 5
+                    Label { Layout.fillWidth: true; color: "#ffce7b"; wrapMode: Text.WordWrap; text: root.pendingBaitJournalCount+" nădiri așteaptă salvarea" }
+                    Button { text: "Recuperează"; onClicked: root.retryPendingBaitJournal() }
+                }
+            }
+            NavoFishingJournal {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
             persistence:root.lakePersistence
             lakeId:scanCoordinator.lakeId
             lakeName:scanCoordinator.lakeName
@@ -2034,6 +2059,7 @@ Item {
             replayMode:sonar.replayMode
             depthM:sonar.replayMode ? NaN : root.depthM
             waterTempC:sonar.replayMode ? NaN : root.waterTempC
+            }
         }
     }
 
