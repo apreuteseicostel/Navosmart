@@ -14,7 +14,7 @@ function callable(source, start) {
 }
 function context(file, values={}) {
   const source=fs.readFileSync(path.join(dir,file),'utf8');
-  const c=vm.createContext({routePlan:null,baitingController:null,servoCommandFailed:()=>{},...values}); c.root=c;
+  const c=vm.createContext({routePlan:null,baitingController:null,onboardTiming:false,servoCommandFailed:()=>{},...values}); c.root=c;
   const re=/\bfunction\s+([A-Za-z_][A-Za-z_0-9]*)\s*\(/g;
   let m;
   while((m=re.exec(source))) {
