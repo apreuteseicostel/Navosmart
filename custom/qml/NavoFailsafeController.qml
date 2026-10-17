@@ -23,7 +23,7 @@ QtObject {
  onVehicleChanged: { linkLost=false; gpsLost=false; linkLostSince=0; gpsLostSince=0; gpsRtlPending=false; gpsHoldIssued=false; gpsRecoveryPending=false; linkFailsafeIssued=false; status=vehicle?"Aștept telemetrie":"OFFLINE" }
 
  function now(){return Date.now()}
- function gpsHealthy(){return vehicle && vehicle.gps && vehicle.gps.lock.rawValue>=minGpsFix && vehicle.coordinate && vehicle.coordinate.isValid}
+ function gpsHealthy(){return !!(vehicle && vehicle.gps && vehicle.gps.lock && isFinite(Number(vehicle.gps.lock.rawValue)) && Number(vehicle.gps.lock.rawValue)>=minGpsFix && vehicle.coordinate && vehicle.coordinate.isValid)}
  // QGC Vehicle exposes connectionLost; H743's own FS_GCS_* remains the authoritative
  // protection if the Android app itself disappears.
  function linkHealthy(){return vehicle && vehicle.vehicleLinkManager && !vehicle.vehicleLinkManager.communicationLost}
