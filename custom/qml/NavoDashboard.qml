@@ -168,8 +168,9 @@ Item {
         }
         onAccepted: root.flushPendingBaitJournal(true)
         onRejected: {
-            root.persistPendingBaitJournal([])
-            root.lastNavigationStatus="Jurnal: înregistrarea automată a nădirilor a fost refuzată"
+            // Declining to create a trip must not erase accepted hopper commands.
+            // Keep the durable queue for recovery from the Journal page.
+            root.lastNavigationStatus="Jurnal: nădirile sunt păstrate; le poți recupera ulterior"
         }
     }
     function retryPendingBaitJournal() {
