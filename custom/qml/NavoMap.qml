@@ -72,7 +72,12 @@ Item {
     signal offlineMapsRequested(var region)
     property bool offlinePickMode:false
     property var offlinePickCorners:[]
-    function beginOfflinePick(){offlinePickCorners=[];offlinePickMode=true;autoFollowBoat=false}
+    function beginOfflinePick(){
+        if(recordedReplay)return false
+        cancelAreaDrawing();baitPointPickMode=false;rulerMode=false
+        offlinePickCorners=[];offlinePickMode=true;autoFollowBoat=false
+        return true
+    }
     function finishOfflinePick(){
         if(offlinePickCorners.length!==2)return
         var a=offlinePickCorners[0],b=offlinePickCorners[1]
