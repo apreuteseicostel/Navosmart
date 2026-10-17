@@ -73,7 +73,7 @@ QtObject {
   if(hopper!==1 && hopper!==2 && hopper!==3){commandRejected("Selecție cuvă invalidă");return false}
   if(commandPending){commandRejected("Comandă cuvă deja în curs");return false}
   if(!calibrated){commandRejected("Cuve necalibrate - comanda blocată");return false}
-  if(!releaseAllowed){commandRejected("Așteaptă telemetria Nano sau timeout-ul de două secunde");return false}
+  if(!releaseAllowed){commandRejected("Comanda cuvei este blocată de verificarea de siguranță");return false}
   if((hopper===1||hopper===3) && (!canSendServo(leftServoOutput,leftOpenPwm)||!canSendServo(leftServoOutput,leftClosedPwm)))return false
   if((hopper===2||hopper===3) && (!canSendServo(rightServoOutput,rightOpenPwm)||!canSendServo(rightServoOutput,rightClosedPwm)))return false
   if(hopper===3 && leftServoOutput===rightServoOutput){commandRejected("Ieșirile cuvelor trebuie să fie diferite");return false}
