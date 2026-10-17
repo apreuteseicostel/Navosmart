@@ -49,7 +49,7 @@ private:
  void _reset();
  bool _fresh(qint64 timestamp) const;
  QElapsedTimer _clock;
- bool _v3=true;
+ bool _v3=true; // NAVO V3 only; legacy Nano mode unsupported
  int _caps=0,_hopperMask=0,_request=0;
  qint64 _capMs=-1,_headMs=-1,_posMs=-1,_hopMs=-1,_requestMs=-1;
  qint64 _tempMs=-1, _waterMs=-1, _faultMs=-1, _heartbeatMs=-1;
