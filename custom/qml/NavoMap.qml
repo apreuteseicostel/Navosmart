@@ -217,7 +217,7 @@ Item {
     function toggleMapLayer() { bathymetryHDEnabled=!bathymetryHDEnabled; mapLayerMenuOpen=false }
     function operatorBoatDistanceText() {
         if(!operatorLocationValid || !vehicle || !vehicle.coordinate || !vehicle.coordinate.isValid) return "--"
-        var d=operatorPositionSource.position.coordinate.distanceTo(vehicle.coordinate)
+        var d=operatorCoordinate.distanceTo(vehicle.coordinate)
         return d>=1000 ? (d/1000).toFixed(2)+" km" : Math.round(d)+" m"
     }
     function rulerDistanceText() {
@@ -646,7 +646,7 @@ Item {
                    (root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ?
                     "Traseu: " + actualTrack.trackCoordinates.length + " • " +
                     (root.areaScanController ? root.areaScanController.laneCount() : 0) + " culoare" :
-                    "GPS: AȘTEPTARE"))
+                    (root.operatorLocationValid ? "TELEFON GPS • BARCĂ GPS ÎN AȘTEPTARE" : "TELEFON GPS ÎN AȘTEPTARE • BARCĂ GPS ÎN AȘTEPTARE")))
             color: "white"; font.pixelSize: 11; elide: Text.ElideRight
             width: parent.width - 14
         }
@@ -666,7 +666,16 @@ Item {
             initialCenterApplied=true
         }
     }
-    Component.onCompleted: centerOnBoatOnce()
+    // Center on the phone when no boat GPS is available; never use it for RTL.
+    function centerOnOperatorOnce() {
+        if(replayPreview || initialCenterApplied || !operatorLocationEnabled || !operatorLocationValid)return
+        if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid)return
+        liveMap.center=operatorCoordinate
+        liveMap.zoomLevel=Math.max(liveMap.zoomLevel,lakeZoomLevel)
+        initialCenterApplied=true
+    }
+    Component.onCompleted: { centerOnBoatOnce(); centerOnOperatorOnce() }
+    onOperatorLocationValidChanged: if(operatorLocationValid)centerOnOperatorOnce()
     onVehicleChanged: { initialCenterApplied=false; centerOnBoatOnce() }
 
     Connections {
