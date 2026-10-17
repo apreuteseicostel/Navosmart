@@ -717,12 +717,9 @@ Item {
     }
 
     function commandNanoLight(target, mode, label) {
-        // MAV_CMD_WAYPOINT_USER_1 (31000), consumed only by navo_nano_bridge.lua.
-        // param1: 1=headlight, 2=position; param2: 0=OFF, 1=ON, 2=TOGGLE.
-        if(!vehicle || !vehicle.sendCommand) { lastNavigationStatus=label+" indisponibil: H743 deconectat"; return false }
-        vehicle.sendCommand(1,31000,true,target,mode,0,0,0,0,0)
-        lastNavigationStatus=label+" • comandă trimisă • aștept confirmarea Nano"
-        return true
+        // V3 does not contain the legacy Nano bridge; never send command 31000.
+        root.lastNavigationStatus=label+" indisponibil pe V3: maparea luminilor H743 nu este validată"
+        return false
     }
 
     function modeColor() {
