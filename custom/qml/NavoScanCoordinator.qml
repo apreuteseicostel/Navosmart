@@ -303,6 +303,8 @@ QtObject {
         // uploaded again and the autopilot confirms AUTO for this connection.
         state=(p.state==="COMPLETE" ? "COMPLETE" : (p.state==="RTL" ? "RTL" : "PAUSED")); bathymetryCells=p.bathymetryCells||[]; nativeSurfaceMesh=p.nativeSurfaceMesh||({})
         areaScan.generatedPoints=areaPoints; areaScan.completedLanes=p.completedLanes||[]
+        // Restoring persisted progress must never silently unpause a live scan.
+        areaScan.paused=state!=="COMPLETE"
         areaScan.activeLaneIndex=(p.currentLane===undefined?-1:Number(p.currentLane))
         areaScan.lastBoatCoordinate=(p.lastBoatCoordinate && p.lastBoatCoordinate.latitude!==undefined && p.lastBoatCoordinate.longitude!==undefined) ? QtPositioning.coordinate(Number(p.lastBoatCoordinate.latitude),Number(p.lastBoatCoordinate.longitude)) : null
         missionCurrentIndex=(p.missionCurrentIndex===undefined?-1:Number(p.missionCurrentIndex))
