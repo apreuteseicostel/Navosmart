@@ -70,6 +70,11 @@ jobs:
         run: |
           set -euo pipefail
           git add --all
+          # Recheck the exact staged paths: renames, deletions and untracked files included.
+          if git diff --cached --name-only -z | tr "\\0" "\\n" | grep -E '^(.github/|hardware/|firmware/|.*\\.kicad_.*|.*\\.env$)'; then
+            echo "::error::Protected staged path; refusing commit and push."
+            exit 1
+          fi
           if git diff --cached --quiet; then
             echo "No code changes in this iteration."
             exit 0
