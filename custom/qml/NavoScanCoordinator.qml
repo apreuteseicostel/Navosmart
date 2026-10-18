@@ -192,7 +192,7 @@ QtObject {
         return mission
     }
     function activateResume() {
-        if(state!=="RESUME_READY") return false
+        if(readOnlyReplay || state!=="RESUME_READY" || !areaScan || !sonarMapping) return false
         if(!sonarMapping.resumeScan()){status("Resume blocat: GPS și sonar trebuie să fie LIVE");return false}
         if(!sonarMapping.scanning || sonarMapping.paused){status("Misiunea rulează, dar sonarul nu a intrat în scanare");return false}
         // Clear HOLD only after the sonar controller confirms a live resume.
