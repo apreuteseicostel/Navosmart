@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: '43 * * * *'
   workflow_dispatch:
+  push:
+    branches:
+      - autodev/implementation
 
 # Deliberately disabled until the owner opts in with the repository variable.
 permissions:
@@ -15,7 +18,7 @@ concurrency:
 
 jobs:
   implement:
-    if: vars.NAVO_AUTODEV_ENABLED == 'true'
+    if: github.event_name != 'push' && vars.NAVO_AUTODEV_ENABLED == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
@@ -84,3 +87,16 @@ jobs:
           # Token is scoped to this push step; no force push, no main write, no merge.
           git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" \
             push origin HEAD:refs/heads/autodev/implementation
+
+  validate-agent-branch:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/autodev/implementation'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify committed changes
+        run: |
+          set -euo pipefail
+          git show --format= --check HEAD
+          node tests/audit-regressions.mjs
