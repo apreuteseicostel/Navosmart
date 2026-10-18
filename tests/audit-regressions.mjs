@@ -64,6 +64,17 @@ test('Preparing Area Scan resume preserves HOLD until activation',()=>{
   assert.equal(a.paused,true);
   assert.equal(a.activeLaneIndex,1);
 });
+test('Restoring Area Scan after restart leaves scan in HOLD',()=>{
+  const a=area(),c=context('NavoScanCoordinator.qml',{
+    state:'IDLE',lakeId:'',sonarMapping:{rawSamples:[],restoreCheckpoint:noop,trackCoordinates:[]},
+    areaScan:a,persistence:{lakeState:()=>({state:'SCANNING',areaPoints:[{latitude:52,longitude:0},{latitude:52,longitude:.001}],completedLanes:[],missionLanes:[],totalLanes:1}),lakes:[]},
+    status:noop,lakeActivated:noop
+  });
+  c.checkpoint=()=>true;
+  assert.equal(c.restoreLake('lake'),true);
+  assert.equal(c.state,'PAUSED');
+  assert.equal(a.paused,true);
+});
 test('Reached-item evidence ignores odd, duplicate, out-of-range and paused events',()=>{
   const reached=[]; const c=context('NavoScanCoordinator.qml',{areaScan:{},state:'SCANNING',missionWaypointCount:6,missionLanes:[1,3,4],lastCompletedRouteLaneFromMission:-1,lastCompletedLaneFromMission:-1});
   c.laneCompleted=x=>reached.push(x);
