@@ -78,7 +78,7 @@ test('Restoring Area Scan after restart leaves scan in HOLD',()=>{
 test('Area Scan resume clears HOLD only after sonar confirms live scanning',()=>{
   const a=area();a.paused=true;
   const sonar={scanning:false,paused:true,resumeScan(){this.scanning=true;this.paused=false;return true}};
-  const c=context('NavoScanCoordinator.qml',{state:'RESUME_READY',areaScan:a,sonarMapping:sonar,status:noop});
+  const c=context('NavoScanCoordinator.qml',{state:'RESUME_READY',readOnlyReplay:false,areaScan:a,sonarMapping:sonar,status:noop});
   c.checkpoint=()=>true;
   assert.equal(c.activateResume(),true);
   assert.equal(c.state,'SCANNING');
