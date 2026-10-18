@@ -55,6 +55,15 @@ test('Resume retains only incomplete lanes, including non-contiguous gaps',()=>{
   const a=area(); a.generatedPoints=[0,1,2,3,4,5,6,7].map(x=>coord(52,x/10000));a.completedLanes=[0,2];
   const out=a.resumeRoute(null);assert.equal(out.length,4);assert.equal(out[0].longitude,.0002);assert.equal(out[2].longitude,.0006);
 });
+test('Preparing Area Scan resume preserves HOLD until activation',()=>{
+  const a=area();
+  a.generatedPoints=[0,1,2,3].map(x=>coord(52,x/10000));
+  a.completedLanes=[0];a.paused=true;a.activeLaneIndex=-1;
+  const route=a.resumeRoute(null);
+  assert.equal(route.length,2);
+  assert.equal(a.paused,true);
+  assert.equal(a.activeLaneIndex,1);
+});
 test('Reached-item evidence ignores odd, duplicate, out-of-range and paused events',()=>{
   const reached=[]; const c=context('NavoScanCoordinator.qml',{areaScan:{},state:'SCANNING',missionWaypointCount:6,missionLanes:[1,3,4],lastCompletedRouteLaneFromMission:-1,lastCompletedLaneFromMission:-1});
   c.laneCompleted=x=>reached.push(x);
