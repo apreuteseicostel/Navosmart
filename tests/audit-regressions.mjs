@@ -87,6 +87,15 @@ test('Area Scan resume clears HOLD only after sonar confirms live scanning',()=>
   assert.equal(c.activateResume(),false);
   assert.equal(a.paused,true);
 });
+test('Replay and absent controllers cannot activate Area Scan resume',()=>{
+  const c=context('NavoScanCoordinator.qml',{state:'RESUME_READY',readOnlyReplay:true,areaScan:{paused:true},sonarMapping:{resumeScan(){throw Error('must not resume sonar')}},status:noop});
+  assert.equal(c.activateResume(),false);
+  assert.equal(c.areaScan.paused,true);
+  c.readOnlyReplay=false;c.areaScan=null;
+  assert.equal(c.activateResume(),false);
+  c.areaScan={paused:true};c.sonarMapping=null;
+  assert.equal(c.activateResume(),false);
+});
 test('Reached-item evidence ignores odd, duplicate, out-of-range and paused events',()=>{
   const reached=[]; const c=context('NavoScanCoordinator.qml',{areaScan:{},state:'SCANNING',missionWaypointCount:6,missionLanes:[1,3,4],lastCompletedRouteLaneFromMission:-1,lastCompletedLaneFromMission:-1});
   c.laneCompleted=x=>reached.push(x);
