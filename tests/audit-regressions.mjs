@@ -68,7 +68,7 @@ test('Restoring Area Scan after restart leaves scan in HOLD',()=>{
   const a=area(),c=context('NavoScanCoordinator.qml',{
     state:'IDLE',lakeId:'',sonarMapping:{rawSamples:[],restoreCheckpoint:noop,trackCoordinates:[]},
     areaScan:a,persistence:{lakeState:()=>({state:'SCANNING',areaPoints:[{latitude:52,longitude:0},{latitude:52,longitude:.001}],completedLanes:[],missionLanes:[],totalLanes:1}),lakes:[]},
-    status:noop,lakeActivated:noop
+    status:noop,lakeActivated:noop,QtPositioning:{coordinate:coord}
   });
   c.checkpoint=()=>true;
   assert.equal(c.restoreLake('lake'),true);
