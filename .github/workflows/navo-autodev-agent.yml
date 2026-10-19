@@ -11,6 +11,7 @@ on:
 # Deliberately disabled until the owner opts in with the repository variable.
 permissions:
   contents: write
+  actions: write
 
 concurrency:
   group: navo-autodev-coding
@@ -18,7 +19,7 @@ concurrency:
 
 jobs:
   implement:
-    if: github.event_name != 'push' && vars.NAVO_AUTODEV_ENABLED == 'true'
+    if: github.event_name != 'push' && github.ref == 'refs/heads/main' && vars.NAVO_AUTODEV_ENABLED == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
@@ -87,9 +88,11 @@ jobs:
           # Token is scoped to this push step; no force push, no main write, no merge.
           git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" \
             push origin HEAD:refs/heads/autodev/implementation
+          # GITHUB_TOKEN pushes do not trigger push workflows. Dispatch validation explicitly.
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/actions/workflows/navo-autodev-agent.yml/dispatches" -f ref=autodev/implementation
 
   validate-agent-branch:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/autodev/implementation'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/autodev/implementation'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
