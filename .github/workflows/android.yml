@@ -102,9 +102,11 @@ jobs:
           set -euo pipefail
           df -h /
           # GitHub-hosted images contain toolchains not used by this Android workflow.
-          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/share/powershell
+          # Preserve /usr/local/lib/android: it contains the SDK and build-tools needed by Qt.
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/powershell
           sudo apt-get clean
           df -h /
+          test -x "$ANDROID_HOME/build-tools/35.0.0/aapt" || { echo "::error::Android SDK build-tools missing"; exit 1; }
           # Fail early with actionable diagnostics instead of crashing the LLVM linker.
           test "$(df -Pk / | awk 'NR==2 {print $4}')" -gt 10485760 || { echo "::error::Less than 10 GiB available before Qt builds"; exit 1; }
 
