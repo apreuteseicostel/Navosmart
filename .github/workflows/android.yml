@@ -96,6 +96,16 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Reclaim runner disk space before native Android builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h /
+          # GitHub-hosted images contain toolchains not used by this Android workflow.
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/share/powershell
+          sudo apt-get clean
+          df -h /
+
       - name: Install host Qt
         uses: jurplel/install-qt-action@v4
         with:
