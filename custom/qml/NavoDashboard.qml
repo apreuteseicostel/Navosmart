@@ -135,11 +135,13 @@ Item {
         id: failsafeController
         vehicle: root.vehicle
         onHoldRequested: function(reason) {
+            if (root.manualControlActive()) { root.lastNavigationStatus="FAILSAFE: "+reason+" • MANUAL/ACRO, protecții H743 active"; return }
             root.lastNavigationStatus="FAILSAFE HOLD: "+reason
             if (scanCoordinator.state === "SCANNING") scanCoordinator.pause(reason)
             root.holdMission()
         }
         onRtlRequested: function(reason) {
+            if (root.manualControlActive()) { root.lastNavigationStatus="FAILSAFE: "+reason+" • MANUAL/ACRO, protecții H743 active"; return }
             root.lastNavigationStatus="FAILSAFE RTL: "+reason
             if (scanCoordinator.state === "SCANNING" || scanCoordinator.state === "PAUSED" || scanCoordinator.state === "RESUME_READY") scanCoordinator.rtl(reason)
             root.rtlMission()
@@ -567,6 +569,10 @@ Item {
         }
         root.lastNavigationStatus = "Upload confirmat • START indisponibil în Vehicle API"
         return false
+    }
+    function manualControlActive() {
+        var mode=String(root.flightMode || "").trim().toUpperCase()
+        return mode==="MANUAL" || mode==="ACRO"
     }
     function holdMission(keepBaiting) {
         root.awaitingMissionStart = false

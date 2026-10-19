@@ -90,6 +90,32 @@ test('Failsafe grace uses full epoch milliseconds and correct QGC link property'
   const c=context('NavoFailsafeController.qml',{Date:{now:()=>now},enabled:true,vehicle:{vehicleLinkManager:{communicationLost:true},gps:{lock:{rawValue:3}},coordinate:coord(52,0)},minGpsFix:3,linkLost:false,gpsLost:false,linkGraceSeconds:30,gpsRecoverySeconds:60,gpsReturnHomeSeconds:120,rtlRequested:()=>rtl++,holdRequested:noop,recovered:noop});
   c.tick();now+=29000;c.tick();assert.equal(rtl,0);now+=1000;c.tick();assert.equal(rtl,1);c.tick();assert.equal(rtl,1);
 });
+test('P0 MANUAL/ACRO suppress app HOLD/RTL and clear stale GPS recovery',()=>{
+  let now=1790240400000,hold=0,rtl=0;
+  const vehicle={flightMode:'Manual',vehicleLinkManager:{communicationLost:false},gps:{lock:{rawValue:2}},coordinate:coord(52,0)};
+  const c=context('NavoFailsafeController.qml',{Date:{now:()=>now},enabled:true,vehicle,minGpsFix:3,linkLost:false,gpsLost:false,linkGraceSeconds:30,gpsRecoverySeconds:60,gpsReturnHomeSeconds:120,rtlRequested:()=>rtl++,holdRequested:()=>hold++,recovered:noop});
+  c.tick();now+=130000;c.tick();assert.equal(hold,0);assert.equal(rtl,0);
+  assert.equal(c.gpsRtlPending,false);
+  vehicle.gps.lock.rawValue=3;c.tick();assert.equal(rtl,0);
+  vehicle.flightMode='Auto';vehicle.gps.lock.rawValue=2;c.tick();assert.equal(hold,1);
+  now+=125000;c.tick();assert.equal(c.gpsRtlPending,true);
+  vehicle.flightMode='Acro';c.tick();assert.equal(c.gpsRtlPending,false);
+  vehicle.gps.lock.rawValue=3;c.tick();assert.equal(rtl,0);
+  vehicle.flightMode='Auto';c.tick();assert.equal(rtl,0);
+  vehicle.vehicleLinkManager.communicationLost=true;vehicle.flightMode='Manual';
+  now+=40000;c.tick();assert.equal(rtl,0);
+  vehicle.flightMode='Auto';c.tick();assert.equal(rtl,0);
+  now+=30000;c.tick();assert.equal(rtl,1);
+});
+test('P0 dashboard guards app failsafe handlers when pilot selects MANUAL or ACRO',()=>{
+  const c=context('NavoDashboard.qml',{flightMode:'Manual'});
+  assert.equal(c.manualControlActive(),true);
+  c.flightMode=' acro ';assert.equal(c.manualControlActive(),true);
+  c.flightMode='AUTO';assert.equal(c.manualControlActive(),false);
+  const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+  assert(dash.includes('onHoldRequested: function(reason) {\\n            if (root.manualControlActive())'));
+  assert(dash.includes('onRtlRequested: function(reason) {\\n            if (root.manualControlActive())'));
+});
 test('Malformed sonar samples cannot enter the active lake',()=>{
   const c=context('NavoSonarMapping.qml',{bottomHardness:NaN,bottomEchoStrength:NaN,scanning:true,paused:false,sonarConnected:true,rawSamples:[],trackCoordinates:[],QtPositioning:{coordinate:coord}});
   for(const s of [{lat:52,lon:0,depth:null},{lat:52,lon:0,depth:-1},{lat:Infinity,lon:0,depth:2},{lat:52,lon:181,depth:2}])c.ingestSample(s);
