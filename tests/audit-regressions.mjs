@@ -113,8 +113,8 @@ test('P0 dashboard guards app failsafe handlers when pilot selects MANUAL or ACR
   c.flightMode=' acro ';assert.equal(c.manualControlActive(),true);
   c.flightMode='AUTO';assert.equal(c.manualControlActive(),false);
   const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
-  assert(dash.includes('onHoldRequested: function(reason) {\\n            if (root.manualControlActive())'));
-  assert(dash.includes('onRtlRequested: function(reason) {\\n            if (root.manualControlActive())'));
+  assert(dash.includes('onHoldRequested: function(reason) {\n            if (root.manualControlActive())'));
+  assert(dash.includes('onRtlRequested: function(reason) {\n            if (root.manualControlActive())'));
 });
 test('Malformed sonar samples cannot enter the active lake',()=>{
   const c=context('NavoSonarMapping.qml',{bottomHardness:NaN,bottomEchoStrength:NaN,scanning:true,paused:false,sonarConnected:true,rawSamples:[],trackCoordinates:[],QtPositioning:{coordinate:coord}});
