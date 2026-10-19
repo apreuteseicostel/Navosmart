@@ -83,6 +83,11 @@ jobs:
             echo "No code changes in this iteration."
             exit 0
           fi
+          # Allow only the software and documentation locations approved by the agent contract.
+          if git diff --cached --name-only -z | tr "\\0" "\\n" | grep -Ev '^(custom/qml/|custom/src/|custom/kogger_native/|tests/|docs/NAVO_SMART/)'; then
+            echo "::error::Change outside the approved AutoDev scope; refusing commit and push."
+            exit 1
+          fi
           git diff --cached --check
           git commit -m "autodev: advance NAVO Master Checklist (CI validation pending)"
           # Token is scoped to this push step; no force push, no main write, no merge.
