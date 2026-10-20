@@ -159,6 +159,22 @@ jobs:
           else cp "$APK" build/NAVO_SMART.apk; fi
           "$APKSIGNER" verify --verbose --print-certs build/NAVO_SMART.apk
           "$AAPT" dump badging build/NAVO_SMART.apk | head -n 8
+      - name: Reclaim arm64 build space for x86_64 emulator build
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The arm64 APK was signed and verified in the previous step. Preserve it
+          # while removing only disposable arm64 compiler outputs before x86_64.
+          test -s build/NAVO_SMART.apk
+          mv build/NAVO_SMART.apk "${RUNNER_TEMP}/NAVO_SMART-arm64.apk"
+          rm -rf build
+          mkdir -p build
+          mv "${RUNNER_TEMP}/NAVO_SMART-arm64.apk" build/NAVO_SMART.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify build/NAVO_SMART.apk
+          df -h /
+          # Fail early with an explicit infrastructure diagnostic rather than
+          # a misleading clang failure after another lengthy native build.
+          test "$(df -Pk / | awk 'NR==2 {print $4}')" -gt 5242880 || { echo "::error::Less than 5 GiB free for x86_64 build after arm64 cleanup"; exit 1; }
       - name: Configure x86_64 smoke-test APK
         run: |
           mkdir -p build-x86
