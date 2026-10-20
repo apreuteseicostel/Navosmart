@@ -23,7 +23,10 @@ def locate(name,navigation=False):
   b=list(map(int,re.findall(r'-?\d+',node.get('bounds',''))))
   if len(b)==4 and b[0]>=0 and b[1]>=0 and b[2]>b[0] and b[3]>b[1]:matches.append((node.get('clickable')=='true',b))
  if matches:
-  _,b=max(matches,key=lambda m:m[0]);return ((b[0]+b[2])//2,(b[1]+b[3])//2)
+  # A clipped navigation button must be scrolled fully into view before tapping.
+  visible=[m for m in matches if not navigation or normal_height == 0 or m[1][3]-m[1][1] >= normal_height * .8]
+  if visible:
+   _,b=max(visible,key=lambda m:m[0]);return ((b[0]+b[2])//2,(b[1]+b[3])//2)
  return None
 def click(name,scroll=False):
  for n in range(8):
