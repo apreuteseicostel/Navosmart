@@ -28,8 +28,26 @@ QtObject {
  // protection if the Android app itself disappears.
  function linkHealthy(){return vehicle && vehicle.vehicleLinkManager && !vehicle.vehicleLinkManager.communicationLost}
 
+ // Application-side GPS recovery and navigation requests must not override
+ // a pilot-selected MANUAL/ACRO mode. ArduPilot failsafes remain independent.
+ function manualControlActive(){
+  var mode=vehicle && vehicle.flightMode ? String(vehicle.flightMode).trim().toUpperCase() : ""
+  return mode==="MANUAL" || mode==="ACRO"
+ }
+ function clearAppFailsafeState(){
+  linkLost=false; gpsLost=false; linkLostSince=0; gpsLostSince=0
+  gpsRecoveryPending=false; linkFailsafeIssued=false; gpsHoldIssued=false; gpsRtlPending=false
+ }
  function tick(){
   if(!enabled||!vehicle)return
+  if(manualControlActive()){
+   var linkOk=linkHealthy(), gpsOk=gpsHealthy()
+   clearAppFailsafeState()
+   status=!linkOk ? "MANUAL/ACRO • LINK PIERDUT • verifică H743" :
+          !gpsOk ? "MANUAL/ACRO • GPS INVALID • verifică H743" :
+                   "MANUAL/ACRO • protecții H743 independente"
+   return
+  }
   var lh=linkHealthy()
   if(!lh){
    if(!linkLost){linkLost=true;linkLostSince=now();linkFailsafeIssued=false;status="LINK PIERDUT • reconectare"}
