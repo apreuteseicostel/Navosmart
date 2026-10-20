@@ -358,11 +358,19 @@ Item {
         id: failsafeController
         vehicle: root.vehicle
         onHoldRequested: function(reason) {
+            if (root.manualControlActive()) {
+                root.lastNavigationStatus="MANUAL/ACRO • GPS HOLD aplicație ignorat • verifică H743: "+reason
+                return
+            }
             root.lastNavigationStatus="FAILSAFE HOLD: "+reason
             if (scanCoordinator.state === "SCANNING") scanCoordinator.pause(reason)
             root.holdMission()
         }
         onRtlRequested: function(reason) {
+            if (root.manualControlActive()) {
+                root.lastNavigationStatus="MANUAL/ACRO • GPS RTL aplicație ignorat • verifică H743: "+reason
+                return
+            }
             root.lastNavigationStatus="FAILSAFE RTL: "+reason
             if (scanCoordinator.state === "SCANNING" || scanCoordinator.state === "PAUSED" || scanCoordinator.state === "RESUME_READY") scanCoordinator.rtl(reason)
             root.rtlMission()
@@ -504,6 +512,10 @@ Item {
         }
     }
     property string flightMode: vehicle ? vehicle.flightMode : ""
+    function manualControlActive(){
+        var mode=String(root.flightMode || "").trim().toUpperCase()
+        return mode==="MANUAL" || mode==="ACRO"
+    }
     property real distanceToHome: vehicle && vehicle.distanceToHome ? vehicle.distanceToHome.rawValue : 0
     property real distanceToTarget: vehicle && vehicle.distanceToGoal ? vehicle.distanceToGoal.rawValue : 0
     property string boatId: "NAV0001"
