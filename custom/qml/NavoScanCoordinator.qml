@@ -4,6 +4,7 @@ import QtPositioning
 QtObject {
     id: root
     property var areaScan
+    property var routePlan: null
     property var sonarMapping
     property var bathymetry
     property var persistence
@@ -19,6 +20,7 @@ QtObject {
     }
     property var areaPoints: []
     property var bathymetryCells: []
+    property var nativeSurfaceMesh: ({})
     property string state: "IDLE"
     property int missionCurrentIndex: -1
     property int lastCompletedLaneFromMission: -1
@@ -32,7 +34,7 @@ QtObject {
 
     function activateLake(id, name) {
         if(!persistence || !sonarMapping || !areaScan || !id.length) return false
-        if(state==="SCANNING" || state==="READY" || state==="RESUME_READY") {
+        if((routePlan && routePlan.active) || state==="SCANNING" || state==="READY" || state==="RESUME_READY") {
             status("Oprește misiunea înainte de schimbarea bălții"); return false
         }
         if(lakeId===id) return true
@@ -41,7 +43,8 @@ QtObject {
         if(saved && Object.keys(saved).length) {
             if(!restoreLake(id)) return false
         } else {
-            lakeId=id; lakeName=name||"Baltă"; areaPoints=[]; bathymetryCells=[]
+            if(routePlan) routePlan.restore(null)
+            lakeId=id; lakeName=name||"Baltă"; areaPoints=[]; bathymetryCells=[]; nativeSurfaceMesh=({})
             areaScan.generatedPoints=[]; areaScan.completedLanes=[]; areaScan.activeLaneIndex=-1; areaScan.paused=false; areaScan.lastBoatCoordinate=null
             sonarMapping.scanning=false; sonarMapping.paused=false; sonarMapping.rawSamples=[]; sonarMapping.trackCoordinates=[]
             sonarMapping.currentLane=0; sonarMapping.completedLanes=0; sonarMapping.totalLanes=0
@@ -56,8 +59,9 @@ QtObject {
     }
 
     function clearActiveLake() {
-        if(!sonarMapping || !areaScan) return false
-        lakeId=""; lakeName=""; areaPoints=[]; bathymetryCells=[]
+        if(!sonarMapping || !areaScan || (routePlan && routePlan.active)) return false
+        if(routePlan) routePlan.restore(null)
+        lakeId=""; lakeName=""; areaPoints=[]; bathymetryCells=[]; nativeSurfaceMesh=({})
         areaScan.generatedPoints=[]; areaScan.completedLanes=[]; areaScan.activeLaneIndex=-1
         areaScan.paused=false; areaScan.lastBoatCoordinate=null
         sonarMapping.scanning=false; sonarMapping.paused=false; sonarMapping.lakeId=""
@@ -88,7 +92,7 @@ QtObject {
 
     function deleteLake(id) {
         if(!persistence || !id || !id.length) return false
-        if(state==="SCANNING" || state==="READY" || state==="RESUME_READY") {
+        if((routePlan && routePlan.active) || state==="SCANNING" || state==="READY" || state==="RESUME_READY") {
             status("Oprește misiunea înainte de ștergerea bălții")
             return false
         }
@@ -243,12 +247,13 @@ QtObject {
     function checkpoint(reason) {
         if(!persistence || !sonarMapping || !areaScan || !lakeId.length) return false
         var payload={
+            routePlan:routePlan ? routePlan.snapshot() : null,
             schemaVersion:2, reason:reason, state:state, lakeName:lakeName, savedAt:Date.now(),
             areaPoints:jsonCoordinates(areaPoints), sonarSamples:sonarMapping.rawSamples,
             fishingSpots:fishingSpots ? fishingSpots.fishingSpots : [],
             fishDetections:fishStore ? fishStore.detections : [],
             waypointNames:persistence.waypointNames || ({}),
-            bathymetryCells:bathymetryCells,
+            bathymetryCells:bathymetryCells, nativeSurfaceMesh:nativeSurfaceMesh,
             currentLane:areaScan.activeLaneIndex, completedLanes:areaScan.completedLanes,
             lastBoatCoordinate:(areaScan.lastBoatCoordinate && areaScan.lastBoatCoordinate.isValid) ? {latitude:areaScan.lastBoatCoordinate.latitude,longitude:areaScan.lastBoatCoordinate.longitude} : null,
             totalLanes:areaScan.laneCount(),
@@ -262,10 +267,21 @@ QtObject {
         return ok
     }
     function restoreLake(id) {
-        if(!persistence || !sonarMapping || !areaScan || !id.length || state==="SCANNING") return false
+        if(!persistence || !sonarMapping || !areaScan || !id.length || (routePlan && routePlan.active) || state==="SCANNING") return false
         if(lakeId && lakeId!==id && !checkpoint("before-restore")) return false
         var p=persistence.lakeState(id); if(!p || Object.keys(p).length===0){status("Balta nu are încă stare salvată");return false}
-        lakeId=id; lakeName=p.lakeName||lakeName; areaPoints=geoCoordinates(p.areaPoints||[])
+        if(routePlan) routePlan.restore(p.routePlan)
+        // The lake catalogue owns the current display name; a snapshot may predate a rename.
+        var currentName=""
+        var catalogue=persistence.lakes||[]
+        for(var lakeIndex=0;lakeIndex<catalogue.length;lakeIndex++) {
+            var entry=catalogue[lakeIndex]
+            if(entry && String(entry.id)===String(id)) {
+                currentName=String(entry.name||"").trim()
+                break
+            }
+        }
+        lakeId=id; lakeName=currentName||p.lakeName||"Baltă"; areaPoints=geoCoordinates(p.areaPoints||[])
         sonarMapping.lakeId=id; sonarMapping.rawSamples=(p.sonarSamples||[]).slice(0)
         // Rebuild the GPS breadcrumb from persisted samples, using the same
         // one-metre spacing rule as live sonar ingestion.
@@ -285,7 +301,7 @@ QtObject {
         if(persistence.replaceWaypointNames) persistence.replaceWaypointNames(p.waypointNames||({}))
         // A restored session cannot be considered live until the mission is
         // uploaded again and the autopilot confirms AUTO for this connection.
-        state=(p.state==="COMPLETE" ? "COMPLETE" : (p.state==="RTL" ? "RTL" : "PAUSED")); bathymetryCells=p.bathymetryCells||[]
+        state=(p.state==="COMPLETE" ? "COMPLETE" : (p.state==="RTL" ? "RTL" : "PAUSED")); bathymetryCells=p.bathymetryCells||[]; nativeSurfaceMesh=p.nativeSurfaceMesh||({})
         areaScan.generatedPoints=areaPoints; areaScan.completedLanes=p.completedLanes||[]
         areaScan.activeLaneIndex=(p.currentLane===undefined?-1:Number(p.currentLane))
         areaScan.lastBoatCoordinate=(p.lastBoatCoordinate && p.lastBoatCoordinate.latitude!==undefined && p.lastBoatCoordinate.longitude!==undefined) ? QtPositioning.coordinate(Number(p.lastBoatCoordinate.latitude),Number(p.lastBoatCoordinate.longitude)) : null

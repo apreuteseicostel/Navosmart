@@ -11,6 +11,7 @@ Item {
     required property var map
     required property var missionController
     required property var vehicle
+    property bool navigationAllowed: true
     property var selectedWaypoint: null
     property point selectedScreenPoint: Qt.point(0, 0)
     property var waypointNames: ({})
@@ -86,7 +87,7 @@ Item {
         x: Math.max(8, Math.min(root.width - width - 8, root.selectedScreenPoint.x + 20))
         y: Math.max(8, Math.min(root.height - height - 8, root.selectedScreenPoint.y - height / 2))
         onNavigateRequested: function(wp) {
-            if (wp && root.vehicle && wp.coordinate && wp.coordinate.isValid) {
+            if (root.navigationAllowed && wp && root.vehicle && wp.coordinate && wp.coordinate.isValid) {
                 navigateConfirm.open()
             }
         }
@@ -119,7 +120,7 @@ Item {
         }
 
         onAccepted: {
-            if (!root.selectedWaypoint || !root.vehicle || !root.selectedWaypoint.coordinate.isValid ||
+            if (!root.navigationAllowed || !root.selectedWaypoint || !root.vehicle || !root.selectedWaypoint.coordinate.isValid ||
                 !root.vehicle.vehicleLinkManager || root.vehicle.vehicleLinkManager.communicationLost ||
                 !root.vehicle.coordinate.isValid || !root.vehicle.gps || root.vehicle.gps.lock.rawValue<3) return
             // QGroundControl Vehicle API performs the firmware-specific Guided/GoTo command.
