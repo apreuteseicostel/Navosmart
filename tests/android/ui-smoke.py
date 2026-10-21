@@ -39,7 +39,16 @@ def click(name,scroll=False):
  raise RuntimeError('Navigation control unavailable: '+name)
 for i,name in enumerate(nav):
  click(name,True)
- if not locate('Pagina '+name):raise RuntimeError('Page did not load: '+name)
+ # QML Loader transitions are asynchronous; allow bounded settling, not a silent pass.
+ loaded=False
+ for attempt in range(10):
+  if locate('Pagina '+name):
+   loaded=True
+   break
+  time.sleep(.5)
+ if not loaded:
+  (out/f'failed-page-{i:02d}.png').write_bytes(adb('exec-out','screencap','-p'))
+  raise RuntimeError('Page did not load: '+name+' (UI hierarchy saved to build/navo-ui.xml)')
  (out/f'page-{i:02d}.png').write_bytes(adb('exec-out','screencap','-p'))
  if name=='SONAR PRO':
   click('Deschide / închide meniul Sonar PRO')
