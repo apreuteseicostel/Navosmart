@@ -202,6 +202,26 @@ jobs:
           mkdir -p build/screenshots "$ANDROID_AVD_HOME"
           sudo chmod 666 /dev/kvm || true
 
+          # The signed x86 APK is the only x86 build product used by this smoke
+          # test. Release native objects, Gradle intermediates and Qt Android
+          # SDKs BEFORE installing the emulator/system image. Without cleanup
+          # the emulator rejects the AVD with insufficient host disk space.
+          test -s build-x86/NAVO_SMART-x86.apk
+          mv build-x86/NAVO_SMART-x86.apk "${RUNNER_TEMP}/NAVO_SMART-x86-signed.apk"
+          rm -rf build-x86
+          mkdir -p build-x86
+          mv "${RUNNER_TEMP}/NAVO_SMART-x86-signed.apk" build-x86/NAVO_SMART-x86.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify build-x86/NAVO_SMART-x86.apk
+          rm -rf "$HOME/.gradle/caches" \
+                 "${RUNNER_TEMP}/Qt/6.8.3/android_arm64_v8a" \
+                 "${RUNNER_TEMP}/Qt/6.8.3/android_x86_64"
+          echo "Disk capacity after disposing of finished build intermediates:"
+          df -h /
+          test "$(df -Pk / | awk 'NR==2 {print $4}')" -gt 5242880 || {
+            echo "::error::Less than 5 GiB available before emulator installation"
+            exit 1
+          }
+
           sdkmanager "emulator" "system-images;android-34;default;x86_64"
 
           # Create the AVD in an explicit directory. Previous runs could create it
