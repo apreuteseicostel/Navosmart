@@ -209,6 +209,29 @@ QString NavoPersistence::saveFishingEntry(const QString& tripId,const QVariantMa
    if(input.value("positionValid").toBool() && latOk && lonOk && std::isfinite(lat) && std::isfinite(lon) && std::abs(lat)<=90 && std::abs(lon)<=180){entry["lat"]=lat;entry["lon"]=lon;}
    for(const auto& key:{QStringLiteral("depth"),QStringLiteral("temperature")}){bool ok=false;const double value=input.value(key).toDouble(&ok);if(ok && std::isfinite(value) && (key!="depth" || value>0))entry[key]=value;}
   }
+  // Optional structured fields preserve older entries when an older caller omits
+  // them. Explicit blanks clear them; changing kind removes inapplicable fields.
+  for(const auto& key:{QStringLiteral("species"),QStringLiteral("bait")}) {
+   const bool applicable=key=="species" ? type=="catch" : type=="catch" || type=="bait";
+   if(!applicable){entry.remove(key);continue;}
+   if(!input.contains(key))continue;
+   if(input.value(key).metaType().id()!=QMetaType::QString){journalFailure(QStringLiteral("Specia și nada trebuie să fie text."));return {};}
+   const auto value=input.value(key).toString().trimmed();
+   if(value.size()>(key=="species"?80:120)){journalFailure(QStringLiteral("Specie: maximum 80 caractere; nadă: maximum 120."));return {};}
+   if(value.isEmpty())entry.remove(key);else entry[key]=value;
+  }
+  if(type!="catch")entry.remove("weightKg");
+  else if(input.contains("weightKg")) {
+   const auto value=input.value("weightKg");
+   if(value.isNull())entry.remove("weightKg");
+   else {
+    const auto valueType=value.metaType().id();
+    const bool numeric=valueType==QMetaType::Double || valueType==QMetaType::Float || valueType==QMetaType::Int || valueType==QMetaType::LongLong || valueType==QMetaType::UInt || valueType==QMetaType::ULongLong;
+    const double weight=value.toDouble();
+    if(!numeric || !std::isfinite(weight) || weight<=0 || weight>1000){journalFailure(QStringLiteral("Greutatea trebuie să fie un număr mai mare de 0 și cel mult 1000 kg, sau necompletată."));return {};}
+    entry["weightKg"]=weight;
+   }
+  }
   entry["updatedAt"]=QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
   if(index>=0)entries[index]=entry;else entries.prepend(entry);
   trip["entries"]=entries;trips[i]=trip;return commitTrips(trips)?id:QString{};
