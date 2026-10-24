@@ -96,6 +96,20 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Reclaim runner disk space before native Android builds
+        shell: bash
+        run: |
+          set -euo pipefail
+          df -h /
+          # GitHub-hosted images contain toolchains not used by this Android workflow.
+          # Preserve /usr/local/lib/android: it contains the SDK and build-tools needed by Qt.
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/powershell
+          sudo apt-get clean
+          df -h /
+          test -x "$ANDROID_HOME/build-tools/35.0.0/aapt" || { echo "::error::Android SDK build-tools missing"; exit 1; }
+          # Fail early with actionable diagnostics instead of crashing the LLVM linker.
+          test "$(df -Pk / | awk 'NR==2 {print $4}')" -gt 10485760 || { echo "::error::Less than 10 GiB available before Qt builds"; exit 1; }
+
       - name: Install host Qt
         uses: jurplel/install-qt-action@v4
         with:

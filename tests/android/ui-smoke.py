@@ -23,7 +23,10 @@ def locate(name,navigation=False):
   b=list(map(int,re.findall(r'-?\d+',node.get('bounds',''))))
   if len(b)==4 and b[0]>=0 and b[1]>=0 and b[2]>b[0] and b[3]>b[1]:matches.append((node.get('clickable')=='true',b))
  if matches:
-  _,b=max(matches,key=lambda m:m[0]);return ((b[0]+b[2])//2,(b[1]+b[3])//2)
+  # A clipped navigation button must be scrolled fully into view before tapping.
+  visible=[m for m in matches if not navigation or normal_height == 0 or m[1][3]-m[1][1] >= normal_height * .8]
+  if visible:
+   _,b=max(visible,key=lambda m:m[0]);return ((b[0]+b[2])//2,(b[1]+b[3])//2)
  return None
 def click(name,scroll=False):
  for n in range(8):
@@ -39,7 +42,16 @@ def click(name,scroll=False):
  raise RuntimeError('Navigation control unavailable: '+name)
 for i,name in enumerate(nav):
  click(name,True)
- if not locate('Pagina '+name):raise RuntimeError('Page did not load: '+name)
+ # QML Loader transitions are asynchronous; allow bounded settling, not a silent pass.
+ loaded=False
+ for attempt in range(10):
+  if locate('Pagina '+name):
+   loaded=True
+   break
+  time.sleep(.5)
+ if not loaded:
+  (out/f'failed-page-{i:02d}.png').write_bytes(adb('exec-out','screencap','-p'))
+  raise RuntimeError('Page did not load: '+name+' (UI hierarchy saved to build/navo-ui.xml)')
  (out/f'page-{i:02d}.png').write_bytes(adb('exec-out','screencap','-p'))
  if name=='SONAR PRO':
   click('Deschide / închide meniul Sonar PRO')

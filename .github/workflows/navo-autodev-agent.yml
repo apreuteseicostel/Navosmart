@@ -1,0 +1,110 @@
+name: NAVO AutoDev Coding Agent
+
+on:
+  schedule:
+    - cron: '43 * * * *'
+  workflow_dispatch:
+  push:
+    branches:
+      - autodev/implementation
+
+# Deliberately disabled until the owner opts in with the repository variable.
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: navo-autodev-coding
+  cancel-in-progress: false
+
+jobs:
+  implement:
+    if: github.event_name != 'push' && github.ref == 'refs/heads/main' && vars.NAVO_AUTODEV_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - name: Checkout default branch without persisted credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Prepare isolated implementation branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "NAVO AutoDev"
+          git config user.email "navo-autodev@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin autodev/implementation >/dev/null; then
+            git fetch origin refs/heads/autodev/implementation:refs/remotes/origin/autodev/implementation
+            git switch -C autodev/implementation origin/autodev/implementation
+          else
+            git switch -c autodev/implementation
+          fi
+
+      - name: Install coding agent
+        run: npm install --global @openai/codex
+
+      - name: Run one bounded Master Checklist iteration
+        env:
+          OPENAI_API_KEY: ${{ secrets.NAVO_OPENAI_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${OPENAI_API_KEY:-}" || { echo "::error::Set NAVO_OPENAI_API_KEY in Actions secrets"; exit 1; }
+          # The coding agent does not receive GitHub write credentials.
+          env -u GITHUB_TOKEN -u GH_TOKEN timeout 25m codex exec --full-auto - < .github/navo-autodev-instructions.md
+
+      - name: Check changes and run controller regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          node tests/audit-regressions.mjs
+          # Agent must never rewrite its own security policy, workflows or hardware definitions.
+          if git status --porcelain --untracked-files=all | sed -E 's/^...//' | grep -E '^(.github/|hardware/|firmware/|.*\\.kicad_.*|.*\\.env$)'; then
+            echo "::error::Agent modified a protected path; refusing to push."
+            exit 1
+          fi
+
+      - name: Push reviewed-scope changes only to AutoDev branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add --all
+          # Recheck the exact staged paths: renames, deletions and untracked files included.
+          if git diff --cached --name-only -z | tr "\\0" "\\n" | grep -E '^(.github/|hardware/|firmware/|.*\\.kicad_.*|.*\\.env$)'; then
+            echo "::error::Protected staged path; refusing commit and push."
+            exit 1
+          fi
+          if git diff --cached --quiet; then
+            echo "No code changes in this iteration."
+            exit 0
+          fi
+          # Allow only the software and documentation locations approved by the agent contract.
+          if git diff --cached --name-only -z | tr "\\0" "\\n" | grep -Ev '^(custom/qml/|custom/src/|custom/kogger_native/|tests/|docs/NAVO_SMART/)'; then
+            echo "::error::Change outside the approved AutoDev scope; refusing commit and push."
+            exit 1
+          fi
+          git diff --cached --check
+          git commit -m "autodev: advance NAVO Master Checklist (CI validation pending)"
+          # Token is scoped to this push step; no force push, no main write, no merge.
+          git -c http.extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)" \
+            push origin HEAD:refs/heads/autodev/implementation
+          # GITHUB_TOKEN pushes do not trigger push workflows. Dispatch validation explicitly.
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/actions/workflows/navo-autodev-agent.yml/dispatches" -f ref=autodev/implementation
+
+  validate-agent-branch:
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/autodev/implementation'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify committed changes
+        run: |
+          set -euo pipefail
+          git show --format= --check HEAD
+          node tests/audit-regressions.mjs
