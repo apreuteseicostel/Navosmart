@@ -88,7 +88,7 @@ QtObject {
  function sendOnboard(action,value){
   if(!vehicle || !vehicle.sendCommand || !vehicle.vehicleLinkManager || vehicle.vehicleLinkManager.communicationLost){commandRejected("H743 deconectat");return false}
   if(!hardwareTelemetry || !hardwareTelemetry.connected || !(hardwareTelemetry.capabilities & 8) || !hardwareTelemetry.hopperStateValid){commandRejected("Serviciul cuve H743/V3 indisponibil");return false}
-  if(commandPending){commandRejected("Există deja o comandă H743 în așteptare");return false}
+  if(commandPending && action!==4){commandRejected("Există deja o comandă H743 în așteptare");return false}
   if(action===3 && (!calibrated || !releaseAllowed || hardwareTelemetry.hopperMask!==0)){commandRejected("Cuve necalibrate sau ciclu activ");return false}
   var request=nextRequest ? nextRequest() : 0
   if(!request){commandRejected("Secvența comenzilor V3 indisponibilă");return false}

@@ -492,4 +492,18 @@ test('V3 request sequence persists, follows onboard acknowledgement and refuses 
  assert.equal(c.nextHardwareRequest(),9);assert.equal(settings.requestSequence,9);
  assert.equal(c.nextHardwareRequest(),10);telemetry.lastRequest=16777215;assert.equal(c.nextHardwareRequest(),0);
 });
+test('V3 lights require live capability and use explicit state with shared request IDs',()=>{
+ const sent=[];const telemetry={connected:false,capabilities:1,lightsValid:true,headlightOn:true,positionLightsOn:false,lastRequest:0};
+ const c=context('NavoDashboard.qml',{linkAlive:true,vehicle:{sendCommand:(...args)=>sent.push(args)},sonarController:{replayMode:false},hopperBridge:{commandPending:false},h743Telemetry:telemetry,hopperSettings:{requestSequence:0}});
+ assert.equal(c.commandH743Light(1,2,'Far'),false);assert.equal(sent.length,0);
+ telemetry.connected=true;assert(c.commandH743Light(1,2,'Far'));assert.deepEqual(sent[0].slice(0,6),[1,31001,true,1,0,1]);
+ assert(c.commandH743Light(2,2,'Poziții'));assert.deepEqual(sent[1].slice(3,6),[2,1,2]);
+ c.sonarController.replayMode=true;assert.equal(c.commandH743Light(1,1,'Far'),false);assert.equal(sent.length,2);
+ c.sonarController.replayMode=false;telemetry.capabilities=0;assert.equal(c.commandH743Light(1,1,'Far'),false);
+});
+test('V3 close can supersede a pending release but cannot bypass stale telemetry',()=>{
+ const sent=[];const c=context('NavoHopperBridge.qml',{vehicle:{vehicleLinkManager:{communicationLost:false},sendCommand:(...a)=>sent.push(a)},hardwareTelemetry:{connected:true,capabilities:8,hopperStateValid:true,hopperMask:3},commandPending:true,nextRequest:()=>2,onboardWatchdog:{restart:noop},mavCompAutopilot1:1,leftServoOutput:9,rightServoOutput:10,leftClosedPwm:1500,leftOpenPwm:1900,rightClosedPwm:1500,rightOpenPwm:1900,releaseHoldMs:900,commandSent:noop,commandRejected:noop});
+ assert.equal(c.sendOnboard(3,1),false);assert(c.closeOnboard());assert.equal(sent[0][3],4);
+ c.hardwareTelemetry.connected=false;assert.equal(c.closeOnboard(),false);assert.equal(sent.length,1);
+});
 console.log(`${passed} regression scenarios passed`);

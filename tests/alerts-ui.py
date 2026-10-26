@@ -21,7 +21,7 @@ root.setProperty('batteryPercent',19);tick();QMetaObject.invokeMethod(root,'disp
 for _ in range(10):tick()
 assert len(output.property('played').toVariant())==1
 root.setProperty('batteryPercent',float('nan'));tick();root.setProperty('batteryPercent',18);tick();assert len(output.property('played').toVariant())==1
-root.setProperty('replayMode',True);root.setProperty('linkHealthy',False);root.setProperty('nanoConnected',True);root.setProperty('waterConfirmed',True);tick()
+root.setProperty('replayMode',True);root.setProperty('linkHealthy',False);root.setProperty('telemetryConnected',True);root.setProperty('waterConfirmed',True);tick()
 assert len(output.property('played').toVariant())==1 and output.property('stops')>=1
 QMetaObject.invokeMethod(root,'configure',Q_ARG('QVariant',False),Q_ARG('QVariant',False),Q_ARG('QVariant',0.5))
 root.setProperty('replayMode',False);tick();assert len(output.property('played').toVariant())==1

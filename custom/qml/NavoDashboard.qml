@@ -750,9 +750,22 @@ Item {
         return hopperSettings.requestSequence
     }
     function commandH743Light(target, mode, label) {
-        // V3 does not contain the legacy Nano bridge; never send command 31000.
-        root.lastNavigationStatus=label+" indisponibil: maparea luminilor H743 nu este validată"
-        return false
+        if(!root.linkAlive || !vehicle || !vehicle.sendCommand || root.sonarController.replayMode) {
+            root.lastNavigationStatus=label+" indisponibil: H743 deconectat sau replay"
+            return false
+        }
+        if(hopperBridge.commandPending || !h743Telemetry.connected || !(h743Telemetry.capabilities & 1) || !h743Telemetry.lightsValid) {
+            root.lastNavigationStatus=label+" indisponibil: serviciul H743/V3 nu este pregătit"
+            return false
+        }
+        if(target!==1 && target!==2)return false
+        var desired=mode===2 ? ((target===1 ? h743Telemetry.headlightOn : h743Telemetry.positionLightsOn) ? 0 : 1) : mode
+        if(desired!==0 && desired!==1)return false
+        var request=root.nextHardwareRequest()
+        if(!request)return false
+        vehicle.sendCommand(1,31001,true,target,desired,request,0,0,0,0)
+        root.lastNavigationStatus=label+" • solicitat H743; fără confirmare fizică"
+        return true
     }
 
     function modeColor() {
