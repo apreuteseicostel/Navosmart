@@ -135,7 +135,22 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release -DQT_ANDROID_ABIS=arm64-v8a -DQT_ANDROID_BUILD_ALL_ABIS=OFF \
             -DQT_HOST_PATH="${{ runner.temp }}/Qt/6.8.3/gcc_64" -DQT_ANDROID_SIGN_APK=OFF -DQGC_STABLE_BUILD=ON -DQGC_USE_CACHE=ON
       - name: Build arm64 APK
-        run: cmake --build build --target all --config Release --parallel
+        shell: bash
+        run: |
+          set -o pipefail
+          # Limit compiler concurrency on hosted runners to reduce peak RAM use.
+          # Persist a short failure tail in the job summary even if artifacts fail.
+          echo "ARM64 build: max 2 parallel compile jobs" | tee build/arm64-build.log
+          if cmake --build build --target all --config Release --parallel 2 2>&1 | tee -a build/arm64-build.log; then
+            echo "ARM64 build succeeded" >> "$GITHUB_STEP_SUMMARY"
+          else
+            rc=${PIPESTATUS[0]}
+            echo "### ARM64 build failed (exit ${rc})" >> "$GITHUB_STEP_SUMMARY"
+            echo '```text' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 90 build/arm64-build.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            exit "$rc"
+          fi
       - name: Prepare installable APK
         run: |
           set -euo pipefail
@@ -150,6 +165,22 @@ jobs:
           else cp "$APK" build/NAVO_SMART.apk; fi
           "$APKSIGNER" verify --verbose --print-certs build/NAVO_SMART.apk
           "$AAPT" dump badging build/NAVO_SMART.apk | head -n 8
+      - name: Reclaim arm64 build space for x86_64 emulator build
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The arm64 APK was signed and verified in the previous step. Preserve it
+          # while removing only disposable arm64 compiler outputs before x86_64.
+          test -s build/NAVO_SMART.apk
+          mv build/NAVO_SMART.apk "${RUNNER_TEMP}/NAVO_SMART-arm64.apk"
+          rm -rf build
+          mkdir -p build
+          mv "${RUNNER_TEMP}/NAVO_SMART-arm64.apk" build/NAVO_SMART.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify build/NAVO_SMART.apk
+          df -h /
+          # Fail early with an explicit infrastructure diagnostic rather than
+          # a misleading clang failure after another lengthy native build.
+          test "$(df -Pk / | awk 'NR==2 {print $4}')" -gt 5242880 || { echo "::error::Less than 5 GiB free for x86_64 build after arm64 cleanup"; exit 1; }
       - name: Configure x86_64 smoke-test APK
         run: |
           mkdir -p build-x86
@@ -176,6 +207,26 @@ jobs:
           set -euo pipefail
           mkdir -p build/screenshots "$ANDROID_AVD_HOME"
           sudo chmod 666 /dev/kvm || true
+
+          # The signed x86 APK is the only x86 build product used by this smoke
+          # test. Release native objects, Gradle intermediates and Qt Android
+          # SDKs BEFORE installing the emulator/system image. Without cleanup
+          # the emulator rejects the AVD with insufficient host disk space.
+          test -s build-x86/NAVO_SMART-x86.apk
+          mv build-x86/NAVO_SMART-x86.apk "${RUNNER_TEMP}/NAVO_SMART-x86-signed.apk"
+          rm -rf build-x86
+          mkdir -p build-x86
+          mv "${RUNNER_TEMP}/NAVO_SMART-x86-signed.apk" build-x86/NAVO_SMART-x86.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify build-x86/NAVO_SMART-x86.apk
+          rm -rf "$HOME/.gradle/caches" \
+                 "${RUNNER_TEMP}/Qt/6.8.3/android_arm64_v8a" \
+                 "${RUNNER_TEMP}/Qt/6.8.3/android_x86_64"
+          echo "Disk capacity after disposing of finished build intermediates:"
+          df -h /
+          test "$(df -Pk / | awk 'NR==2 {print $4}')" -gt 5242880 || {
+            echo "::error::Less than 5 GiB available before emulator installation"
+            exit 1
+          }
 
           sdkmanager "emulator" "system-images;android-34;default;x86_64"
 
@@ -296,6 +347,14 @@ jobs:
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ${{ steps.compiler-cache.outputs.cache-primary-key }}
+      - name: Upload ARM64 build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NAVO-SMART-ARM64-BUILD-LOG
+          path: build/arm64-build.log
+          if-no-files-found: warn
+          retention-days: 7
       - name: Upload Android smoke-test evidence
         if: always()
         uses: actions/upload-artifact@v4

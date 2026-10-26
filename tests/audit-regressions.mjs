@@ -470,4 +470,26 @@ test('Area Scan checks energy before START and uses only remaining corridors on 
  c.checkEnergyForRoute=(points)=>{checked=points;return false};assert.equal(c.startUploadedMission(),false);assert.equal(started,0);assert.equal(released,0);assert.equal(checked,route);
  c.checkEnergyForRoute=()=>true;assert(c.startUploadedMission());assert.equal(started,1);assert.equal(released,1);
 });
+test('Pilot takeover discards pending GPS recovery without app HOLD or RTL',()=>{
+ let now=1790240400000,hold=0,rtl=0;
+ const vehicle={flightMode:'Auto',vehicleLinkManager:{communicationLost:false},gps:{lock:{rawValue:2}},coordinate:coord(52,0)};
+ const c=context('NavoFailsafeController.qml',{Date:{now:()=>now},enabled:true,vehicle,minGpsFix:3,linkLost:false,gpsLost:false,linkGraceSeconds:30,gpsRecoverySeconds:60,gpsReturnHomeSeconds:120,rtlRequested:()=>rtl++,holdRequested:()=>hold++,recovered:noop});
+ c.tick();assert.equal(hold,1);now+=125000;c.tick();assert(c.gpsRtlPending);
+ for(const mode of ['Manual',' Acro ']){vehicle.flightMode=mode;c.tick();assert.equal(c.gpsRtlPending,false);vehicle.gps.lock.rawValue=3;c.tick();assert.equal(rtl,0)}
+ vehicle.flightMode='Auto';c.tick();assert.equal(rtl,0);
+});
+test('V3 release cannot leave the drop while onboard completion is pending',()=>{
+ let exited=0,restarted=0;
+ const c=context('NavoBaitingController.qml',{enabled:true,state:4,releaseState:4,hopper:1,releaseComplete:false,vehicleCoordinateValid:()=>true,restart:()=>restarted++,finishExit:()=>exited++,makeExitCoordinate:()=>null});
+ c.vehicleCoordinateValid=()=>true;c.finishExit=()=>exited++;c.makeExitCoordinate=()=>null;
+ const timeout=timerHandler('NavoBaitingController.qml','postDropTimer',c);
+ timeout();assert.equal(restarted,1);assert.equal(exited,0);
+ c.releaseComplete=true;timeout();assert.equal(exited,1);
+});
+test('V3 request sequence persists, follows onboard acknowledgement and refuses exhaustion',()=>{
+ const settings={requestSequence:5};const telemetry={lastRequest:8};
+ const c=context('NavoDashboard.qml',{hopperSettings:settings,h743Telemetry:telemetry});
+ assert.equal(c.nextHardwareRequest(),9);assert.equal(settings.requestSequence,9);
+ assert.equal(c.nextHardwareRequest(),10);telemetry.lastRequest=16777215;assert.equal(c.nextHardwareRequest(),0);
+});
 console.log(`${passed} regression scenarios passed`);

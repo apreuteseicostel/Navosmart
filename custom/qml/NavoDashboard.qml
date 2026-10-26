@@ -54,6 +54,8 @@ Item {
     NavoAlerts {
         id:alerts;output:alertAudio;vehicle:root.vehicle;replayMode:sonar.replayMode
         telemetryConnected:h743Telemetry.connected
+        waterValid:h743Telemetry.waterValid
+        temperatureValid:h743Telemetry.temperatureValid
         waterConfirmed:safetyManager.waterConfirmed
         batteryTempC:h743Telemetry.batteryTempC
         batteryPercent:root.battery && root.battery.percentRemaining ? Number(root.battery.percentRemaining.rawValue) : NaN
@@ -124,6 +126,7 @@ Item {
     Settings {
         id: hopperSettings
         category: "NavoHopperCalibration"
+        property int requestSequence: 0
         property bool confirmed: false
         property int leftOutput: 9
         property int rightOutput: 10
@@ -168,8 +171,9 @@ Item {
         }
         onAccepted: root.flushPendingBaitJournal(true)
         onRejected: {
-            root.persistPendingBaitJournal([])
-            root.lastNavigationStatus="Jurnal: înregistrarea automată a nădirilor a fost refuzată"
+            // Declining to create a trip must not erase accepted hopper commands.
+            // Keep the durable queue for recovery from the Journal page.
+            root.lastNavigationStatus="Jurnal: nădirile sunt păstrate; le poți recupera ulterior"
         }
     }
     function retryPendingBaitJournal() {
@@ -227,6 +231,7 @@ Item {
     NavoBaitingController {
         id: baitingController
         vehicle: root.vehicle
+        releaseComplete: hopperBridge.onboardCycleComplete && h743Telemetry.hopperStateValid && h743Telemetry.hopperMask===0
         onGotoRequested: function(coordinate, reason) { if(root.vehicle && root.vehicle.guidedModeGotoLocation) root.vehicle.guidedModeGotoLocation(coordinate) }
         onSpeedRequested: function(metersPerSecond) {
             if(root.vehicle && root.vehicle.guidedModeChangeGroundSpeedMetersSecond)
@@ -308,6 +313,8 @@ Item {
     property bool preLaunchBatteryOverride: false
     NavoPreLaunchCheck {
         id: preLaunchCheck
+        nanoReady: h743Telemetry.connected
+        sensorLabel: "H743 / V3"
         vehicleConnected: root.linkAlive
         gpsReady: !!root.vehicle && !!root.vehicle.gps && Number(root.vehicle.gps.lock.rawValue) >= 3 && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
         homeReady: !!root.vehicle && !!root.vehicle.homePosition && root.vehicle.homePosition.isValid
@@ -358,11 +365,19 @@ Item {
         id: failsafeController
         vehicle: root.vehicle
         onHoldRequested: function(reason) {
+            if (root.manualControlActive()) {
+                root.lastNavigationStatus="MANUAL/ACRO • GPS HOLD aplicație ignorat • verifică H743: "+reason
+                return
+            }
             root.lastNavigationStatus="FAILSAFE HOLD: "+reason
             if (scanCoordinator.state === "SCANNING") scanCoordinator.pause(reason)
             root.holdMission()
         }
         onRtlRequested: function(reason) {
+            if (root.manualControlActive()) {
+                root.lastNavigationStatus="MANUAL/ACRO • GPS RTL aplicație ignorat • verifică H743: "+reason
+                return
+            }
             root.lastNavigationStatus="FAILSAFE RTL: "+reason
             if (scanCoordinator.state === "SCANNING" || scanCoordinator.state === "PAUSED" || scanCoordinator.state === "RESUME_READY") scanCoordinator.rtl(reason)
             root.rtlMission()
@@ -504,6 +519,10 @@ Item {
         }
     }
     property string flightMode: vehicle ? vehicle.flightMode : ""
+    function manualControlActive(){
+        var mode=String(root.flightMode || "").trim().toUpperCase()
+        return mode==="MANUAL" || mode==="ACRO"
+    }
     property real distanceToHome: vehicle && vehicle.distanceToHome ? vehicle.distanceToHome.rawValue : 0
     property real distanceToTarget: vehicle && vehicle.distanceToGoal ? vehicle.distanceToGoal.rawValue : 0
     property string boatId: "NAV0001"
@@ -656,6 +675,7 @@ Item {
         id: hopperBridge
         onboardTiming: h743Telemetry.v3Profile
         hardwareTelemetry: h743Telemetry
+        nextRequest: root.nextHardwareRequest
         vehicle: root.vehicle
         calibrated: hopperSettings.confirmed && hopperSettings.leftOutput!==hopperSettings.rightOutput && root.linkAlive
         releaseAllowed: root.linkAlive && hopperSettings.confirmed
@@ -677,15 +697,19 @@ Item {
         id: safetyManager
         vehicle: root.vehicle
         telemetryLive: h743Telemetry.connected
+        temperatureValid: h743Telemetry.temperatureValid
+        waterValid: h743Telemetry.waterValid
         waterSensorFault: h743Telemetry.waterSensorFault
         waterDetected: h743Telemetry.waterDetected
         batteryTempC: h743Telemetry.batteryTempC
         onWarning: function(reason) { root.lastNavigationStatus = "AVERTISMENT: " + reason }
         onHoldRequested: function(reason) {
+            if(root.manualControlActive()) {root.lastNavigationStatus="MANUAL/ACRO • alertă senzori: "+reason;return}
             root.lastNavigationStatus = "SIGURANTA HOLD: " + reason
             root.holdMission()
         }
         onRtlRequested: function(reason) {
+            if(root.manualControlActive()) {root.lastNavigationStatus="MANUAL/ACRO • alertă senzori: "+reason;return}
             root.lastNavigationStatus = "SIGURANTA RTL: " + reason
             root.rtlMission()
         }
@@ -719,6 +743,12 @@ Item {
         if(action==="POZITII") { commandH743Light(2,2,"Poziții"); return }
     }
 
+    function nextHardwareRequest() {
+        var current=Math.max(hopperSettings.requestSequence,h743Telemetry.lastRequest)
+        if(!Number.isInteger(current) || current<0 || current>=16777215)return 0
+        hopperSettings.requestSequence=current+1
+        return hopperSettings.requestSequence
+    }
     function commandH743Light(target, mode, label) {
         // V3 does not contain the legacy Nano bridge; never send command 31000.
         root.lastNavigationStatus=label+" indisponibil: maparea luminilor H743 nu este validată"
@@ -742,6 +772,7 @@ Item {
         root.selectedHopper = side
     }
     function closeHoppers() {
+        if(!hopperBridge.closeOnboard())return
         root.selectedHopper = "none"
     }
     function allowLiveAction() {
@@ -2383,8 +2414,15 @@ Item {
         property bool active: false
         property bool proBadge: false
         property url iconSource: ""
-        ToolTip.visible: hovered
+        // Mouse hover on desktop, sustained touch on Android/G20.
+        property bool longPressHint: false
+        ToolTip.visible: hovered || longPressHint
         ToolTip.text: text
+        ToolTip.delay: hovered ? 450 : 0
+        ToolTip.timeout: longPressHint ? 2200 : -1
+        onPressAndHold: longPressHint = true
+        onReleased: longPressHint = false
+        onCanceled: longPressHint = false
         Layout.fillWidth: true
         Layout.preferredHeight: Math.max(38, Math.min(46, (sidebar.height - 58) / 9))
         background: Rectangle { radius: 6; color: parent.active ? "#183248" : "transparent"; border.color: parent.active ? root.accent : "transparent" }

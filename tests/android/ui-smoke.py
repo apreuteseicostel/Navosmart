@@ -55,7 +55,12 @@ def click(name,scroll=False):
  raise RuntimeError('Navigation control unavailable: '+name)
 for i,name in enumerate(nav):
  click(name,True)
- if not locate('Pagina '+name):raise RuntimeError('Page did not load: '+name)
+ deadline=time.monotonic()+15
+ while not locate('Pagina '+name):
+  if time.monotonic()>=deadline:
+   (out/f'page-{i:02d}-failed.png').write_bytes(adb('exec-out','screencap','-p'))
+   raise RuntimeError('Page did not load: '+name)
+  time.sleep(.3)
  (out/f'page-{i:02d}.png').write_bytes(adb('exec-out','screencap','-p'))
  if name=='SONAR PRO':
   click('Deschide / închide meniul Sonar PRO')

@@ -11,7 +11,7 @@ from PySide6.QtTest import QTest
 from PySide6.QtQuick import QQuickWindow,QQuickItem
 repo=Path(__file__).resolve().parent.parent
 source=(repo/'custom/qml/NavoMap.qml').read_text()
-start=source.index('    MouseArea {\n        anchors.fill: parent\n        enabled: !root.recordedReplay && root.areaDrawMode === "none"')
+start=source.index('    MouseArea {\n        anchors.fill: parent\n        enabled: !root.offlinePickMode && !root.recordedReplay && root.areaDrawMode === "none"')
 inputLayer=source[start:source.index('    MouseArea {',start+20)]
 wrapper='''import QtQuick
 import QtQuick.Controls
@@ -20,6 +20,7 @@ import QtPositioning
 ApplicationWindow {
  id:root;visible:true;width:900;height:650
  property bool recordedReplay:false
+ property bool offlinePickMode:false
  property string areaDrawMode:"none"
  property bool baitPointPickMode:false
  property bool rulerMode:false

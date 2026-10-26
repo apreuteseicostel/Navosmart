@@ -642,6 +642,7 @@ Item {
             contentItem:Image { anchors.centerIn:parent;width:23;height:23;source:parent.iconSource;fillMode:Image.PreserveAspectFit }
         }
         MapTool { text:"BOAT"; iconSource:"qrc:/qml/NavoSmart/icons/boat.svg"; font.pixelSize:9; ToolTip.visible:hovered;ToolTip.text:"Centrează pe poziția actuală a bărcii";enabled:!!root.vehicle&&!!root.vehicle.coordinate&&root.vehicle.coordinate.isValid;onClicked:root.followBoat() }
+        MapTool { text:"TEL"; Accessible.name:"Centrează pe GPS-ul telefonului"; ToolTip.visible:hovered || down; ToolTip.text:root.operatorLocationValid ? "Centrează harta pe poziția telefonului" : "GPS telefon indisponibil • verifică permisiunea de localizare"; enabled:!root.recordedReplay && root.operatorLocationValid; onClicked:root.centerOnOperator() }
         MapTool { text:"+"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-in.svg";ToolTip.visible:hovered;ToolTip.text:"Mărește harta";onClicked:{root.autoFollowBoat=false;liveMap.zoomLevel=liveMap.zoomLevel+1} }
         MapTool { text:"-"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-out.svg";ToolTip.visible:hovered;ToolTip.text:"Micșorează harta";onClicked:{root.autoFollowBoat=false;liveMap.zoomLevel=liveMap.zoomLevel-1} }
         MapTool { checkable:true;checked:layersPopup.visible;Accessible.name:"Straturi hartă"; iconSource:"qrc:/qml/NavoSmart/icons/layers.svg"; ToolTip.visible:hovered||down; ToolTip.text:"Straturi hartă"; onClicked:layersPopup.open() }
@@ -710,7 +711,15 @@ Item {
             initialCenterApplied=true
         }
     }
-    // When no boat GPS is available, open the map at the phone/operator GPS instead.
+    // Center on the phone when no boat GPS is available; never use it for RTL.
+    function centerOnOperator() {
+        if(recordedReplay || !operatorLocationValid)return false
+        autoFollowBoat=false
+        initialCenterApplied=true
+        liveMap.center=operatorCoordinate
+        liveMap.zoomLevel=Math.max(liveMap.zoomLevel,lakeZoomLevel)
+        return true
+    }
     function centerOnOperatorOnce() {
         if(replayPreview || initialCenterApplied || !operatorLocationEnabled || !operatorLocationValid)return
         if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid)return
@@ -720,6 +729,7 @@ Item {
     }
     onOperatorCoordinateChanged: Qt.callLater(centerOnOperatorOnce)
     Component.onCompleted: { centerOnBoatOnce(); Qt.callLater(centerOnOperatorOnce) }
+    onOperatorLocationValidChanged: if(operatorLocationValid)centerOnOperatorOnce()
     onVehicleChanged: { initialCenterApplied=false; centerOnBoatOnce() }
 
     Connections {
