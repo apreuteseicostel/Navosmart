@@ -1133,7 +1133,7 @@ Item {
                 }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.mapMaximized=false; root.activePage=0 } }
             }
-            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/satellite.svg"; title: "SATELIȚI"; value: vehicle && vehicle.gps ? String(vehicle.gps.count.rawValue) : "--"; good: vehicle && vehicle.gps }
+            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/satellite.svg"; title: "SATELIȚI"; value: vehicle && vehicle.gps ? String(vehicle.gps.count.rawValue) : "--"; good: vehicle && vehicle.gps && Number(vehicle.gps.lock.rawValue) >= 3; interactive:true; onClicked:gnssDiagnostic.open() }
             StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/home.svg"; title: "HOME"; value: Number(root.distanceToHome).toFixed(0) + " m"; good: !!vehicle; interactive:true
                 onClicked: { root.activePage=0; Qt.callLater(function(){ if(root.mapController && root.mapController.centerHome && !root.mapController.centerHome()) root.lastNavigationStatus="HOME indisponibil" }) }
                 onPressAndHold: { if(!root.vehicle || !root.vehicle.homePosition || !root.vehicle.homePosition.isValid || !root.vehicle.coordinate || !root.vehicle.coordinate.isValid || !root.vehicle.gps || root.vehicle.gps.lock.rawValue<3) root.lastNavigationStatus="RTL blocat: HOME/GPS invalid"; else homeRtlConfirm.open() }
@@ -1157,6 +1157,55 @@ Item {
         }
         }
     }
+
+    Popup {
+        id: gnssDiagnostic
+        modal: false
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        x: Math.max(8, Math.min(170, root.width - width - 8))
+        y: 68
+        width: Math.min(380, root.width - 16)
+        padding: 14
+        z: 6500
+        background: Rectangle { radius: 12; color: "#101822"; border.color: "#21b7ff"; border.width: 1 }
+        property string checkResult: ""
+        function factValue(fact) {
+            if (!fact || fact.rawValue === undefined || fact.rawValue === null) return "--"
+            var n = Number(fact.rawValue)
+            return isFinite(n) ? n.toFixed(2) : "--"
+        }
+        ColumnLayout {
+            width: parent.width
+            spacing: 8
+            RowLayout {
+                Layout.fillWidth: true
+                Label { text: "GNSS / UM982 • Diagnostic"; color: "#ffffff"; font.bold: true; font.pixelSize: 16; Layout.fillWidth: true }
+                Button { text: "✕"; flat: true; onClicked: gnssDiagnostic.close() }
+            }
+            Label { text: !root.vehicle ? "H743 deconectat" : !root.vehicle.gps ? "Nu sunt date GPS de la H743" : Number(root.vehicle.gps.lock.rawValue) >= 3 ? "Poziție GPS validă" : "GPS detectat • fără fix 3D"; color: root.vehicle && root.vehicle.gps && Number(root.vehicle.gps.lock.rawValue) >= 3 ? "#43d49e" : "#ffc857"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+            Label { text: "Sateliți: " + (root.vehicle && root.vehicle.gps ? String(root.vehicle.gps.count.rawValue) : "--"); color: "#ffffff" }
+            Label { text: "Tip fix (MAVLink): " + (root.vehicle && root.vehicle.gps ? String(root.vehicle.gps.lock.rawValue) : "--") + "  (3 = 3D, 4 = DGPS, 5/6 = RTK)"; color: "#d5e2ee"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+            Label { text: "Latitudine: " + (root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? Number(root.vehicle.coordinate.latitude).toFixed(7) + "°" : "--"); color: "#d5e2ee" }
+            Label { text: "Longitudine: " + (root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? Number(root.vehicle.coordinate.longitude).toFixed(7) + "°" : "--"); color: "#d5e2ee" }
+            Label { text: "Altitudine GPS: " + (root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? Number(root.vehicle.coordinate.altitude).toFixed(1) + " m" : "--"); color: "#d5e2ee" }
+            Label { text: "HDOP: " + (root.vehicle && root.vehicle.gps ? gnssDiagnostic.factValue(root.vehicle.gps.hdop) : "--") + "  •  VDOP: " + (root.vehicle && root.vehicle.gps ? gnssDiagnostic.factValue(root.vehicle.gps.vdop) : "--"); color: "#d5e2ee" }
+            Label { text: "UM982 / antene duale: identificare directă indisponibilă prin indicatorul MAVLink standard"; color: "#8ca4b8"; wrapMode: Text.WordWrap; Layout.fillWidth: true; font.pixelSize: 11 }
+            Button {
+                Layout.fillWidth: true
+                text: "Verifică conexiunea GPS"
+                onClicked: {
+                    if (!root.vehicle) gnssDiagnostic.checkResult = "H743 nu este conectat. Verifică MAVLink."
+                    else if (!root.vehicle.gps) gnssDiagnostic.checkResult = "H743 conectat, dar nu raportează GPS. Verifică UART, alimentarea UM982 și SERIALx_PROTOCOL."
+                    else if (Number(root.vehicle.gps.lock.rawValue) < 3) gnssDiagnostic.checkResult = "GPS raportat, fără fix 3D. Verifică antenele și vizibilitatea cerului."
+                    else gnssDiagnostic.checkResult = "H743 raportează fix GPS valid. Modelul UM982 și legătura fizică nu pot fi certificate doar din acest mesaj."
+                }
+            }
+            Label { visible: gnssDiagnostic.checkResult.length > 0; text: gnssDiagnostic.checkResult; color: "#21b7ff"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+        }
+        onOpened: checkResult = ""
+    }
+
 
     NavoHeadingCompass { id:headingCompassOverlay; visible:root.headingOverlayOpen && root.activePage !== 10; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; onToggleRequested:root.headingOverlayOpen=false }
 
