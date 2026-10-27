@@ -1,7 +1,7 @@
 name: Build NAVO SMART Android
 on:
   push:
-    branches: [main, feature/navo-smart-pro, feature/area-scan-bathymetry-resume, feature/unified-navosmart-integration, feature/bathymetry-3d, audit/full-integration-23-sep]
+    branches: [main, integration/pr20-v3-consolidation-20261017, fix/g20-advanced-rc-integration-20261005, feature/navo-smart-pro, feature/area-scan-bathymetry-resume, feature/unified-navosmart-integration, feature/bathymetry-3d, audit/full-integration-23-sep]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -9,7 +9,7 @@ on:
 # Keep only the newest Android validation for the same PR/branch.
 # This prevents one small UI commit from consuming another full multi-hour build.
 concurrency:
-  group: navo-android-${{ github.event.pull_request.number || github.ref }}
+  group: navo-android-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
 
 # build revision 4
@@ -24,7 +24,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: NAVO controller regression tests
-        run: node tests/audit-regressions.mjs
+        run: |
+          node tests/audit-regressions.mjs
+          node tests/route-plan.mjs
+          node tests/steering-bottom.mjs
+          python3 tests/android/navigation-locator.py
       - name: Clone pinned QGroundControl
         run: |
           git clone --depth 1 --branch v5.0.7 --recurse-submodules --shallow-submodules https://github.com/mavlink/qgroundcontrol.git qgc
@@ -63,7 +67,8 @@ jobs:
           grep -n -A9 -B4 'if (!_mainRootWindow)' qgc/src/QGCApplication.cc
       - name: Install compiler cache
         run: sudo apt-get update && sudo apt-get install -y ccache
-      - uses: actions/cache@v4
+      - uses: actions/cache/restore@v4
+        id: compiler-cache
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ${{ runner.os }}-navo-qgc5.0.7-qt6.8.3-ndk26b-v1-${{ hashFiles('custom/**', '.github/workflows/android.yml') }}
@@ -130,7 +135,22 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release -DQT_ANDROID_ABIS=arm64-v8a -DQT_ANDROID_BUILD_ALL_ABIS=OFF \
             -DQT_HOST_PATH="${{ runner.temp }}/Qt/6.8.3/gcc_64" -DQT_ANDROID_SIGN_APK=OFF -DQGC_STABLE_BUILD=ON -DQGC_USE_CACHE=ON
       - name: Build arm64 APK
-        run: cmake --build build --target all --config Release --parallel
+        shell: bash
+        run: |
+          set -o pipefail
+          # Limit compiler concurrency on hosted runners to reduce peak RAM use.
+          # Persist a short failure tail in the job summary even if artifacts fail.
+          echo "ARM64 build: max 2 parallel compile jobs" | tee build/arm64-build.log
+          if cmake --build build --target all --config Release --parallel 2 2>&1 | tee -a build/arm64-build.log; then
+            echo "ARM64 build succeeded" >> "$GITHUB_STEP_SUMMARY"
+          else
+            rc=${PIPESTATUS[0]}
+            echo "### ARM64 build failed (exit ${rc})" >> "$GITHUB_STEP_SUMMARY"
+            echo '```text' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 90 build/arm64-build.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            exit "$rc"
+          fi
       - name: Prepare installable APK
         run: |
           set -euo pipefail
@@ -145,11 +165,27 @@ jobs:
           else cp "$APK" build/NAVO_SMART.apk; fi
           "$APKSIGNER" verify --verbose --print-certs build/NAVO_SMART.apk
           "$AAPT" dump badging build/NAVO_SMART.apk | head -n 8
+      - name: Reclaim arm64 build space for x86_64 emulator build
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The arm64 APK was signed and verified in the previous step. Preserve it
+          # while removing only disposable arm64 compiler outputs before x86_64.
+          test -s build/NAVO_SMART.apk
+          mv build/NAVO_SMART.apk "${RUNNER_TEMP}/NAVO_SMART-arm64.apk"
+          rm -rf build
+          mkdir -p build
+          mv "${RUNNER_TEMP}/NAVO_SMART-arm64.apk" build/NAVO_SMART.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify build/NAVO_SMART.apk
+          df -h /
+          # Fail early with an explicit infrastructure diagnostic rather than
+          # a misleading clang failure after another lengthy native build.
+          test "$(df -Pk / | awk 'NR==2 {print $4}')" -gt 5242880 || { echo "::error::Less than 5 GiB free for x86_64 build after arm64 cleanup"; exit 1; }
       - name: Configure x86_64 smoke-test APK
         run: |
           mkdir -p build-x86
           "${{ runner.temp }}/Qt/6.8.3/android_x86_64/bin/qt-cmake" -S qgc -B build-x86 -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release -DQT_ANDROID_ABIS=x86_64 -DQT_ANDROID_BUILD_ALL_ABIS=OFF \
+            -DCMAKE_BUILD_TYPE=Release -DNAVO_ANDROID_ACCEPTANCE=ON -DQT_ANDROID_ABIS=x86_64 -DQT_ANDROID_BUILD_ALL_ABIS=OFF \
             -DQT_HOST_PATH="${{ runner.temp }}/Qt/6.8.3/gcc_64" -DQT_ANDROID_SIGN_APK=OFF -DQGC_STABLE_BUILD=ON -DQGC_USE_CACHE=ON
       - name: Build x86_64 smoke-test APK
         run: cmake --build build-x86 --target all --config Release --parallel
@@ -171,6 +207,26 @@ jobs:
           set -euo pipefail
           mkdir -p build/screenshots "$ANDROID_AVD_HOME"
           sudo chmod 666 /dev/kvm || true
+
+          # The signed x86 APK is the only x86 build product used by this smoke
+          # test. Release native objects, Gradle intermediates and Qt Android
+          # SDKs BEFORE installing the emulator/system image. Without cleanup
+          # the emulator rejects the AVD with insufficient host disk space.
+          test -s build-x86/NAVO_SMART-x86.apk
+          mv build-x86/NAVO_SMART-x86.apk "${RUNNER_TEMP}/NAVO_SMART-x86-signed.apk"
+          rm -rf build-x86
+          mkdir -p build-x86
+          mv "${RUNNER_TEMP}/NAVO_SMART-x86-signed.apk" build-x86/NAVO_SMART-x86.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify build-x86/NAVO_SMART-x86.apk
+          rm -rf "$HOME/.gradle/caches" \
+                 "${RUNNER_TEMP}/Qt/6.8.3/android_arm64_v8a" \
+                 "${RUNNER_TEMP}/Qt/6.8.3/android_x86_64"
+          echo "Disk capacity after disposing of finished build intermediates:"
+          df -h /
+          test "$(df -Pk / | awk 'NR==2 {print $4}')" -gt 5242880 || {
+            echo "::error::Less than 5 GiB available before emulator installation"
+            exit 1
+          }
 
           sdkmanager "emulator" "system-images;android-34;default;x86_64"
 
@@ -266,6 +322,11 @@ jobs:
 
           NAVO_UI_STATUS=0
           python3 tests/android/ui-smoke.py || NAVO_UI_STATUS=$?
+          if [ "$NAVO_UI_STATUS" -eq 0 ]; then
+            curl --fail --location --retry 3 --max-time 180 https://kogger.tech/wp-content/uploads/00028_DownView.klf -o /tmp/00028_DownView.klf
+            python3 tests/android/functional-acceptance.py "$PACKAGE" "$ACTIVITY" /tmp/00028_DownView.klf || NAVO_UI_STATUS=$?
+            adb -s emulator-5554 shell am start -W -n "$PACKAGE/$ACTIVITY"
+          fi
           adb -s emulator-5554 shell dumpsys window windows > build/window.txt || true
           adb -s emulator-5554 shell dumpsys activity activities > build/activity.txt || true
           adb -s emulator-5554 logcat -d > build/navo-logcat.txt || true
@@ -280,6 +341,20 @@ jobs:
       - name: Compiler cache statistics
         if: always()
         run: ccache --show-stats
+      - name: Save compiler cache after functional checks
+        if: always() && steps.compiler-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ${{ steps.compiler-cache.outputs.cache-primary-key }}
+      - name: Upload ARM64 build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: NAVO-SMART-ARM64-BUILD-LOG
+          path: build/arm64-build.log
+          if-no-files-found: warn
+          retention-days: 7
       - name: Upload Android smoke-test evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -294,6 +369,7 @@ jobs:
             build/navo-logcat.txt
             build/navo-screenshot.png
             build/screenshots/*.png
+            build/acceptance/**
           if-no-files-found: warn
       - name: Upload installable APK
         if: always()

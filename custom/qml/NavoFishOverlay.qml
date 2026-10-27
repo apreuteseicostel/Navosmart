@@ -5,6 +5,7 @@ import QtPositioning
 
 Item {
     id: root
+    property bool showLayer: true
     required property var map
     property var fishModel
     property var selectedHotspot: null
@@ -13,6 +14,7 @@ Item {
     Repeater {
         model: fishModel ? fishModel.hotspots : []
         delegate: MapQuickItem {
+            visible:root.showLayer
             required property var modelData
             Component.onCompleted: { parent = root.map; root.map.addMapItem(this) }
             Component.onDestruction: root.map.removeMapItem(this)

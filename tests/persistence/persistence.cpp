@@ -8,6 +8,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QtTest>
+#include <cmath>
 
 static bool failWrites=false;
 static bool readSettings(QIODevice& device,QSettings::SettingsMap& map){QDataStream stream(&device);stream>>map;return stream.status()==QDataStream::Ok;}
@@ -15,6 +16,61 @@ static bool writeSettings(QIODevice& device,const QSettings::SettingsMap& map){i
 class PersistenceTests:public QObject {
  Q_OBJECT
 private slots:
+ void structuredFishingEntries() {
+  QTemporaryDir directory;QVERIFY(directory.isValid());
+  const auto format=QSettings::registerFormat("structuredjournal",readSettings,writeSettings);
+  QSettings::setDefaultFormat(format);QSettings::setPath(format,QSettings::UserScope,directory.path());failWrites=false;
+  NavoPersistence store;const auto lake=store.saveLake({{"name","Lake"}});const auto trip=store.startFishingTrip(lake,"Captures");
+  const auto id=store.saveFishingEntry(trip,{{"type","catch"},{"text","Released"},{"species"," Carp "},{"weightKg",2.375},{"bait"," Corn "},{"positionValid",true},{"lat",52.0},{"lon",0.0},{"depth",2.0}});QVERIFY(!id.isEmpty());
+  auto entry=store.fishingTrips()[0].toMap().value("entries").toList()[0].toMap();
+  QCOMPARE(entry.value("species").toString(),QString("Carp"));QCOMPARE(entry.value("weightKg").toDouble(),2.375);QCOMPARE(entry.value("bait").toString(),QString("Corn"));
+  const auto time=entry.value("createdAt");
+  {NavoPersistence restart;QCOMPARE(restart.fishingTrips(),store.fishingTrips());}
+  for(const auto& bad:{QVariant(-1.0),QVariant(0),QVariant(1001.0),QVariant(qQNaN()),QVariant(INFINITY),QVariant(true),QVariant("2.5")}){
+   const auto before=store.fishingTrips();QVERIFY(store.saveFishingEntry(trip,{{"id",id},{"type","catch"},{"text","Bad"},{"weightKg",bad}}).isEmpty());QCOMPARE(store.fishingTrips(),before);
+  }
+  QVERIFY(store.saveFishingEntry(trip,{{"type","catch"},{"text","Long"},{"species",QString(81,'x')}}).isEmpty());
+  QVERIFY(store.saveFishingEntry(trip,{{"type","bait"},{"text","Long"},{"bait",QString(121,'x')}}).isEmpty());
+  auto before=store.fishingTrips();failWrites=true;
+  QVERIFY(store.saveFishingEntry(trip,{{"id",id},{"type","catch"},{"text","Failed"},{"weightKg",9.0}}).isEmpty());QCOMPARE(store.fishingTrips(),before);
+  failWrites=false;{QSettings settings;settings.sync();NavoPersistence restart;QCOMPARE(restart.fishingTrips(),before);}
+  QVERIFY(!store.saveFishingEntry(trip,{{"id",id},{"type","catch"},{"text","Legacy correction"},{"lat",0},{"lon",10}}).isEmpty());
+  entry=store.fishingTrips()[0].toMap().value("entries").toList()[0].toMap();QCOMPARE(entry.value("weightKg").toDouble(),2.375);QCOMPARE(entry.value("lat").toDouble(),52.0);QCOMPARE(entry.value("createdAt"),time);
+  QVERIFY(store.finishFishingTrip(trip));
+  QVERIFY(!store.saveFishingEntry(trip,{{"id",id},{"type","catch"},{"text","Unknown weight"},{"weightKg",QVariant()},{"species",""},{"bait",""}}).isEmpty());
+  entry=store.fishingTrips()[0].toMap().value("entries").toList()[0].toMap();QVERIFY(!entry.contains("weightKg") && !entry.contains("species") && !entry.contains("bait"));
+  QVERIFY(!store.saveFishingEntry(trip,{{"id",id},{"type","catch"},{"text","Updated"},{"weightKg",3.0},{"species","Carp"},{"bait","Pellet"}}).isEmpty());
+  QVERIFY(!store.saveFishingEntry(trip,{{"id",id},{"type","bait"},{"text","Reclassified"}}).isEmpty());
+  entry=store.fishingTrips()[0].toMap().value("entries").toList()[0].toMap();QVERIFY(!entry.contains("weightKg") && !entry.contains("species"));QCOMPARE(entry.value("bait").toString(),QString("Pellet"));
+  {NavoPersistence restart;QCOMPARE(restart.fishingTrips(),store.fishingTrips());}
+ }
+ void fishingJournalRestartAndFailures() {
+  QTemporaryDir directory;QVERIFY(directory.isValid());
+  const auto format=QSettings::registerFormat("journaltest",readSettings,writeSettings);
+  QSettings::setDefaultFormat(format);QSettings::setPath(format,QSettings::UserScope,directory.path());
+  NavoPersistence store;
+  const auto lake=store.saveLake({{"name","Lake"}});
+  QVERIFY(store.startFishingTrip("missing","Trip").isEmpty());
+  const auto trip=store.startFishingTrip(lake,"Trip");QVERIFY(!trip.isEmpty());
+  QVERIFY(store.startFishingTrip(lake,"Other").isEmpty());
+  const auto entry=store.saveFishingEntry(trip,{{"type","catch"},{"text","Carp 2kg"},{"positionValid",true},{"lat",52.0},{"lon",0.0},{"depth",2.5}});QVERIFY(!entry.isEmpty());
+  auto entries=store.fishingTrips()[0].toMap().value("entries").toList();QCOMPARE(entries[0].toMap().value("lon").toDouble(),0.0);
+  const auto unknown=store.saveFishingEntry(trip,{{"type","note"},{"text","GPS lost"},{"positionValid",false},{"lat",52.0},{"lon",0.0}});QVERIFY(!unknown.isEmpty());
+  entries=store.fishingTrips()[0].toMap().value("entries").toList();QVERIFY(!entries[0].toMap().contains("lat"));
+  QVERIFY(store.saveFishingEntry(trip,{{"type","note"},{"text",QString(1001,'x')}}).isEmpty());
+  const auto before=store.fishingTrips();QSignalSpy changed(&store,&NavoPersistence::fishingTripsChanged);
+  failWrites=true;QVERIFY(!store.finishFishingTrip(trip));QVERIFY(!store.deleteFishingEntry(trip,entry));QVERIFY(!store.deleteFishingTrip(trip));QCOMPARE(store.fishingTrips(),before);QCOMPARE(changed.count(),0);
+  failWrites=false;{QSettings settings;settings.sync();}
+  {NavoPersistence reopened;QCOMPARE(reopened.fishingTrips(),before);}
+  QVERIFY(store.finishFishingTrip(trip));
+  QVERIFY(store.saveFishingEntry(trip,{{"type","note"},{"text","Late"}}).isEmpty());
+  QVERIFY(!store.saveFishingEntry(trip,{{"id",entry},{"type","catch"},{"text","Carp 2.1kg"},{"lat",0},{"lon",0}}).isEmpty());
+  entries=store.fishingTrips()[0].toMap().value("entries").toList();QCOMPARE(entries[1].toMap().value("lat").toDouble(),52.0);
+  QVERIFY(store.deleteLake(lake)); // journal retains historical lake name and entries
+  {NavoPersistence reopened;QCOMPARE(reopened.fishingTrips(),store.fishingTrips());QCOMPARE(reopened.fishingTrips()[0].toMap().value("lakeName").toString(),QString("Lake"));}
+  QVERIFY(store.deleteFishingEntry(trip,unknown));QVERIFY(store.deleteFishingTrip(trip));
+  {NavoPersistence reopened;QVERIFY(reopened.fishingTrips().isEmpty());}
+ }
  void catalogMigrationDeletionAndRollback() {
   QTemporaryDir directory;QVERIFY(directory.isValid());
   const auto format=QSettings::registerFormat("navotest",readSettings,writeSettings);

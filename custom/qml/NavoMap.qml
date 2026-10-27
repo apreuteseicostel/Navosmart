@@ -2,6 +2,8 @@ import QtQuick
 import QtPositioning
 import QtLocation
 import QtQuick.Controls
+import QtQuick.Layouts
+import QtCore
 
 import QGroundControl
 import QGroundControl.Controllers
@@ -9,6 +11,7 @@ import QGroundControl.FlightMap
 
 Item {
     id: root
+    objectName:"navoMap"
 
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
     property var planController
@@ -19,8 +22,20 @@ Item {
     onRecordedReplayChanged: if(recordedReplay) { cancelAreaDrawing(); baitPointPickMode=false; fishingSaveDialog.close(); renameDialog.close() }
     property var fishingSpotsModel
     property var bathymetryCells: []
+    property var nativeSurfaceMesh: ({})
+    property var nativeSurfaceBridge: null
+    readonly property bool nativeSurfaceReady: !!nativeSurfaceMesh && nativeSurfaceMesh.version===1 && !!nativeSurfaceMesh.indices && nativeSurfaceMesh.indices.length>=3 && nativeSurfaceMesh.indices.length<=49152 && !!nativeSurfaceMesh.vertices && nativeSurfaceMesh.vertices.length<=8192
     property bool replayPreview: false
     property var replayTrack: []
+    property bool routeActive: false
+    property var routeStops: []
+    property bool routeReturnsHome: true
+    Settings {
+        id:layerSettings; category:"NavoMapLayers"
+        property bool trackVisible:true
+        property bool plannedVisible:true
+        property bool fishVisible:true
+    }
     function followReplay() {
         if (!replayPreview || !replayTrack.length) return
         if (!initialCenterApplied || autoFollowBoat) {
@@ -54,6 +69,36 @@ Item {
     readonly property var operatorCoordinate: QGroundControl.qgcPositionManger && QGroundControl.qgcPositionManger.gcsPosition && QGroundControl.qgcPositionManger.gcsPosition.isValid ? QGroundControl.qgcPositionManger.gcsPosition : operatorPositionSource.position.coordinate
     readonly property bool operatorLocationValid: operatorCoordinate && operatorCoordinate.isValid
 
+    signal offlineMapsRequested(var region)
+    property bool offlinePickMode:false
+    property var offlinePickCorners:[]
+    function beginOfflinePick(){
+        if(recordedReplay)return false
+        cancelAreaDrawing();baitPointPickMode=false;rulerMode=false
+        offlinePickCorners=[];offlinePickMode=true;autoFollowBoat=false
+        return true
+    }
+    function finishOfflinePick(){
+        if(offlinePickCorners.length!==2)return
+        var a=offlinePickCorners[0],b=offlinePickCorners[1]
+        var region={west:Math.min(a.longitude,b.longitude),east:Math.max(a.longitude,b.longitude),south:Math.min(a.latitude,b.latitude),north:Math.max(a.latitude,b.latitude),zoom:liveMap.zoomLevel,mapType:liveMap.activeMapType.name}
+        if(!isFinite(region.west) || !isFinite(region.east) || !isFinite(region.north) || !isFinite(region.south) || region.east-region.west<0.00001 || region.east-region.west>180 || region.north-region.south<0.00001 || region.south< -85 || region.north>85)return
+        offlinePickMode=false;offlinePickCorners=[]
+        offlineMapsRequested(region)
+    }
+    function offlineRegion() {
+        var corners=[liveMap.toCoordinate(Qt.point(0,0),false),liveMap.toCoordinate(Qt.point(liveMap.width,0),false),liveMap.toCoordinate(Qt.point(0,liveMap.height),false),liveMap.toCoordinate(Qt.point(liveMap.width,liveMap.height),false)]
+        var west=180,east=-180,north=-90,south=90
+        for(var i=0;i<corners.length;i++){if(!corners[i].isValid)return ({});west=Math.min(west,corners[i].longitude);east=Math.max(east,corners[i].longitude);north=Math.max(north,corners[i].latitude);south=Math.min(south,corners[i].latitude)}
+        if(east-west>180)return ({})
+        return {west:west,east:east,north:north,south:south,zoom:liveMap.zoomLevel,mapType:liveMap.activeMapType.name}
+    }
+    function showOfflineRegion(region) {
+        if(!region || !isFinite(region.west) || !isFinite(region.east))return
+        autoFollowBoat=false;initialCenterApplied=true
+        liveMap.center=QtPositioning.coordinate((region.north+region.south)/2,(region.west+region.east)/2)
+        liveMap.zoomLevel=region.zoom
+    }
     signal navigateRequested(var coordinate)
     signal savePointRequested(var coordinate)
     signal saveNamedPointRequested(var coordinate, string name, string markerColor)
@@ -64,6 +109,8 @@ Item {
     signal baitingWaypointSelected(var waypoint)
     signal baitPointPicked(var coordinate)
     signal maximizeRequested()
+    property bool spotActionsAllowed: true
+    signal fishingSpotActionRequested(var spot, string action, int hopper, real scanSizeM)
     signal fishingSpotRenameRequested(var spot)
     signal fishingSpotsRequested(var spot)
 
@@ -114,6 +161,7 @@ Item {
     function followBoat() {
         if (replayPreview) { autoFollowBoat=true; followReplay(); return }
         if (!vehicle || !vehicle.coordinate || !vehicle.coordinate.isValid) return
+        pendingMissionFit=false
         autoFollowBoat = true
         liveMap.center = vehicle.coordinate
         adjustBoatFraming()
@@ -128,6 +176,53 @@ Item {
             if (liveMap.zoomLevel > 3) liveMap.zoomLevel = Math.max(3,liveMap.zoomLevel-0.5)
         }
     }
+    // Frame only this mission, excluding unrelated lake markers and sonar history.
+    function missionCoordinates() {
+        if(recordedReplay) return []
+        var points=[]
+        function append(c) {
+            if(c && typeof c.latitude==="number" && typeof c.longitude==="number" &&
+               isFinite(c.latitude) && isFinite(c.longitude) && Math.abs(c.latitude)<=90 && Math.abs(c.longitude)<=180)
+                points.push(QtPositioning.coordinate(c.latitude,c.longitude))
+        }
+        if(routeStops.length) {
+            for(var i=0;i<routeStops.length;i++) append(routeStops[i])
+        } else if(areaScanController && areaScanController.generatedPoints) {
+            for(var j=0;j<areaScanController.generatedPoints.length;j++) append(areaScanController.generatedPoints[j])
+        }
+        if(!points.length) return []
+        if(vehicle) {
+            append(vehicle.coordinate)
+            if(routeReturnsHome) append(vehicle.homePosition)
+        }
+        return points
+    }
+    readonly property bool canFitMission: missionCoordinates().length>0
+    property bool pendingMissionFit: false
+    function fitMission() {
+        var points=missionCoordinates()
+        if(!points.length) {pendingMissionFit=false;return false}
+        if(!liveMap.mapReady || liveMap.width<100 || liveMap.height<100) {pendingMissionFit=true;return false}
+        pendingMissionFit=false
+        initialCenterApplied=true
+        autoFollowBoat=false
+        headingUp=false
+        // Give coincident/single destinations a local viewport rather than a world view.
+        var region=QtPositioning.rectangle(points)
+        if(region.width<0.00001 && region.height<0.00001) {
+            points.push(points[0].atDistanceAndAzimuth(40,0))
+            points.push(points[0].atDistanceAndAzimuth(40,180))
+            points.push(points[0].atDistanceAndAzimuth(40,90))
+            points.push(points[0].atDistanceAndAzimuth(40,270))
+            region=QtPositioning.rectangle(points)
+        }
+        liveMap.visibleRegion=region
+        // Extra room for marker labels and the map controls, in both orientations.
+        liveMap.zoomLevel=Math.max(liveMap.minimumZoomLevel,liveMap.zoomLevel-1)
+        layerSettings.plannedVisible=true
+        return true
+    }
+    onRouteActiveChanged:if(routeActive)Qt.callLater(fitMission)
     function resetView() {
         followBoat()
         liveMap.zoomLevel=Math.max(liveMap.zoomLevel,lakeZoomLevel)
@@ -138,7 +233,7 @@ Item {
     function toggleMapLayer() { bathymetryHDEnabled=!bathymetryHDEnabled; mapLayerMenuOpen=false }
     function operatorBoatDistanceText() {
         if(!operatorLocationValid || !vehicle || !vehicle.coordinate || !vehicle.coordinate.isValid) return "--"
-        var d=operatorPositionSource.position.coordinate.distanceTo(vehicle.coordinate)
+        var d=operatorCoordinate.distanceTo(vehicle.coordinate)
         return d>=1000 ? (d/1000).toFixed(2)+" km" : Math.round(d)+" m"
     }
     function rulerDistanceText() {
@@ -176,8 +271,10 @@ Item {
 
     FlightMap {
         id: liveMap
+        objectName:"navoLiveMap"
         anchors.fill: parent
         bearing: !root.recordedReplay && root.headingUp && isFinite(root.boatHeadingDeg) ? root.boatHeadingDeg : 0
+        onMapReadyChanged:if(mapReady && root.pendingMissionFit)Qt.callLater(root.fitMission)
         Behavior on bearing { NumberAnimation { duration: 250 } }
     }
 
@@ -248,28 +345,67 @@ Item {
     }
     MapPolyline {
         parent: liveMap
-        visible: root.replayPreview
+        visible: root.replayPreview && layerSettings.trackVisible
         path: root.replayTrack
         line.width: 3; line.color: "#21b7ff"
         Component.onCompleted: liveMap.addMapItem(this)
         Component.onDestruction: liveMap.removeMapItem(this)
     }
-    NavoActualTrack { id: actualTrack; map: liveMap; vehicle: root.recordedReplay ? null : root.vehicle; taskActive: !root.recordedReplay && !!root.vehicle }
-    NavoAreaScanOverlay { map: liveMap; areaScan: root.recordedReplay ? null : root.areaScanController }
-    NavoFishOverlay { map: liveMap; fishModel: root.recordedReplay ? null : root.fishModel }
+    MapPolyline {
+        id:plannedRoute; parent:liveMap
+        visible:layerSettings.plannedVisible && !root.recordedReplay && root.routeStops.length>0
+        path: {
+            var points=[]
+            if(root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid) points.push(root.vehicle.coordinate)
+            for(var i=0;i<root.routeStops.length;i++) points.push(QtPositioning.coordinate(root.routeStops[i].latitude,root.routeStops[i].longitude))
+            if(root.routeReturnsHome && root.vehicle && root.vehicle.homePosition && root.vehicle.homePosition.isValid)points.push(root.vehicle.homePosition)
+            return points
+        }
+        line.width:3; line.color:"#b28bff"
+        Component.onCompleted:liveMap.addMapItem(this)
+        Component.onDestruction:liveMap.removeMapItem(this)
+    }
+    Repeater {
+        model:!root.recordedReplay ? root.routeStops : []
+        delegate:MapQuickItem {
+            required property var modelData
+            required property int index
+            visible:layerSettings.plannedVisible
+            coordinate:QtPositioning.coordinate(modelData.latitude,modelData.longitude)
+            anchorPoint.x:14; anchorPoint.y:14; z:900
+            sourceItem:Rectangle { width:28;height:28;radius:14;color:"#302144";border.color:"#b28bff"
+                Label{anchors.centerIn:parent;text:String(index+1);color:"white";font.bold:true} }
+            Component.onCompleted:{parent=liveMap;liveMap.addMapItem(this)}
+            Component.onDestruction:liveMap.removeMapItem(this)
+        }
+    }
+    NavoActualTrack { id: actualTrack; showTrack:layerSettings.trackVisible; map: liveMap; vehicle: root.recordedReplay ? null : root.vehicle; taskActive: !root.recordedReplay && !!root.vehicle }
+    NavoAreaScanOverlay { showLayer:layerSettings.plannedVisible; map: liveMap; areaScan: root.recordedReplay ? null : root.areaScanController }
+    NavoFishOverlay { showLayer:layerSettings.fishVisible; map: liveMap; fishModel: root.recordedReplay ? null : root.fishModel }
+    NavoNativeBathymetryOverlay {
+        map: liveMap
+        surface: root.nativeSurfaceMesh
+        nativeBridge: root.nativeSurfaceBridge
+        active: root.bathymetryHDEnabled && root.nativeSurfaceReady
+    }
     NavoBathymetryHDOverlay {
         map: liveMap
         cells: root.bathymetryCells
-        enabled: root.bathymetryHDEnabled
+        enabled: root.bathymetryHDEnabled && !root.nativeSurfaceReady
         resolution: root.maximized ? 34 : 28
     }
     NavoBathymetryOverlay {
+        id:savedPointsOverlay
+        boatCoordinate:root.vehicle ? root.vehicle.coordinate : null
+        actionsAllowed:root.spotActionsAllowed && !root.recordedReplay && !root.routeActive && !(root.baitingController && root.baitingController.enabled)
+        onSpotActionRequested:function(spot,action,hopper,scanSizeM){if(!root.recordedReplay)root.fishingSpotActionRequested(spot,action,hopper,scanSizeM)}
         map: liveMap
         bathymetryCells: root.bathymetryCells
         showBathymetryCells: !root.bathymetryHDEnabled
         fishingSpotsModel: root.recordedReplay ? null : root.fishingSpotsModel
         onNavigateSpotRequested: function(spot) { root.navigateRequested(QtPositioning.coordinate(Number(spot.lat),Number(spot.lon))) }
         onBaitSpotRequested: function(spot) {
+            if(root.routeActive || (root.baitingController && root.baitingController.enabled))return
             var c=QtPositioning.coordinate(Number(spot.lat),Number(spot.lon))
             var wp={coordinate:c,name:spot.name,sequenceNumber:0}
             if(root.baitingController) root.baitingController.targetWaypoint=wp
@@ -280,6 +416,7 @@ Item {
     }
 
     NavoWaypointMapOverlay {
+        navigationAllowed:!root.recordedReplay && !root.routeActive && !(root.baitingController && root.baitingController.enabled)
         map: liveMap
         missionController: !root.recordedReplay && root.planController ? root.planController.missionController : null
         vehicle: root.recordedReplay ? null : root.vehicle
@@ -287,9 +424,10 @@ Item {
         savedDepthM: root.savedDepthM
         savedWaterTempC: root.savedWaterTempC
         onNavigationCommandSent: function(wp, accepted) {
-            if (accepted && root.baitingController) root.baitingController.targetWaypoint = wp
+            if (accepted && !root.routeActive && root.baitingController && !root.baitingController.enabled) root.baitingController.targetWaypoint = wp
         }
         onWaypointSelected: function(wp) {
+            if(root.routeActive || (root.baitingController && root.baitingController.enabled))return
             if(root.baitingController) root.baitingController.targetWaypoint=wp
             root.baitingWaypointSelected(wp)
         }
@@ -350,9 +488,37 @@ Item {
             sourceItem: Rectangle { width: 12; height: 12; radius: 6; color: "#26c6da"; border.color: "white" }
         }
     }
+    MapPolyline {
+        parent:liveMap
+        visible:root.offlinePickMode && root.offlinePickCorners.length===2
+        path:{
+            if(root.offlinePickCorners.length!==2)return []
+            var a=root.offlinePickCorners[0],b=root.offlinePickCorners[1]
+            return [a,QtPositioning.coordinate(a.latitude,b.longitude),b,QtPositioning.coordinate(b.latitude,a.longitude),a]
+        }
+        line.width:4;line.color:"#ffcc33"
+        Component.onCompleted:liveMap.addMapItem(this)
+        Component.onDestruction:liveMap.removeMapItem(this)
+    }
+    MouseArea {
+        anchors.fill:parent;z:100;enabled:root.offlinePickMode
+        onClicked:function(mouse){
+            var c=liveMap.toCoordinate(Qt.point(mouse.x,mouse.y),false)
+            if(!c || !c.isValid)return
+            var pts=root.offlinePickCorners.length===2 ? [] : root.offlinePickCorners.slice(0)
+            pts.push(c);root.offlinePickCorners=pts
+        }
+    }
+    Row {
+        z:101;visible:root.offlinePickMode;spacing:8
+        anchors.horizontalCenter:parent.horizontalCenter
+        anchors.bottom:parent.bottom;anchors.bottomMargin:12
+        Button { text:"ANULEAZĂ";onClicked:{root.offlinePickMode=false;root.offlinePickCorners=[]} }
+        Button { text:root.offlinePickCorners.length===0?"COLȚ 1":root.offlinePickCorners.length===1?"COLȚ 2":"CONFIRMĂ ZONA";enabled:root.offlinePickCorners.length===2;onClicked:root.finishOfflinePick() }
+    }
     MouseArea {
         anchors.fill: parent
-        enabled: !root.recordedReplay && root.areaDrawMode !== "none"
+        enabled: !root.offlinePickMode && !root.recordedReplay && root.areaDrawMode !== "none"
         acceptedButtons: Qt.LeftButton
         preventStealing: root.areaDrawMode === "rectangle" && root.areaDraftPoints.length === 2
         onPressed: function(mouse) {
@@ -386,9 +552,11 @@ Item {
     }
     MouseArea {
         anchors.fill: parent
-        enabled: !root.recordedReplay && root.areaDrawMode === "none" && !root.baitPointPickMode && !root.rulerMode
+        enabled: !root.offlinePickMode && !root.recordedReplay && root.areaDrawMode === "none" && !root.baitPointPickMode && !root.rulerMode
         acceptedButtons: Qt.LeftButton
+        onClicked:function(mouse){savedPointsOverlay.openSpotAtPosition(mouse.x,mouse.y)}
         onPressAndHold: function(mouse) {
+            if(savedPointsOverlay.openSpotAtPosition(mouse.x,mouse.y))return
             var c=liveMap.toCoordinate(Qt.point(mouse.x,mouse.y),false)
             if(!c || !c.isValid)return
             root.pendingFishingCoordinate=c
@@ -398,13 +566,13 @@ Item {
         }
     }
     MouseArea {
-        anchors.fill:parent; z:20; enabled:root.rulerMode && root.areaDrawMode==="none" && !root.baitPointPickMode
+        anchors.fill:parent; z:20; enabled:!root.offlinePickMode && root.rulerMode && root.areaDrawMode==="none" && !root.baitPointPickMode
         onClicked:function(mouse){var c=liveMap.toCoordinate(Qt.point(mouse.x,mouse.y),false);if(!c||!c.isValid)return;var p=root.rulerPoints.slice(0);if(p.length>=2)p=[];p.push(c);root.rulerPoints=p}
     }
     MouseArea {
         anchors.fill: parent
         z: 40
-        enabled: !root.recordedReplay && root.baitPointPickMode && root.areaDrawMode === "none"
+        enabled: !root.offlinePickMode && !root.recordedReplay && root.baitPointPickMode && root.areaDrawMode === "none"
         acceptedButtons: Qt.LeftButton
         onClicked: function(mouse) {
             var c=liveMap.toCoordinate(Qt.point(mouse.x,mouse.y),false)
@@ -422,7 +590,7 @@ Item {
         Label { id:pickLabel; anchors.centerIn:parent; text:"ATINGE HARTA PENTRU PUNCTUL DE NĂDIRE"; color:"white"; font.bold:true; font.pixelSize:11 }
     }
     Dialog {
-        id: fishingSaveDialog; parent: Overlay.overlay; anchors.centerIn: parent; modal: true
+        id: fishingSaveDialog;objectName:"newSpotDialog"; parent: Overlay.overlay; anchors.centerIn: parent; modal: true
         title: "Salvează punct de pescuit"; standardButtons: Dialog.Save | Dialog.Cancel
         Column {
             spacing: 8
@@ -470,13 +638,15 @@ Item {
             property url iconSource: ""
             width:44;height:44;padding:0
             font.pixelSize:22;font.bold:true
-            background:Rectangle { radius:8;color:"#800d1722";border.color:"#8027394b";border.width:1 }
+            background:Rectangle { radius:8;color:parent.checked||parent.down?"#b0164963":"#800d1722";border.color:parent.checked?"#21b7ff":"#8027394b";border.width:1 }
             contentItem:Image { anchors.centerIn:parent;width:23;height:23;source:parent.iconSource;fillMode:Image.PreserveAspectFit }
         }
         MapTool { text:"BOAT"; iconSource:"qrc:/qml/NavoSmart/icons/boat.svg"; font.pixelSize:9; ToolTip.visible:hovered;ToolTip.text:"Centrează pe poziția actuală a bărcii";enabled:!!root.vehicle&&!!root.vehicle.coordinate&&root.vehicle.coordinate.isValid;onClicked:root.followBoat() }
+        MapTool { text:"TEL"; Accessible.name:"Centrează pe GPS-ul telefonului"; ToolTip.visible:hovered || down; ToolTip.text:root.operatorLocationValid ? "Centrează harta pe poziția telefonului" : "GPS telefon indisponibil • verifică permisiunea de localizare"; enabled:!root.recordedReplay && root.operatorLocationValid; onClicked:root.centerOnOperator() }
         MapTool { text:"+"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-in.svg";ToolTip.visible:hovered;ToolTip.text:"Mărește harta";onClicked:{root.autoFollowBoat=false;liveMap.zoomLevel=liveMap.zoomLevel+1} }
         MapTool { text:"-"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-out.svg";ToolTip.visible:hovered;ToolTip.text:"Micșorează harta";onClicked:{root.autoFollowBoat=false;liveMap.zoomLevel=liveMap.zoomLevel-1} }
-        MapTool { text:"CTR"; iconSource:"qrc:/qml/NavoSmart/icons/center.svg";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:"Reîncadrează harta și revine la orientarea Nord sus";onClicked:root.resetView() }
+        MapTool { checkable:true;checked:layersPopup.visible;Accessible.name:"Straturi hartă"; iconSource:"qrc:/qml/NavoSmart/icons/layers.svg"; ToolTip.visible:hovered||down; ToolTip.text:"Straturi hartă"; onClicked:layersPopup.open() }
+        MapTool { objectName:"mapFitMission";text:"CTR"; iconSource:root.canFitMission ? "qrc:/qml/NavoSmart/icons/route.svg" : "qrc:/qml/NavoSmart/icons/center.svg";font.pixelSize:10;Accessible.name:root.canFitMission ? "Încadrează întregul traseu" : "Resetează vederea hărții";ToolTip.visible:hovered;ToolTip.text:Accessible.name;onClicked:root.canFitMission ? root.fitMission() : root.resetView() }
     }
     Column {
         anchors.right:parent.right; anchors.top:parent.top; anchors.rightMargin:10; anchors.topMargin:10; spacing:5; z:200
@@ -492,6 +662,21 @@ Item {
         RightTool { text:"RUL"; iconSource:"qrc:/qml/NavoSmart/icons/ruler.svg";font.pixelSize:11;checkable:true;checked:root.rulerMode;ToolTip.visible:hovered;ToolTip.text:root.rulerMode?root.rulerDistanceText():"Măsoară distanța între două puncte";onClicked:root.toggleRuler() }
         RightTool { text:root.maximized?"MIN":"MAX"; iconSource:"qrc:/qml/NavoSmart/icons/fullscreen.svg";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:root.maximized?"Revino la dashboard":"Hartă pe tot ecranul";onClicked:root.maximizeRequested() }
     }
+    Popup {
+        id:layersPopup; parent:Overlay.overlay; anchors.centerIn:parent
+        width:Math.min(340,parent ? parent.width-24 : 340); modal:true; focus:true; padding:16; closePolicy:Popup.CloseOnEscape|Popup.CloseOnPressOutside
+        background:Rectangle{color:"#0b1c2e";radius:8;border.color:"#21b7ff";border.width:2}
+        contentItem:ColumnLayout {
+            spacing:8
+            Label{text:"STRATURI HARTĂ";color:"white";font.bold:true}
+            CheckBox{text:"Traseu parcurs / replay";palette.windowText:"#e9f2fa";checked:layerSettings.trackVisible;onToggled:layerSettings.trackVisible=checked}
+            CheckBox{text:"Traseu planificat / Area Scan";palette.windowText:"white";checked:layerSettings.plannedVisible;onToggled:layerSettings.plannedVisible=checked}
+            CheckBox{text:"Marcaje sonar";palette.windowText:"white";checked:layerSettings.fishVisible;onToggled:layerSettings.fishVisible=checked}
+            CheckBox{text:"Batimetrie HD";palette.windowText:"#e9f2fa";checked:root.bathymetryHDEnabled;onToggled:root.bathymetryHDEnabled=checked}
+            Button{text:"Salvează zona offline";onClicked:{var region=root.offlineRegion();layersPopup.close();root.offlineMapsRequested(region)}}
+            Button{text:"Închide";onClicked:layersPopup.close()}
+        }
+    }
     Rectangle {
         visible: root.showStatusHint
         anchors.left: mapControls.right; anchors.top: parent.top
@@ -506,7 +691,7 @@ Item {
                    (root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ?
                     "Traseu: " + actualTrack.trackCoordinates.length + " • " +
                     (root.areaScanController ? root.areaScanController.laneCount() : 0) + " culoare" :
-                    "GPS: AȘTEPTARE"))
+                    (root.operatorLocationValid ? "GPS TELEFON: OK • BARCA: AȘTEPTARE" : "GPS TELEFON: AȘTEPTARE • verifică permisiunea de locație")))
             color: "white"; font.pixelSize: 11; elide: Text.ElideRight
             width: parent.width - 14
         }
@@ -526,7 +711,25 @@ Item {
             initialCenterApplied=true
         }
     }
-    Component.onCompleted: centerOnBoatOnce()
+    // Center on the phone when no boat GPS is available; never use it for RTL.
+    function centerOnOperator() {
+        if(recordedReplay || !operatorLocationValid)return false
+        autoFollowBoat=false
+        initialCenterApplied=true
+        liveMap.center=operatorCoordinate
+        liveMap.zoomLevel=Math.max(liveMap.zoomLevel,lakeZoomLevel)
+        return true
+    }
+    function centerOnOperatorOnce() {
+        if(replayPreview || initialCenterApplied || !operatorLocationEnabled || !operatorLocationValid)return
+        if(vehicle && vehicle.coordinate && vehicle.coordinate.isValid)return
+        liveMap.center=operatorCoordinate
+        liveMap.zoomLevel=Math.max(liveMap.zoomLevel,lakeZoomLevel)
+        initialCenterApplied=true
+    }
+    onOperatorCoordinateChanged: Qt.callLater(centerOnOperatorOnce)
+    Component.onCompleted: { centerOnBoatOnce(); Qt.callLater(centerOnOperatorOnce) }
+    onOperatorLocationValidChanged: if(operatorLocationValid)centerOnOperatorOnce()
     onVehicleChanged: { initialCenterApplied=false; centerOnBoatOnce() }
 
     Connections {

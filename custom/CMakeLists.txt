@@ -1,5 +1,10 @@
 add_compile_definitions(NAVO_KOGGER_NATIVE_DATASET)
 message(STATUS "NAVO SMART: loading custom QGroundControl overlay")
+option(NAVO_ANDROID_ACCEPTANCE "Enable CI-only installed functional acceptance driver" OFF)
+if(NAVO_ANDROID_ACCEPTANCE)
+    set_property(SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.cc"
+        DIRECTORY "${CMAKE_SOURCE_DIR}" APPEND PROPERTY COMPILE_DEFINITIONS NAVO_ANDROID_ACCEPTANCE)
+endif()
 
 set_property(DIRECTORY ${CMAKE_SOURCE_DIR} APPEND PROPERTY COMPILE_DEFINITIONS
     QGC_CUSTOM_BUILD
@@ -21,6 +26,8 @@ qt_add_qml_module(NavoSmartModule
         QtQuick3D
     QML_FILES
         qml/NavoDashboard.qml
+        qml/NavoPreLaunchCheck.qml
+        qml/NavoAndroidAcceptance.qml
         qml/NavoMap.qml
         qml/NavoTelemetryCard.qml
         qml/NavoModeButton.qml
@@ -29,16 +36,27 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoWaypointMapOverlay.qml
         qml/NavoActualTrack.qml
         qml/NavoBaitingController.qml
+        qml/NavoRoutePlan.qml
+        qml/NavoRoutePanel.qml
+        qml/NavoMissionStatus.qml
         qml/NavoBaitingPanel.qml
         qml/NavoHopperBridge.qml
         qml/NavoSonarCard.qml
         qml/NavoSonarPro.qml
+        qml/NavoAlertAudio.qml
+        qml/NavoAlerts.qml
+        qml/NavoAlertSettings.qml
+        qml/NavoOfflineMaps.qml
+        qml/NavoFishingJournal.qml
+        qml/NavoReplayNotes.qml
         qml/NavoSonarFullScreen.qml
         qml/NavoCameraPip.qml
         qml/NavoSafetyCard.qml
         qml/NavoFailsafeController.qml
         qml/NavoFailsafePanel.qml
         qml/NavoDigitalAnchor.qml
+        qml/NavoSteeringAssist.qml
+        qml/NavoSteeringPanel.qml
         qml/NavoAreaScan.qml
         qml/NavoSonarRecorder.qml
         qml/NavoSonarMapping.qml
@@ -55,6 +73,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoFishingSpots.qml
         qml/NavoBathymetryOverlay.qml
         qml/NavoBathymetryHDOverlay.qml
+        qml/NavoNativeBathymetryOverlay.qml
         qml/NavoBathymetryHDModel.qml
         qml/NavoAreaScanOverlay.qml
         qml/NavoAreaDrawOverlay.qml
@@ -69,7 +88,14 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoBoatStatus.qml
         qml/NavoHeadingCompass.qml
         qml/NavoG20Settings.qml
+        qml/NavoG20Controller.qml
     RESOURCES
+        audio/alert.wav
+        # Imported by relative URL only. Exporting this script in qmldir makes
+        # Qt 6.8.3's implicit + explicit NavoSmart imports ambiguous at startup.
+        qml/NavoBottomAnalysis.js
+        icons/layers.svg
+        icons/route.svg
         icons/map.svg
         icons/sonar.svg
         icons/scan.svg
@@ -127,10 +153,14 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/KoggerApp/src/mosaic_index_provider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoAndroidAcceptance.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerReplay.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerReplay.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerRecorder.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerRecorder.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoSonarArchive.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerChartBridge.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDatasetAdapter.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerTcpClient.cc
@@ -143,8 +173,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoLanDiscovery.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoLanDiscovery.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoNanoTelemetry.cc
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoNanoTelemetry.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoH743Telemetry.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoH743Telemetry.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoBathymetryMesh.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoBathymetryMesh.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoBathymetryGeometry.cc

@@ -20,26 +20,51 @@ QtObject {
  signal holdRequested(string reason)
  signal rtlRequested(string reason)
  signal recovered(string subsystem,string action)
- onVehicleChanged: { linkLost=false; gpsLost=false; linkLostSince=0; gpsLostSince=0; gpsRtlPending=false; linkFailsafeIssued=false; status=vehicle?"Aștept telemetrie":"OFFLINE" }
+ onVehicleChanged: { linkLost=false; gpsLost=false; linkLostSince=0; gpsLostSince=0; gpsRtlPending=false; gpsHoldIssued=false; gpsRecoveryPending=false; linkFailsafeIssued=false; status=vehicle?"Aștept telemetrie":"OFFLINE" }
 
  function now(){return Date.now()}
- function gpsHealthy(){return vehicle && vehicle.gps && vehicle.gps.lock.rawValue>=minGpsFix && vehicle.coordinate && vehicle.coordinate.isValid}
+ function gpsHealthy(){return !!(vehicle && vehicle.gps && vehicle.gps.lock && isFinite(Number(vehicle.gps.lock.rawValue)) && Number(vehicle.gps.lock.rawValue)>=minGpsFix && vehicle.coordinate && vehicle.coordinate.isValid)}
  // QGC Vehicle exposes connectionLost; H743's own FS_GCS_* remains the authoritative
  // protection if the Android app itself disappears.
  function linkHealthy(){return vehicle && vehicle.vehicleLinkManager && !vehicle.vehicleLinkManager.communicationLost}
 
+ // Application-side GPS recovery and navigation requests must not override
+ // a pilot-selected MANUAL/ACRO mode. ArduPilot failsafes remain independent.
+ function manualControlActive(){
+  var mode=vehicle && vehicle.flightMode ? String(vehicle.flightMode).trim().toUpperCase() : ""
+  return mode==="MANUAL" || mode==="ACRO"
+ }
+ function clearAppFailsafeState(){
+  linkLost=false; gpsLost=false; linkLostSince=0; gpsLostSince=0
+  gpsRecoveryPending=false; linkFailsafeIssued=false; gpsHoldIssued=false; gpsRtlPending=false
+ }
  function tick(){
   if(!enabled||!vehicle)return
+  if(manualControlActive()){
+   var linkOk=linkHealthy(), gpsOk=gpsHealthy()
+   clearAppFailsafeState()
+   status=!linkOk ? "MANUAL/ACRO • LINK PIERDUT • verifică H743" :
+          !gpsOk ? "MANUAL/ACRO • GPS INVALID • verifică H743" :
+                   "MANUAL/ACRO • protecții H743 independente"
+   return
+  }
   var lh=linkHealthy()
   if(!lh){
    if(!linkLost){linkLost=true;linkLostSince=now();linkFailsafeIssued=false;status="LINK PIERDUT • reconectare"}
    var ls=Math.floor((now()-linkLostSince)/1000)
-   if(ls>=linkGraceSeconds){status="LINK PIERDUT • failsafe H743";if(!linkFailsafeIssued){linkFailsafeIssued=true;rtlRequested("Legătura G20/GR01 nu a revenit")}}
+   if(ls>=linkGraceSeconds){status="LINK PIERDUT • verifică failsafe H743 (RTL neconfirmat)";if(!linkFailsafeIssued){linkFailsafeIssued=true; /* Link absent: no MAVLink RTL command can be relied upon. H743 must own this failsafe. */ }}
   } else if(linkLost){
-   linkLost=false;linkLostSince=0;linkFailsafeIssued=false;status="LINK RESTABILIT";recovered("LINK","Control disponibil din nou")
+   linkLost=false;linkLostSince=0;linkFailsafeIssued=false;
+   // A GPS outage observed while disconnected cannot justify an automatic RTL on reconnection.
+   gpsLost=false;gpsLostSince=0;gpsRtlPending=false;gpsHoldIssued=false;gpsRecoveryPending=false;
+   status="LINK RESTABILIT";recovered("LINK","Verifică poziția și modul H743 înainte de continuare")
   }
 
   var gh=gpsHealthy()
+  if(!lh){
+   if(!gh && !gpsLost){gpsLost=true;gpsLostSince=now();gpsRecoveryPending=true;gpsRtlPending=false}
+   return
+  }
   if(!gh){
    if(!gpsLost){gpsLost=true;gpsLostSince=now();gpsRecoveryPending=true;gpsHoldIssued=true;gpsRtlPending=false;status="GPS PIERDUT • HOLD";holdRequested("GPS/poziție invalidă")}
    var gs=Math.floor((now()-gpsLostSince)/1000)

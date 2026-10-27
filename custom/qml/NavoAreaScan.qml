@@ -104,7 +104,9 @@ QtObject {
             var a=generatedPoints[i*2], b=generatedPoints[i*2+1]
             if(i===first && from&&from.isValid && from.distanceTo(b)<from.distanceTo(a)){out.push(b);out.push(a)}else{out.push(a);out.push(b)}
         }
-        paused=false; activeLaneIndex=first; return out
+        // Preparing a resume route does not resume the vehicle or sonar.
+        // Keep HOLD active until mission upload and activation are confirmed.
+        activeLaneIndex=first; return out
     }
     function exportMissionPoints(points){
         var src=points||generatedPoints, out=[]

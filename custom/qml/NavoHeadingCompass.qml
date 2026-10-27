@@ -26,8 +26,19 @@ Item {
     clip: false
 
     Rectangle {
+        anchors.fill: parent
+        anchors.margins: root.expanded ? -5 : 0
+        radius: width/2
+        visible: root.expanded
+        color: "#70000000"
+        border.color: "#304552"
+        border.width: 1
+    }
+    Rectangle {
         anchors.fill: parent; radius: width/2
-        color: root.expanded ? "#07131d99" : "transparent"; border.color: root.expanded ? (root.headingValid ? "#26c6da" : "#4d5b67") : "transparent"; border.width: root.expanded ? 2 : 0
+        color: root.expanded ? "#aa303a44" : "transparent"
+        border.color: root.expanded ? (root.headingValid ? "#c7e4ee" : "#82919d") : "transparent"
+        border.width: root.expanded ? 2 : 0
     }
 
     Item {
@@ -70,8 +81,8 @@ Item {
     Item {
         id: boat
         z: 2
-        opacity: root.expanded ? 0.88 : 1.0
-        width: Math.max(22, root.width * (root.expanded ? 0.30 : 0.38)); height: Math.max(36, root.height * (root.expanded ? 0.52 : 0.66)); anchors.centerIn: parent; anchors.horizontalCenterOffset: root.expanded ? 0 : -14
+        opacity: 1.0
+        width: Math.max(22, root.width * (root.expanded ? 0.35 : 0.38)); height: Math.max(36, root.height * (root.expanded ? 0.56 : 0.66)); anchors.centerIn: parent; anchors.horizontalCenterOffset: root.expanded ? 0 : -14
         rotation: root.normalizedHeading
         Behavior on rotation { RotationAnimation { duration: 260; direction: RotationAnimation.Shortest } }
         NavoBoatVisual { anchors.fill: parent }
