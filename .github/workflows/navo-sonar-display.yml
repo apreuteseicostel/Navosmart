@@ -1,10 +1,22 @@
 name: Sonar display regression and performance
+# Only sonar/bathymetry UI and dedicated performance-test changes trigger this workflow.
+# Dashboard-only GPS, mission and RC edits are covered by app/core CI, not sonar CI.
 on:
   push:
-    branches: [main, 'fix/**', feature/kogger-native-dataset-adapter-20261002]
-    paths: ['custom/qml/NavoDashboard.qml', 'custom/qml/NavoBathymetry3D.qml', 'custom/qml/NavoDigitalAnchor.qml', 'custom/qml/NavoEnergyGuard.qml', 'custom/qml/NavoSonarFullScreen.qml', 'custom/qml/NavoSonarPro.qml', 'custom/qml/NavoBathymetryHDOverlay.qml', 'tests/sonar-performance/**', '.github/workflows/navo-sonar-display.yml']
+    branches: [main]
+    paths:
+      - 'custom/qml/NavoSonar*.qml'
+      - 'custom/qml/NavoBathymetry*.qml'
+      - 'custom/qml/NavoNativeBathymetryOverlay.qml'
+      - 'tests/sonar-performance/**'
+      - '.github/workflows/navo-sonar-display.yml'
   pull_request:
-    paths: ['custom/qml/NavoDashboard.qml', 'custom/qml/NavoBathymetry3D.qml', 'custom/qml/NavoDigitalAnchor.qml', 'custom/qml/NavoEnergyGuard.qml', 'custom/qml/NavoSonarFullScreen.qml', 'custom/qml/NavoSonarPro.qml', 'custom/qml/NavoBathymetryHDOverlay.qml', 'tests/sonar-performance/**', '.github/workflows/navo-sonar-display.yml']
+    paths:
+      - 'custom/qml/NavoSonar*.qml'
+      - 'custom/qml/NavoBathymetry*.qml'
+      - 'custom/qml/NavoNativeBathymetryOverlay.qml'
+      - 'tests/sonar-performance/**'
+      - '.github/workflows/navo-sonar-display.yml'
   workflow_dispatch:
 permissions:
   contents: read

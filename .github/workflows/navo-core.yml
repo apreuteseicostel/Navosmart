@@ -1,8 +1,38 @@
 name: NAVO firmware and persistence
+# Validate firmware, application/controller code and the test suites they affect.
+# PRs are validated independently; do not duplicate tests on every fix/** push.
 on:
   push:
-    branches: [main, 'fix/**', 'feature/kogger-native-dataset-adapter-20261002']
+    branches: [main]
+    paths:
+      - 'ardupilot/**'
+      - 'firmware/**'
+      - 'custom/qml/**'
+      - 'custom/src/**'
+      - 'custom/icons/**'
+      - 'custom/CMakeLists.txt'
+      - 'tests/firmware/**'
+      - 'tests/persistence/**'
+      - 'tests/hardware/**'
+      - 'tests/*.mjs'
+      - 'tests/*ui.py'
+      - 'tests/qml-module-import.py'
+      - '.github/workflows/navo-core.yml'
   pull_request:
+    paths:
+      - 'ardupilot/**'
+      - 'firmware/**'
+      - 'custom/qml/**'
+      - 'custom/src/**'
+      - 'custom/icons/**'
+      - 'custom/CMakeLists.txt'
+      - 'tests/firmware/**'
+      - 'tests/persistence/**'
+      - 'tests/hardware/**'
+      - 'tests/*.mjs'
+      - 'tests/*ui.py'
+      - 'tests/qml-module-import.py'
+      - '.github/workflows/navo-core.yml'
   workflow_dispatch:
 permissions:
   contents: read
