@@ -1,29 +1,27 @@
 name: Kogger recorded CHART replay
+# Only changes to Kogger/sonar implementations or their dedicated tests trigger CI.
 on:
   push:
-    branches: [main, fix/g20-advanced-rc-integration-20261005]
-  pull_request:
+    branches: [main]
     paths:
       - 'custom/src/NavoKogger*'
-      - 'custom/src/NavoSonarArchive.h'
-      - 'custom/src/NavoAndroidAcceptance.h'
-      - 'custom/qml/NavoAndroidAcceptance.qml'
+      - 'custom/src/NavoSonar*'
       - 'custom/qml/NavoSonar*.qml'
-      - 'custom/qml/NavoDashboard.qml'
-      - 'custom/qml/NavoMap.qml'
       - 'custom/qml/NavoNativeBathymetryOverlay.qml'
-      - 'custom/qml/NavoScanCoordinator.qml'
-      - 'custom/src/NavoPersistence*'
-      - 'custom/qml/NavoHopperBridge.qml'
-      - 'custom/qml/NavoBaitingPanel.qml'
-      - '.github/workflows/android.yml'
-      - 'custom/CMakeLists.txt'
       - 'custom/kogger_native/**'
       - 'third_party/KoggerApp/**'
       - 'tests/kogger-replay/**'
       - 'tests/sonar-performance/**'
-      - '.github/workflows/kogger-replay.yml'
-  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'custom/src/NavoKogger*'
+      - 'custom/src/NavoSonar*'
+      - 'custom/qml/NavoSonar*.qml'
+      - 'custom/qml/NavoNativeBathymetryOverlay.qml'
+      - 'custom/kogger_native/**'
+      - 'third_party/KoggerApp/**'
+      - 'tests/kogger-replay/**'
+      - 'tests/sonar-performance/**'
 concurrency:
   group: kogger-replay-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: true
