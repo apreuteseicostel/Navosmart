@@ -4,6 +4,7 @@ import QtQuick.Controls
 Item {
     id: root
     property real headingDeg: NaN
+    property string headingSource: "Indisponibil"
     property real waypointBearingDeg: NaN
     property real rollDeg: NaN
     property real pitchDeg: NaN
@@ -107,6 +108,14 @@ Item {
             font.pixelSize:root.expanded ? 13 : Math.max(8,Math.min(12,root.width*0.072))
         }
         Label {
+            anchors.horizontalCenter: parent.horizontalCenter
+            visible: root.expanded
+            text: root.headingSource
+            color: root.headingSource.indexOf("GNSS")===0 ? "#31d6a5" : "#ffd166"
+            font.pixelSize: 10
+            font.bold: true
+        }
+        Label {
             anchors.horizontalCenter:parent.horizontalCenter
             visible:isFinite(root.courseError)
             text:root.expanded ? "TRASEU  "+(root.courseError<0?"← ":"→ ")+Math.abs(Math.round(root.courseError))+"°" : (root.courseError<0?"← ":"→ ")+Math.abs(Math.round(root.courseError))+"°"
@@ -116,6 +125,6 @@ Item {
     }
 
     ToolTip.visible: mouse.containsMouse
-    ToolTip.text: root.headingValid ? "Direcție "+Math.round(root.normalizedHeading)+"° "+root.cardinal+(isFinite(root.courseError)?" • abatere "+Math.round(root.courseError)+"°":"") : "Heading indisponibil"
+    ToolTip.text: root.headingValid ? root.headingSource+" • "+Math.round(root.normalizedHeading)+"° "+root.cardinal+(isFinite(root.courseError)?" • abatere "+Math.round(root.courseError)+"°":"") : "Heading indisponibil"
     MouseArea { id:mouse; anchors.fill:parent; hoverEnabled:true; onClicked: root.toggleRequested() }
 }
