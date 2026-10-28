@@ -89,3 +89,12 @@ The 28 Oct 2026 design direction is now applied to three additional menus in the
 - [ ] Full APK build/merge **not authorised**; all commits include \`[skip ci]\`.
 
 All menu navigation remains backed by existing NAVO controllers and persisted data. No fabricated readings, sonar sessions, fishing catches or downloaded map tiles are introduced.
+
+### Responsive follow-up and preservation audit (28 Oct 2026)
+
+- Journal header becomes two rows on narrow screens and trip action buttons wrap rather than leaving the NAVO card. This preserves the production `journalEntryEditor`, `journalEntrySave`, filtering and safety gates.
+- Offline map header, zoom controls and the download action use responsive GridLayout breakpoints (narrow/standard/tablet). All map-type, zoom, quota, download, pause/resume, show and delete actions still call the pre-existing map-engine manager.
+- Direct comparison with the `main` versions confirmed **18 unchanged core function bodies** across the three modules: 6 journal functions (`tripSummary`, `entryDetails`, `findTrip`, `findActive`, `beginEntry`, `saveEntry`), 4 offline functions (`estimate`, `useRegion`, `beginDownload`, `checkCreated`) and 8 lake functions (`sessionsForLake`, `selectLake`, `refreshSelected`, `addLake`, `beginRename`, `beginDelete`, `renameCurrentLake`, `deleteCurrentLake`).
+- Extended static regression scenarios for narrow-screen layouts and confirmation safeguards are committed in `tests/audit-regressions.mjs`, **but have not been executed**.
+- Source-level delimiter checks were performed on the three QML menus; these are **not** substitutes for Qt's QML parser, visual testing or user acceptance.
+- No workflow, Android APK compilation, emulator or hardware test has been started; PR #29 remains Draft and `main` is unchanged.
