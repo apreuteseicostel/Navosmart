@@ -51,7 +51,7 @@ Rectangle {
         property string tabIcon: ""
         property bool selected: root.selectedTab === tabIndex
         implicitHeight: 42
-        implicitWidth: tabIndex === 4 ? 177 : tabIndex === 3 ? 154 : 140
+        implicitWidth: root.width > 950 ? Math.max(140, (root.width - 105) / 5) : (tabIndex === 4 ? 177 : tabIndex === 3 ? 154 : 140)
         font.pixelSize: 13
         font.bold: selected
         onClicked: root.selectedTab = tabIndex
@@ -145,7 +145,10 @@ Rectangle {
 
     ScrollView {
         id: scroll
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: root.selectedTab === 0 ? saveFooter.top : parent.bottom
         anchors.margins: 9
         clip: true
         contentWidth: availableWidth
@@ -292,14 +295,6 @@ Rectangle {
                                 ToolTip.visible: hovered
                                 ToolTip.text: "Confirmă doar după calibrarea consumului pe barcă; debifează automat la schimbarea valorilor."
                             }
-                            ActionButton {
-                                text: "▣  Salvare"
-                                tint: root.cyan
-                                implicitWidth: 134
-                                implicitHeight: 39
-                                Accessible.name: "Salvează setările NAVO"
-                                onClicked: root.saveAll()
-                            }
                         }
                         Label {
                             visible: root.showEnergyHelp
@@ -399,6 +394,41 @@ Rectangle {
                 font.pixelSize: 11
                 wrapMode: Text.WordWrap
                 Accessible.name: root.statusText
+            }
+        }
+    }
+    // Keep Save accessible at the bottom of the viewport, even when cards scroll.
+    Rectangle {
+        id: saveFooter
+        visible: root.selectedTab === 0
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.leftMargin: 9
+        anchors.rightMargin: 9
+        anchors.bottomMargin: 5
+        height: 45
+        radius: 9
+        color: "#071d2d"
+        border.color: "#1b6680"
+        RowLayout {
+            anchors.fill: parent
+            anchors.margins: 4
+            spacing: 9
+            Label {
+                text: root.statusText.length ? root.statusText : "NAVO SMART • Setări"
+                color: root.statusText.length ? "#9be9e2" : "#c1d7e6"
+                font.pixelSize: 11
+                Layout.fillWidth: true
+                elide: Text.ElideRight
+            }
+            ActionButton {
+                text: "▣  Salvare"
+                tint: root.cyan
+                implicitWidth: 139
+                implicitHeight: 37
+                Accessible.name: "Salvează setările NAVO"
+                onClicked: root.saveAll()
             }
         }
     }
