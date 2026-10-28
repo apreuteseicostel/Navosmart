@@ -2033,138 +2033,209 @@ Item {
     Component {
         id: lakesPage
         Item {
-            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
+            id: lakesHome
+            property int selectedTab: 0
+            Rectangle { anchors.fill: parent; color: "#051521"; radius: 10; border.color: "#174c68" }
             ColumnLayout {
-                anchors.fill: parent; anchors.margins: root.compactUi ? 8 : 16; spacing: root.responsiveGap
-                Label { text: "BALȚILE MELE"; color: root.text; font.pixelSize: root.compactUi ? 16 : 20; font.bold: true }
-                Label {
+                anchors.fill: parent
+                anchors.margins: root.compactUi ? 8 : 11
+                spacing: 9
+                Rectangle {
                     Layout.fillWidth: true
-                    text: persistence.lakes.length + " bălți salvate • sonar + puncte + Area Scan + Resume"
-                    color: root.muted
-                    wrapMode: Text.WordWrap
-                    maximumLineCount: 2
-                    elide: Text.ElideRight
-                }
-                RowLayout {
-                    Layout.fillWidth: true
-                    TextField {
-                        id: inlineLakeName
-                        Layout.fillWidth: true
-                        placeholderText: "Nume baltă nouă"
-                        color: "#0b1118"
-                        placeholderTextColor: "#5f6b76"
-                        selectionColor: "#21b7ff"
-                        selectedTextColor: "#ffffff"
-                        palette.text: "#0b1118"
-                        palette.base: "#ffffff"
-                        palette.placeholderText: "#5f6b76"
-                        palette.highlight: "#21b7ff"
-                        palette.highlightedText: "#ffffff"
-                        background: Rectangle {
-                            color: "#ffffff"
-                            border.color: inlineLakeName.activeFocus ? "#21b7ff" : "#c7d0d8"
-                            border.width: inlineLakeName.activeFocus ? 2 : 1
-                            radius: 2
-                        }
-                        onAccepted: {
-                            addLakeButton.clicked()
-                            focus = false
+                    Layout.preferredHeight: 52
+                    color: "#071e30"; radius: 10; border.color: "#20d9ed"
+                    RowLayout {
+                        anchors.fill: parent; anchors.margins: 10
+                        Image { source: "qrc:/qml/NavoSmart/icons/lake.svg"; Layout.preferredWidth: 25; Layout.preferredHeight: 25 }
+                        Label { text: "BĂLȚILE MELE"; color: "#eff9ff"; font.pixelSize: root.compactUi ? 16 : 20; font.bold: true; Layout.fillWidth: true }
+                        Button {
+                            text: "Manager"
+                            Accessible.name: "Deschide managerul Bălțile mele"
+                            implicitWidth: 92; implicitHeight: 35
+                            onClicked: myLakesPopup.open()
+                            background: Rectangle { radius: 8; color: "#0a293e"; border.color: "#20d9ed" }
+                            contentItem: Label { text: parent.text; color: "#eff9ff"; font.pixelSize: 12; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                         }
                     }
-                    Button {
-                        id: addLakeButton
-                        text: "+ ADAUGĂ"
-                        enabled: inlineLakeName.text.trim().length > 0
-                        onClicked: {
-                            var name=inlineLakeName.text.trim()
-                            var id=persistence.saveLake({name:name})
-                            var found=false
-                            for (var i=0;i<persistence.lakes.length;i++)
-                                if (persistence.lakes[i].id===id) { found=true; break }
-                            if (found) {
-                                inlineLakeName.clear()
-                                root.lakeSaveStatus="Salvată: "+name
-                                // Make the new lake the active session immediately so
-                                // subsequent sonar/spots/Area Scan checkpoints belong to it.
-                                for (var j=0;j<persistence.lakes.length;j++) {
-                                    if (persistence.lakes[j].id===id) {
-                                        myLakesPopup.selectLake(persistence.lakes[j])
-                                        break
+                }
+                Rectangle {
+                    Layout.fillWidth: true; Layout.preferredHeight: 47
+                    color: "#071e30"; radius: 9; border.color: "#19546b"
+                    Flickable {
+                        anchors.fill: parent; anchors.margins: 5
+                        contentWidth: lakesHomeTabs.implicitWidth; contentHeight: height
+                        clip: true; boundsBehavior: Flickable.StopAtBounds
+                        Row {
+                            id: lakesHomeTabs; height: parent.height; spacing: 7
+                            Repeater {
+                                model: ["Bălți salvate", "Baltă activă", "Administrare"]
+                                delegate: Button {
+                                    required property string modelData
+                                    required property int index
+                                    implicitWidth: index === 0 ? 145 : 125
+                                    implicitHeight: 36
+                                    onClicked: lakesHome.selectedTab = index
+                                    background: Rectangle {
+                                        radius: 8
+                                        color: lakesHome.selectedTab===index ? "#10394d" : "#071e30"
+                                        border.color: lakesHome.selectedTab===index ? "#20d9ed" : "#26718b"
+                                        border.width: lakesHome.selectedTab===index ? 2 : 1
+                                    }
+                                    contentItem: Label {
+                                        text: modelData; color: "#eff9ff"; font.pixelSize: 12
+                                        font.bold: lakesHome.selectedTab===index
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
                                     }
                                 }
-                                scanCoordinator.checkpoint("lake-created")
-                            } else root.lakeSaveStatus="Salvarea a eșuat • încearcă din nou"
+                            }
                         }
                     }
                 }
-                Label { Layout.fillWidth: true; visible: root.lakeSaveStatus.length>0; text: root.lakeSaveStatus; color: root.accent }
-                ListView {
-                    Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 5
-                    model: persistence.lakes
-                    delegate: Rectangle {
-                        required property var modelData
-                        width: ListView.view.width; height: 48; radius: 7
-                        color: root.bg; border.color: root.line
+                Rectangle {
+                    visible: lakesHome.selectedTab===0
+                    Layout.fillWidth: true
+                    implicitHeight: 56
+                    color: "#061827"; border.color: "#20d9ed"; radius: 10
+                    RowLayout {
+                        anchors.fill: parent; anchors.margins: 9; spacing: 8
+                        TextField {
+                            id: inlineLakeName
+                            Layout.fillWidth: true
+                            implicitHeight: 37
+                            placeholderText: "Nume baltă nouă"
+                            color: "#eff9ff"; placeholderTextColor: "#a7c1d3"
+                            selectByMouse: true
+                            background: Rectangle { color: "#092439"; border.color: inlineLakeName.activeFocus ? "#20d9ed" : "#54869d"; radius: 8 }
+                            onAccepted: { addLakeButton.clicked(); focus = false }
+                        }
+                        Button {
+                            id: addLakeButton
+                            text: "+ Salvează"
+                            enabled: inlineLakeName.text.trim().length > 0
+                            implicitHeight: 36
+                            implicitWidth: 105
+                            onClicked: {
+                                var name=inlineLakeName.text.trim()
+                                var id=persistence.saveLake({name:name})
+                                var found=false
+                                for(var i=0;i<persistence.lakes.length;i++)
+                                    if(persistence.lakes[i].id===id){found=true;break}
+                                if(found){
+                                    inlineLakeName.clear()
+                                    root.lakeSaveStatus="Salvată: "+name
+                                    // Existing NAVO checkpoint preserves the sonar/spots/mission lake partition.
+                                    for(var j=0;j<persistence.lakes.length;j++)
+                                        if(persistence.lakes[j].id===id){myLakesPopup.selectLake(persistence.lakes[j]);break}
+                                    scanCoordinator.checkpoint("lake-created")
+                                } else root.lakeSaveStatus="Salvarea a eșuat • încearcă din nou"
+                            }
+                            background: Rectangle { radius: 8; color: "#0b3546"; border.color: parent.enabled ? "#37e9a2" : "#506778" }
+                            contentItem: Label { text: parent.text; color: parent.enabled ? "#eff9ff" : "#b7c3cf"; font.pixelSize: 12; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        }
+                    }
+                }
+                Label {
+                    visible: root.lakeSaveStatus.length>0
+                    Layout.fillWidth: true
+                    text: root.lakeSaveStatus; color: "#9be9e2"
+                    font.pixelSize: 11; wrapMode: Text.WordWrap
+                }
+                Rectangle {
+                    visible: lakesHome.selectedTab===0
+                    Layout.fillWidth: true; Layout.fillHeight: true
+                    color: "#061827"; border.color: "#20d9ed"; radius: 10
+                    ColumnLayout {
+                        anchors.fill: parent; anchors.margins: 9; spacing: 6
                         RowLayout {
-                            anchors.fill: parent; anchors.margins: 4; spacing: 4
-                            Button {
-                                Layout.fillWidth: true
-                                text: modelData.name || "Baltă"
-                                flat: true
-                                contentItem: Label {
-                                    text: parent.text
-                                    color: root.text
-                                    font.bold: true
-                                    verticalAlignment: Text.AlignVCenter
-                                    horizontalAlignment: Text.AlignHCenter
-                                    elide: Text.ElideRight
-                                }
-                                background: Rectangle {
-                                    radius: 6
-                                    color: parent.hovered ? "#183248" : "transparent"
-                                    border.color: parent.hovered ? root.accent : "transparent"
-                                }
-                                onClicked: {
-                                    myLakesPopup.selectLake(modelData)
-                                    myLakesPopup.open()
+                            Layout.fillWidth: true
+                            Label { text: "Bibliotecă bălți"; color: "#eff9ff"; font.bold: true; font.pixelSize: 15; Layout.fillWidth: true }
+                            Label { text: persistence.lakes.length+" salvate"; color: "#79eff0"; font.pixelSize: 11 }
+                        }
+                        Rectangle { Layout.fillWidth: true; height: 1; color: "#19546b" }
+                        ListView {
+                            Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 6
+                            model: persistence.lakes
+                            delegate: Rectangle {
+                                required property var modelData
+                                width: ListView.view.width; height: 52; radius: 8
+                                color: "#092334"; border.color: "#2a7892"
+                                RowLayout {
+                                    anchors.fill: parent; anchors.margins: 5; spacing: 7
+                                    Button {
+                                        Layout.fillWidth: true
+                                        Layout.fillHeight: true
+                                        text: modelData.name || "Baltă"
+                                        flat: true
+                                        contentItem: Label {
+                                            text: parent.text; color: "#eff9ff"; font.pixelSize: 13; font.bold: true
+                                            verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
+                                        }
+                                        onClicked: { myLakesPopup.selectLake(modelData); myLakesPopup.open() }
+                                    }
+                                    Button {
+                                        text: "✎"; implicitWidth: 36; implicitHeight: 36
+                                        ToolTip.visible: hovered; ToolTip.text: "Redenumește"
+                                        onClicked: { myLakesPopup.open(); myLakesPopup.beginRename(modelData) }
+                                        background: Rectangle { radius: 7; color: "#0b3546"; border.color: "#20d9ed" }
+                                        contentItem: Label { text: parent.text; color: "#eff9ff"; font.pixelSize: 17; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                                    }
+                                    Button {
+                                        text: "×"; implicitWidth: 36; implicitHeight: 36
+                                        ToolTip.visible: hovered; ToolTip.text: "Șterge"
+                                        onClicked: { myLakesPopup.open(); myLakesPopup.beginDelete(modelData) }
+                                        background: Rectangle { radius: 7; color: "#291e30"; border.color: "#ff8793" }
+                                        contentItem: Label { text: parent.text; color: "#ff8793"; font.pixelSize: 19; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                                    }
                                 }
                             }
-                            Button {
-                                text: "NUME"
-                                onClicked: {
-                                    myLakesPopup.open()
-                                    myLakesPopup.beginRename(modelData)
-                                }
-                            }
-                            Button {
-                                text: "ȘTERGE"
-                                onClicked: {
-                                    myLakesPopup.open()
-                                    myLakesPopup.beginDelete(modelData)
-                                }
-                            }
+                            Label { visible: parent.count===0; anchors.centerIn: parent; text: "Nu există încă bălți salvate"; color: "#c1d7e6" }
                         }
                     }
                 }
-                Button {
-                    Layout.alignment: Qt.AlignLeft
-                    Layout.preferredWidth: 172
-                    Layout.preferredHeight: 36
-                    flat: true
-                    ToolTip.visible: hovered
-                    ToolTip.text: "Deschide managerul Bălțile mele"
-                    background: Rectangle {
-                        radius: 8
-                        color: parent.hovered ? "#153047" : "#0b1a27"
-                        border.color: parent.hovered ? root.accent : root.line
+                Rectangle {
+                    visible: lakesHome.selectedTab===1
+                    Layout.fillWidth: true; Layout.fillHeight: true
+                    color: "#061827"; border.color: "#20d9ed"; radius: 10
+                    ColumnLayout {
+                        anchors.fill: parent; anchors.margins: 13; spacing: 10
+                        Label { text: "Baltă activă"; color: "#eff9ff"; font.bold: true; font.pixelSize: 17 }
+                        Rectangle { Layout.fillWidth: true; height: 1; color: "#19546b" }
+                        Label { text: scanCoordinator.lakeName.length ? scanCoordinator.lakeName : "Nicio baltă activă"; color: "#79eff0"; font.pixelSize: 16 }
+                        Label {
+                            Layout.fillWidth: true; wrapMode: Text.WordWrap; font.pixelSize: 12; color: "#c1d7e6"
+                            text: "Datele Sonar PRO, punctele de pescuit, batimetria și progresul Area Scan se salvează separat pentru fiecare baltă."
+                        }
+                        Button {
+                            text: "Deschide managerul bălții"
+                            enabled: persistence.lakes.length>0
+                            onClicked: myLakesPopup.open()
+                            background: Rectangle { color: "#0b3546"; border.color: "#20d9ed"; radius: 8 }
+                            contentItem: Label { text: parent.text; color: "#eff9ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        }
+                        Item { Layout.fillHeight: true }
                     }
-                    contentItem: Row {
-                        spacing: 8
-                        anchors.centerIn: parent
-                        Image { width:22; height:22; source:"qrc:/qml/NavoSmart/icons/lake.svg"; fillMode:Image.PreserveAspectFit }
-                        Label { text:"Deschide Bălțile mele"; color:root.accent; font.pixelSize:11; font.bold:true; anchors.verticalCenter:parent.verticalCenter }
+                }
+                Rectangle {
+                    visible: lakesHome.selectedTab===2
+                    Layout.fillWidth: true; Layout.fillHeight: true
+                    color: "#061827"; border.color: "#20d9ed"; radius: 10
+                    ColumnLayout {
+                        anchors.fill: parent; anchors.margins: 13; spacing: 10
+                        Label { text: "Administrare și restaurare"; color: "#eff9ff"; font.bold: true; font.pixelSize: 17 }
+                        Rectangle { Layout.fillWidth: true; height: 1; color: "#19546b" }
+                        Label {
+                            Layout.fillWidth: true; wrapMode: Text.WordWrap; color: "#c1d7e6"; font.pixelSize: 12
+                            text: "Selectează o baltă pentru a încărca sesiunile sonar, pentru a deschide harta sau pentru a continua o scanare. Redenumirea și ștergerea sunt protejate de dialoguri."
+                        }
+                        Button {
+                            text: "Deschide Bălțile mele"
+                            onClicked: myLakesPopup.open()
+                            background: Rectangle { radius: 8; color: "#0b3546"; border.color: "#20d9ed" }
+                            contentItem: Label { text: parent.text; color: "#eff9ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        }
+                        Item { Layout.fillHeight: true }
                     }
-                    onClicked: myLakesPopup.open()
                 }
             }
             NavoMyLakes {
