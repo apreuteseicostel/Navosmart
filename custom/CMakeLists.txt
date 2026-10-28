@@ -26,6 +26,7 @@ qt_add_qml_module(NavoSmartModule
         QtQuick3D
     QML_FILES
         qml/NavoDashboard.qml
+        qml/NavoStatusDetails.qml
         qml/NavoPreLaunchCheck.qml
         qml/NavoAndroidAcceptance.qml
         qml/NavoMap.qml
@@ -121,6 +122,7 @@ qt_add_qml_module(NavoSmartModule
         icons/zoom-out.svg
         icons/center.svg
         icons/boat.svg
+        icons/navo-brand.svg
         icons/ruler.svg
         icons/fullscreen.svg
         icons/navigate.svg
