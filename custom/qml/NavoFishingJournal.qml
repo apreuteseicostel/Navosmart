@@ -177,13 +177,17 @@ Item {
                     anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
                     anchors.margins: 8
                     spacing: 5
-                    RowLayout {
+                    GridLayout {
                         Layout.fillWidth: true
+                        columns: root.width < 385 ? 2 : 3
+                        columnSpacing: 7; rowSpacing: 6
                         Label { text: "◷"; color: "#20d9ed"; font.pixelSize: 20 }
-                        Label { text: "JURNAL DE PARTIDĂ"; color: "#eff9ff"; font.bold: true; font.pixelSize: 18; Layout.fillWidth: true; elide: Text.ElideRight }
+                        Label { text: "JURNAL DE PARTIDĂ"; color: "#eff9ff"; font.bold: true; font.pixelSize: root.width<385 ? 15 : 18; Layout.fillWidth: true; elide: Text.ElideRight }
                         JournalButton {
                             text: "+ Partidă"
                             tint: "#37e9a2"
+                            Layout.columnSpan: root.width < 385 ? 2 : 1
+                            Layout.alignment: root.width < 385 ? Qt.AlignLeft : Qt.AlignRight
                             enabled: !!root.persistence && !root.activeTrip && !!root.lakeId && !root.replayMode
                             onClicked: { tripTitle.text = root.lakeName; startDialog.open() }
                         }
@@ -232,9 +236,10 @@ Item {
                     anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
                     anchors.margins: 10
                     spacing: 9
-                    RowLayout {
+                    Flow {
                         Layout.fillWidth: true
-                        Label { text: "Partide salvate"; color: "#eff9ff"; font.pixelSize: 15; font.bold: true; Layout.fillWidth: true }
+                        spacing: 8
+                        Label { text: "Partide salvate"; color: "#eff9ff"; font.pixelSize: 15; font.bold: true; height: 35; verticalAlignment: Text.AlignVCenter }
                         JournalButton {
                             text: "Partida activă"
                             enabled: !!root.activeTrip
@@ -266,8 +271,9 @@ Item {
                               (root.selected.endedAt ? " → " + root.when(root.selected.endedAt) : " • ACTIVĂ") : ""
                         color: "#c1d7e6"; font.pixelSize: 12; wrapMode: Text.WordWrap
                     }
-                    RowLayout {
+                    Flow {
                         Layout.fillWidth: true
+                        spacing: 7
                         JournalButton {
                             text: "Deschide însemnările"
                             enabled: !!root.selected
@@ -279,7 +285,6 @@ Item {
                             enabled: !!root.selected && !root.selected.endedAt && !root.replayMode
                             onClicked: finishDialog.open()
                         }
-                        Item { Layout.fillWidth: true }
                         JournalButton {
                             text: "Șterge"
                             tint: "#ff8793"
