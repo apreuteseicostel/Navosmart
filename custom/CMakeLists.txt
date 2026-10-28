@@ -27,6 +27,7 @@ qt_add_qml_module(NavoSmartModule
     QML_FILES
         qml/NavoDashboard.qml
         qml/NavoStatusDetails.qml
+        qml/NavoSettingsV3.qml
         qml/NavoPreLaunchCheck.qml
         qml/NavoAndroidAcceptance.qml
         qml/NavoMap.qml
