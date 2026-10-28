@@ -621,4 +621,44 @@ test('NAVO compact journal and offline layouts wrap narrow-screen actions',()=>{
   assert.match(offline,/root\.pendingDelete=tileSet;\s*deleteDialog\.open\(\)/);
   assert.match(dashboard,/myLakesPopup\.beginDelete\(modelData\)/);
 });
+
+test('GNSS moving-baseline yaw has explicit GPS1/GPS2 priority and H743 fallback',()=>{
+  const dirSrc=path.resolve(dir,'../src');
+  const header=fs.readFileSync(path.join(dirSrc,'NavoGnssHeading.h'),'utf8');
+  const cpp=fs.readFileSync(path.join(dirSrc,'NavoGnssHeading.cc'),'utf8');
+  const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+  const map=fs.readFileSync(path.join(dir,'NavoMap.qml'),'utf8');
+  const compass=fs.readFileSync(path.join(dir,'NavoHeadingCompass.qml'),'utf8');
+  const plugin=fs.readFileSync(path.join(dirSrc,'CustomPlugin.cc'),'utf8');
+  const cmake=fs.readFileSync(path.resolve(dir,'../CMakeLists.txt'),'utf8');
+  assert.match(plugin,/qmlRegisterType<NavoGnssHeading>/);
+  assert.match(cmake,/src\/NavoGnssHeading\.cc/);
+  assert.match(header,/Q_PROPERTY\(double selectedHeadingDeg/);
+  assert.match(header,/Q_PROPERTY\(QString headingSource/);
+  assert.match(cpp,/MAVLINK_MSG_ID_GPS_RAW_INT/);
+  assert.match(cpp,/MAVLINK_MSG_ID_GPS2_RAW/);
+  assert.match(cpp,/_observe\(_gps1, gps\.fix_type, gps\.satellites_visible, gps\.yaw\)/);
+  assert.match(cpp,/_observe\(_gps2, gps\.fix_type, gps\.satellites_visible, gps\.yaw\)/);
+  assert.doesNotMatch(cpp,/gps\.cog|gps\.hdg/); // COG is travel direction, not antenna yaw.
+  assert.match(cpp,/rawYaw >= 1 && rawYaw <= 36000/);
+  assert.match(cpp,/rawYaw == 36000 \? 0\.0/); // True north, NOT invalid.
+  assert.match(cpp,/fix >= 3 && receiver\.sats >= 4/);
+  assert.match(cpp,/lastYawMs = -1/); // Explicit invalidity revokes old heading.
+  assert.match(cpp,/kYawTimeoutMs = 3000/);
+  assert.match(cpp,/if \(_available\(_gps1\)\) return &_gps1/);
+  assert.match(cpp,/if \(_available\(_gps2\)\) return &_gps2/);
+  assert.match(cpp,/return _autopilotHeadingDeg;\s*\/\/ Only display fallback/);
+  assert.match(cpp,/if \(!alive\) \{/);
+  assert.match(cpp,/if \(next == _vehicle\) return/);
+  assert.match(dash,/id: gnssHeading/);
+  assert.match(dash,/headingDeg: gnssHeading\.selectedHeadingDeg/);
+  assert.equal((dash.match(/headingOverrideEnabled: true/g)||[]).length,4);
+  assert.equal((dash.match(/headingOverrideDeg: root\.headingDeg/g)||[]).length,4);
+  assert.match(map,/headingOverrideEnabled \? headingOverrideDeg/);
+  assert.match(map,/root\.boatHeadingDeg - liveMap\.bearing/);
+  assert.match(compass,/headingSource/);
+  assert.match(dash,/Heading GNSS dual-antenă/);
+  assert.match(dash,/Heading H743 \(rezervă\)/);
+  assert.doesNotMatch(cpp,/setFlightMode|sendCommand|armVehicle|disarmVehicle/);
+});
 console.log(`${passed} regression scenarios passed`);
