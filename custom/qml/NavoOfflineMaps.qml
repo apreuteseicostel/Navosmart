@@ -349,6 +349,8 @@ Item {
     }
     Dialog {
         id:deleteDialog;parent:Overlay.overlay;anchors.centerIn:parent;width:Math.min(360,root.width);modal:true;title:"Ștergi zona offline?";standardButtons:Dialog.Yes|Dialog.No
+        palette.windowText: "#eff9ff"; palette.text: "#eff9ff"
+        background: Rectangle { radius: 12; color: "#071e30"; border.color: "#ff8793" }
         onAccepted:{if(root.pendingDelete && !root.pendingDelete.defaultSet && !root.pendingDelete.downloading)root.manager.deleteTileSet(root.pendingDelete);root.pendingDelete=null}
         onRejected:root.pendingDelete=null
     }
