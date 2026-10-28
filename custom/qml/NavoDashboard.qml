@@ -2455,66 +2455,23 @@ Item {
 
     Component {
         id: settingsPage
-        Item {
-            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
-            ScrollView {
-                id: settingsScroll
-                contentWidth: availableWidth
-                anchors.fill: parent
-                anchors.margins: root.responsiveMargin
-                clip: true
-                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                ScrollBar.vertical.policy: contentHeight > availableHeight ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
-
-                ColumnLayout {
-                    width: settingsScroll.availableWidth
-                    spacing: root.responsiveGap
-                    Button {
-                        Layout.maximumWidth: 230
-                        text: g20Advanced.visible ? "Închide Avansat • G20" : "Avansat • integrare G20"
-                        onClicked: g20Advanced.visible = !g20Advanced.visible
-                    }
-                    NavoG20Settings {
-                        id: g20Advanced
-                        visible: false
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: implicitHeight
-                        controller: g20Controller
-                    }
-                    NavoAlertSettings { Layout.fillWidth:true;controller:alerts;audio:alertAudio }
-                    NavoSteeringPanel {
-                        Layout.fillWidth:true
-                        controller:steeringAssist
-                        onEnableRequested:steeringAssist.enable()
-                    }
-                    NavoEthernetSettings {
-                        id: ethernetSettings
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: implicitHeight
-                        sonar: root.sonarController
-                        camera: cameraEthernet
-                        onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
-                        onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
-                        onStatus: function(text) { root.lastNavigationStatus=text }
-                        onUnitsRequested: { if (typeof mainWindow !== "undefined" && mainWindow.showSettingsTool) mainWindow.showSettingsTool() }
-                    }
-                    GroupBox {
-                        title:"Rezervă energie • traseu + întoarcere HOME"
-                        Layout.fillWidth:true
-                        ColumnLayout {
-                            anchors.fill:parent
-                            Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;color:root.muted;text:"Activează verificarea numai după măsurarea consumului pe barcă. Estimarea verifică navigarea, nădirea și START Area Scan; nu comandă automat RTL." }
-                            GridLayout {
-                                columns:2;Layout.fillWidth:true
-                                Label { text:"Rezervă %";color:root.text }
-                                SpinBox { Layout.fillWidth:true;from:5;to:80;value:energySettings.reservePercent;onValueModified:{energySettings.confirmed=false;energySettings.reservePercent=value} }
-                                Label { text:"Consum %/km";color:root.text }
-                                SpinBox { Layout.fillWidth:true;from:1;to:100;value:energySettings.consumptionPercentPerKm;onValueModified:{energySettings.confirmed=false;energySettings.consumptionPercentPerKm=value} }
-                            }
-                            CheckBox { text:"Consum verificat • activează verificarea înainte de plecare";palette.windowText:"#d7e3ee";checked:energySettings.confirmed;onToggled:energySettings.confirmed=checked }
-                        }
-                    }
-                }
+        NavoSettingsV3 {
+            anchors.fill: parent
+            sonar: root.sonarController
+            camera: cameraEthernet
+            alerts: alerts
+            audio: alertAudio
+            steering: steeringAssist
+            g20: g20Controller
+            energy: energySettings
+            onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
+            onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
+            onStatus: function(message) { root.lastNavigationStatus = message }
+            onEnableSteeringRequested: steeringAssist.enable()
+            onSettingsToolRequested: {
+                if (typeof mainWindow !== "undefined" && mainWindow.showSettingsTool)
+                    mainWindow.showSettingsTool()
+                else root.lastNavigationStatus = "Setările native QGroundControl nu sunt disponibile în acest context."
             }
         }
     }
