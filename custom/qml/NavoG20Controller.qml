@@ -11,6 +11,16 @@ Item {
     property var channels: []
     property var buttonStates: ({})
     property double lastFrameMs: 0
+    // Dashboard-only interpretation of RC channel 5. ArduPilot owns real flight modes.
+    // Low / middle / high labels must be confirmed with the G20 Channel Monitor.
+    readonly property int dashboardModeChannel: 5
+    readonly property real dashboardModePwm: channels && channels.length >= dashboardModeChannel
+        ? Number(channels[dashboardModeChannel - 1]) : NaN
+    readonly property bool dashboardModeValid: inputAllowed && lastFrameMs > 0
+        && isFinite(dashboardModePwm) && dashboardModePwm >= 900 && dashboardModePwm <= 2100
+    readonly property string dashboardModePosition: !dashboardModeValid ? "NECUNOSCUT"
+        : dashboardModePwm < 1300 ? "OFF"
+        : dashboardModePwm < 1700 ? "MANUAL" : "AUTO"
     signal actionRequested(string control, string action)
     signal zoomRequested(int direction)
     Settings {
