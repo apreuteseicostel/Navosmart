@@ -6,7 +6,8 @@ Rectangle {
     id: root
     property var controller
     property var cfg: controller ? controller.settings : null
-    color: "#0b1c2e"; border.color: "#1c4262"; radius: 10
+    property bool showHelp: false
+    color: "#061827"; border.color: "#20d9ed"; radius: 10
     implicitHeight: content.implicitHeight + 24
     readonly property bool narrowRows: width < 430
 
@@ -34,7 +35,7 @@ Rectangle {
             color: spin.down.pressed ? "#21516c" : "#143149"
             Text { anchors.centerIn: parent; text: "−"; color: spin.enabled && spin.value > spin.from ? "#e8f4ff" : "#61798a"; font.pixelSize: 20 }
         }
-        background: Rectangle { color: "#0e263b"; border.color: spin.activeFocus ? "#21b7ff" : "#31516c"; radius: 6 }
+        background: Rectangle { color: "#092439"; border.color: spin.activeFocus ? "#20d9ed" : "#537b91"; radius: 6 }
     }
     readonly property var bindings: [
         {label:"HOME",key:"homeChannel",action:"hAction"},
@@ -50,9 +51,23 @@ Rectangle {
         anchors.left: parent.left; anchors.right: parent.right
         anchors.top: parent.top; anchors.margins: 12
         spacing: 8
-        Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; text:"AVANSAT • INTEGRARE G20 / H743"; color:"#21b7ff"; font.bold:true }
+        RowLayout {
+            Layout.fillWidth: true
+            Label { text: "G20 / H743 • Asocieri RC"; color: "#eff9ff"; font.pixelSize: 16; font.bold: true; Layout.fillWidth: true }
+            Button {
+                text: "ⓘ"; implicitWidth: 30; implicitHeight: 30
+                Accessible.name: "Informații integrare G20"
+                onClicked: root.showHelp = !root.showHelp
+                ToolTip.visible: hovered
+                ToolTip.text: "Canalele sunt configurate în G20 Device Tool; NAVO trimite numai acțiuni permise."
+                background: Rectangle { color: "transparent" }
+                contentItem: Label { text: parent.text; color: "#20d9ed"; font.pixelSize: 18; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+            }
+        }
+        Rectangle { Layout.fillWidth: true; height: 1; color: "#19546b" }
         Label {
-            Layout.fillWidth:true; wrapMode:Text.WordWrap; color:"#9db2c5"
+            visible: root.showHelp
+            Layout.fillWidth:true; wrapMode:Text.WordWrap; color:"#c1d7e6"; font.pixelSize: 11
             text:"Butoanele, Reverse și limitele se configurează în G20 Device Tool. Aici asociem canalele primite de la H743 cu acțiunile NAVO. X2/Y2 rămân pentru pilotaj."
         }
         Switch {
@@ -68,8 +83,10 @@ Rectangle {
             onToggled:if(root.cfg) root.cfg.hardwareActionsEnabled=checked
         }
         Label {
-            Layout.fillWidth:true; wrapMode:Text.WordWrap; color:"#ffc857"
-            text:"Activează după verificarea funcțiilor H743. Evită comanda aceluiași actuator atât direct din H743, cât și prin NAVO. Cuvele și RTL cer apăsare lungă; după reconectare, eliberează butonul înainte de comandă."
+            Layout.fillWidth:true; wrapMode:Text.WordWrap; color:"#ffd98c"; font.pixelSize: 11
+            text: root.showHelp
+                ? "Activează după verificarea funcțiilor H743. Evită comanda aceluiași actuator atât direct din H743, cât și prin NAVO. Cuvele și RTL cer apăsare lungă; după reconectare, eliberează butonul înainte de comandă."
+                : "Comenzile RC necesită calibrare și validare hardware."
         }
         Repeater {
             model:root.bindings
@@ -113,7 +130,7 @@ Rectangle {
                         x:actionSelector.width-width-12; anchors.verticalCenter:parent.verticalCenter
                         text:"▾"; color:"#21b7ff"; font.pixelSize:18
                     }
-                    background: Rectangle { color:actionSelector.down ? "#21516c" : "#143149"; border.color:actionSelector.activeFocus ? "#21b7ff" : "#31516c"; radius:6 }
+                    background: Rectangle { color:actionSelector.down ? "#174c60" : "#092439"; border.color:actionSelector.activeFocus ? "#20d9ed" : "#537b91"; radius:7 }
                     ToolTip.visible:hovered; ToolTip.text:displayText
                 }
             }
