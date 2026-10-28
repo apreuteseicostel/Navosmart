@@ -562,7 +562,8 @@ Item {
     property color ok: "#47d16c"
     property color warn: "#ffc857"
     property color danger: "#ff5c5c"
-    readonly property real headingDeg: vehicle && vehicle.heading && isFinite(Number(vehicle.heading.rawValue)) ? Number(vehicle.heading.rawValue) : NaN
+    readonly property real headingDeg: gnssHeading.selectedHeadingDeg
+    readonly property string headingSource: gnssHeading.headingSource
     readonly property real rollDeg: vehicle && vehicle.roll && isFinite(Number(vehicle.roll.rawValue)) ? Number(vehicle.roll.rawValue) : NaN
     readonly property real pitchDeg: vehicle && vehicle.pitch && isFinite(Number(vehicle.pitch.rawValue)) ? Number(vehicle.pitch.rawValue) : NaN
     readonly property real waypointBearingDeg: {
@@ -671,6 +672,16 @@ Item {
         id: h743Telemetry
         vehicle: root.vehicle
         v3Profile: true // NAVO V3 receives only NV3* messages from H743
+    }
+    // Display-only priority: GPS_RAW_INT / GPS2_RAW yaw when valid and fresh;
+    // otherwise the H743's normal vehicle.heading. EKF/mode/failsafes untouched.
+    NavoGnssHeading {
+        id: gnssHeading
+        vehicle: root.vehicle
+        linkAlive: root.linkAlive
+        autopilotHeadingDeg: root.vehicle && root.vehicle.heading &&
+            isFinite(Number(root.vehicle.heading.rawValue))
+                ? Number(root.vehicle.heading.rawValue) : NaN
     }
     NavoHopperBridge {
         id: hopperBridge
@@ -1184,6 +1195,7 @@ Item {
                 Layout.preferredWidth: root.activePage===2 ? 40 : 54
                 Layout.preferredHeight: root.activePage===2 ? 40 : 54
                 headingDeg: root.headingDeg
+                headingSource: root.headingSource
                 waypointBearingDeg: root.waypointBearingDeg
                 rollDeg: root.rollDeg
                 pitchDeg: root.pitchDeg
@@ -1236,6 +1248,13 @@ Item {
                     font.pixelSize: 12; font.bold: true
                 }
             }
+            DataLine { name: "Sursă orientare"; value: gnssHeading.headingSource }
+            Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
+            DataLine { name: "Heading GNSS dual-antenă"; value: gnssHeading.gpsYawValid ? Number(gnssHeading.gpsYawDeg).toFixed(2) + "°" : "--" }
+            DataLine { name: "Heading H743 (rezervă)"; value: root.vehicle && root.vehicle.heading && root.linkAlive && isFinite(Number(root.vehicle.heading.rawValue)) ? Number(root.vehicle.heading.rawValue).toFixed(2) + "°" : "--" }
+            DataLine { name: "Vechime orientare GNSS"; value: gnssHeading.gpsYawValid ? String(gnssHeading.gpsYawAgeMs) + " ms" : "--" }
+            Label { Layout.fillWidth: true; text: gnssHeading.headingDetail; color: gnssHeading.gpsYawValid ? "#31d6a5" : "#ffd166"; wrapMode: Text.WordWrap; font.pixelSize: 11 }
+            Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
             DataLine { name: "Sateliți"; value: root.vehicle && root.vehicle.gps ? String(root.vehicle.gps.count.rawValue) : "--" }
             Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
             DataLine { name: "Fix GPS / MAVLink"; value: root.vehicle && root.vehicle.gps ? String(root.vehicle.gps.lock.rawValue) : "--" }
@@ -1263,7 +1282,8 @@ Item {
                         if (!root.vehicle) gnssDiagnostic.checkResult = "H743 nu este conectat. Verifică MAVLink."
                         else if (!root.vehicle.gps) gnssDiagnostic.checkResult = "H743 conectat, dar nu raportează GPS. Verifică UART, alimentarea UM982 și SERIALx_PROTOCOL."
                         else if (Number(root.vehicle.gps.lock.rawValue) < 3) gnssDiagnostic.checkResult = "GPS raportat, fără fix 3D. Verifică antenele și vizibilitatea cerului."
-                        else gnssDiagnostic.checkResult = "H743 raportează fix GPS valid. Identitatea UM982 și legătura fizică nu pot fi certificate prin MAVLink."
+                        else if (!gnssHeading.gpsYawValid) gnssDiagnostic.checkResult = "GPS are fix, dar nu există GPS yaw valid de la antenele duale. Momentan orientarea bărcii folosește H743 ca rezervă. Verifică GPS1_TYPE=25, EK3_SRC1_YAW și antenele."
+                        else gnssDiagnostic.checkResult = "Orientare GNSS validă (" + gnssHeading.headingSource + "): " + Number(gnssHeading.gpsYawDeg).toFixed(2) + "°. Identitatea fizică UM982 se validează separat."
                     }
                     background: Rectangle { radius: 9; color: "#103044"; border.color: "#20d9ed" }
                     contentItem: Label { text: parent.text; color: "#20d9ed"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
@@ -1290,7 +1310,7 @@ Item {
         confirmedMode: root.flightMode
     }
 
-    NavoHeadingCompass { id:headingCompassOverlay; visible:root.headingOverlayOpen && root.activePage !== 10; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; onToggleRequested:root.headingOverlayOpen=false }
+    NavoHeadingCompass { id:headingCompassOverlay; visible:root.headingOverlayOpen && root.activePage !== 10; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; headingSource:root.headingSource; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; onToggleRequested:root.headingOverlayOpen=false }
 
     Rectangle {
         id: sidebar
@@ -1393,6 +1413,8 @@ Item {
             id: fishingPageRoot
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             NavoMap {
+                headingOverrideEnabled: true
+                headingOverrideDeg: root.headingDeg
                 spotActionsAllowed:!root.missionBusy && !sonar.replayMode && !root.steeringModeBusy
                 onFishingSpotActionRequested:function(spot,action,hopper,size){root.prepareFishingSpotAction(spot,action,hopper,size)}
                 onFishingSpotRenameRequested:function(spot){root.prepareFishingSpotAction(spot,"edit",0,0)}
@@ -1795,6 +1817,8 @@ Item {
                         Layout.rightMargin:routeEditor.opened && !root.missionScanSelected && parent.width>=700 ? routeEditor.width+8 : 0
                         radius: 8; color: root.bg; border.color: root.line; clip: true
                         NavoMap {
+                headingOverrideEnabled: true
+                headingOverrideDeg: root.headingDeg
                 spotActionsAllowed:!root.missionBusy && !sonar.replayMode && !root.steeringModeBusy
                 onFishingSpotActionRequested:function(spot,action,hopper,size){root.prepareFishingSpotAction(spot,action,hopper,size)}
                 onFishingSpotRenameRequested:function(spot){root.prepareFishingSpotAction(spot,"edit",0,0)}
@@ -1910,6 +1934,8 @@ Item {
                     Layout.minimumWidth: 320
                     radius:8; color:root.bg; border.color:root.line; clip:true
                     NavoMap {
+                headingOverrideEnabled: true
+                headingOverrideDeg: root.headingDeg
                 spotActionsAllowed:!root.missionBusy && !sonar.replayMode && !root.steeringModeBusy
                 onFishingSpotActionRequested:function(spot,action,hopper,size){root.prepareFishingSpotAction(spot,action,hopper,size)}
                 onFishingSpotRenameRequested:function(spot){root.prepareFishingSpotAction(spot,"edit",0,0)}
@@ -2330,6 +2356,8 @@ Item {
                     Layout.fillWidth: true; Layout.fillHeight: true
                     radius: 8; color: root.panel; border.color: root.line; clip: true
                     NavoMap {
+                headingOverrideEnabled: true
+                headingOverrideDeg: root.headingDeg
                 spotActionsAllowed:!root.missionBusy && !sonar.replayMode && !root.steeringModeBusy
                 onFishingSpotActionRequested:function(spot,action,hopper,size){root.prepareFishingSpotAction(spot,action,hopper,size)}
                 onFishingSpotRenameRequested:function(spot){root.prepareFishingSpotAction(spot,"edit",0,0)}
