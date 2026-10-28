@@ -20,8 +20,9 @@ function setup() {
         l2Action:'FAR',r2Action:'SONAR',cameraAction:'CAMERA',pauseAction:'HOLD',
         hopperHoldMs:1500,rtlHoldMs:1800};
     const events=[];
-    const c=vm.createContext({cfg,inputAllowed:true,channels:[],buttonStates:{},lastFrameMs:0,
+    const c=vm.createContext({cfg,nativeModeChannel:5,inputAllowed:true,channels:[],buttonStates:{},lastFrameMs:0,
         actionRequested:(control,action)=>events.push([control,action])});
+    c.root=c;
     vm.runInContext(['resetInput','trigger','ingestChannels'].map(body).join('\n'),c);
     return {c,cfg,events};
 }
@@ -66,4 +67,16 @@ function frames(c,values,from,to) { for(let t=from;t<=to;t+=100)c.ingestChannels
     c.ingestChannels(v,1100);c.ingestChannels(v,1200);assert.equal(events.length,0);
     c.ingestChannels(v,1300);frames(c,v,1400,2000);assert.deepEqual(events,[['L2','FAR']]);
 }
-console.log('PASS 7 G20 RC scenarios: opt-in, startup, long press, duplicates, stale/invalid input, interrupted hold/link and one-shot dispatch');
+{
+    const {c,cfg,events}=setup();cfg.homeChannel=5;
+    c.ingestChannels(low(),1000);const v=low();v[4]=1950;frames(c,v,1100,4000);
+    assert.equal(events.length,0,'native CH5 must never also trigger a NAVO action');
+}
+{
+    const text=fs.readFileSync(new URL('../ardupilot/params/navo_ch5_manual_auto_guided.param',import.meta.url),'utf8');
+    const params=Object.fromEntries(text.split('\n').map(l=>l.trim()).filter(l=>l && !l.startsWith('#')).map(l=>{const [k,v]=l.split(/\s+/);return [k,Number(v)]}));
+    assert.deepEqual(params,{MODE_CH:5,MODE1:0,MODE2:0,MODE3:10,MODE4:10,MODE5:15,MODE6:15,RC5_OPTION:0});
+    // Native Rover slots, as documented by ArduPilot; no application mode emulator.
+    assert.equal(params.MODE1,0);assert.equal(params.MODE3,10);assert.equal(params.MODE4,10);assert.equal(params.MODE6,15);
+}
+console.log('PASS 9 G20/profile scenarios: RC action guards, reserved CH5 and deployable native Rover mode parameters');

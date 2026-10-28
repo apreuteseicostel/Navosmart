@@ -70,6 +70,10 @@ Rectangle {
             Layout.fillWidth:true; wrapMode:Text.WordWrap; color:"#c1d7e6"; font.pixelSize: 11
             text:"Butoanele, Reverse și limitele se configurează în G20 Device Tool. Aici asociem canalele primite de la H743 cu acțiunile NAVO. X2/Y2 rămân pentru pilotaj."
         }
+        Label {
+            Layout.fillWidth:true;wrapMode:Text.WordWrap;color:"#79eff0";font.pixelSize:12
+            text:"Selector mod CH5 → H743: MANUAL / AUTO / GUIDED. Configurare nativă MODE_CH=5 și MODE1…MODE6 conform profilului NAVO. Cardul MOD afișează numai modul confirmat de H743."
+        }
         Switch {
             id: enableActions
             Layout.fillWidth:true
@@ -108,7 +112,7 @@ Rectangle {
                     value:root.cfg ? root.cfg[mappingRow.modelData.key] : 0
                     onValueModified:if(root.cfg) { root.cfg[mappingRow.modelData.key]=value; root.controller.resetInput() }
                     ToolTip.visible:hovered
-                    ToolTip.text:"Canal RC_CHANNELS (0 = dezactivat)"
+                    ToolTip.text:"Canal RC_CHANNELS (0 = dezactivat; CH5 rezervat selectorului de mod)"
                 }
                 ComboBox {
                     id: actionSelector
@@ -158,3 +162,4 @@ Rectangle {
         }
     }
 }
+

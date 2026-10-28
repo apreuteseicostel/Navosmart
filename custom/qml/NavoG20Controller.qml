@@ -11,16 +11,9 @@ Item {
     property var channels: []
     property var buttonStates: ({})
     property double lastFrameMs: 0
-    // Dashboard-only interpretation of RC channel 5. ArduPilot owns real flight modes.
-    // Low / middle / high labels must be confirmed with the G20 Channel Monitor.
-    readonly property int dashboardModeChannel: 5
-    readonly property real dashboardModePwm: channels && channels.length >= dashboardModeChannel
-        ? Number(channels[dashboardModeChannel - 1]) : NaN
-    readonly property bool dashboardModeValid: inputAllowed && lastFrameMs > 0
-        && isFinite(dashboardModePwm) && dashboardModePwm >= 900 && dashboardModePwm <= 2100
-    readonly property string dashboardModePosition: !dashboardModeValid ? "NECUNOSCUT"
-        : dashboardModePwm < 1300 ? "OFF"
-        : dashboardModePwm < 1700 ? "MANUAL" : "AUTO"
+    // CH5 mode selection belongs to ArduPilot MODE_CH, not RC telemetry callbacks.
+    // See ardupilot/params/navo_ch5_manual_auto_guided.param.
+    readonly property int nativeModeChannel: 5
     signal actionRequested(string control, string action)
     signal zoomRequested(int direction)
     Settings {
@@ -35,7 +28,6 @@ Item {
         property int cameraChannel: 8
         property int holdChannel: 13
         property string hAction: "RTL"
-        property string mode3Action: "MANUAL/HOLD/AUTO"
         property string l1Action: "CUVA_STANGA"
         property string r1Action: "CUVA_DREAPTA"
         property string l2Action: "FAR"
@@ -58,7 +50,7 @@ Item {
 
     property int settingsRevision: 0
     function resetDefaults() {
-        cfg.hAction="RTL"; cfg.mode3Action="MANUAL/HOLD/AUTO"
+        cfg.hAction="RTL"
         cfg.l1Action="CUVA_STANGA"; cfg.r1Action="CUVA_DREAPTA"
         cfg.l2Action="FAR"; cfg.r2Action="SONAR"; cfg.cameraAction="CAMERA"
         cfg.pauseAction="HOLD"; cfg.leftStickAction="ZOOM_HARTA"
@@ -80,11 +72,6 @@ Item {
         else if(control==="PAUSE") a=cfg.pauseAction
         if((a==="RTL" || a.indexOf("CUVA")===0 || a==="CUVE_AMBELE") && !longPress) return
         actionRequested(control,a)
-    }
-    function modeSwitch(position) {
-        if(position<=0) actionRequested("MODE3","MANUAL")
-        else if(position===1) actionRequested("MODE3","HOLD")
-        else actionRequested("MODE3","AUTO")
     }
     function leftStick(y) {
         if(cfg.leftStickAction!=="ZOOM_HARTA") return
@@ -116,7 +103,7 @@ Item {
         var used = ({})
         for (var i=0; i<bindings.length; ++i) {
             var binding=bindings[i], ch=binding.channel
-            if(ch<1 || ch>16) continue
+            if(ch<1 || ch>16 || ch===root.nativeModeChannel) continue
             if(used[ch]) { used[ch]="DUPLICATE"; continue }
             used[ch]=binding.control
         }
@@ -160,3 +147,4 @@ Item {
         }
     }
 }
+

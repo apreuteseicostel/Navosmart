@@ -757,14 +757,6 @@ Item {
         if(action==="CAMERA") { activePage=5; cameraFullscreen=!cameraFullscreen; lastNavigationStatus="G20 "+control+" • CAMERA FAȚĂ"; return }
         if(action==="HOLD") { holdMission(); lastNavigationStatus="G20 "+control+" • HOLD"; return }
         if(action==="RTL") { homeRtlConfirm.open(); lastNavigationStatus="G20 "+control+" • confirmă RTL / ACASĂ"; return }
-        if(action==="MANUAL") {
-            if(vehicle) { vehicle.flightMode="Manual"; pendingMode="Manual"; pendingModeLabel="MANUAL"; lastNavigationStatus="G20 • MANUAL solicitat" }
-            return
-        }
-        if(action==="AUTO") {
-            lastNavigationStatus="G20 • AUTO selectat • folosește START pentru pornirea misiunii"
-            return
-        }
         if(action==="FAR") { commandH743Light(1,2,"Far"); return }
         if(action==="POZITII") { commandH743Light(2,2,"Poziții"); return }
     }
@@ -1284,7 +1276,7 @@ Item {
             StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/target.svg"; title: "ȚINTĂ"; value: root.distanceToTarget > 0 ? Number(root.distanceToTarget).toFixed(0) + " m" : "--"; good: root.linkAlive && isFinite(root.distanceToTarget) && root.distanceToTarget > 0 }
             StatusPill { pillWidth:82; iconSource:"qrc:/qml/NavoSmart/icons/battery.svg"; title: "BATERIE"; value: root.linkAlive && battery && battery.percentRemaining && isFinite(Number(battery.percentRemaining.rawValue)) && Number(battery.percentRemaining.rawValue)>=0 ? Number(battery.percentRemaining.rawValue).toFixed(0) + "%" : "--"; good: root.linkAlive && battery && battery.percentRemaining && Number(battery.percentRemaining.rawValue)>20; interactive:true; onClicked:dashboardDetails.showSection("battery") }
             StatusPill { pillWidth:77; iconSource:"qrc:/qml/NavoSmart/icons/temp.svg"; title: "TEMP"; value: h743Telemetry.connected && h743Telemetry.temperatureValid && isFinite(h743Telemetry.batteryTempC) ? Number(h743Telemetry.batteryTempC).toFixed(1) + "°" : "--"; good: h743Telemetry.connected && h743Telemetry.temperatureValid && safetyManager.state !== "CRITICAL"; interactive:true; onClicked:dashboardDetails.showSection("temperature") }
-            StatusPill { pillWidth:88; iconSource:"qrc:/qml/NavoSmart/icons/mode.svg"; title: "MOD"; value: g20Controller.dashboardModeValid ? g20Controller.dashboardModePosition : (root.flightMode.length ? root.flightMode : "--"); good: root.linkAlive; interactive:true; onClicked:dashboardDetails.showSection("mode") }
+            StatusPill { pillWidth:88; iconSource:"qrc:/qml/NavoSmart/icons/mode.svg"; title: "MOD"; value: root.linkAlive && root.flightMode.length ? root.flightMode.toUpperCase() : "--"; good: root.linkAlive; interactive:false }
             NavoHeadingCompass {
                 id: headingCompass
                 Layout.preferredWidth: header.compassWidth
@@ -1399,10 +1391,6 @@ Item {
         temperatureFresh: h743Telemetry.connected && h743Telemetry.temperatureValid && isFinite(h743Telemetry.batteryTempC)
         temperatureC: h743Telemetry.batteryTempC
         temperatureSource: "Temperatură NTC baterie / H743"
-        modeSignalValid: g20Controller.dashboardModeValid
-        modePwm: g20Controller.dashboardModePwm
-        modePosition: g20Controller.dashboardModePosition
-        confirmedMode: root.flightMode
     }
 
     NavoHeadingCompass { id:headingCompassOverlay; visible:root.headingOverlayOpen && root.activePage !== 10; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; headingSource:root.headingSource; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; onToggleRequested:root.headingOverlayOpen=false }

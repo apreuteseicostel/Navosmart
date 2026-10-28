@@ -5,17 +5,13 @@ import QtQuick.Layouts
 // Read-only cockpit diagnostics. No vehicle commands are sent from this popup.
 Popup {
     id: details
-    property string section: "battery" // battery | temperature | mode
+    property string section: "battery" // battery | temperature
     property var vehicle: null
     property var battery: null
     property bool linkAlive: false
     property bool temperatureFresh: false
     property real temperatureC: NaN
     property string temperatureSource: "NTC / H743"
-    property bool modeSignalValid: false
-    property real modePwm: NaN
-    property string modePosition: "NECUNOSCUT"
-    property string confirmedMode: ""
     property int viewportWidth: 1280
     property int viewportHeight: 720
     property var temperatureSamples: []
@@ -52,8 +48,10 @@ Popup {
         return { min: min, max: max, avg: sum / samples.length }
     }
     function showSection(which) {
+        if(which!=="battery" && which!=="temperature")return false
         section = which
         open()
+        return true
     }
     onVehicleChanged: temperatureSamples = []
     Timer {
@@ -75,8 +73,8 @@ Popup {
     modal: false
     focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-    width: Math.min(section === "temperature" ? 640 : section === "battery" ? 530 : 485, Math.max(260, viewportWidth - 28))
-    height: Math.min(section === "temperature" ? 490 : section === "battery" ? 460 : 330, Math.max(245, viewportHeight - 28))
+    width: Math.min(section === "temperature" ? 640 : 530, Math.max(260, viewportWidth - 28))
+    height: Math.min(section === "temperature" ? 490 : 460, Math.max(245, viewportHeight - 28))
     x: Math.max(8, (viewportWidth - width) / 2)
     y: Math.max(8, (viewportHeight - height) / 2)
     padding: 16
@@ -131,8 +129,7 @@ Popup {
                 spacing: 9
                 Image {
                     source: details.section === "battery" ? "qrc:/qml/NavoSmart/icons/battery.svg"
-                           : details.section === "temperature" ? "qrc:/qml/NavoSmart/icons/temp.svg"
-                           : "qrc:/qml/NavoSmart/icons/mode.svg"
+                           : "qrc:/qml/NavoSmart/icons/temp.svg"
                     Layout.preferredWidth: 25
                     Layout.preferredHeight: 25
                     fillMode: Image.PreserveAspectFit
@@ -140,7 +137,7 @@ Popup {
                 Label {
                     Layout.fillWidth: true
                     text: details.section === "battery" ? "Baterie • Diagnostic"
-                        : details.section === "temperature" ? "Temperatură • Grafic" : "Mod de lucru • G20"
+                        : "Temperatură • Grafic"
                     color: details.fg
                     font.pixelSize: 19
                     font.bold: true
@@ -280,45 +277,8 @@ Popup {
                 }
             }
 
-            ColumnLayout {
-                visible: details.section === "mode"
-                Layout.fillWidth: true
-                spacing: 12
-                Label {
-                    text: "Selector fizic G20 • canalul 5 • trei poziții"
-                    color: details.muted; font.pixelSize: 12
-                }
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 7
-                    Repeater {
-                        model: ["OFF", "MANUAL", "AUTO"]
-                        Rectangle {
-                            required property string modelData
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 79
-                            radius: 11
-                            color: details.modeSignalValid && modelData === details.modePosition ? "#103b4d" : "#0b2533"
-                            border.width: details.modeSignalValid && modelData === details.modePosition ? 2 : 1
-                            border.color: details.modeSignalValid && modelData === details.modePosition ? details.cyan : details.line
-                            Column {
-                                anchors.centerIn: parent
-                                spacing: 5
-                                Label { anchors.horizontalCenter: parent.horizontalCenter; text: modelData; color: details.modeSignalValid && modelData === details.modePosition ? details.cyan : details.fg; font.bold: true; font.pixelSize: 15 }
-                                Label { anchors.horizontalCenter: parent.horizontalCenter; text: modelData === "OFF" ? "Poziție joasă" : modelData === "MANUAL" ? "Mijloc" : "Poziție înaltă"; color: details.muted; font.pixelSize: 10 }
-                            }
-                        }
-                    }
-                }
-                DetailRow { caption: "Semnal canal 5"; amount: details.modeSignalValid ? details.format(details.modePwm, 0, " µs") : "--" }
-                DetailRow { caption: "Poziție comutator"; amount: details.modeSignalValid ? details.modePosition : "NECUNOSCUT"; amountColor: details.modeSignalValid ? details.cyan : "#ffd166" }
-                DetailRow { caption: "Mod confirmat de H743"; amount: details.linkAlive && details.confirmedMode.length ? details.confirmedMode : "--" }
-                Label {
-                    Layout.fillWidth: true
-                    text: "Cele trei poziții sunt indicatori ai CH5, nu butoane de comandă. OFF nu dezarmează motorul. Modurile reale se setează și se confirmă în ArduPilot; verifică sensul comutatorului și MODE_CH pe H743."
-                    color: details.muted; wrapMode: Text.WordWrap; font.pixelSize: 11
-                }
-            }
+
         }
     }
 }
+

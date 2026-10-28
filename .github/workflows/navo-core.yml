@@ -75,6 +75,7 @@ jobs:
           /tmp/navo-ui-env/bin/python tests/saved-spot-editor-ui.py
           /tmp/navo-ui-env/bin/python tests/settings-tabs-ui.py
           /tmp/navo-ui-env/bin/python tests/lakes-manager-ui.py
+          /tmp/navo-ui-env/bin/python tests/mode-indicator-ui.py
           /tmp/navo-ui-env/bin/python tests/steering-ui.py
           /tmp/navo-ui-env/bin/python tests/sonar-recording-ui.py
           /tmp/navo-ui-env/bin/python tests/replay-notes-ui.py
