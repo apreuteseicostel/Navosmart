@@ -92,6 +92,24 @@ Item {
     readonly property color navoMuted: "#c1d7e6"
     property int journalTab: 0 // Partide, Însemnări, Statistici
 
+    component JournalField: TextField {
+        id: field
+        implicitHeight: 37
+        color: "#eff9ff"
+        placeholderTextColor: "#a7c1d3"
+        selectByMouse: true
+        font.pixelSize: 12
+        padding: 8
+        background: Rectangle { color: "#0a293e"; radius: 8; border.color: field.activeFocus ? "#20d9ed" : "#54869d" }
+    }
+    component JournalArea: TextArea {
+        id: field
+        color: "#eff9ff"
+        placeholderTextColor: "#a7c1d3"
+        font.pixelSize: 12
+        padding: 8
+        background: Rectangle { color: "#0a293e"; radius: 8; border.color: field.activeFocus ? "#20d9ed" : "#54869d" }
+    }
     component JournalButton: Button {
         id: btn
         property color tint: "#20d9ed"
@@ -385,47 +403,51 @@ Item {
     }
     Dialog {
         id:startDialog; objectName:"journalStart"; parent:Overlay.overlay;anchors.centerIn:parent;width:Math.min(400,root.width);modal:true;title:"Partidă nouă";standardButtons:Dialog.Cancel
+        palette.windowText: "#eff9ff"; palette.text: "#eff9ff"
+        background: Rectangle { color: "#071e30"; radius: 12; border.color: "#20d9ed" }
         contentItem:ColumnLayout {
-            TextField { id:tripTitle;objectName:"journalTitle";Layout.fillWidth:true;maximumLength:120;placeholderText:"Titlu partidă" }
-            Button { text:"Începe";enabled:tripTitle.text.trim().length>0 && !root.replayMode && !root.activeTrip;onClicked:{var id=root.persistence.startFishingTrip(root.lakeId,tripTitle.text);if(id){root.selectedId=id;startDialog.close()}} }
+            JournalField { id:tripTitle;objectName:"journalTitle";Layout.fillWidth:true;maximumLength:120;placeholderText:"Titlu partidă" }
+            JournalButton { text:"Începe";enabled:tripTitle.text.trim().length>0 && !root.replayMode && !root.activeTrip;onClicked:{var id=root.persistence.startFishingTrip(root.lakeId,tripTitle.text);if(id){root.selectedId=id;startDialog.close()}} }
         }
     }
     Dialog {
         id:entryDialog;objectName:"journalEntryEditor";parent:Overlay.overlay;anchors.centerIn:parent;width:Math.min(440,root.width);height:Math.min(420,root.height);modal:true;title:root.editingId ? "Editează însemnarea" : "Însemnare nouă";standardButtons:Dialog.NoButton
+        palette.windowText: "#eff9ff"; palette.text: "#eff9ff"
+        background: Rectangle { color: "#071e30"; radius: 12; border.color: "#20d9ed" }
         contentItem:ScrollView {
             id:entryScroll;clip:true;contentWidth:availableWidth
             ColumnLayout {
                 width:entryScroll.availableWidth;spacing:6
                 ComboBox { id:entryType;objectName:"journalEntryType";Layout.fillWidth:true;model:["Observație","Captură","Nădire"] }
-                TextField {id:entrySpecies;objectName:"journalSpecies";visible:entryType.currentIndex===1;Layout.fillWidth:true;maximumLength:80;placeholderText:"Specie (opțional)";Accessible.name:"Specia capturii"}
+                JournalField {id:entrySpecies;objectName:"journalSpecies";visible:entryType.currentIndex===1;Layout.fillWidth:true;maximumLength:80;placeholderText:"Specie (opțional)";Accessible.name:"Specia capturii"}
                 RowLayout {
                     visible:entryType.currentIndex===1;Layout.fillWidth:true
-                    TextField {id:entryWeight;objectName:"journalWeight";Layout.fillWidth:true;placeholderText:"Greutate (opțional)";inputMethodHints:Qt.ImhFormattedNumbersOnly;maximumLength:12;Accessible.name:"Greutatea capturii în kilograme"}
+                    JournalField {id:entryWeight;objectName:"journalWeight";Layout.fillWidth:true;placeholderText:"Greutate (opțional)";inputMethodHints:Qt.ImhFormattedNumbersOnly;maximumLength:12;Accessible.name:"Greutatea capturii în kilograme"}
                     Label {text:"kg"}
                 }
-                Label {Layout.fillWidth:true;visible:entryType.currentIndex===1 && !root.weightValid;color:"#b83d28";wrapMode:Text.WordWrap;text:"Greutate mai mare de 0 și cel mult 1000 kg, cu maximum 3 zecimale. Lasă gol dacă nu ai cântărit."}
-                TextField {id:entryBait;objectName:"journalBait";visible:entryType.currentIndex!==0;Layout.fillWidth:true;maximumLength:120;placeholderText:"Nadă / momeală (opțional)";Accessible.name:"Nada sau momeala folosită"}
+                Label {Layout.fillWidth:true;visible:entryType.currentIndex===1 && !root.weightValid;color:"#ffb0b8";wrapMode:Text.WordWrap;text:"Greutate mai mare de 0 și cel mult 1000 kg, cu maximum 3 zecimale. Lasă gol dacă nu ai cântărit."}
+                JournalField {id:entryBait;objectName:"journalBait";visible:entryType.currentIndex!==0;Layout.fillWidth:true;maximumLength:120;placeholderText:"Nadă / momeală (opțional)";Accessible.name:"Nada sau momeala folosită"}
                 Label {visible:root.baitPrefix.length>0 && entryType.currentIndex===2;Layout.fillWidth:true;wrapMode:Text.WordWrap;text:root.baitPrefix;color:"#bbcbd9"}
-                TextField {id:baitDetails;visible:root.baitPrefix.length>0 && entryType.currentIndex===2;Layout.fillWidth:true;placeholderText:"Tip nadă și cantitate (ex.: boilies 500 g)"}
-                TextArea {id:entryText;objectName:"journalEntryText";visible:!(root.baitPrefix.length>0 && entryType.currentIndex===2);Layout.fillWidth:true;Layout.preferredHeight:110;wrapMode:TextEdit.Wrap;placeholderText:"Observație despre captură sau nadă…";selectByMouse:true}
-                Label {Layout.fillWidth:true;color:"#b83d28";wrapMode:Text.WordWrap;text:entryText.text.length+" / 1000"+(root.persistence && root.persistence.journalError ? " • "+root.persistence.journalError : "")}
+                JournalField {id:baitDetails;visible:root.baitPrefix.length>0 && entryType.currentIndex===2;Layout.fillWidth:true;placeholderText:"Tip nadă și cantitate (ex.: boilies 500 g)"}
+                JournalArea {id:entryText;objectName:"journalEntryText";visible:!(root.baitPrefix.length>0 && entryType.currentIndex===2);Layout.fillWidth:true;Layout.preferredHeight:110;wrapMode:TextEdit.Wrap;placeholderText:"Observație despre captură sau nadă…";selectByMouse:true}
+                Label {Layout.fillWidth:true;color:"#ffb0b8";wrapMode:Text.WordWrap;text:entryText.text.length+" / 1000"+(root.persistence && root.persistence.journalError ? " • "+root.persistence.journalError : "")}
             }
         }
         footer:DialogButtonBox {
-            Button {objectName:"journalEntrySave";text:"Salvează";enabled:(root.baitPrefix.length>0 && entryType.currentIndex===2 ? baitDetails.text.trim().length>0 && (root.baitPrefix.length+baitDetails.text.length+18)<=1000 : entryText.text.trim().length>0 && entryText.text.length<=1000) && (entryType.currentIndex!==1 || root.weightValid);onClicked:root.saveEntry()}
-            Button {text:"Renunță";onClicked:entryDialog.close()}
+            JournalButton {objectName:"journalEntrySave";text:"Salvează";enabled:(root.baitPrefix.length>0 && entryType.currentIndex===2 ? baitDetails.text.trim().length>0 && (root.baitPrefix.length+baitDetails.text.length+18)<=1000 : entryText.text.trim().length>0 && entryText.text.length<=1000) && (entryType.currentIndex!==1 || root.weightValid);onClicked:root.saveEntry()}
+            JournalButton {text:"Renunță";onClicked:entryDialog.close()}
         }
     }
     Dialog {
-        id:finishDialog;parent:Overlay.overlay;anchors.centerIn:parent;width:Math.min(360,root.width);modal:true;title:"Închei partida?";standardButtons:Dialog.Yes|Dialog.No
+        id:finishDialog;parent:Overlay.overlay;anchors.centerIn:parent;width:Math.min(360,root.width);modal:true;palette.windowText:"#eff9ff"; background:Rectangle{color:"#071e30";radius:12;border.color:"#ffd166"};title:"Închei partida?";standardButtons:Dialog.Yes|Dialog.No
         onAccepted:if(root.selected)root.persistence.finishFishingTrip(root.selectedId)
     }
     Dialog {
-        id:deleteDialog;parent:Overlay.overlay;anchors.centerIn:parent;width:Math.min(360,root.width);modal:true;title:"Ștergi partida și însemnările?";standardButtons:Dialog.Yes|Dialog.No
+        id:deleteDialog;parent:Overlay.overlay;anchors.centerIn:parent;width:Math.min(360,root.width);modal:true;palette.windowText:"#eff9ff"; background:Rectangle{color:"#071e30";radius:12;border.color:"#ff8793"};title:"Ștergi partida și însemnările?";standardButtons:Dialog.Yes|Dialog.No
         onAccepted:if(root.persistence.deleteFishingTrip(root.pendingDeleteId))root.selectedId=""
     }
     Dialog {
-        id:deleteEntryDialog;parent:Overlay.overlay;anchors.centerIn:parent;width:Math.min(360,root.width);modal:true;title:"Ștergi însemnarea?";standardButtons:Dialog.Yes|Dialog.No
+        id:deleteEntryDialog;parent:Overlay.overlay;anchors.centerIn:parent;width:Math.min(360,root.width);modal:true;palette.windowText:"#eff9ff"; background:Rectangle{color:"#071e30";radius:12;border.color:"#ff8793"};title:"Ștergi însemnarea?";standardButtons:Dialog.Yes|Dialog.No
         onAccepted:root.persistence.deleteFishingEntry(root.pendingDeleteId,root.pendingEntryId)
     }
 }
