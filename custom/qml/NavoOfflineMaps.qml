@@ -246,7 +246,7 @@ Item {
                     }
                     GridLayout {
                         Layout.fillWidth: true
-                        columns: root.width < 380 ? 2 : 5
+                        columns: root.width < 460 ? 2 : 5
                         columnSpacing: 7; rowSpacing: 5
                         Label {
                             text: "Zoom"
