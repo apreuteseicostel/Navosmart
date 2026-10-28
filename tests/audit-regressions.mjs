@@ -524,4 +524,35 @@ test('Dashboard redesign preserves all three read-only diagnostics and explicit 
   assert.match(g20,/dashboardModePosition/);
   assert.doesNotMatch(panel,/\bsendCommand\s*\(|\bflightMode\s*=/);
 });
+test('Tabbed NAVO settings expose real camera, sonar, audio, energy and QGC controls',()=>{
+  const page=fs.readFileSync(path.join(dir,'NavoSettingsV3.qml'),'utf8');
+  const ethernet=fs.readFileSync(path.join(dir,'NavoEthernetSettings.qml'),'utf8');
+  const alerts=fs.readFileSync(path.join(dir,'NavoAlertSettings.qml'),'utf8');
+  const steering=fs.readFileSync(path.join(dir,'NavoSteeringPanel.qml'),'utf8');
+  const dashboard=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+  const cmake=fs.readFileSync(path.resolve(dir,'../CMakeLists.txt'),'utf8');
+  for(const name of ['General','Unități','Avansat','Integrare','QGroundControl'])
+    assert(page.includes('"'+name+'"'),name+' tab absent');
+  assert.match(dashboard,/id: settingsPage\s*NavoSettingsV3\s*\{/);
+  assert.match(cmake,/qml\/NavoSettingsV3\.qml/);
+  assert.match(page,/anchors\.bottom: root\.selectedTab === 0 \? saveFooter\.top : parent\.bottom/);
+  assert.match(page,/ethernetSettings\.saveEndpoints\(\)/);
+  assert.match(dashboard,/onSettingsToolRequested:/);
+  assert.match(ethernet,/function saveEndpoints\(\)/);
+  assert.match(ethernet,/videoTest\.start\(\)/);
+  assert.match(ethernet,/videoTest\.stop\(\)/);
+  assert.match(ethernet,/root\.sonar\.connectSonar\(\)/);
+  assert.match(ethernet,/root\.sonar\.disconnectSonar\(\)/);
+  assert.match(ethernet,/lanDiscovery\.scan\(\)/);
+  assert.match(alerts,/controller\.configure\(sound\.checked, voice\.checked, volume\.value\)/);
+  assert.match(alerts,/root\.controller\.test\(\)/);
+  assert.match(alerts,/root\.audio\.stop\(\)/);
+  assert.match(steering,/objectName: "steeringConfirmation"/);
+  assert.match(steering,/objectName: "steeringEnable"/);
+  assert.match(steering,/objectName: "steeringStop"/);
+  assert.match(page,/confirmed = false; root\.energy\.reservePercent = value/);
+  assert.match(page,/confirmed = false; root\.energy\.consumptionPercentPerKm = value/);
+  assert.doesNotMatch(page,/\bvehicle\.flightMode\s*=/);
+  assert.doesNotMatch(ethernet,/\bvehicle\.flightMode\s*=/);
+});
 console.log(`${passed} regression scenarios passed`);
