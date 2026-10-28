@@ -603,4 +603,22 @@ test('NAVO offline tabs keep quota, async downloads, pause/resume and delete saf
   assert.match(offline,/!root\.pendingDelete\.defaultSet && !root\.pendingDelete\.downloading/);
   assert.match(offline,/root\.validRegion/);
 });
+test('NAVO compact journal and offline layouts wrap narrow-screen actions',()=>{
+  const journal=fs.readFileSync(path.join(dir,'NavoFishingJournal.qml'),'utf8');
+  const offline=fs.readFileSync(path.join(dir,'NavoOfflineMaps.qml'),'utf8');
+  const dashboard=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+  assert.match(journal,/columns:\s*root\.width < 385 \? 2 : 3/);
+  assert.match(journal,/Flow\s*\{\s*Layout\.fillWidth:\s*true[\s\S]*?text: "Deschide însemnările"/);
+  assert.match(journal,/onClicked: root\.journalTab = 1/);
+  assert.match(offline,/columns:\s*root\.width < 370 \? 2 : 3/);
+  assert.match(offline,/columns:\s*root\.width < 380 \? 2 : 5/);
+  assert.match(offline,/columns:\s*root\.width < 440 \? 1 : 2/);
+  assert.match(offline,/id:\s*minZoom;\s*objectName:\s*"offlineMinZoom"/);
+  assert.match(offline,/id:\s*maxZoom;\s*objectName:\s*"offlineMaxZoom"/);
+  assert.match(dashboard,/id:\s*lakesPage/);
+  assert.match(dashboard,/id:\s*myLakesPopup/);
+  // No UI button can silently delete a tile set or a lake without its confirmation dialog.
+  assert.match(offline,/root\.pendingDelete=tileSet;\s*deleteDialog\.open\(\)/);
+  assert.match(dashboard,/myLakesPopup\.beginDelete\(modelData\)/);
+});
 console.log(`${passed} regression scenarios passed`);
