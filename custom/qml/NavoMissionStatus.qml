@@ -10,6 +10,9 @@ Rectangle {
     property real progress: 0
     property string statusText: "Pregătit"
     property bool homeAvailable: false
+    property bool cancelAvailable: false
+    property string cancelText: "ANULEAZĂ"
+    signal cancelRequested()
     signal pauseRequested()
     signal homeRequested()
     color: "#102536"; radius: 8
@@ -56,6 +59,17 @@ Rectangle {
             }
             MissionAction { objectName:"missionPause";text:"PAUZĂ";glyph:"pause";enabled:root.active && root.connected;onClicked:root.pauseRequested() }
             MissionAction { objectName:"missionHome";text:"HOME";glyph:"home";enabled:root.homeAvailable && root.connected;onClicked:root.homeRequested() }
+            Button {
+                objectName:"missionCancel"; text:root.cancelText
+                enabled:root.cancelAvailable
+                implicitHeight:36; implicitWidth:root.cancelText.length>9 ? 118 : 96
+                Accessible.name:text+" • solicită HOLD"
+                ToolTip.visible:hovered || down
+                ToolTip.text:"Anulează acțiunea și solicită HOLD. Oprirea este confirmată separat de H743."
+                contentItem:Label { text:parent.text;color:parent.enabled ? "#ffffff" : "#8b9ba8";font.bold:true;font.pixelSize:11;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter }
+                background:Rectangle {radius:6;color:parent.down ? "#a72d37" : "#72212b";border.color:"#ff6670";opacity:parent.enabled ? 1 : 0.45}
+                onClicked:root.cancelRequested()
+            }
         }
         RowLayout {
             Layout.fillWidth:true;spacing:6
@@ -68,3 +82,4 @@ Rectangle {
         }
     }
 }
+

@@ -644,7 +644,7 @@ test('GNSS moving-baseline yaw has explicit GPS1/GPS2 priority and H743 fallback
   assert.match(cpp,/rawYaw == 36000 \? 0\.0/); // True north, NOT invalid.
   assert.match(cpp,/fix >= 3 && receiver\.sats >= 4/);
   assert.match(cpp,/lastYawMs = -1/); // Explicit invalidity revokes old heading.
-  assert.match(cpp,/kYawTimeoutMs = 3000/);
+  assert.match(header,/kYawTimeoutMs = 3000/);
   assert.match(cpp,/if \(_available\(_gps1\)\) return &_gps1/);
   assert.match(cpp,/if \(_available\(_gps2\)\) return &_gps2/);
   assert.match(cpp,/return _autopilotHeadingDeg;\s*\/\/ Only display fallback/);
@@ -661,4 +661,116 @@ test('GNSS moving-baseline yaw has explicit GPS1/GPS2 priority and H743 fallback
   assert.match(dash,/Heading H743 \(rezervă\)/);
   assert.doesNotMatch(cpp,/setFlightMode|sendCommand|armVehicle|disarmVehicle/);
 });
+function cancellable(options={}) {
+ const events=[];
+ const bait=context('NavoBaitingController.qml',{enabled:true,state:2,idleState:0,navigateState:1,approachState:2,
+   finalApproachState:3,settleState:4,releaseState:5,exitState:6,returnHomeState:7,completeState:8,abortedState:9,
+   targetSpeedMps:1,commandedSpeedMps:1,monitorTimer:{stop(){events.push('monitor-stop')}},
+   settleTimer:{stop(){events.push('settle-stop')}},postDropTimer:{stop(){events.push('drop-stop')}},
+   rampTimer:{running:true,stop(){this.running=false;events.push('ramp-stop')}},
+   stopRequested(){events.push('extra-hold')},stateChangedDetailed:noop,cycleFinished:noop});
+ const route=context('NavoRoutePlan.qml',{active:true,startedAtMs:0,generation:5,state:'RUNNING',changed:noop,status:noop});
+ const uploader=context('NavoMissionUploader.qml',{uploadTimeout:{stop(){events.push('upload-timer-stop')}},uploadInProgress:true,uploadVerified:true,preparedCount:8,verifiedCount:8});
+ const c=context('NavoDashboard.qml',{sonarController:{replayMode:false},linkAlive:true,awaitingMissionStart:true,directGotoActive:true,
+   areaDrawingGeneration:0,pendingAreaDrawMode:'rectangle',pendingBaitPointPick:true,pendingMode:'RTL',pendingModeLabel:'RTL',
+   routePlan:route,baitingController:bait,missionUploader:uploader,
+   digitalAnchor:{release(){events.push('anchor-release')}},scanCoordinator:{cancel(){events.push('scan-cancel')}},
+   hopperBridge:{commandPending:false,leftOpen:false,rightOpen:false,closePending(){events.push('close')}},
+   vehicle:{flightMode:'RTL',pauseFlightMode:'HOLD',pauseVehicle(){events.push('hold')}},...options});
+ return {c,bait,route,uploader,events};
+}
+test('Cancel stops bait timers, route generation and pending upload/START before one HOLD',()=>{
+ const {c,bait,route,uploader,events}=cancellable();assert(c.cancelCurrentAction());
+ assert.equal(route.active,false);assert.equal(route.generation,6);assert.equal(bait.enabled,false);
+ for(const e of ['monitor-stop','settle-stop','drop-stop','ramp-stop','scan-cancel','upload-timer-stop'])assert(events.includes(e));
+ assert.equal(events.filter(e=>e==='hold').length,1);assert(!events.includes('extra-hold'));
+ assert.equal(c.awaitingMissionStart,false);assert.equal(c.directGotoActive,false);assert.equal(c.pendingBaitPointPick,false);
+ assert.equal(uploader.uploadInProgress,false);assert.equal(uploader.uploadVerified,false);assert.equal(uploader.preparedCount,0);
+ assert.equal(c.pendingMode,'HOLD');assert.match(c.lastNavigationStatus,/aștept confirmarea/);
+});
+test('Cancel RTL stops a leftover speed ramp even after bait cycle reports finished',()=>{
+ const {c,bait,events}=cancellable();bait.enabled=false;bait.state=7;
+ assert(c.cancelCurrentAction());assert(events.includes('ramp-stop'));assert.equal(bait.state,9);
+});
+test('Link loss cancels local actions without sending HOLD or hopper commands',()=>{
+ const {c,bait,uploader,events}=cancellable({linkAlive:false});c.hopperBridge.commandPending=true;
+ assert.equal(c.cancelCurrentAction(),false);assert.equal(bait.enabled,false);assert.equal(uploader.preparedCount,0);
+ assert(!events.includes('hold'));assert(!events.includes('close'));assert.match(c.lastNavigationStatus,/nu este confirmată/);
+});
+test('Cancellation during release requests closure and never opens another hopper',()=>{
+ const {c,events}=cancellable();c.hopperBridge.commandPending=true;
+ assert(c.cancelCurrentAction());assert.equal(events.filter(e=>e==='close').length,1);
+});
+test('Replay suspends local continuation without sending live HOLD or hopper commands',()=>{
+ const {c,bait,events}=cancellable({sonarController:{replayMode:true}});
+ assert.equal(c.cancelCurrentAction(),false);assert.equal(bait.enabled,false);assert(!events.includes('hold'));assert(!events.includes('close'));
+});
+test('Late upload completion cannot revalidate or auto-start a cancelled mission',()=>{
+ const {c,uploader}=cancellable();c.cancelCurrentAction();
+ const source=fs.readFileSync(path.join(dir,'NavoMissionUploader.qml'),'utf8');
+ const start=source.indexOf('function(success)',source.indexOf('onUploadCompleted:'));
+ vm.runInContext('('+callable(source,start)+')(true)',uploader);
+ assert.equal(uploader.uploadVerified,false);assert.equal(uploader.preparedCount,0);assert.equal(c.awaitingMissionStart,false);
+});
+function clearable() {
+ const a=area();a.generatedPoints=[coord(52,0),coord(52,.001)];a.completedLanes=[0];a.activeLaneIndex=0;a.paused=true;
+ const sonar={scanning:true,paused:true,currentLane:1,completedLanes:1,totalLanes:2,rawSamples:[{depth:3}],trackCoordinates:[coord(52,0)]};
+ const c=context('NavoScanCoordinator.qml',{vehicle:null,areaScan:a,sonarMapping:sonar,readOnlyReplay:false,routePlan:{active:false},
+  state:'PAUSED',lakeId:'lake-A',areaPoints:a.generatedPoints,missionLanes:[0],missionWaypointCount:2,missionCurrentIndex:2,
+  lastCompletedLaneFromMission:0,lastCompletedRouteLaneFromMission:0,bathymetryCells:[{depth:3}],nativeSurfaceMesh:{indices:[0,1,2]},status:noop});
+ c.checkpoint=()=>true;return {c,a,sonar};
+}
+test('Cancel Area Scan preserves geometry, completed lanes and samples for explicit Resume',()=>{
+ const {c,a,sonar}=clearable();c.state='SCANNING';sonar.paused=false;
+ a.safetyActionRequested=noop;sonar.pauseScan=()=>{sonar.paused=true};
+ assert(c.cancel('User cancel'));assert.equal(c.state,'PAUSED');assert.equal(a.generatedPoints.length,2);
+ assert.equal(a.completedLanes.length,1);assert.equal(sonar.rawSamples.length,1);assert.equal(sonar.paused,true);
+});
+test('Clear old Area Scan removes only geometry/progress and saves an empty checkpoint',()=>{
+ const {c,a,sonar}=clearable();let saved=false;
+ c.checkpoint=reason=>{assert.equal(reason,'area-cleared');assert.equal(c.areaPoints.length,0);assert.equal(c.missionWaypointCount,0);saved=true;return true};
+ assert(c.clearArea());assert(saved);assert.equal(c.state,'IDLE');assert.equal(a.generatedPoints.length,0);
+ assert.equal(a.completedLanes.length,0);assert.equal(a.activeLaneIndex,-1);assert.equal(sonar.scanning,false);
+ assert.equal(sonar.rawSamples.length,1);assert.equal(sonar.trackCoordinates.length,1);assert.equal(c.bathymetryCells.length,1);assert.equal(c.nativeSurfaceMesh.indices.length,3);
+});
+test('Replay transition pauses live scan locally without changing its saved lake',()=>{
+ const {c,a,sonar}=clearable();c.readOnlyReplay=true;c.state='SCANNING';sonar.paused=false;
+ c.checkpoint=()=>{throw Error('Replay must not write the live lake')};
+ assert(c.cancel('Replay'));assert.equal(c.state,'PAUSED');assert.equal(a.paused,true);assert.equal(sonar.paused,true);
+ assert.equal(sonar.rawSamples.length,1);assert.equal(a.generatedPoints.length,2);
+});
+test('Failed geometry save restores area, resume progress and sonar state',()=>{
+ const {c,a,sonar}=clearable();c.checkpoint=()=>false;
+ assert.equal(c.clearArea(),false);assert.equal(c.state,'PAUSED');assert.equal(c.areaPoints.length,2);
+ assert.equal(a.generatedPoints.length,2);assert.equal(a.completedLanes.length,1);assert.equal(a.activeLaneIndex,0);
+ assert.equal(sonar.scanning,true);assert.equal(sonar.paused,true);assert.equal(c.missionWaypointCount,2);
+});
+test('Clear is blocked during active scan, pending start, RTL, active route and replay',()=>{
+ for(const state of ['SCANNING','READY','RESUME_READY','RTL']){
+  const {c,a}=clearable();c.state=state;assert.equal(c.clearArea(),false);assert.equal(a.generatedPoints.length,2);
+ }
+ for(const flag of ['readOnlyReplay','route']){
+  const {c,a}=clearable();if(flag==='route')c.routePlan.active=true;else c.readOnlyReplay=true;
+  assert.equal(c.clearArea(),false);assert.equal(a.generatedPoints.length,2);
+ }
+});
+test('Dashboard deletion rechecks the guard and resets every map only after persisted success',()=>{
+ let saved=false,invalidated=0;
+ const c=context('NavoDashboard.qml',{canClearArea:false,areaDrawingGeneration:4,pendingAreaDrawMode:'rectangle',
+ scanCoordinator:{clearArea:()=>saved},missionUploader:{invalidate(){invalidated++}}});
+ assert.equal(c.clearAreaScan(),false);c.canClearArea=true;assert.equal(c.clearAreaScan(),false);assert.equal(invalidated,0);
+ saved=true;assert(c.clearAreaScan());assert.equal(c.areaDrawingGeneration,5);assert.equal(c.pendingAreaDrawMode,'none');assert.equal(invalidated,1);
+ const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');assert.equal((dash.match(/areaDrawingGeneration: root\.areaDrawingGeneration/g)||[]).length,4);
+ const map=context('NavoMap.qml',{areaDraftPoints:[1,2],lastAreaOutline:[1,2,3],areaDrawMode:'rectangle',rectangleDragCorner:1});
+ map.clearAreaDrawing();assert.equal(map.lastAreaOutline.length,0);assert.equal(map.areaDraftPoints.length,0);assert.equal(map.areaDrawMode,'none');
+});
+test('RTL cancellation remains reachable and Area Scan controls explain hover and touch',()=>{
+ const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8'),map=fs.readFileSync(path.join(dir,'NavoMap.qml'),'utf8'),strip=fs.readFileSync(path.join(dir,'NavoMissionStatus.qml'),'utf8');
+ assert.match(dash,/visible:root\.actionActive \|\| root\.activePage===2/);assert.match(dash,/cancelText:root\.rtlActive \? "ANULEAZĂ RTL"/);
+ assert.match(strip,/onClicked:root\.cancelRequested\(\)/);assert.match(strip,/enabled:root\.cancelAvailable/);
+ assert.match(dash,/onPressed: root\.lastNavigationStatus=hint/);assert.match(dash,/text:scanButton\.caption/);
+ assert.match(map,/onPressed: root\.showToolHelp\(ToolTip\.text\)/);assert.match(map,/interval:4000/);
+ assert.match(dash,/if\(areaScanMap && root\.pendingAreaDrawMode==="rectangle"\)/);
+});
 console.log(`${passed} regression scenarios passed`);
+

@@ -123,6 +123,8 @@ Item {
     property bool baitPointPickMode: false
     property var areaDraftPoints: []
     property var lastAreaOutline: []
+    property int areaDrawingGeneration: 0
+    onAreaDrawingGenerationChanged: { cancelAreaDrawing(); baitPointPickMode=false }
     property int rectangleDragCorner: -1
 
     function beginAreaRectangle() {
@@ -621,14 +623,31 @@ Item {
         onAccepted: if(root.pendingFishingCoordinate && root.pendingFishingCoordinate.isValid) root.saveNamedPointRequested(root.pendingFishingCoordinate,fishingName.text.trim(),root.pendingFishingColor)
     }
 
-    Row {
+    property string toolHelpText: ""
+    function showToolHelp(message) { toolHelpText=String(message||"");toolHelpTimer.restart() }
+    Timer { id:toolHelpTimer;interval:4000;onTriggered:root.toolHelpText="" }
+    Rectangle {
+        anchors.horizontalCenter:parent.horizontalCenter;anchors.bottom:parent.bottom;anchors.bottomMargin:86
+        width:Math.min(330,Math.max(120,parent.width-110));height:toolHelpLabel.implicitHeight+18
+        visible:root.toolHelpText.length>0;z:3100;radius:8;color:"#ee071827";border.color:"#26c6da"
+        Label { id:toolHelpLabel;anchors.fill:parent;anchors.margins:9;text:root.toolHelpText;color:"white";font.pixelSize:12;wrapMode:Text.WordWrap }
+    }
+    Flow {
+        width:parent.width-28
         anchors.left: parent.left; anchors.bottom: parent.bottom; anchors.leftMargin:14; anchors.bottomMargin:14; spacing:8
         visible: root.areaDrawMode!=="none"
         z: 3000
-        Button { width:50;height:48;padding:2;enabled:false;ToolTip.visible:hovered;ToolTip.text:(root.areaDrawMode==="rectangle"?"Dreptunghi ":"Poligon ")+root.areaDraftPoints.length+(root.areaDrawMode==="rectangle"?"/2":"");contentItem:Image{anchors.centerIn:parent;width:26;height:26;source:root.areaDrawMode==="rectangle"?"qrc:/qml/NavoSmart/icons/rectangle.svg":"qrc:/qml/NavoSmart/icons/polygon.svg"} }
-        Button { visible:root.areaDrawMode==="polygon" || root.areaDrawMode==="rectangle";width:50;height:48;padding:2;enabled:root.areaDrawMode==="rectangle"?root.areaDraftPoints.length===2:root.areaDraftPoints.length>=3;ToolTip.visible:hovered;ToolTip.text:root.areaDrawMode==="rectangle"?"GATA • generează culoarele":"Finalizează poligonul";contentItem:Image{anchors.centerIn:parent;width:26;height:26;source:"qrc:/qml/NavoSmart/icons/done.svg"}onClicked:root.finishAreaDrawing() }
-        Button { width:50;height:48;padding:2;enabled:root.areaDraftPoints.length>0;ToolTip.visible:hovered;ToolTip.text:"Șterge ultimul punct / segment";contentItem:Image{anchors.centerIn:parent;width:26;height:26;source:"qrc:/qml/NavoSmart/icons/undo.svg"}onClicked:root.undoAreaPoint() }
-        Button { width:50;height:48;padding:2;ToolTip.visible:hovered;ToolTip.text:"Șterge desenul Area Scan";contentItem:Image{anchors.centerIn:parent;width:26;height:26;source:"qrc:/qml/NavoSmart/icons/delete.svg"}onClicked:root.clearAreaDrawing() }
+        component DrawingTool: Button {
+            property string caption: ""
+            width:72;height:68
+            Accessible.name:ToolTip.text
+            onPressed:root.showToolHelp(ToolTip.text)
+            Label { anchors.left:parent.left;anchors.right:parent.right;anchors.bottom:parent.bottom;anchors.margins:3;height:24;z:2;text:parent.caption;color:parent.enabled ? "white" : "#879ba9";font.pixelSize:9;wrapMode:Text.WordWrap;horizontalAlignment:Text.AlignHCenter }
+        }
+        DrawingTool { caption:root.areaDrawMode==="rectangle" ? "Dreptunghi" : "Poligon";padding:2;enabled:false;ToolTip.visible:hovered || down;ToolTip.text:(root.areaDrawMode==="rectangle"?"Dreptunghi ":"Poligon ")+root.areaDraftPoints.length+(root.areaDrawMode==="rectangle"?"/2":"");contentItem:Image{anchors.centerIn:parent;anchors.verticalCenterOffset:-10;width:26;height:26;source:root.areaDrawMode==="rectangle"?"qrc:/qml/NavoSmart/icons/rectangle.svg":"qrc:/qml/NavoSmart/icons/polygon.svg"} }
+        DrawingTool { caption:"GATA";visible:root.areaDrawMode==="polygon" || root.areaDrawMode==="rectangle";padding:2;enabled:root.areaDrawMode==="rectangle"?root.areaDraftPoints.length===2:root.areaDraftPoints.length>=3;ToolTip.visible:hovered || down;ToolTip.text:root.areaDrawMode==="rectangle"?"GATA • generează culoarele":"Finalizează poligonul";contentItem:Image{anchors.centerIn:parent;anchors.verticalCenterOffset:-10;width:26;height:26;source:"qrc:/qml/NavoSmart/icons/done.svg"}onClicked:root.finishAreaDrawing() }
+        DrawingTool { caption:"Înapoi";padding:2;enabled:root.areaDraftPoints.length>0;ToolTip.visible:hovered || down;ToolTip.text:"Șterge ultimul punct / segment";contentItem:Image{anchors.centerIn:parent;anchors.verticalCenterOffset:-10;width:26;height:26;source:"qrc:/qml/NavoSmart/icons/undo.svg"}onClicked:root.undoAreaPoint() }
+        DrawingTool { caption:"Anulează desen";padding:2;ToolTip.visible:hovered || down;ToolTip.text:"Șterge desenul Area Scan";contentItem:Image{anchors.centerIn:parent;anchors.verticalCenterOffset:-10;width:26;height:26;source:"qrc:/qml/NavoSmart/icons/delete.svg"}onClicked:root.clearAreaDrawing() }
         Rectangle {
             visible: root.areaDrawMode==="rectangle" && root.areaDraftPoints.length===2
             width:112;height:48;radius:8;color:"#d9071827";border.color:"#21b7ff"
@@ -641,32 +660,36 @@ Item {
         spacing:5; z:200
         property int controlSize:44
         component MapTool: Button {
+            Accessible.name: ToolTip.text
+            onPressed: root.showToolHelp(ToolTip.text)
             property url iconSource: ""
             width:44;height:44;padding:0
             font.pixelSize:22;font.bold:true
             background:Rectangle { radius:8;color:parent.checked||parent.down?"#b0164963":"#800d1722";border.color:parent.checked?"#21b7ff":"#8027394b";border.width:1 }
             contentItem:Image { anchors.centerIn:parent;width:23;height:23;source:parent.iconSource;fillMode:Image.PreserveAspectFit }
         }
-        MapTool { text:"BOAT"; iconSource:"qrc:/qml/NavoSmart/icons/boat.svg"; font.pixelSize:9; ToolTip.visible:hovered;ToolTip.text:"Centrează pe poziția actuală a bărcii";enabled:!!root.vehicle&&!!root.vehicle.coordinate&&root.vehicle.coordinate.isValid;onClicked:root.followBoat() }
+        MapTool { text:"BOAT"; iconSource:"qrc:/qml/NavoSmart/icons/boat.svg"; font.pixelSize:9; ToolTip.visible:hovered || down;ToolTip.text:"Centrează pe poziția actuală a bărcii";enabled:!!root.vehicle&&!!root.vehicle.coordinate&&root.vehicle.coordinate.isValid;onClicked:root.followBoat() }
         MapTool { text:"TEL"; Accessible.name:"Centrează pe GPS-ul telefonului"; ToolTip.visible:hovered || down; ToolTip.text:root.operatorLocationValid ? "Centrează harta pe poziția telefonului" : "GPS telefon indisponibil • verifică permisiunea de localizare"; enabled:!root.recordedReplay && root.operatorLocationValid; onClicked:root.centerOnOperator() }
-        MapTool { text:"+"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-in.svg";ToolTip.visible:hovered;ToolTip.text:"Mărește harta";onClicked:{root.autoFollowBoat=false;liveMap.zoomLevel=liveMap.zoomLevel+1} }
-        MapTool { text:"-"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-out.svg";ToolTip.visible:hovered;ToolTip.text:"Micșorează harta";onClicked:{root.autoFollowBoat=false;liveMap.zoomLevel=liveMap.zoomLevel-1} }
+        MapTool { text:"+"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-in.svg";ToolTip.visible:hovered || down;ToolTip.text:"Mărește harta";onClicked:{root.autoFollowBoat=false;liveMap.zoomLevel=liveMap.zoomLevel+1} }
+        MapTool { text:"-"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-out.svg";ToolTip.visible:hovered || down;ToolTip.text:"Micșorează harta";onClicked:{root.autoFollowBoat=false;liveMap.zoomLevel=liveMap.zoomLevel-1} }
         MapTool { checkable:true;checked:layersPopup.visible;Accessible.name:"Straturi hartă"; iconSource:"qrc:/qml/NavoSmart/icons/layers.svg"; ToolTip.visible:hovered||down; ToolTip.text:"Straturi hartă"; onClicked:layersPopup.open() }
-        MapTool { objectName:"mapFitMission";text:"CTR"; iconSource:root.canFitMission ? "qrc:/qml/NavoSmart/icons/route.svg" : "qrc:/qml/NavoSmart/icons/center.svg";font.pixelSize:10;Accessible.name:root.canFitMission ? "Încadrează întregul traseu" : "Resetează vederea hărții";ToolTip.visible:hovered;ToolTip.text:Accessible.name;onClicked:root.canFitMission ? root.fitMission() : root.resetView() }
+        MapTool { objectName:"mapFitMission";text:"CTR"; iconSource:root.canFitMission ? "qrc:/qml/NavoSmart/icons/route.svg" : "qrc:/qml/NavoSmart/icons/center.svg";font.pixelSize:10;Accessible.name:root.canFitMission ? "Încadrează întregul traseu" : "Resetează vederea hărții";ToolTip.visible:hovered || down;ToolTip.text:Accessible.name;onClicked:root.canFitMission ? root.fitMission() : root.resetView() }
     }
     Column {
         anchors.right:parent.right; anchors.top:parent.top; anchors.rightMargin:10; anchors.topMargin:10; spacing:5; z:200
         property int controlSize:44
         component RightTool: Button {
+            Accessible.name: ToolTip.text
+            onPressed: root.showToolHelp(ToolTip.text)
             property url iconSource: ""
             width:44;height:44;padding:0;font.pixelSize:18;font.bold:true
             background:Rectangle { radius:8;color:"#800d1722";border.color:"#8027394b" }
             contentItem:Image { anchors.centerIn:parent;width:23;height:23;source:parent.iconSource;fillMode:Image.PreserveAspectFit }
         }
-        RightTool { text:"MAP"; iconSource:"qrc:/qml/NavoSmart/icons/map.svg";font.pixelSize:11;checkable:true;checked:root.bathymetryHDEnabled;ToolTip.visible:hovered;ToolTip.text:root.bathymetryHDEnabled?"Ascunde batimetria HD":"Afișează batimetria HD";onClicked:root.toggleMapLayer() }
-        RightTool { text:"HD"; iconSource:"qrc:/qml/NavoSmart/icons/lake.svg";font.pixelSize:14;checkable:true;checked:root.headingUp;ToolTip.visible:hovered;ToolTip.text:root.headingUp?"Heading Up activ • apasă pentru Nord sus":"Heading Up • rotește după barcă";onClicked:root.headingUp=!root.headingUp }
-        RightTool { text:"RUL"; iconSource:"qrc:/qml/NavoSmart/icons/ruler.svg";font.pixelSize:11;checkable:true;checked:root.rulerMode;ToolTip.visible:hovered;ToolTip.text:root.rulerMode?root.rulerDistanceText():"Măsoară distanța între două puncte";onClicked:root.toggleRuler() }
-        RightTool { text:root.maximized?"MIN":"MAX"; iconSource:"qrc:/qml/NavoSmart/icons/fullscreen.svg";font.pixelSize:10;ToolTip.visible:hovered;ToolTip.text:root.maximized?"Revino la dashboard":"Hartă pe tot ecranul";onClicked:root.maximizeRequested() }
+        RightTool { text:"MAP"; iconSource:"qrc:/qml/NavoSmart/icons/map.svg";font.pixelSize:11;checkable:true;checked:root.bathymetryHDEnabled;ToolTip.visible:hovered || down;ToolTip.text:root.bathymetryHDEnabled?"Ascunde batimetria HD":"Afișează batimetria HD";onClicked:root.toggleMapLayer() }
+        RightTool { text:"HD"; iconSource:"qrc:/qml/NavoSmart/icons/lake.svg";font.pixelSize:14;checkable:true;checked:root.headingUp;ToolTip.visible:hovered || down;ToolTip.text:root.headingUp?"Heading Up activ • apasă pentru Nord sus":"Heading Up • rotește după barcă";onClicked:root.headingUp=!root.headingUp }
+        RightTool { text:"RUL"; iconSource:"qrc:/qml/NavoSmart/icons/ruler.svg";font.pixelSize:11;checkable:true;checked:root.rulerMode;ToolTip.visible:hovered || down;ToolTip.text:root.rulerMode?root.rulerDistanceText():"Măsoară distanța între două puncte";onClicked:root.toggleRuler() }
+        RightTool { text:root.maximized?"MIN":"MAX"; iconSource:"qrc:/qml/NavoSmart/icons/fullscreen.svg";font.pixelSize:10;ToolTip.visible:hovered || down;ToolTip.text:root.maximized?"Revino la dashboard":"Hartă pe tot ecranul";onClicked:root.maximizeRequested() }
     }
     Popup {
         id:layersPopup; parent:Overlay.overlay; anchors.centerIn:parent
@@ -755,3 +778,4 @@ Item {
         }
     }
 }
+

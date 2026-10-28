@@ -183,6 +183,51 @@ QtObject {
         checkpoint("lane"); if(areaScan.completedLanes.length>=areaScan.laneCount()) finish()
     }
     function pause(reason) {if(!areaScan||!sonarMapping)return;var boat=vehicle&&vehicle.coordinate?vehicle.coordinate:null;areaScan.hold(reason||"Pauză scanare",boat);sonarMapping.pauseScan();state="PAUSED";checkpoint("pause")}
+    function cancel(reason) {
+        if(!areaScan || !sonarMapping) return false
+        if(["SCANNING","READY","RESUME_READY","RTL"].indexOf(state)<0) return false
+        if(readOnlyReplay) {
+            // Suspend live continuation without writing a replay into the live lake.
+            areaScan.paused=true; sonarMapping.paused=true; state="PAUSED"
+            return true
+        }
+        // Preserve completed lanes and samples for an explicit Resume; never AUTO.
+        pause(reason || "Area Scan anulat")
+        return true
+    }
+    function clearArea() {
+        if(readOnlyReplay || !areaScan || !sonarMapping || (sonarMapping.scanning && !sonarMapping.paused) ||
+           ["SCANNING","READY","RESUME_READY","RTL"].indexOf(state)>=0 ||
+           (routePlan && routePlan.active)) {
+            status("Oprește și anulează misiunea înainte de ștergerea zonei")
+            return false
+        }
+        // Geometry/progress only: sonar samples, bathymetry and saved spots survive.
+        var previous={points:areaPoints,generated:areaScan.generatedPoints,completed:areaScan.completedLanes,
+            lane:areaScan.activeLaneIndex,paused:areaScan.paused,boat:areaScan.lastBoatCoordinate,
+            state:state,lanes:missionLanes,count:missionWaypointCount,index:missionCurrentIndex,
+            completedMission:lastCompletedLaneFromMission,completedRoute:lastCompletedRouteLaneFromMission,
+            sonarLane:sonarMapping.currentLane,sonarCompleted:sonarMapping.completedLanes,sonarTotal:sonarMapping.totalLanes,
+            sonarScanning:sonarMapping.scanning,sonarPaused:sonarMapping.paused}
+        areaPoints=[]; areaScan.generatedPoints=[]; areaScan.completedLanes=[]
+        areaScan.activeLaneIndex=-1; areaScan.paused=false; areaScan.lastBoatCoordinate=null
+        missionLanes=[]; missionWaypointCount=0; missionCurrentIndex=-1
+        lastCompletedLaneFromMission=-1; lastCompletedRouteLaneFromMission=-1
+        sonarMapping.currentLane=0; sonarMapping.completedLanes=0; sonarMapping.totalLanes=0
+        sonarMapping.scanning=false; sonarMapping.paused=false
+        state="IDLE"
+        if(lakeId.length && !checkpoint("area-cleared")) {
+            areaPoints=previous.points; areaScan.generatedPoints=previous.generated; areaScan.completedLanes=previous.completed
+            areaScan.activeLaneIndex=previous.lane; areaScan.paused=previous.paused; areaScan.lastBoatCoordinate=previous.boat
+            state=previous.state; missionLanes=previous.lanes; missionWaypointCount=previous.count; missionCurrentIndex=previous.index
+            lastCompletedLaneFromMission=previous.completedMission; lastCompletedRouteLaneFromMission=previous.completedRoute
+            sonarMapping.currentLane=previous.sonarLane; sonarMapping.completedLanes=previous.sonarCompleted; sonarMapping.totalLanes=previous.sonarTotal
+            sonarMapping.scanning=previous.sonarScanning; sonarMapping.paused=previous.sonarPaused
+            status("Zona nu a fost ștearsă: salvarea a eșuat")
+            return false
+        }
+        return true
+    }
     function resume() {
         if(state!=="PAUSED" && state!=="RTL"){status("Resume disponibil numai după HOLD/STOP/RTL");return []}
         if(!areaScan || !sonarMapping){status("Resume indisponibil: controlere neinițializate");return []}
@@ -330,3 +375,4 @@ QtObject {
     }
     property QtObject areaScanConnections: Connections { target: areaScan; function onSafetyActionRequested(action,reason) { status(action+": "+reason) } }
 }
+

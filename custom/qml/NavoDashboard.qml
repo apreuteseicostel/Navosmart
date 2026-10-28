@@ -256,6 +256,18 @@ Item {
     property bool missionScanSelected: true
     property real scanEstimateSpeedMps: 1.5
     readonly property bool missionBusy: routePlan.active || baitingController.enabled || scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || missionUploader.uploadInProgress
+    property bool directGotoActive: false
+    property int areaDrawingGeneration: 0
+    readonly property bool rtlActive: root.pendingModeLabel==="RTL" && root.pendingMode.length>0 ||
+        ["RTL","SMARTRTL","SMART_RTL"].indexOf(String(root.flightMode).toUpperCase())>=0 ||
+        (!!root.vehicle && !!root.vehicle.rtlFlightMode && String(root.flightMode).toUpperCase()===String(root.vehicle.rtlFlightMode).toUpperCase())
+    readonly property bool actionActive: root.missionBusy || root.directGotoActive || root.rtlActive ||
+        root.pendingMode.length>0 || ["AUTO","GUIDED"].indexOf(String(root.flightMode).toUpperCase())>=0
+    readonly property bool canClearArea: !sonar.replayMode && !root.actionActive &&
+        ["READY","RESUME_READY","RTL"].indexOf(scanCoordinator.state)<0 &&
+        (!sonarMapping.scanning || sonarMapping.paused) && !root.awaitingMissionStart && !missionUploader.uploadInProgress &&
+        !(root.planController && (root.planController.syncInProgress ||
+          (root.planController.missionController && root.planController.missionController.syncInProgress)))
     readonly property var scanEstimate: {
         var points=areaScanController.generatedPoints
         var origin=root.vehicle ? root.vehicle.coordinate : null
@@ -495,7 +507,7 @@ Item {
     }
     property bool awaitingMissionStart: false
     property string areaScanFinishAction: "HOLD"
-    onVehicleChanged: { if(routePlan && routePlan.active) routePlan.cancel("Autopilot schimbat"); proBoatTrack=[]; awaitingMissionStart=false; if(baitingController && baitingController.enabled) baitingController.abortCycle("Autopilot schimbat"); if(scanCoordinator && scanCoordinator.state==="SCANNING") scanCoordinator.pause("Autopilot schimbat") }
+    onVehicleChanged: { directGotoActive=false; if(routePlan && routePlan.active) routePlan.cancel("Autopilot schimbat"); proBoatTrack=[]; awaitingMissionStart=false; if(baitingController && baitingController.enabled) baitingController.abortCycle("Autopilot schimbat"); if(scanCoordinator && scanCoordinator.state==="SCANNING") scanCoordinator.pause("Autopilot schimbat") }
     property string pendingMode: ""
     property string pendingModeLabel: ""
     Timer {
@@ -503,6 +515,7 @@ Item {
         onTriggered: { root.lastNavigationStatus=root.pendingModeLabel+" fără confirmare autopilot"; root.pendingMode="" }
     }
     onFlightModeChanged: {
+        if(String(flightMode).toUpperCase()!=="GUIDED") directGotoActive=false
         if(pendingMode.length && flightMode.toUpperCase()===pendingMode.toUpperCase()) {
             lastNavigationStatus="Autopilot confirmă "+pendingModeLabel; pendingMode=""
         }
@@ -963,22 +976,59 @@ Item {
         return true
     }
     function stopMission() {
-        if(routePlan.active) routePlan.cancel("STOP utilizator")
+        return root.cancelCurrentAction()
+    }
+    function cancelCurrentAction() {
+        var liveAllowed=root.allowLiveAction()
+        // Stop local producers before callbacks can queue another leg/drop/START.
         root.awaitingMissionStart = false
-        if(baitingController.enabled) baitingController.abortCycle("STOP utilizator")
+        root.directGotoActive = false
+        root.pendingBaitPointPick = false
+        root.pendingAreaDrawMode = "none"
+        root.areaDrawingGeneration++
+        if(routePlan.active) routePlan.cancel("Acțiune anulată de utilizator")
+        if(baitingController.enabled || baitingController.state===baitingController.returnHomeState || baitingController.rampTimer.running)
+            baitingController.abortCycle("Nădire anulată de utilizator", true)
         digitalAnchor.release()
-        if(scanCoordinator.state==="SCANNING") scanCoordinator.pause("STOP utilizator")
-        else if(scanCoordinator.state==="READY" || scanCoordinator.state==="RESUME_READY") {
-            areaScanController.hold("STOP înainte de START", root.vehicle && root.vehicle.coordinate ? root.vehicle.coordinate : null)
-            scanCoordinator.state="PAUSED"
-            scanCoordinator.checkpoint("stop-before-start")
-        }
+        scanCoordinator.cancel("Area Scan anulat de utilizator")
         missionUploader.invalidate()
-        if (!vehicle || !vehicle.pauseVehicle) { root.lastNavigationStatus = "STOP indisponibil: autopilot deconectat"; return false }
+        root.pendingMode=""; root.pendingModeLabel=""
+        if(!liveAllowed) {
+            root.lastNavigationStatus="Continuarea locală anulată • replay activ; HOLD netrimis, verifică H743"
+            return false
+        }
+        // Close an already requested release; cancellation cannot undo bait released.
+        if(root.linkAlive && (hopperBridge.commandPending || hopperBridge.leftOpen || hopperBridge.rightOpen))
+            hopperBridge.closePending()
+        if (!root.linkAlive || !vehicle || !vehicle.pauseVehicle) {
+            root.lastNavigationStatus = "Acțiunea locală anulată • HOLD netrimis: H743 indisponibil; oprirea bărcii nu este confirmată"
+            return false
+        }
         vehicle.pauseVehicle()
-        root.pendingMode=vehicle.pauseFlightMode; root.pendingModeLabel="STOP (HOLD)"
-        root.lastNavigationStatus = "Comandă STOP/HOLD trimisă • aștept confirmarea autopilotului"
+        root.pendingMode=vehicle.pauseFlightMode; root.pendingModeLabel="ANULARE (HOLD)"
+        root.lastNavigationStatus = "Acțiune anulată în aplicație • HOLD trimis; aștept confirmarea H743"
+        if(String(vehicle.flightMode).toUpperCase()===String(vehicle.pauseFlightMode).toUpperCase()) {
+            root.pendingMode=""
+            root.lastNavigationStatus="Acțiune anulată • H743 raportează HOLD"
+        }
         return true
+    }
+    function clearAreaScan() {
+        if(!root.canClearArea) { root.lastNavigationStatus="Anulează acțiunea și așteaptă HOLD înainte de ștergerea zonei"; return false }
+        if(!scanCoordinator.clearArea()) return false
+        missionUploader.invalidate()
+        root.pendingAreaDrawMode="none"
+        root.areaDrawingGeneration++
+        root.lastNavigationStatus="Zona și culoarele Area Scan șterse • măsurătorile sonar păstrate"
+        return true
+    }
+    Dialog {
+        id:clearAreaConfirm
+        parent:Overlay.overlay;anchors.centerIn:parent;modal:true
+        title:"Ștergi zona Area Scan?"
+        standardButtons:Dialog.Yes | Dialog.No
+        Label { width:Math.min(340,root.width-48);wrapMode:Text.WordWrap;text:"Se elimină chenarul, culoarele și progresul de reluare. Măsurătorile sonar, batimetria și punctele salvate sunt păstrate." }
+        onAccepted:root.clearAreaScan()
     }
     function saveSonarPoint(pro, entry, name, note, prepare) {
         if(!pro.sonarPointValid(entry) || entry.lakeId!==scanCoordinator.lakeId || !root.requireActiveLakeForPointSave()) {
@@ -1074,6 +1124,7 @@ Item {
         if(!root.checkEnergyForRoute([c]))return false
         digitalAnchor.release()
         vehicle.guidedModeGotoLocation(c)
+        root.directGotoActive = true
         root.lastNavigationStatus = "Comandă GUIDED trimisă către punct"
         return true
     }
@@ -1349,17 +1400,20 @@ Item {
 
     NavoMissionStatus {
         id:missionStrip
-        visible:root.missionBusy || root.activePage===2
+        visible:root.actionActive || root.activePage===2
         anchors.left:root.mapMaximized || root.activePage===10 ? parent.left : sidebar.right
         anchors.right:parent.right
         anchors.top:root.activePage===10 ? parent.top : header.bottom
         height:visible ? implicitHeight : 0
         z:6001
-        active:root.missionBusy
+        active:root.actionActive
+        cancelAvailable:!sonar.replayMode && (root.actionActive || scanCoordinator.state==="READY" || scanCoordinator.state==="RESUME_READY" || scanCoordinator.state==="PAUSED")
+        cancelText:root.rtlActive ? "ANULEAZĂ RTL" : "ANULEAZĂ"
+        onCancelRequested:root.cancelCurrentAction()
         connected:root.linkAlive
         homeAvailable:!sonar.replayMode && !!root.vehicle && !!root.vehicle.guidedModeRTL && !!root.vehicle.homePosition && root.vehicle.homePosition.isValid
         progress:routePlan.active ? 100*(routePlan.currentIndex+Math.min(0.95,Math.max(0,root.routeLegDistanceM>0 && isFinite(baitingController.distanceToTarget()) ? 1-baitingController.distanceToTarget()/root.routeLegDistanceM : 0)))/Math.max(1,routePlan.runningStops.length) : root.missionScanSelected ? areaScanController.progressPercent() : routePlan.state==="DISPATCHED" ? 100 : 0
-        statusText:routePlan.active ? (routePlan.missionKind==="point" ? "Mergi la punct" : "Traseu cu opriri")+" • oprire "+(routePlan.currentIndex+1)+"/"+routePlan.runningStops.length+" • "+baitingController.stateText(baitingController.state) : root.missionScanSelected ? "Scanare • "+root.missionStateLabel(scanCoordinator.state) : "Misiune • "+root.missionStateLabel(routePlan.state)
+        statusText:root.pendingMode.length ? root.lastNavigationStatus : root.rtlActive ? "Întoarcere HOME • RTL activ" : root.directGotoActive ? "Mergi la punct • comandă GUIDED trimisă" : routePlan.active ? (routePlan.missionKind==="point" ? "Mergi la punct" : "Traseu cu opriri")+" • oprire "+(routePlan.currentIndex+1)+"/"+routePlan.runningStops.length+" • "+baitingController.stateText(baitingController.state) : root.missionScanSelected ? "Scanare • "+root.missionStateLabel(scanCoordinator.state) : "Misiune • "+root.missionStateLabel(routePlan.state)
         onPauseRequested:root.holdMission()
         onHomeRequested:homeRtlConfirm.open()
     }
@@ -1414,6 +1468,7 @@ Item {
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             NavoMap {
                 headingOverrideEnabled: true
+                areaDrawingGeneration: root.areaDrawingGeneration
                 headingOverrideDeg: root.headingDeg
                 spotActionsAllowed:!root.missionBusy && !sonar.replayMode && !root.steeringModeBusy
                 onFishingSpotActionRequested:function(spot,action,hopper,size){root.prepareFishingSpotAction(spot,action,hopper,size)}
@@ -1818,6 +1873,7 @@ Item {
                         radius: 8; color: root.bg; border.color: root.line; clip: true
                         NavoMap {
                 headingOverrideEnabled: true
+                areaDrawingGeneration: root.areaDrawingGeneration
                 headingOverrideDeg: root.headingDeg
                 spotActionsAllowed:!root.missionBusy && !sonar.replayMode && !root.steeringModeBusy
                 onFishingSpotActionRequested:function(spot,action,hopper,size){root.prepareFishingSpotAction(spot,action,hopper,size)}
@@ -1866,45 +1922,65 @@ Item {
                         width:parent.width
                         spacing: 6
                         component ScanIconButton: Button {
-                            width: 52; height: 46; padding: 0
+                            id: scanButton
+                            width: parent.width; height: 80; padding: 0
                             property string hint: ""
-                            ToolTip.visible: hovered
+                            property string caption: hint
+                            Accessible.name: hint
+                            ToolTip.visible: hovered || down
+                            ToolTip.delay: 250
                             ToolTip.text: hint
+                            onPressed: root.lastNavigationStatus=hint
+                            Label {
+                                anchors.left:parent.left;anchors.right:parent.right;anchors.bottom:parent.bottom
+                                anchors.margins:5;height:30;z:2
+                                text:scanButton.caption;color:scanButton.enabled ? "#eff9ff" : "#8497a5"
+                                font.pixelSize:10;font.bold:true;wrapMode:Text.WordWrap
+                                horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter
+                            }
                             background: Rectangle { radius: 8; color: parent.down ? "#18354a" : "#101b25"; border.color: parent.enabled ? "#31506a" : "#26313a" }
                         }
                         ScanIconButton {
                             hint: "Desenează dreptunghi"
                             enabled: !root.missionBusy && !sonar.replayMode
-                            contentItem: Canvas { anchors.fill: parent; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.strokeRect(12,11,28,24)} }
-                            onClicked: { root.pendingAreaDrawMode="rectangle"; Qt.callLater(function(){if(areaScanMap){areaScanMap.beginAreaRectangle();root.pendingAreaDrawMode="none"}}); root.lastNavigationStatus="Atinge două colțuri pe hartă pentru dreptunghi" }
+                            contentItem: Canvas { anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.strokeRect(12,11,28,24)} }
+                            onClicked: { root.pendingAreaDrawMode="rectangle"; Qt.callLater(function(){if(areaScanMap && root.pendingAreaDrawMode==="rectangle"){areaScanMap.beginAreaRectangle();root.pendingAreaDrawMode="none"}}); root.lastNavigationStatus="Atinge două colțuri pe hartă pentru dreptunghi" }
                         }
                         ScanIconButton {
                             hint: "Desenează poligon"
                             enabled: !root.missionBusy && !sonar.replayMode
-                            contentItem: Canvas { anchors.fill: parent; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.beginPath();p.moveTo(12,31);p.lineTo(17,12);p.lineTo(38,9);p.lineTo(42,30);p.lineTo(27,37);p.closePath();p.stroke()} }
-                            onClicked: { root.pendingAreaDrawMode="polygon"; Qt.callLater(function(){if(areaScanMap){areaScanMap.beginAreaPolygon();root.pendingAreaDrawMode="none"}}); root.lastNavigationStatus="Atinge cel puțin trei puncte și apoi TERMINĂ" }
+                            contentItem: Canvas { anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.beginPath();p.moveTo(12,31);p.lineTo(17,12);p.lineTo(38,9);p.lineTo(42,30);p.lineTo(27,37);p.closePath();p.stroke()} }
+                            onClicked: { root.pendingAreaDrawMode="polygon"; Qt.callLater(function(){if(areaScanMap && root.pendingAreaDrawMode==="polygon"){areaScanMap.beginAreaPolygon();root.pendingAreaDrawMode="none"}}); root.lastNavigationStatus="Atinge cel puțin trei puncte și apoi TERMINĂ" }
                         }
                         ScanIconButton {
                             hint: "Pregătește misiunea"
                             enabled: areaScanController.generatedPoints.length>0 && scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
-                            contentItem: Canvas { anchors.fill: parent; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#21b7ff";p.fillStyle="#21b7ff";p.lineWidth=2;p.beginPath();p.moveTo(11,34);p.lineTo(22,22);p.lineTo(31,29);p.lineTo(41,13);p.stroke();for(var i=0;i<4;i++){var a=[[11,34],[22,22],[31,29],[41,13]][i];p.beginPath();p.arc(a[0],a[1],2.5,0,Math.PI*2);p.fill()}} }
+                            contentItem: Canvas { anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#21b7ff";p.fillStyle="#21b7ff";p.lineWidth=2;p.beginPath();p.moveTo(11,34);p.lineTo(22,22);p.lineTo(31,29);p.lineTo(41,13);p.stroke();for(var i=0;i<4;i++){var a=[[11,34],[22,22],[31,29],[41,13]][i];p.beginPath();p.arc(a[0],a[1],2.5,0,Math.PI*2);p.fill()}} }
                             onClicked: { if(!root.allowLiveAction()) return; missionUploader.invalidate(); var prepared=scanCoordinator.prepareMission(false); if(prepared&&prepared.length)root.lastNavigationStatus="Misiune pregătită • "+prepared.length+" WP • următorul pas: UPLOAD"; else if(!root.lastNavigationStatus.length)root.lastNavigationStatus="Pregătirea misiunii a eșuat" }
                         }
                         ScanIconButton {
                             hint: missionUploader.uploadVerified ? "Start autopilot" : "Upload misiune"
                             enabled: missionUploader.preparedCount>0 && !missionUploader.uploadInProgress
-                            contentItem: Canvas { anchors.fill: parent; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#31d67b";p.fillStyle="#31d67b";p.lineWidth=2;if(missionUploader.uploadVerified){p.beginPath();p.moveTo(17,11);p.lineTo(38,23);p.lineTo(17,35);p.closePath();p.fill()}else{p.beginPath();p.moveTo(26,35);p.lineTo(26,12);p.moveTo(17,21);p.lineTo(26,12);p.lineTo(35,21);p.stroke()}} }
+                            contentItem: Canvas { anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#31d67b";p.fillStyle="#31d67b";p.lineWidth=2;if(missionUploader.uploadVerified){p.beginPath();p.moveTo(17,11);p.lineTo(38,23);p.lineTo(17,35);p.closePath();p.fill()}else{p.beginPath();p.moveTo(26,35);p.lineTo(26,12);p.moveTo(17,21);p.lineTo(26,12);p.lineTo(35,21);p.stroke()}} }
                             onClicked: root.startMission()
                         }
                         ScanIconButton {
-                            hint: "Continuă scanarea"
+                            caption: "Continuă scanarea"
+                            hint: "Pregătește culoarele rămase; apoi apasă Upload și Start autopilot"
                             enabled: (scanCoordinator.state==="PAUSED"||scanCoordinator.state==="RTL") && !missionUploader.uploadInProgress && areaScanController.generatedPoints.length>0 && areaScanController.completedLanes.length<areaScanController.laneCount()
-                            contentItem: Canvas { anchors.fill: parent; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.beginPath();p.arc(26,23,12,.45,5.3);p.stroke();p.beginPath();p.moveTo(34,10);p.lineTo(39,17);p.lineTo(31,18);p.stroke()} }
+                            contentItem: Canvas { anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.beginPath();p.arc(26,23,12,.45,5.3);p.stroke();p.beginPath();p.moveTo(34,10);p.lineTo(39,17);p.lineTo(31,18);p.stroke()} }
                             onClicked:{var mission=scanCoordinator.resume();if(mission.length)root.lastNavigationStatus="Resume pregătit • apasă UPLOAD și apoi START AUTOPILOT"}
                         }
-                        ScanIconButton { hint:"HOLD"; enabled:scanCoordinator.state==="SCANNING"||root.awaitingMissionStart; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.fillStyle="#ffc857";p.fillRect(15,12,7,23);p.fillRect(30,12,7,23)}} onClicked:root.holdMission() }
-                        ScanIconButton { hint:"RTL / întoarcere acasă"; enabled:scanCoordinator.state==="SCANNING"||scanCoordinator.state==="PAUSED"||scanCoordinator.state==="RESUME_READY"; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#21b7ff";p.lineWidth=2;p.beginPath();p.moveTo(10,25);p.lineTo(26,11);p.lineTo(42,25);p.moveTo(16,22);p.lineTo(16,37);p.lineTo(36,37);p.lineTo(36,22);p.stroke()}} onClicked:root.rtlMission() }
-                        ScanIconButton { hint:"STOP"; enabled:scanCoordinator.state==="SCANNING"||scanCoordinator.state==="PAUSED"||scanCoordinator.state==="READY"||scanCoordinator.state==="RESUME_READY"||root.awaitingMissionStart; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.fillStyle="#ff5c5c";p.fillRect(15,12,23,23)}} onClicked:root.stopMission() }
+                        ScanIconButton { caption:"Pauză / HOLD"; hint:"Pune scanarea în pauză și solicită HOLD"; enabled:scanCoordinator.state==="SCANNING"||root.awaitingMissionStart; contentItem:Canvas{anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46;onPaint:{var p=getContext("2d");p.reset();p.fillStyle="#ffc857";p.fillRect(15,12,7,23);p.fillRect(30,12,7,23)}} onClicked:root.holdMission() }
+                        ScanIconButton { hint:"RTL / întoarcere acasă"; enabled:scanCoordinator.state==="SCANNING"||scanCoordinator.state==="PAUSED"||scanCoordinator.state==="RESUME_READY"; contentItem:Canvas{anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#21b7ff";p.lineWidth=2;p.beginPath();p.moveTo(10,25);p.lineTo(26,11);p.lineTo(42,25);p.moveTo(16,22);p.lineTo(16,37);p.lineTo(36,37);p.lineTo(36,22);p.stroke()}} onClicked:root.rtlMission() }
+                        ScanIconButton { objectName:"scanCancel"; caption:root.rtlActive ? "Anulează RTL" : "Anulează acțiunea"; hint:"Anulează scanarea, navigarea sau RTL și solicită HOLD"; enabled:!sonar.replayMode && (root.actionActive || scanCoordinator.state==="PAUSED" || scanCoordinator.state==="READY" || scanCoordinator.state==="RESUME_READY"); contentItem:Canvas{anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46;onPaint:{var p=getContext("2d");p.reset();p.fillStyle="#ff5c5c";p.fillRect(15,12,23,23)}} onClicked:root.stopMission() }
+                        ScanIconButton {
+                            objectName:"scanClearArea"; caption:"Șterge zona"
+                            hint:"Șterge chenarul și culoarele Area Scan; păstrează măsurătorile sonar"
+                            enabled:root.canClearArea
+                            contentItem:Canvas { anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#ff8b93";p.lineWidth=2;p.strokeRect(17,15,20,23);p.beginPath();p.moveTo(13,12);p.lineTo(41,12);p.moveTo(22,8);p.lineTo(32,8);p.stroke()} }
+                            onClicked:clearAreaConfirm.open()
+                        }
                         }
                     }
                 }
@@ -1935,6 +2011,7 @@ Item {
                     radius:8; color:root.bg; border.color:root.line; clip:true
                     NavoMap {
                 headingOverrideEnabled: true
+                areaDrawingGeneration: root.areaDrawingGeneration
                 headingOverrideDeg: root.headingDeg
                 spotActionsAllowed:!root.missionBusy && !sonar.replayMode && !root.steeringModeBusy
                 onFishingSpotActionRequested:function(spot,action,hopper,size){root.prepareFishingSpotAction(spot,action,hopper,size)}
@@ -2357,6 +2434,7 @@ Item {
                     radius: 8; color: root.panel; border.color: root.line; clip: true
                     NavoMap {
                 headingOverrideEnabled: true
+                areaDrawingGeneration: root.areaDrawingGeneration
                 headingOverrideDeg: root.headingDeg
                 spotActionsAllowed:!root.missionBusy && !sonar.replayMode && !root.steeringModeBusy
                 onFishingSpotActionRequested:function(spot,action,hopper,size){root.prepareFishingSpotAction(spot,action,hopper,size)}
@@ -2681,3 +2759,4 @@ Item {
         Label { text: parent.value; color: parent.valueColor; font.bold: true }
     }
 }
+
