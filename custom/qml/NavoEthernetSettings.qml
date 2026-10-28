@@ -151,6 +151,33 @@ Rectangle {
             color: "#092439"
             border.color: selection.activeFocus ? "#20d9ed" : "#537b91"
         }
+        delegate: ItemDelegate {
+            width: selection.width - 8
+            implicitHeight: 32
+            highlighted: selection.highlightedIndex === index
+            contentItem: Label {
+                text: modelData.text
+                color: "#eff9ff"
+                leftPadding: 8
+                verticalAlignment: Text.AlignVCenter
+                font.pixelSize: 12
+            }
+            background: Rectangle { radius: 6; color: parent.highlighted ? "#17485a" : "#092439" }
+        }
+        popup: Popup {
+            y: selection.height - 1
+            width: selection.width
+            implicitHeight: Math.min(contentItem.implicitHeight + 8, 165)
+            padding: 4
+            contentItem: ListView {
+                clip: true
+                implicitHeight: contentHeight
+                model: selection.popup.visible ? selection.delegateModel : null
+                currentIndex: selection.highlightedIndex
+                ScrollIndicator.vertical: ScrollIndicator {}
+            }
+            background: Rectangle { color: "#071d2d"; border.color: "#20d9ed"; radius: 8 }
+        }
     }
 
     ColumnLayout {
