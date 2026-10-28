@@ -506,4 +506,22 @@ test('V3 close can supersede a pending release but cannot bypass stale telemetry
  assert.equal(c.sendOnboard(3,1),false);assert(c.closeOnboard());assert.equal(sent[0][3],4);
  c.hardwareTelemetry.connected=false;assert.equal(c.closeOnboard(),false);assert.equal(sent.length,1);
 });
+test('Dashboard redesign preserves all three read-only diagnostics and explicit home credits',()=>{
+  const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+  const panel=fs.readFileSync(path.join(dir,'NavoStatusDetails.qml'),'utf8');
+  const g20=fs.readFileSync(path.join(dir,'NavoG20Controller.qml'),'utf8');
+  assert.match(dash,/Pescaru' lu' Pește/);
+  assert.match(dash,/build and design by Costel Apreutesei/);
+  for(const section of ['battery','temperature','mode'])
+    assert(dash.includes('dashboardDetails.showSection("'+section+'")'));
+  assert.match(dash,/NavoStatusDetails\s*\{/);
+  assert.match(panel,/temperatureSamples/);
+  assert.match(panel,/date/i); // Date.now-based genuine time series, not demo points.
+  assert.match(panel,/FĂRĂ TELEMETRIE/);
+  assert.match(panel,/BMS \/ echilibrare celule/);
+  assert.match(panel,/Mod confirmat de H743/);
+  assert.match(g20,/dashboardModeChannel: 5/);
+  assert.match(g20,/dashboardModePosition/);
+  assert.doesNotMatch(panel,/\bsendCommand\s*\(|\bflightMode\s*=/);
+});
 console.log(`${passed} regression scenarios passed`);
