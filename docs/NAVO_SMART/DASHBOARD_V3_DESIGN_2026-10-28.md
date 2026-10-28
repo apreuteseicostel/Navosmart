@@ -56,3 +56,36 @@ Implemented in this same draft PR in response to the approved cyan/navy Settings
 - [ ] APK build — **not authorised; do not trigger**.
 
 All changes remain exclusively in the isolated **Draft PR #29**. \`main\` is unchanged.
+
+## Journal, Bălțile mele, Hărți offline — consistent NAVO V3 style
+
+The 28 Oct 2026 design direction is now applied to three additional menus in the **same Draft PR #29**:
+
+### Jurnal de partidă — \`NavoFishingJournal.qml\`
+- Compact navy/cyan header, top tabs \`Partide\`, \`Însemnări\`, \`Statistici\`.
+- Properly boxed trip chooser, editable notes/catches/bait, and statistics computed from real persisted trip entries.
+- All existing forms, timestamp/GNSS capture at entry start, validation of optional catch weight, \`saveFishingEntry\`, finish and delete confirmation remain unchanged. The editor fields and dialogs are now styled with high-contrast navy/cyan controls.
+- The \`pendingBaitJournalCount\` recovery banner in \`NavoDashboard.qml\` also uses the NAVO palette; no change to recovery behavior.
+
+### Bălțile mele — \`NavoDashboard.qml\` and \`NavoMyLakes.qml\`
+- Both the sidebar's **actual Bălțile mele page** and the detailed management popup are redesigned, avoiding a half-updated UI.
+- Main page tabs: \`Bălți salvate\`, \`Baltă activă\`, \`Administrare\`. Compact lake creation and selection, clear controls for rename/delete.
+- Manager popup tabs: \`Prezentare\`, \`Sesiuni sonar\`, \`Acțiuni\`; real counts for sonar samples, fishing spots, fish detections and Area Scan progress.
+- Existing per-lake persistence, session opening, restore/reload, map and 3D navigation, fishing spots and \`resumeLakeScan\` signals remain. Delete/rename confirmation is preserved.
+
+### Hărți offline — \`NavoOfflineMaps.qml\`
+- Tabs: \`Descarcă\`, \`Zone salvate\`, \`Informații\`.
+- Readable section for selecting a real map region, tile type, zoom range, name, tile count, download estimate and explicit \`Descarcă zona\` action.
+- Saved-zone cards include live progress, \`Pauză\`/\`Reia\`, \`Afișează\` and confirmed \`Șterge\`, with the original QGC map manager operations.
+- The 5,000-tile/setting cap, invalid-area protection, duplicate-name protection, asynchronous creation tracking and offline delete safeguards remain unchanged.
+- Help text is in its own tab, not spread across the editing screen.
+
+### Added checks / not yet validated
+- [x] Static review of tab IDs, backing functions, popup states, CMake entries and UI references.
+- [x] New static regression assertions for journals, lake library and offline downloads in \`tests/audit-regressions.mjs\`.
+- [ ] Qt QML component load and Python/PySide6 UI regressions (\`tests/fishing-journal-ui.py\`, \`tests/offline-maps-ui.py\`) **not executed**.
+- [ ] Android smoke at actual G20 screen size and accessibility text scaling **not executed**.
+- [ ] Check saved-lake restore with actual sonar and offline imagery **not executed**.
+- [ ] Full APK build/merge **not authorised**; all commits include \`[skip ci]\`.
+
+All menu navigation remains backed by existing NAVO controllers and persisted data. No fabricated readings, sonar sessions, fishing catches or downloaded map tiles are introduced.
