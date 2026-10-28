@@ -770,7 +770,7 @@ test('RTL cancellation remains reachable and Area Scan controls explain hover an
  const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8'),map=fs.readFileSync(path.join(dir,'NavoMap.qml'),'utf8'),strip=fs.readFileSync(path.join(dir,'NavoMissionStatus.qml'),'utf8');
  assert.match(dash,/visible:root\.actionActive \|\| root\.activePage===2/);assert.match(dash,/cancelText:root\.rtlActive \? "ANULEAZĂ RTL"/);
  assert.match(strip,/onClicked:root\.cancelRequested\(\)/);assert.match(strip,/enabled:root\.cancelAvailable/);
- assert.match(dash,/onPressed: root\.lastNavigationStatus=hint/);assert.match(dash,/text:scanButton\.caption/);
+ assert.match(dash,/onPressed:helpTimer\.restart\(\)/);assert.match(dash,/scanHover\.hovered \|\| scanButton\.down \|\| helpTimer\.running/);
  assert.match(map,/onPressed: root\.showToolHelp\(ToolTip\.text\)/);assert.match(map,/interval:4000/);
  assert.match(dash,/if\(areaScanMap && root\.pendingAreaDrawMode==="rectangle"\)/);
 });

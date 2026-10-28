@@ -1024,11 +1024,44 @@ Item {
         return true
     }
     Dialog {
-        id:clearAreaConfirm
+        id:clearAreaConfirm;objectName:"scanClearConfirm"
         parent:Overlay.overlay;anchors.centerIn:parent;modal:true
+        width:Math.min(360,parent.width-24);height:Math.min(226,parent.height-24)
+        padding:12;closePolicy:Popup.CloseOnEscape
         title:"Ștergi zona Area Scan?"
-        standardButtons:Dialog.Yes | Dialog.No
-        Label { width:Math.min(340,root.width-48);wrapMode:Text.WordWrap;text:"Se elimină chenarul, culoarele și progresul de reluare. Măsurătorile sonar, batimetria și punctele salvate sunt păstrate." }
+        onOpened:clearAreaCancel.forceActiveFocus()
+        background:Rectangle { radius:12;color:"#071e30";border.color:"#27cddd" }
+        header:Label {
+            text:clearAreaConfirm.title;color:"#eff9ff";font.bold:true;font.pixelSize:16
+            leftPadding:12;rightPadding:12;topPadding:12;bottomPadding:8
+            background:Rectangle { color:"#071e30";radius:12 }
+        }
+        contentItem:ScrollView {
+            id:clearAreaText;clip:true;contentWidth:availableWidth
+            ScrollBar.horizontal.policy:ScrollBar.AlwaysOff
+            Label {
+                width:clearAreaText.availableWidth;wrapMode:Text.WordWrap;color:"#c1d7e6";font.pixelSize:12
+                text:"Se șterg chenarul, culoarele și progresul scanării.\n\nMăsurătorile sonar, batimetria și punctele salvate se păstrează."
+            }
+        }
+        footer:Item {
+            implicitHeight:54
+            RowLayout {
+                anchors.fill:parent;anchors.margins:10;spacing:8
+                Button {
+                    id:clearAreaCancel;objectName:"scanClearCancel";text:"Renunță";Layout.fillWidth:true;implicitHeight:36
+                    contentItem:Label { text:parent.text;color:"#eff9ff";horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter }
+                    background:Rectangle { radius:7;color:parent.down ? "#254b60" : "#142c3c";border.color:parent.activeFocus ? "#67dfdc" : "#316078" }
+                    onClicked:clearAreaConfirm.reject()
+                }
+                Button {
+                    objectName:"scanClearAccept";text:"Șterge zona";Layout.fillWidth:true;implicitHeight:36;enabled:root.canClearArea
+                    contentItem:Label { text:parent.text;color:parent.enabled ? "#ffffff" : "#9aaebd";horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter }
+                    background:Rectangle { radius:7;color:parent.down ? "#a72d37" : "#72212b";border.color:"#ff8793";opacity:parent.enabled ? 1 : .45 }
+                    onClicked:clearAreaConfirm.accept()
+                }
+            }
+        }
         onAccepted:root.clearAreaScan()
     }
     function saveSonarPoint(pro, entry, name, note, prepare) {
@@ -1925,29 +1958,36 @@ Item {
                     }
                     ScrollView {
                         visible:root.missionScanSelected && !root.mapMaximized
-                        Layout.preferredWidth: root.compactUi ? 112 : 126
-                        Layout.minimumWidth: 106; Layout.maximumWidth: 132
+                        id:scanToolsScroll
+                        objectName:"scanToolsScroll"
+                        Layout.preferredWidth:112
+                        Layout.minimumWidth:112;Layout.maximumWidth:112
                         Layout.fillHeight: true
                         clip:true;contentWidth:availableWidth
+                        ScrollBar.horizontal.policy:ScrollBar.AlwaysOff
                         Flow {
-                        width:parent.width
+                        width:scanToolsScroll.availableWidth
                         spacing: 6
                         component ScanIconButton: Button {
                             id: scanButton
-                            width: parent.width; height: 80; padding: 0
+                            width:52;height:46;padding:0;hoverEnabled:true
                             property string hint: ""
                             property string caption: hint
-                            Accessible.name: hint
-                            ToolTip.visible: hovered || down
-                            ToolTip.delay: 250
-                            ToolTip.text: hint
-                            onPressed: root.lastNavigationStatus=hint
-                            Label {
-                                anchors.left:parent.left;anchors.right:parent.right;anchors.bottom:parent.bottom
-                                anchors.margins:5;height:30;z:2
-                                text:scanButton.caption;color:scanButton.enabled ? "#eff9ff" : "#8497a5"
-                                font.pixelSize:10;font.bold:true;wrapMode:Text.WordWrap
-                                horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter
+                            Accessible.name: caption
+                            Accessible.description: hint
+                            HoverHandler { id:scanHover;acceptedDevices:PointerDevice.Mouse | PointerDevice.TouchPad }
+                            Timer { id:helpTimer;interval:4000;repeat:false }
+                            onPressed:helpTimer.restart()
+                            ToolTip {
+                                id:scanHelpTip;objectName:"scanToolTip"
+                                visible:(scanHover.hovered || scanButton.down || helpTimer.running) && !clearAreaConfirm.opened
+                                delay:scanHover.hovered && !helpTimer.running ? 300 : 0
+                                timeout:-1
+                                width:Math.min(280,root.width-24);padding:8;margins:8
+                                x:(scanButton.width-width)/2;y:-height-6
+                                text:scanButton.caption===scanButton.hint ? scanButton.hint : scanButton.caption+" • "+scanButton.hint
+                                contentItem:Label { text:scanHelpTip.text;color:"#eff9ff";font.pixelSize:12;wrapMode:Text.WordWrap }
+                                background:Rectangle { radius:7;color:"#102536";border.color:"#38badb" }
                             }
                             background: Rectangle { radius: 8; color: parent.down ? "#18354a" : "#101b25"; border.color: parent.enabled ? "#31506a" : "#26313a" }
                         }

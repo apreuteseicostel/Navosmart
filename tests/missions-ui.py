@@ -7,8 +7,8 @@ os.environ.setdefault('QT_QUICK_BACKEND', 'software')
 from pathlib import Path
 import tempfile, shutil, subprocess
 import PySide6
-from PySide6.QtCore import QUrl, QMetaObject, Q_RETURN_ARG, Q_ARG, QObject, QResource
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtCore import QUrl, QMetaObject, Q_RETURN_ARG, Q_ARG, QObject, QResource, QPointF, QPoint, Qt
+from PySide6.QtGui import QGuiApplication, QInputDevice
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickWindow
 from PySide6.QtTest import QTest
@@ -22,6 +22,8 @@ page=page[:map_start]+'''Rectangle {id:areaScanMap;property bool canFitMission:t
 strip_start=source.index('    NavoMissionStatus {')
 strip=source[strip_start:source.index('    Rectangle {\n        id: content',strip_start)]
 selection=source[source.index('    function missionStateLabel('):source.index('    NavoRoutePlan {',source.index('    function selectMission('))]
+a=source.index('    Dialog {\n        id:clearAreaConfirm;')
+clearDialog=source[a:source.index('    function saveSonarPoint(',a)]
 wrapper='''import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -65,6 +67,8 @@ ApplicationWindow {
     readonly property bool actionActive: root.missionBusy || root.directGotoActive || root.rtlActive ||
         root.pendingMode.length>0 || ["AUTO","GUIDED"].indexOf(String(root.flightMode).toUpperCase())>=0
  property bool canClearArea:false
+ property int clearCalls:0
+ function clearAreaScan(){if(!canClearArea)return false;clearCalls++;return true}
  property int fits:0
  property int pauses:0
  property int homes:0
@@ -96,8 +100,9 @@ ApplicationWindow {
  function replaceBaitPoint(hopper){return routePlan.setPoint(baitingController.targetWaypoint,"Noua destinație",hopper)}
  function choose(index){return selectMission(index)}
 }'''
-wrapper=wrapper[:-1]+selection+strip+page+'}'
+wrapper=wrapper[:-1]+selection+strip+page+clearDialog+'}'
 app=QGuiApplication([])
+device=QTest.createTouchDevice(QInputDevice.DeviceType.TouchScreen)
 engine=QQmlApplicationEngine();errors=[]
 engine.warnings.connect(lambda ws:errors.extend(str(w) for w in ws))
 with tempfile.TemporaryDirectory() as folder:
@@ -193,6 +198,38 @@ with tempfile.TemporaryDirectory() as folder:
  assert cancel.property('enabled') and not pause.property('enabled')
  QMetaObject.invokeMethod(cancel,'clicked');QTest.qWait(20)
  assert window.property('cancels')==1 and window.property('flightMode')=='HOLD'
+ # Actual compact scan tools and confirmation: hover/touch help, reject, guard, accept.
+ window.setProperty('linkAlive',True);window.setProperty('canClearArea',True)
+ window.setProperty('mapMaximized',False);assert call('choose',2)
+ for width,height in [(480,420),(800,600)]:
+  window.setWidth(width);window.setHeight(height);QTest.qWait(60)
+  clear=window.findChild(QObject,'scanClearArea');cancel=window.findChild(QObject,'scanCancel')
+  assert clear.property('width')==52 and clear.property('height')==46
+  assert cancel.property('width')==52 and cancel.property('height')==46
+  tooltip=clear.findChild(QObject,'scanToolTip');assert tooltip
+  position=clear.mapToScene(QPointF(clear.property('width')/2,clear.property('height')/2))
+  point=QPoint(round(position.x()),round(position.y()))
+  assert 0<=point.x()<width and 0<=point.y()<height
+  QTest.mouseMove(window,point);QTest.qWait(500)
+  assert tooltip.property('visible')
+  QTest.mouseMove(window,QPoint(10,10));QTest.qWait(50);assert not tooltip.property('visible')
+  QTest.touchEvent(window,device).press(0,point,window).commit();QTest.qWait(40)
+  assert tooltip.property('visible')
+  QTest.touchEvent(window,device).release(0,point,window).commit();QTest.qWait(60)
+  dialog=window.findChild(QObject,'scanClearConfirm');assert dialog.property('visible')
+  assert dialog.property('width')<=360 and dialog.property('height')<=226
+  assert window.grabWindow().save(f'/tmp/navo-scan-clear-{width}.png')
+  before=window.property('clearCalls')
+  QMetaObject.invokeMethod(window.findChild(QObject,'scanClearCancel'),'clicked');QTest.qWait(20)
+  assert not dialog.property('visible') and window.property('clearCalls')==before
+  QTest.mouseMove(window,QPoint(10,10));QTest.qWait(4100);assert not tooltip.property('visible')
+  QMetaObject.invokeMethod(clear,'clicked');QTest.qWait(20)
+  accept=window.findChild(QObject,'scanClearAccept');window.setProperty('canClearArea',False);QTest.qWait(20)
+  assert not accept.property('enabled')
+  window.setProperty('canClearArea',True);QTest.qWait(20)
+  QMetaObject.invokeMethod(accept,'clicked');QTest.qWait(20)
+  assert window.property('clearCalls')==before+1 and not dialog.property('visible')
+  assert window.grabWindow().save(f'/tmp/navo-scan-tools-{width}.png')
  assert not errors,errors
  print('PASS Missions at 236/320/480/900: scrollable stop editor, map picking, hide/reopen while active, auto-expanded START, PAUZĂ/HOME and link-loss controls')
 
