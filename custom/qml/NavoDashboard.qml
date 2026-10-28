@@ -1295,13 +1295,15 @@ Item {
 
     Popup {
         id: gnssDiagnostic
+        objectName: "gnssDiagnostic"
         modal: false
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         x: Math.max(8, Math.min(165, root.width - width - 8))
-        y: 66
+        y: Math.max(8, Math.min(66, root.height - height - 8))
         width: Math.min(420, root.width - 18)
-        padding: 14
+        height: Math.min(510, Math.max(0, root.height - 16))
+        padding: 12
         z: 6800
         background: Rectangle { radius: 14; color: "#071926"; border.color: "#20d9ed"; border.width: 1.5 }
         property string checkResult: ""
@@ -1310,13 +1312,35 @@ Item {
             var n = Number(fact.rawValue)
             return isFinite(n) ? n.toFixed(2) : "--"
         }
+        component GnssLine: Item {
+            property string name: ""
+            property string value: "--"
+            Layout.fillWidth: true
+            Layout.preferredHeight: Math.max(23, captionLabel.implicitHeight, valueLabel.implicitHeight)
+            Label {
+                id: captionLabel
+                width: (parent.width - 10) * 0.52
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                text: parent.name; color: root.muted; font.pixelSize: 12
+                wrapMode: Text.WordWrap
+            }
+            Label {
+                id: valueLabel
+                width: (parent.width - 10) * 0.48
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                text: parent.value; color: root.text; font.pixelSize: 12; font.bold: true
+                wrapMode: Text.WrapAnywhere; horizontalAlignment: Text.AlignRight
+            }
+        }
         ColumnLayout {
-            width: parent.width
-            spacing: 9
+            anchors.fill: parent
+            spacing: 6
             RowLayout {
                 Layout.fillWidth: true
                 Image { source: "qrc:/qml/NavoSmart/icons/satellite.svg"; Layout.preferredWidth: 25; Layout.preferredHeight: 25 }
-                Label { text: "GNSS / UM982 • Diagnostic"; color: "#edf8ff"; font.bold: true; font.pixelSize: 17; Layout.fillWidth: true }
+                Label { text: "GNSS / UM982 • Diagnostic"; color: "#edf8ff"; font.bold: true; font.pixelSize: 15; Layout.fillWidth: true; elide: Text.ElideRight }
                 Button {
                     id: gnssCloseButton
                     Accessible.name: "Închide diagnosticul GPS"
@@ -1344,60 +1368,83 @@ Item {
                     }
                 }
             }
-            Rectangle {
-                Layout.fillWidth: true; Layout.preferredHeight: 34
-                radius: 9; color: "#0d2a39"; border.color: "#174e68"
-                Label {
-                    anchors.centerIn: parent
-                    text: !root.vehicle ? "H743 deconectat" : !root.vehicle.gps ? "Fără date GPS" : Number(root.vehicle.gps.lock.rawValue) >= 3 ? "● Poziție GPS validă" : "● GPS fără fix 3D"
-                    color: root.vehicle && root.vehicle.gps && Number(root.vehicle.gps.lock.rawValue) >= 3 ? "#31d6a5" : "#ffd166"
-                    font.pixelSize: 12; font.bold: true
-                }
-            }
-            DataLine { name: "Sursă orientare"; value: gnssHeading.headingSource }
-            Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
-            DataLine { name: "Heading GNSS dual-antenă"; value: gnssHeading.gpsYawValid ? Number(gnssHeading.gpsYawDeg).toFixed(2) + "°" : "--" }
-            DataLine { name: "Heading H743 (rezervă)"; value: root.vehicle && root.vehicle.heading && root.linkAlive && isFinite(Number(root.vehicle.heading.rawValue)) ? Number(root.vehicle.heading.rawValue).toFixed(2) + "°" : "--" }
-            DataLine { name: "Vechime orientare GNSS"; value: gnssHeading.gpsYawValid ? String(gnssHeading.gpsYawAgeMs) + " ms" : "--" }
-            Label { Layout.fillWidth: true; text: gnssHeading.headingDetail; color: gnssHeading.gpsYawValid ? "#31d6a5" : "#ffd166"; wrapMode: Text.WordWrap; font.pixelSize: 11 }
-            Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
-            DataLine { name: "Sateliți"; value: root.vehicle && root.vehicle.gps ? String(root.vehicle.gps.count.rawValue) : "--" }
-            Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
-            DataLine { name: "Fix GPS / MAVLink"; value: root.vehicle && root.vehicle.gps ? String(root.vehicle.gps.lock.rawValue) : "--" }
-            Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
-            DataLine { name: "Latitudine"; value: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? Number(root.vehicle.coordinate.latitude).toFixed(7) + "°" : "--" }
-            Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
-            DataLine { name: "Longitudine"; value: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? Number(root.vehicle.coordinate.longitude).toFixed(7) + "°" : "--" }
-            Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
-            DataLine { name: "Altitudine GPS"; value: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? Number(root.vehicle.coordinate.altitude).toFixed(1) + " m" : "--" }
-            Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
-            DataLine { name: "HDOP"; value: root.vehicle && root.vehicle.gps ? gnssDiagnostic.factValue(root.vehicle.gps.hdop) : "--" }
-            DataLine { name: "VDOP"; value: root.vehicle && root.vehicle.gps ? gnssDiagnostic.factValue(root.vehicle.gps.vdop) : "--" }
-            Label {
+            Flickable {
+                id: gnssScroll
+                objectName: "gnssScroll"
                 Layout.fillWidth: true
-                text: "3 = 3D • 4 = DGPS • 5/6 = RTK. Identitatea UM982 și antenele duale nu pot fi confirmate prin fixul MAVLink."
-                color: "#9cc4d7"; wrapMode: Text.WordWrap; font.pixelSize: 11
-            }
-            RowLayout {
-                Layout.fillWidth: true
-                Item { Layout.fillWidth: true }
-                Button {
-                    text: "Verifică GPS"
-                    implicitHeight: 34
-                    onClicked: {
-                        if (!root.vehicle) gnssDiagnostic.checkResult = "H743 nu este conectat. Verifică MAVLink."
-                        else if (!root.vehicle.gps) gnssDiagnostic.checkResult = "H743 conectat, dar nu raportează GPS. Verifică UART, alimentarea UM982 și SERIALx_PROTOCOL."
-                        else if (Number(root.vehicle.gps.lock.rawValue) < 3) gnssDiagnostic.checkResult = "GPS raportat, fără fix 3D. Verifică antenele și vizibilitatea cerului."
-                        else if (!gnssHeading.gpsYawValid) gnssDiagnostic.checkResult = "GPS are fix, dar nu există GPS yaw valid de la antenele duale. Momentan orientarea bărcii folosește H743 ca rezervă. Verifică GPS1_TYPE=25, EK3_SRC1_YAW și antenele."
-                        else gnssDiagnostic.checkResult = "Orientare GNSS validă (" + gnssHeading.headingSource + "): " + Number(gnssHeading.gpsYawDeg).toFixed(2) + "°. Identitatea fizică UM982 se validează separat."
+                Layout.fillHeight: true
+                contentWidth: width
+                contentHeight: gnssRows.implicitHeight
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                flickableDirection: Flickable.VerticalFlick
+                ScrollBar.vertical: ScrollBar { id: gnssScrollBar; objectName: "gnssScrollBar"; policy: ScrollBar.AsNeeded }
+                ColumnLayout {
+                    id: gnssRows
+                    objectName: "gnssRows"
+                    // Reserve a stable gutter even while the Android scrollbar is active.
+                    width: Math.max(0, gnssScroll.width - Math.max(18, gnssScrollBar.implicitWidth + 10))
+                    spacing: 5
+                    Rectangle {
+                        Layout.fillWidth: true; Layout.preferredHeight: 28
+                        radius: 9; color: "#0d2a39"; border.color: "#174e68"
+                        Label {
+                            anchors.centerIn: parent
+                            text: !root.vehicle ? "H743 deconectat" : !root.vehicle.gps ? "Fără date GPS" : Number(root.vehicle.gps.lock.rawValue) >= 3 ? "● Poziție GPS validă" : "● GPS fără fix 3D"
+                            color: root.vehicle && root.vehicle.gps && Number(root.vehicle.gps.lock.rawValue) >= 3 ? "#31d6a5" : "#ffd166"
+                            font.pixelSize: 12; font.bold: true
+                        }
                     }
-                    background: Rectangle { radius: 9; color: "#103044"; border.color: "#20d9ed" }
-                    contentItem: Label { text: parent.text; color: "#20d9ed"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                    GnssLine { name: "Sursă orientare"; value: gnssHeading.headingSource }
+                    Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
+                    GnssLine { name: "Heading GNSS dual-antenă"; value: gnssHeading.gpsYawValid ? Number(gnssHeading.gpsYawDeg).toFixed(2) + "°" : "--" }
+                    GnssLine { name: "Heading H743 (rezervă)"; value: root.vehicle && root.vehicle.heading && root.linkAlive && isFinite(Number(root.vehicle.heading.rawValue)) ? Number(root.vehicle.heading.rawValue).toFixed(2) + "°" : "--" }
+                    GnssLine { name: "Vechime orientare GNSS"; value: gnssHeading.gpsYawValid ? String(gnssHeading.gpsYawAgeMs) + " ms" : "--" }
+                    Label { Layout.fillWidth: true; text: gnssHeading.headingDetail; color: gnssHeading.gpsYawValid ? "#31d6a5" : "#ffd166"; wrapMode: Text.WordWrap; font.pixelSize: 11 }
+                    Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
+                    GnssLine { name: "Sateliți"; value: root.vehicle && root.vehicle.gps ? String(root.vehicle.gps.count.rawValue) : "--" }
+                    Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
+                    GnssLine { name: "Fix GPS / MAVLink"; value: root.vehicle && root.vehicle.gps ? String(root.vehicle.gps.lock.rawValue) : "--" }
+                    Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
+                    GnssLine { name: "Latitudine"; value: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? Number(root.vehicle.coordinate.latitude).toFixed(7) + "°" : "--" }
+                    Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
+                    GnssLine { name: "Longitudine"; value: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? Number(root.vehicle.coordinate.longitude).toFixed(7) + "°" : "--" }
+                    Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
+                    GnssLine { name: "Altitudine GPS"; value: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? Number(root.vehicle.coordinate.altitude).toFixed(1) + " m" : "--" }
+                    Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
+                    GnssLine { name: "HDOP"; value: root.vehicle && root.vehicle.gps ? gnssDiagnostic.factValue(root.vehicle.gps.hdop) : "--" }
+                    GnssLine { name: "VDOP"; value: root.vehicle && root.vehicle.gps ? gnssDiagnostic.factValue(root.vehicle.gps.vdop) : "--" }
+                    Label {
+                        Layout.fillWidth: true
+                        text: "3 = 3D • 4 = DGPS • 5/6 = RTK. Identitatea UM982 și antenele duale nu pot fi confirmate prin fixul MAVLink."
+                        color: "#9cc4d7"; wrapMode: Text.WordWrap; font.pixelSize: 11
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Item { Layout.fillWidth: true }
+                        Button {
+                            text: "Verifică GPS"
+                            implicitHeight: 34
+                            onClicked: {
+                                if (!root.vehicle) gnssDiagnostic.checkResult = "H743 nu este conectat. Verifică MAVLink."
+                                else if (!root.vehicle.gps) gnssDiagnostic.checkResult = "H743 conectat, dar nu raportează GPS. Verifică UART, alimentarea UM982 și SERIALx_PROTOCOL."
+                                else if (Number(root.vehicle.gps.lock.rawValue) < 3) gnssDiagnostic.checkResult = "GPS raportat, fără fix 3D. Verifică antenele și vizibilitatea cerului."
+                                else if (!gnssHeading.gpsYawValid) gnssDiagnostic.checkResult = "GPS are fix, dar nu există GPS yaw valid de la antenele duale. Momentan orientarea bărcii folosește H743 ca rezervă. Verifică GPS1_TYPE=25, EK3_SRC1_YAW și antenele."
+                                else gnssDiagnostic.checkResult = "Orientare GNSS validă (" + gnssHeading.headingSource + "): " + Number(gnssHeading.gpsYawDeg).toFixed(2) + "°. Identitatea fizică UM982 se validează separat."
+                            }
+                            background: Rectangle { radius: 9; color: "#103044"; border.color: "#20d9ed" }
+                            contentItem: Label { text: parent.text; color: "#20d9ed"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        }
+                    }
+                    Label { Layout.fillWidth: true; visible: gnssDiagnostic.checkResult.length>0; text: gnssDiagnostic.checkResult; color: "#20d9ed"; wrapMode: Text.WordWrap; font.pixelSize: 11 }
                 }
             }
-            Label { Layout.fillWidth: true; visible: gnssDiagnostic.checkResult.length>0; text: gnssDiagnostic.checkResult; color: "#20d9ed"; wrapMode: Text.WordWrap; font.pixelSize: 11 }
         }
-        onOpened: checkResult = ""
+
+        onOpened: {
+            checkResult = ""
+            gnssScroll.contentY = 0
+        }
     }
 
     NavoStatusDetails {
@@ -2895,4 +2942,5 @@ Item {
         Label { text: parent.value; color: parent.valueColor; font.bold: true }
     }
 }
+
 

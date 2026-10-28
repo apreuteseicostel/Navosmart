@@ -73,8 +73,8 @@ Popup {
     modal: false
     focus: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-    width: Math.min(section === "temperature" ? 640 : 530, Math.max(260, viewportWidth - 28))
-    height: Math.min(section === "temperature" ? 490 : 460, Math.max(245, viewportHeight - 28))
+    width: Math.min(section === "temperature" ? 640 : 530, Math.max(0, viewportWidth - 16))
+    height: Math.min(section === "temperature" ? 490 : 460, Math.max(0, viewportHeight - 16))
     x: Math.max(8, (viewportWidth - width) / 2)
     y: Math.max(8, (viewportHeight - height) / 2)
     padding: 16
@@ -114,15 +114,18 @@ Popup {
 
     Flickable {
         id: scrollBody
+        objectName: "detailsScroll"
         anchors.fill: parent
         contentWidth: width
         contentHeight: allSections.implicitHeight
         clip: true
         boundsBehavior: Flickable.StopAtBounds
-        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+        ScrollBar.vertical: ScrollBar { id: detailsScrollBar; objectName: "detailsScrollBar"; policy: ScrollBar.AsNeeded }
         ColumnLayout {
             id: allSections
-            width: scrollBody.width - 4
+            objectName: "detailsRows"
+            // Keep telemetry values clear of the active scrollbar on every platform.
+            width: Math.max(0, scrollBody.width - Math.max(18, detailsScrollBar.implicitWidth + 10))
             spacing: 11
             RowLayout {
                 Layout.fillWidth: true
@@ -299,4 +302,5 @@ Popup {
         }
     }
 }
+
 
