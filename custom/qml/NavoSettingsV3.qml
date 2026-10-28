@@ -48,7 +48,7 @@ Rectangle {
     component NavTab: Button {
         id: tab
         property int tabIndex: 0
-        property string tabIcon: ""
+        property url tabIcon: ""
         property bool selected: root.selectedTab === tabIndex
         implicitHeight: 42
         implicitWidth: 120
@@ -68,7 +68,13 @@ Rectangle {
         }
         contentItem: RowLayout {
             spacing: 5
-            Label { text: tab.tabIcon; color: "#20d9ed"; font.pixelSize: 17; font.bold: true }
+            Image {
+                source: tab.tabIcon
+                Layout.preferredWidth: 20
+                Layout.preferredHeight: 20
+                Layout.minimumWidth: 20
+                fillMode: Image.PreserveAspectFit
+            }
             Label { Layout.fillWidth:true;Layout.minimumWidth:0;text:tab.text;color:"#eff9ff";font.pixelSize:tab.font.pixelSize;font.bold:tab.selected;elide:Text.ElideRight;horizontalAlignment:Text.AlignHCenter }
         }
     }
@@ -166,7 +172,7 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 48
                 spacing: 10
-                Label { text: "⚙"; color: root.cyan; font.pixelSize: 26 }
+                Image { source: "qrc:/qml/NavoSmart/icons/settings.svg"; Layout.preferredWidth: 26; Layout.preferredHeight: 26; fillMode: Image.PreserveAspectFit }
                 Label {
                     text: "SETĂRI NAVO SMART"
                     color: root.fg
@@ -188,10 +194,10 @@ Rectangle {
                     columns: root.width < 640 ? 2 : 4
                     uniformCellWidths: true
                     columnSpacing: 6;rowSpacing: 6
-                    NavTab { objectName:"settingsGeneralTab";text:"General";tabIcon:"⚙";tabIndex:0 }
-                    NavTab { objectName:"settingsAdvancedTab";text:"Avansat";tabIcon:"☷";tabIndex:1 }
-                    NavTab { objectName:"settingsIntegrationTab";text:"Integrare";tabIcon:"↗";tabIndex:2 }
-                    NavTab { objectName:"settingsQgcTab";text:"QGroundControl";tabIcon:"◎";tabIndex:3 }
+                    NavTab { objectName:"settingsGeneralTab";text:"General";tabIcon:"qrc:/qml/NavoSmart/icons/settings.svg";tabIndex:0 }
+                    NavTab { objectName:"settingsAdvancedTab";text:"Avansat";tabIcon:"qrc:/qml/NavoSmart/icons/palette.svg";tabIndex:1 }
+                    NavTab { objectName:"settingsIntegrationTab";text:"Integrare";tabIcon:"qrc:/qml/NavoSmart/icons/lan.svg";tabIndex:2 }
+                    NavTab { objectName:"settingsQgcTab";text:"QGroundControl";tabIcon:"qrc:/qml/NavoSmart/icons/target.svg";tabIndex:3 }
                 }
             }
 
@@ -237,7 +243,7 @@ Rectangle {
                         spacing: 8
                         RowLayout {
                             Layout.fillWidth: true
-                            Label { text: "▣"; color: root.cyan; font.pixelSize: 19 }
+                            Image { source: "qrc:/qml/NavoSmart/icons/battery.svg"; Layout.preferredWidth: 20; Layout.preferredHeight: 20; fillMode: Image.PreserveAspectFit }
                             Label { text: "Rezervă energie și consum"; color: root.fg; font.pixelSize: 16; font.bold: true; Layout.fillWidth: true }
                             HelpDot {
                                 explanation: "Verificarea rutei necesită măsurarea consumului real. Nu schimbă parametrii de failsafe și nu trimite automat RTL."
