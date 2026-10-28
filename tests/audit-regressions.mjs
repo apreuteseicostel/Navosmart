@@ -555,4 +555,52 @@ test('Tabbed NAVO settings expose real camera, sonar, audio, energy and QGC cont
   assert.doesNotMatch(page,/\bvehicle\.flightMode\s*=/);
   assert.doesNotMatch(ethernet,/\bvehicle\.flightMode\s*=/);
 });
+test('NAVO journal tabs preserve trip persistence, frozen entry context and accessible editors',()=>{
+  const journal=fs.readFileSync(path.join(dir,'NavoFishingJournal.qml'),'utf8');
+  for(const label of ['Partide','Însemnări','Statistici','Capturi • Nădiri • Observații'])
+    assert(journal.includes('"'+label+'"'),label);
+  for(const marker of ['journalTrips','journalSummary','journalEntryFilter','journalEntries','journalEntryEditor','journalEntrySave','journalSpecies','journalWeight','journalBait','journalEntryText'])
+    assert(journal.includes('"'+marker+'"'),marker);
+  assert.match(journal,/function beginEntry\(entry\)/);
+  assert.match(journal,/function saveEntry\(\)/);
+  assert.match(journal,/persistence\.saveFishingEntry\(selectedId,data\)/);
+  assert.match(journal,/pendingEntryId=modelData\.id/);
+  assert.match(journal,/startFishingTrip\(root\.lakeId,tripTitle\.text\)/);
+  assert.match(journal,/finishFishingTrip\(root\.selectedId\)/);
+  assert.match(journal,/deleteFishingTrip\(root\.pendingDeleteId\)/);
+  assert.match(journal,/replayMode \|\| selected\.endedAt/);
+  assert.match(journal,/background: Rectangle \{ color: "#071e30"; radius: 12; border.color: "#20d9ed" \}/);
+});
+test('NAVO lake library preserves saved partitions, session replay and confirmed delete',()=>{
+  const lakes=fs.readFileSync(path.join(dir,'NavoMyLakes.qml'),'utf8');
+  const dashboard=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+  for(const tab of ['Prezentare','Sesiuni sonar','Acțiuni','Bălți salvate','Baltă activă','Administrare'])
+    assert((lakes+dashboard).includes('"'+tab+'"'),tab);
+  for(const action of ['selectLake(lake)','beginRename(lake)','beginDelete(lake)','renameCurrentLake()','deleteCurrentLake()','restoreAndOpen(destination)','sessionsForLake(id)'])
+    assert(lakes.includes(action),action);
+  for(const event of ['lakeRestored(selectedLakeId)','openLakeMap(selectedLakeId)','openLakeBathymetry(selectedLakeId)','openLakeFishingSpots(selectedLakeId)','resumeLakeScan(selectedLakeId)','root.openSession(modelData)'])
+    assert(lakes.includes(event),event);
+  assert.match(lakes,/scanCoordinator\.deleteLake\(id\)/);
+  assert.match(lakes,/scanCoordinator\.renameLake\(editLake\.id,name\)/);
+  assert.match(lakes,/scanCoordinator\.restoreLake\(selectedLakeId\)/);
+  assert.match(dashboard,/myLakesPopup\.selectLake\(modelData\)/);
+  assert.match(dashboard,/myLakesPopup\.beginRename\(modelData\)/);
+  assert.match(dashboard,/myLakesPopup\.beginDelete\(modelData\)/);
+});
+test('NAVO offline tabs keep quota, async downloads, pause/resume and delete safeguards',()=>{
+  const offline=fs.readFileSync(path.join(dir,'NavoOfflineMaps.qml'),'utf8');
+  for(const tab of ['Descarcă','Zone salvate','Informații'])
+    assert(offline.includes('"'+tab+'"'),tab);
+  for(const marker of ['offlineSetName','offlineMapType','offlineMinZoom','offlineMaxZoom'])
+    assert(offline.includes('"'+marker+'"'),marker);
+  assert.match(offline,/Math\.min\(5000,tileLimit\)/);
+  assert.match(offline,/manager\.startDownload\(name,typeChoice\.currentText\)/);
+  assert.match(offline,/manager\.findName\(name\)/);
+  assert.match(offline,/tileSet\.cancelDownloadTask\(\)/);
+  assert.match(offline,/tileSet\.resumeDownloadTask\(\)/);
+  assert.match(offline,/root\.showRegionRequested\(/);
+  assert.match(offline,/root\.manager\.deleteTileSet\(root\.pendingDelete\)/);
+  assert.match(offline,/!root\.pendingDelete\.defaultSet && !root\.pendingDelete\.downloading/);
+  assert.match(offline,/root\.validRegion/);
+});
 console.log(`${passed} regression scenarios passed`);
