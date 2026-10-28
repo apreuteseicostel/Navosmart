@@ -51,7 +51,11 @@ Rectangle {
         property string tabIcon: ""
         property bool selected: root.selectedTab === tabIndex
         implicitHeight: 42
-        implicitWidth: root.width > 950 ? Math.max(140, (root.width - 105) / 5) : (tabIndex === 4 ? 177 : tabIndex === 3 ? 154 : 140)
+        implicitWidth: 120
+        Layout.fillWidth: true
+        Layout.minimumWidth: 0
+        ToolTip.visible: hovered
+        ToolTip.text: text
         font.pixelSize: 13
         font.bold: selected
         onClicked: root.selectedTab = tabIndex
@@ -62,11 +66,10 @@ Rectangle {
             border.color: tab.selected ? "#20d9ed" : "#167998"
             border.width: tab.selected ? 2 : 1
         }
-        contentItem: Row {
-            anchors.centerIn: parent
-            spacing: 8
-            Label { text: tab.tabIcon; color: "#20d9ed"; font.pixelSize: 19; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
-            Label { text: tab.text; color: "#eff9ff"; font.pixelSize: tab.font.pixelSize; font.bold: tab.selected; anchors.verticalCenter: parent.verticalCenter }
+        contentItem: RowLayout {
+            spacing: 5
+            Label { text: tab.tabIcon; color: "#20d9ed"; font.pixelSize: 17; font.bold: true }
+            Label { Layout.fillWidth:true;Layout.minimumWidth:0;text:tab.text;color:"#eff9ff";font.pixelSize:tab.font.pixelSize;font.bold:tab.selected;elide:Text.ElideRight;horizontalAlignment:Text.AlignHCenter }
         }
     }
     component HelpDot: Button {
@@ -148,7 +151,7 @@ Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        anchors.bottom: root.selectedTab === 0 ? saveFooter.top : parent.bottom
+        anchors.bottom: saveFooter.visible ? saveFooter.top : parent.bottom
         anchors.margins: 9
         clip: true
         contentWidth: availableWidth
@@ -174,46 +177,30 @@ Rectangle {
             }
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 53
+                Layout.preferredHeight: tabs.implicitHeight + 10
                 radius: 10
                 color: "#071d2d"
                 border.color: "#19546b"
-                Flickable {
-                    id: tabScroll
+                GridLayout {
+                    id: tabs
                     anchors.fill: parent
                     anchors.margins: 5
-                    contentWidth: tabs.width
-                    contentHeight: height
-                    clip: true
-                    boundsBehavior: Flickable.StopAtBounds
-                    Row {
-                        id: tabs
-                        height: parent.height
-                        spacing: 7
-                        NavTab { text: "General"; tabIcon: "⚙"; tabIndex: 0 }
-                        NavTab { text: "Unități"; tabIcon: "▤"; tabIndex: 1 }
-                        NavTab { text: "Avansat"; tabIcon: "☷"; tabIndex: 2 }
-                        NavTab { text: "Integrare"; tabIcon: "↗"; tabIndex: 3 }
-                        NavTab { text: "QGroundControl"; tabIcon: "◎"; tabIndex: 4 }
-                    }
+                    columns: root.width < 640 ? 2 : 4
+                    uniformCellWidths: true
+                    columnSpacing: 6;rowSpacing: 6
+                    NavTab { objectName:"settingsGeneralTab";text:"General";tabIcon:"⚙";tabIndex:0 }
+                    NavTab { objectName:"settingsAdvancedTab";text:"Avansat";tabIcon:"☷";tabIndex:1 }
+                    NavTab { objectName:"settingsIntegrationTab";text:"Integrare";tabIcon:"↗";tabIndex:2 }
+                    NavTab { objectName:"settingsQgcTab";text:"QGroundControl";tabIcon:"◎";tabIndex:3 }
                 }
             }
 
             ColumnLayout {
                 visible: root.selectedTab === 0
+                objectName:"settingsGeneralPanel"
                 Layout.fillWidth: true
                 spacing: 9
-                NavoEthernetSettings {
-                    id: ethernetSettings
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: implicitHeight
-                    sonar: root.sonar
-                    camera: root.camera
-                    onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
-                    onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
-                    onStatus: function(message) { root.statusText = message; root.status(message) }
-                    onUnitsRequested: root.selectedTab = 1
-                }
+
                 GridLayout {
                     Layout.fillWidth: true
                     columns: root.narrow ? 1 : 2
@@ -306,27 +293,9 @@ Rectangle {
                 }
             }
 
-            Rectangle {
-                visible: root.selectedTab === 1
-                Layout.fillWidth: true
-                implicitHeight: unitsColumn.implicitHeight + 22
-                color: root.surface; border.color: root.cyan; radius: 10
-                ColumnLayout {
-                    id: unitsColumn
-                    anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
-                    anchors.margins: 11; spacing: 10
-                    Label { text: "UNITĂȚI DE MĂSURĂ"; color: root.fg; font.pixelSize: 16; font.bold: true }
-                    Rectangle { Layout.fillWidth: true; height: 1; color: root.line }
-                    Label {
-                        text: "Unitățile NAVO sunt gestionate prin QGroundControl pentru a păstra afișarea consecventă în hartă și instrumente."
-                        color: root.muted; Layout.fillWidth: true; wrapMode: Text.WordWrap
-                        font.pixelSize: 12
-                    }
-                    ActionButton { text: "Deschide setările QGroundControl"; implicitWidth: 255; onClicked: root.settingsToolRequested() }
-                }
-            }
             ColumnLayout {
-                visible: root.selectedTab === 2
+                visible: root.selectedTab === 1
+                objectName:"settingsAdvancedPanel"
                 Layout.fillWidth: true
                 spacing: 8
                 Rectangle {
@@ -345,30 +314,25 @@ Rectangle {
                     controller: root.g20
                 }
             }
-            Rectangle {
-                visible: root.selectedTab === 3
+            ColumnLayout {
+                visible: root.selectedTab === 2
+                objectName:"settingsIntegrationPanel"
                 Layout.fillWidth: true
-                implicitHeight: integrationColumn.implicitHeight + 22
-                color: root.surface; border.color: root.cyan; radius: 10
-                ColumnLayout {
-                    id: integrationColumn
-                    anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
-                    anchors.margins: 11; spacing: 10
-                    Label { text: "INTEGRARE NAVO SMART"; color: root.fg; font.pixelSize: 16; font.bold: true }
-                    Rectangle { Layout.fillWidth: true; height: 1; color: root.line }
-                    Label {
-                        Layout.fillWidth: true; wrapMode: Text.WordWrap; color: root.muted; font.pixelSize: 12
-                        text: "Kogger și camera IP sunt configurate în General. Asocierile radio G20 și setările hardware se găsesc în Avansat. Aceste panouri nu schimbă automat parametrii de navigație H743."
-                    }
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 10
-                        ActionButton { text: "Cameră / Kogger LAN"; onClicked: root.selectedTab = 0 }
-                        ActionButton { text: "G20 / H743"; onClicked: root.selectedTab = 2 }
-                    }
+                spacing: 9
+                NavoEthernetSettings {
+                    id: ethernetSettings
+                    objectName:"settingsEthernetForms"
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: implicitHeight
+                    sonar: root.sonar
+                    camera: root.camera
+                    onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
+                    onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
+                    onStatus: function(message) { root.statusText = message; root.status(message) }
                 }
             }
             Rectangle {
-                visible: root.selectedTab === 4
+                visible: root.selectedTab === 3
                 Layout.fillWidth: true
                 implicitHeight: qgcColumn.implicitHeight + 22
                 color: root.surface; border.color: root.cyan; radius: 10
@@ -382,7 +346,7 @@ Rectangle {
                         Layout.fillWidth: true; wrapMode: Text.WordWrap; color: root.muted; font.pixelSize: 12
                         text: "Deschide setările native QGroundControl. Testele radio, calibrarea și parametrii ArduPilot trebuie verificați în instrumentele dedicate; NAVO nu oferă o clonă a acestor funcții."
                     }
-                    ActionButton { text: "Deschide QGroundControl"; implicitWidth: 236; onClicked: root.settingsToolRequested() }
+                    ActionButton { objectName:"settingsOpenQgc";text: "Deschide QGroundControl"; implicitWidth: 236; onClicked: root.settingsToolRequested() }
                 }
             }
 
@@ -400,7 +364,8 @@ Rectangle {
     // Keep Save accessible at the bottom of the viewport, even when cards scroll.
     Rectangle {
         id: saveFooter
-        visible: root.selectedTab === 0
+        visible: root.selectedTab === 0 || root.selectedTab === 2
+        objectName:"settingsSaveFooter"
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
@@ -433,3 +398,4 @@ Rectangle {
         }
     }
 }
+

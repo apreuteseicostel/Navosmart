@@ -20,7 +20,6 @@ Rectangle {
     readonly property color warning: "#ffd166"
     readonly property color danger: "#ff6872"
     signal status(string text)
-    signal unitsRequested()
 
     color: "transparent"
     implicitHeight: panels.implicitHeight + (lanDiscovery.devices.length ? Math.min(98, lanDiscovery.devices.length*34+10) : 0) + 41
@@ -229,13 +228,13 @@ Rectangle {
                                 columnSpacing: 7
                                 rowSpacing: 5
                                 Label { text: "IP / Host"; color: root.bright; font.pixelSize: 12 }
-                                NavField { id: cameraHost; Layout.fillWidth: true; text: cfg.cameraHost; placeholderText: "192.168.x.x"; Accessible.name: "Adresă IP cameră" }
+                                NavField { id: cameraHost; objectName: "settingsCameraHost"; Layout.fillWidth: true; text: cfg.cameraHost; placeholderText: "192.168.x.x"; Accessible.name: "Adresă IP cameră" }
                                 Label { text: "Port"; color: root.bright; font.pixelSize: 12 }
-                                NavField { id: cameraPort; Layout.fillWidth: true; text: cfg.cameraPort > 0 ? String(cfg.cameraPort) : ""; validator: IntValidator { bottom: 1; top: 65535 } inputMethodHints: Qt.ImhDigitsOnly; placeholderText: "554"; Accessible.name: "Port rețea cameră" }
+                                NavField { id: cameraPort; objectName: "settingsCameraPort"; Layout.fillWidth: true; text: cfg.cameraPort > 0 ? String(cfg.cameraPort) : ""; validator: IntValidator { bottom: 1; top: 65535 } inputMethodHints: Qt.ImhDigitsOnly; placeholderText: "554"; Accessible.name: "Port rețea cameră" }
                                 Label { text: "Transport"; color: root.bright; font.pixelSize: 12 }
                                 CheckBox { id: cameraUdp; checked: cfg.cameraUdp; text: checked ? "UDP" : "TCP"; palette.windowText: root.bright; font.pixelSize: 12 }
                                 Label { text: "URL video"; color: root.bright; font.pixelSize: 12 }
-                                NavField { id: streamUrl; Layout.fillWidth: true; text: cfg.cameraStreamUrl; placeholderText: "rtsp://... sau http://..."; Accessible.name: "URL video cameră" }
+                                NavField { id: streamUrl; objectName: "settingsStreamUrl"; Layout.fillWidth: true; text: cfg.cameraStreamUrl; placeholderText: "rtsp://... sau http://..."; Accessible.name: "URL video cameră" }
                                 Label { text: "Protocol"; color: root.bright; font.pixelSize: 12 }
                                 NavSelect {
                                     id: protocol
@@ -320,9 +319,9 @@ Rectangle {
                         Layout.fillWidth: true
                         columns: 2; columnSpacing: 8; rowSpacing: 7
                         Label { text: "IP / Host"; color: root.bright; font.pixelSize: 12 }
-                        NavField { id: sonarHost; Layout.fillWidth: true; text: cfg.sonarHost; placeholderText: "192.168.x.x"; Accessible.name: "IP Kogger" }
+                        NavField { id: sonarHost; objectName: "settingsSonarHost"; Layout.fillWidth: true; text: cfg.sonarHost; placeholderText: "192.168.x.x"; Accessible.name: "IP Kogger" }
                         Label { text: "Port"; color: root.bright; font.pixelSize: 12 }
-                        NavField { id: sonarPort; Layout.fillWidth: true; text: cfg.sonarPort > 0 ? String(cfg.sonarPort) : ""; validator: IntValidator { bottom: 1; top: 65535 } inputMethodHints: Qt.ImhDigitsOnly; placeholderText: "8899"; Accessible.name: "Port Kogger" }
+                        NavField { id: sonarPort; objectName: "settingsSonarPort"; Layout.fillWidth: true; text: cfg.sonarPort > 0 ? String(cfg.sonarPort) : ""; validator: IntValidator { bottom: 1; top: 65535 } inputMethodHints: Qt.ImhDigitsOnly; placeholderText: "8899"; Accessible.name: "Port Kogger" }
                         Label { text: "Transport"; color: root.bright; font.pixelSize: 12 }
                         CheckBox { id: sonarUdp; checked: cfg.sonarUdp; text: checked ? "UDP" : "TCP"; palette.windowText: root.bright; font.pixelSize: 12 }
                     }

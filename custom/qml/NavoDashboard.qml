@@ -40,6 +40,7 @@ Item {
     }
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
     property var planController: _planController
+    readonly property var settingsAlertsController: alerts
     readonly property var mapBaitingController: baitingController
     readonly property var mapAreaScanController: areaScanController
 
@@ -2731,7 +2732,7 @@ Item {
             anchors.fill: parent
             sonar: root.sonarController
             camera: cameraEthernet
-            alerts: alerts
+            alerts: root.settingsAlertsController
             audio: alertAudio
             steering: steeringAssist
             g20: g20Controller

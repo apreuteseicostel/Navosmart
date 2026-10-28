@@ -531,11 +531,13 @@ test('Tabbed NAVO settings expose real camera, sonar, audio, energy and QGC cont
   const steering=fs.readFileSync(path.join(dir,'NavoSteeringPanel.qml'),'utf8');
   const dashboard=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
   const cmake=fs.readFileSync(path.resolve(dir,'../CMakeLists.txt'),'utf8');
-  for(const name of ['General','Unități','Avansat','Integrare','QGroundControl'])
+  for(const name of ['General','Avansat','Integrare','QGroundControl'])
     assert(page.includes('"'+name+'"'),name+' tab absent');
+  assert(!page.includes('text: "Unități"'));
+  assert.equal((page.match(/root\.settingsToolRequested\(\)/g)||[]).length,1);
   assert.match(dashboard,/id: settingsPage\s*NavoSettingsV3\s*\{/);
   assert.match(cmake,/qml\/NavoSettingsV3\.qml/);
-  assert.match(page,/anchors\.bottom: root\.selectedTab === 0 \? saveFooter\.top : parent\.bottom/);
+  assert.match(page,/anchors\.bottom: saveFooter\.visible \? saveFooter\.top : parent\.bottom/);
   assert.match(page,/ethernetSettings\.saveEndpoints\(\)/);
   assert.match(dashboard,/onSettingsToolRequested:/);
   assert.match(ethernet,/function saveEndpoints\(\)/);
