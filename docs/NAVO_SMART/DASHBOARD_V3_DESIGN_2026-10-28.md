@@ -30,3 +30,29 @@ The four reference images are **concept art**, not captured MAVLink data. Batter
 - [ ] Merge to main only after validated build and user approval.
 
 > All commits in this draft branch have [skip ci]; no Android build was requested.
+
+## Settings V3 — second approved NAVO design (28 Oct 2026)
+
+Implemented in this same draft PR in response to the approved cyan/navy Settings mockup:
+
+- \`NavoSettingsV3.qml\`: five working navigation tabs (\`General\`, \`Unități\`, \`Avansat\`, \`Integrare\`, \`QGroundControl\`), high-contrast palette, compact sections, pinned accessible **Salvare** action while scrolling. Replaces the old oversized Settings content inside \`NavoDashboard.qml\` without changing other dashboard pages.
+- \`NavoEthernetSettings.qml\`: two bordered, compact Camera/Kogger cards with original editable host/port/transport/protocol settings; video player Preview and green ▶ / red ■ controls remain inside the Camera panel. Retains endpoint persistence, manual connection/disconnection and local LAN discovery. **Kogger runs over Ethernet** in this codebase; a mock serial/baud chooser was intentionally not added.
+- \`NavoAlertSettings.qml\`: real alert sound/voice switches, compact volume slider, test/stop actions, short status fields and expandable context help.
+- \`NavoSteeringPanel.qml\`: real STEERING availability, confirmation and HOLD stop; short expandable safety help. **No invented sensitivity slider**: tuning is a H743/ArduPilot task.
+- \`NavoG20Settings.qml\`: compact Advanced tab, dark inputs and context help behind an info button; preserves mapping controls and safeguards.
+- \`Unități\` and \`QGroundControl\` use the existing \`mainWindow.showSettingsTool()\` hook, when exposed by QGC. No imitation of vehicle setup/parameter tuning.
+- Camera/Kogger endpoints are committed by \`saveEndpoints()\`; QtCore.Settings already persists Energy preferences on edit. Saving does **not** bypass energy-confirmation calibration.
+- Accessibility: primary text \`#eff9ff\` on \`#061827\` (WCAG luminance contrast approx **16.8:1**); secondary text \`#c1d7e6\` approx **12.1:1** on the same surface. Native Qt dropdown rendering and G20 visual measurements require device verification.
+
+### Additional validation pending
+
+- [x] Structural static checks of the new settings, wiring, balanced delimiters and registered QML resources.
+- [x] Static regression assertions added to \`tests/audit-regressions.mjs\`.
+- [ ] Real Qt/QML component loader and screenshots on G20/tablet — **not run**.
+- [ ] Android emulator smoke/Accessibility inspection — **not run**.
+- [ ] Verify \`mainWindow.showSettingsTool()\` on this pinned QGC release.
+- [ ] Video test, Kogger LAN, audio test and H743 STEERING on connected hardware — **not run**.
+- [ ] Confirm exact appearance at small G20 resolutions and Android font scaling.
+- [ ] APK build — **not authorised; do not trigger**.
+
+All changes remain exclusively in the isolated **Draft PR #29**. \`main\` is unchanged.
