@@ -527,6 +527,7 @@ Item {
     property real distanceToTarget: vehicle && vehicle.distanceToGoal ? vehicle.distanceToGoal.rawValue : 0
     property string boatId: "NAV0001"
     property int activePage: 0
+    property bool showHomeCredit: false
     property bool hopperStatusExpanded: false
     property bool mapFullscreen: false
     property bool headingOverlayOpen: false
@@ -1106,12 +1107,33 @@ Item {
 
     Rectangle { anchors.fill: parent; color: root.bg }
 
+    // Credits appear only after the user presses the NAVO SMART home branding.
+    Rectangle {
+        visible: root.showHomeCredit && root.activePage === 0 && !root.mapMaximized
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 3
+        width: Math.min(root.width - 30, homeCredit.implicitWidth + 30)
+        height: 23
+        radius: 8
+        color: "#071926"
+        border.color: "#13617a"
+        z: 1900
+        Label {
+            id: homeCredit
+            anchors.centerIn: parent
+            text: "build and design by Costel Apreutesei"
+            color: "#7edff2"
+            font.pixelSize: 11
+        }
+    }
+
     Rectangle {
         id: header
         visible: root.activePage !== 10 && !(root.activePage===2 && root.mapMaximized)
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
         height: root.activePage===2 ? (root.mapMaximized ? 0 : 48) : 64
-        color: "#101822"; border.color: root.line; z: 2000
+        color: "#071926"; border.color: "#13617a"; z: 2000
         Flickable {
             anchors.fill: parent
             clip: false
@@ -1122,16 +1144,30 @@ Item {
             id: headerItems
             x: 16; height: parent.height; spacing: 8
             Item {
-                Layout.preferredWidth: 150
-                Layout.preferredHeight: titleLabels.implicitHeight
-                ColumnLayout {
-                    id: titleLabels
+                Layout.preferredWidth: root.compactUi ? 166 : 205
+                Layout.preferredHeight: 48
+                RowLayout {
                     anchors.fill: parent
-                    spacing: 0
-                    Label { text: "NAVO SMART"; color: root.text; font.pixelSize: root.activePage===2 ? 18 : 22; font.bold: true }
-                    Label { visible:root.activePage!==2; text: "Pescarul lu Peste"; color: root.muted; font.pixelSize: 11 }
+                    spacing: 6
+                    Image {
+                        source: "qrc:/qml/NavoSmart/icons/navo-brand.svg"
+                        Layout.preferredWidth: root.activePage===2 ? 28 : 36
+                        Layout.preferredHeight: root.activePage===2 ? 28 : 36
+                        fillMode: Image.PreserveAspectFit
+                    }
+                    ColumnLayout {
+                        id: titleLabels
+                        Layout.fillWidth: true
+                        spacing: 1
+                        Label { text: "NAVO SMART"; color: root.text; font.pixelSize: root.activePage===2 ? 16 : 20; font.bold: true }
+                        Label { visible:root.activePage!==2; text: "Pescaru' lu' Pește"; color: "#7edff2"; font.pixelSize: 11 }
+                    }
                 }
-                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.mapMaximized=false; root.activePage=0 } }
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: { root.mapMaximized=false; root.activePage=0; root.showHomeCredit=true }
+                }
             }
             StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/satellite.svg"; title: "SATELIȚI"; value: vehicle && vehicle.gps ? String(vehicle.gps.count.rawValue) : "--"; good: vehicle && vehicle.gps && Number(vehicle.gps.lock.rawValue) >= 3; interactive:true; onClicked:gnssDiagnostic.open() }
             StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/home.svg"; title: "HOME"; value: Number(root.distanceToHome).toFixed(0) + " m"; good: !!vehicle; interactive:true
@@ -1140,9 +1176,9 @@ Item {
             }
             StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/speed.svg"; title: "VITEZĂ"; value: vehicle && vehicle.groundSpeed ? Number(vehicle.groundSpeed.rawValue * 3.6).toFixed(1) + " km/h" : "--"; good: !!vehicle }
             StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/target.svg"; title: "ȚINTĂ"; value: root.distanceToTarget > 0 ? Number(root.distanceToTarget).toFixed(0) + " m" : "--"; good: root.distanceToTarget > 0 }
-            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/battery.svg"; title: "BATERIE"; value: battery ? Number(battery.percentRemaining.rawValue).toFixed(0) + "%" : "--"; good: battery && battery.percentRemaining.rawValue > 20 }
-            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/temp.svg"; title: "TEMP"; value: h743Telemetry.connected && !isNaN(h743Telemetry.batteryTempC) ? Number(h743Telemetry.batteryTempC).toFixed(1) + "°" : "--"; good: h743Telemetry.connected && safetyManager.state !== "CRITICAL" }
-            StatusPill { pillWidth: 58; iconSource:"qrc:/qml/NavoSmart/icons/mode.svg"; title: "MOD"; value: root.flightMode.length ? root.flightMode : "OFF"; good: vehicle !== null }
+            StatusPill { pillWidth:82; iconSource:"qrc:/qml/NavoSmart/icons/battery.svg"; title: "BATERIE"; value: root.linkAlive && battery && battery.percentRemaining && isFinite(Number(battery.percentRemaining.rawValue)) && Number(battery.percentRemaining.rawValue)>=0 ? Number(battery.percentRemaining.rawValue).toFixed(0) + "%" : "--"; good: root.linkAlive && battery && battery.percentRemaining && Number(battery.percentRemaining.rawValue)>20; interactive:true; onClicked:dashboardDetails.showSection("battery") }
+            StatusPill { pillWidth:77; iconSource:"qrc:/qml/NavoSmart/icons/temp.svg"; title: "TEMP"; value: h743Telemetry.connected && h743Telemetry.temperatureValid && isFinite(h743Telemetry.batteryTempC) ? Number(h743Telemetry.batteryTempC).toFixed(1) + "°" : "--"; good: h743Telemetry.connected && h743Telemetry.temperatureValid && safetyManager.state !== "CRITICAL"; interactive:true; onClicked:dashboardDetails.showSection("temperature") }
+            StatusPill { pillWidth:88; iconSource:"qrc:/qml/NavoSmart/icons/mode.svg"; title: "MOD"; value: g20Controller.dashboardModeValid ? g20Controller.dashboardModePosition : (root.flightMode.length ? root.flightMode : "--"); good: root.linkAlive; interactive:true; onClicked:dashboardDetails.showSection("mode") }
             NavoHeadingCompass {
                 id: headingCompass
                 Layout.preferredWidth: root.activePage===2 ? 40 : 54
@@ -1163,12 +1199,12 @@ Item {
         modal: false
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        x: Math.max(8, Math.min(170, root.width - width - 8))
-        y: 68
-        width: Math.min(380, root.width - 16)
+        x: Math.max(8, Math.min(165, root.width - width - 8))
+        y: 66
+        width: Math.min(420, root.width - 18)
         padding: 14
-        z: 6500
-        background: Rectangle { radius: 12; color: "#101822"; border.color: "#21b7ff"; border.width: 1 }
+        z: 6800
+        background: Rectangle { radius: 14; color: "#071926"; border.color: "#20d9ed"; border.width: 1.5 }
         property string checkResult: ""
         function factValue(fact) {
             if (!fact || fact.rawValue === undefined || fact.rawValue === null) return "--"
@@ -1177,35 +1213,82 @@ Item {
         }
         ColumnLayout {
             width: parent.width
-            spacing: 8
+            spacing: 9
             RowLayout {
                 Layout.fillWidth: true
-                Label { text: "GNSS / UM982 • Diagnostic"; color: "#ffffff"; font.bold: true; font.pixelSize: 16; Layout.fillWidth: true }
-                Button { text: "✕"; flat: true; onClicked: gnssDiagnostic.close() }
-            }
-            Label { text: !root.vehicle ? "H743 deconectat" : !root.vehicle.gps ? "Nu sunt date GPS de la H743" : Number(root.vehicle.gps.lock.rawValue) >= 3 ? "Poziție GPS validă" : "GPS detectat • fără fix 3D"; color: root.vehicle && root.vehicle.gps && Number(root.vehicle.gps.lock.rawValue) >= 3 ? "#43d49e" : "#ffc857"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
-            Label { text: "Sateliți: " + (root.vehicle && root.vehicle.gps ? String(root.vehicle.gps.count.rawValue) : "--"); color: "#ffffff" }
-            Label { text: "Tip fix (MAVLink): " + (root.vehicle && root.vehicle.gps ? String(root.vehicle.gps.lock.rawValue) : "--") + "  (3 = 3D, 4 = DGPS, 5/6 = RTK)"; color: "#d5e2ee"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
-            Label { text: "Latitudine: " + (root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? Number(root.vehicle.coordinate.latitude).toFixed(7) + "°" : "--"); color: "#d5e2ee" }
-            Label { text: "Longitudine: " + (root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? Number(root.vehicle.coordinate.longitude).toFixed(7) + "°" : "--"); color: "#d5e2ee" }
-            Label { text: "Altitudine GPS: " + (root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? Number(root.vehicle.coordinate.altitude).toFixed(1) + " m" : "--"); color: "#d5e2ee" }
-            Label { text: "HDOP: " + (root.vehicle && root.vehicle.gps ? gnssDiagnostic.factValue(root.vehicle.gps.hdop) : "--") + "  •  VDOP: " + (root.vehicle && root.vehicle.gps ? gnssDiagnostic.factValue(root.vehicle.gps.vdop) : "--"); color: "#d5e2ee" }
-            Label { text: "UM982 / antene duale: identificare directă indisponibilă prin indicatorul MAVLink standard"; color: "#8ca4b8"; wrapMode: Text.WordWrap; Layout.fillWidth: true; font.pixelSize: 11 }
-            Button {
-                Layout.fillWidth: true
-                text: "Verifică conexiunea GPS"
-                onClicked: {
-                    if (!root.vehicle) gnssDiagnostic.checkResult = "H743 nu este conectat. Verifică MAVLink."
-                    else if (!root.vehicle.gps) gnssDiagnostic.checkResult = "H743 conectat, dar nu raportează GPS. Verifică UART, alimentarea UM982 și SERIALx_PROTOCOL."
-                    else if (Number(root.vehicle.gps.lock.rawValue) < 3) gnssDiagnostic.checkResult = "GPS raportat, fără fix 3D. Verifică antenele și vizibilitatea cerului."
-                    else gnssDiagnostic.checkResult = "H743 raportează fix GPS valid. Modelul UM982 și legătura fizică nu pot fi certificate doar din acest mesaj."
+                Image { source: "qrc:/qml/NavoSmart/icons/satellite.svg"; Layout.preferredWidth: 25; Layout.preferredHeight: 25 }
+                Label { text: "GNSS / UM982 • Diagnostic"; color: "#edf8ff"; font.bold: true; font.pixelSize: 17; Layout.fillWidth: true }
+                Button {
+                    text: "✕"; Accessible.name: "Închide diagnosticul GPS"
+                    implicitWidth: 34; implicitHeight: 31
+                    onClicked: gnssDiagnostic.close()
+                    background: Rectangle { radius: 9; color: "#103044"; border.color: "#174e68" }
+                    contentItem: Label { text: parent.text; color: "#20d9ed"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                 }
             }
-            Label { visible: gnssDiagnostic.checkResult.length > 0; text: gnssDiagnostic.checkResult; color: "#21b7ff"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+            Rectangle {
+                Layout.fillWidth: true; Layout.preferredHeight: 34
+                radius: 9; color: "#0d2a39"; border.color: "#174e68"
+                Label {
+                    anchors.centerIn: parent
+                    text: !root.vehicle ? "H743 deconectat" : !root.vehicle.gps ? "Fără date GPS" : Number(root.vehicle.gps.lock.rawValue) >= 3 ? "● Poziție GPS validă" : "● GPS fără fix 3D"
+                    color: root.vehicle && root.vehicle.gps && Number(root.vehicle.gps.lock.rawValue) >= 3 ? "#31d6a5" : "#ffd166"
+                    font.pixelSize: 12; font.bold: true
+                }
+            }
+            DataLine { name: "Sateliți"; value: root.vehicle && root.vehicle.gps ? String(root.vehicle.gps.count.rawValue) : "--" }
+            Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
+            DataLine { name: "Fix GPS / MAVLink"; value: root.vehicle && root.vehicle.gps ? String(root.vehicle.gps.lock.rawValue) : "--" }
+            Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
+            DataLine { name: "Latitudine"; value: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? Number(root.vehicle.coordinate.latitude).toFixed(7) + "°" : "--" }
+            Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
+            DataLine { name: "Longitudine"; value: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? Number(root.vehicle.coordinate.longitude).toFixed(7) + "°" : "--" }
+            Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
+            DataLine { name: "Altitudine GPS"; value: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? Number(root.vehicle.coordinate.altitude).toFixed(1) + " m" : "--" }
+            Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
+            DataLine { name: "HDOP"; value: root.vehicle && root.vehicle.gps ? gnssDiagnostic.factValue(root.vehicle.gps.hdop) : "--" }
+            DataLine { name: "VDOP"; value: root.vehicle && root.vehicle.gps ? gnssDiagnostic.factValue(root.vehicle.gps.vdop) : "--" }
+            Label {
+                Layout.fillWidth: true
+                text: "3 = 3D • 4 = DGPS • 5/6 = RTK. Identitatea UM982 și antenele duale nu pot fi confirmate prin fixul MAVLink."
+                color: "#9cc4d7"; wrapMode: Text.WordWrap; font.pixelSize: 11
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Item { Layout.fillWidth: true }
+                Button {
+                    text: "Verifică GPS"
+                    implicitHeight: 34
+                    onClicked: {
+                        if (!root.vehicle) gnssDiagnostic.checkResult = "H743 nu este conectat. Verifică MAVLink."
+                        else if (!root.vehicle.gps) gnssDiagnostic.checkResult = "H743 conectat, dar nu raportează GPS. Verifică UART, alimentarea UM982 și SERIALx_PROTOCOL."
+                        else if (Number(root.vehicle.gps.lock.rawValue) < 3) gnssDiagnostic.checkResult = "GPS raportat, fără fix 3D. Verifică antenele și vizibilitatea cerului."
+                        else gnssDiagnostic.checkResult = "H743 raportează fix GPS valid. Identitatea UM982 și legătura fizică nu pot fi certificate prin MAVLink."
+                    }
+                    background: Rectangle { radius: 9; color: "#103044"; border.color: "#20d9ed" }
+                    contentItem: Label { text: parent.text; color: "#20d9ed"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                }
+            }
+            Label { Layout.fillWidth: true; visible: gnssDiagnostic.checkResult.length>0; text: gnssDiagnostic.checkResult; color: "#20d9ed"; wrapMode: Text.WordWrap; font.pixelSize: 11 }
         }
         onOpened: checkResult = ""
     }
 
+    NavoStatusDetails {
+        id: dashboardDetails
+        viewportWidth: root.width
+        viewportHeight: root.height
+        vehicle: root.vehicle
+        battery: root.battery
+        linkAlive: root.linkAlive
+        temperatureFresh: h743Telemetry.connected && h743Telemetry.temperatureValid && isFinite(h743Telemetry.batteryTempC)
+        temperatureC: h743Telemetry.batteryTempC
+        temperatureSource: "Temperatură NTC baterie / H743"
+        modeSignalValid: g20Controller.dashboardModeValid
+        modePwm: g20Controller.dashboardModePwm
+        modePosition: g20Controller.dashboardModePosition
+        confirmedMode: root.flightMode
+    }
 
     NavoHeadingCompass { id:headingCompassOverlay; visible:root.headingOverlayOpen && root.activePage !== 10; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; onToggleRequested:root.headingOverlayOpen=false }
 
@@ -2458,15 +2541,20 @@ Item {
         property bool interactive: false
         signal clicked()
         signal pressAndHold()
-        property real pillWidth: 72
-        Layout.preferredWidth: pillWidth; Layout.preferredHeight: 36; radius: 7
-        color: root.panel; border.color: good ? root.ok : root.line
+        property real pillWidth: 76
+        Layout.preferredWidth: pillWidth; Layout.preferredHeight: root.compactUi ? 36 : 42; radius: 9
+        color: pillMouse.containsMouse && interactive ? "#143747" : "#0a2332"
+        border.color: pillMouse.containsMouse && interactive ? "#20d9ed" : (interactive ? "#167a93" : root.line)
+        border.width: 1
+        ToolTip.visible: pillMouse.containsMouse && interactive
+        ToolTip.text: "Deschide " + title.toLowerCase()
+        ToolTip.delay: 500
         MouseArea { id:pillMouse; anchors.fill:parent; enabled:parent.interactive; hoverEnabled:true; cursorShape:parent.interactive?Qt.PointingHandCursor:Qt.ArrowCursor; pressAndHoldInterval:1600; onClicked:parent.clicked(); onPressAndHold:parent.pressAndHold() }
         Row { anchors.centerIn:parent; spacing:5
             Image { width:20;height:20;anchors.verticalCenter:parent.verticalCenter;source:iconSource;fillMode:Image.PreserveAspectFit }
             Column { anchors.verticalCenter:parent.verticalCenter; spacing:0
-                Label { anchors.horizontalCenter:parent.horizontalCenter;text:title;color:root.muted;font.pixelSize:7 }
-                Label { anchors.horizontalCenter:parent.horizontalCenter;text:value;color:good?root.ok:root.text;font.pixelSize:10;font.bold:true }
+                Label { anchors.horizontalCenter:parent.horizontalCenter;text:title;color:"#9cc4d7";font.pixelSize:8 }
+                Label { anchors.horizontalCenter:parent.horizontalCenter;text:value;color:good?root.ok:root.text;font.pixelSize:11;font.bold:true }
             }
         }
     }
