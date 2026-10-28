@@ -39,6 +39,12 @@ ApplicationWindow {
  property string areaScanFinishAction:"HOLD"
  property string pendingAreaDrawMode:"none"
  property bool pendingBaitPointPick:false
+ property bool directGotoActive:false
+ property string flightMode:"HOLD"
+ property string pendingMode:""
+ property string pendingModeLabel:""
+ property int cancels:0
+ function cancelCurrentAction(){cancels++;directGotoActive=false;pendingMode="";flightMode="HOLD";holdMission()}
  property string lastNavigationStatus:""
  property string panel:"#0b1c2e"
  property string line:"#31506a"
@@ -53,6 +59,12 @@ ApplicationWindow {
  property string routeEnergyText:"Energie: consum de calibrat"
  property var scanEstimate:({valid:true,distanceM:520,durationSeconds:350})
  readonly property bool missionBusy:routePlan.active || scanCoordinator.state==="SCANNING" || awaitingMissionStart || missionUploader.uploadInProgress
+    readonly property bool rtlActive: root.pendingModeLabel==="RTL" && root.pendingMode.length>0 ||
+        ["RTL","SMARTRTL","SMART_RTL"].indexOf(String(root.flightMode).toUpperCase())>=0 ||
+        (!!root.vehicle && !!root.vehicle.rtlFlightMode && String(root.flightMode).toUpperCase()===String(root.vehicle.rtlFlightMode).toUpperCase())
+    readonly property bool actionActive: root.missionBusy || root.directGotoActive || root.rtlActive ||
+        root.pendingMode.length>0 || ["AUTO","GUIDED"].indexOf(String(root.flightMode).toUpperCase())>=0
+ property bool canClearArea:false
  property int fits:0
  property int pauses:0
  property int homes:0
@@ -173,5 +185,14 @@ with tempfile.TemporaryDirectory() as folder:
  QMetaObject.invokeMethod(dialog,'reject')
  QMetaObject.invokeMethod(pause,'clicked');QTest.qWait(20)
  assert window.property('pauses')==2 and not pause.property('enabled')
+ # Cancellation must remain available during RTL and after link loss.
+ window.setProperty('flightMode','RTL');QTest.qWait(30)
+ cancel=window.findChild(QObject,'missionCancel')
+ assert cancel.property('enabled') and cancel.property('text')=='ANULEAZĂ RTL'
+ window.setProperty('linkAlive',False);QTest.qWait(20)
+ assert cancel.property('enabled') and not pause.property('enabled')
+ QMetaObject.invokeMethod(cancel,'clicked');QTest.qWait(20)
+ assert window.property('cancels')==1 and window.property('flightMode')=='HOLD'
  assert not errors,errors
  print('PASS Missions at 236/320/480/900: scrollable stop editor, map picking, hide/reopen while active, auto-expanded START, PAUZĂ/HOME and link-loss controls')
+

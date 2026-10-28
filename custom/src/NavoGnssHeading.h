@@ -11,7 +11,8 @@ class Vehicle;
 
 // Read-only MAVLink GPS-yaw monitor. It never changes the EKF or vehicle mode.
 // Do not confuse GPS course-over-ground with the dual-antenna heading baseline.
-class NavoGnssHeading final : public QObject {
+// qmlRegisterType wraps this class in QQmlElement, which derives from it.
+class NavoGnssHeading : public QObject {
     Q_OBJECT
     Q_PROPERTY(QObject* vehicle READ vehicle WRITE setVehicle NOTIFY vehicleChanged)
     Q_PROPERTY(bool linkAlive READ linkAlive WRITE setLinkAlive NOTIFY headingChanged)
@@ -74,3 +75,4 @@ private:
     bool _linkAlive = false;
     double _autopilotHeadingDeg = qQNaN();
 };
+

@@ -825,5 +825,14 @@ test('Lake changes, replay and actions begun during editing block save',()=>{
   assert.equal(page.saveSpotEdit(),false);assert.equal(model.fishingSpots[0],original);assert.equal(writes(),0);
  }
 });
+test('QML-creatable backend classes permit the Qt QQmlElement wrapper to derive',()=>{
+ const src=path.join(dir,'../src');
+ const plugin=fs.readFileSync(path.join(src,'CustomPlugin.cc'),'utf8');
+ const headers=fs.readdirSync(src).filter(n=>n.endsWith('.h')).map(n=>fs.readFileSync(path.join(src,n),'utf8')).join('\n');
+ for(const match of plugin.matchAll(/qmlRegisterType<([A-Za-z_][A-Za-z_0-9]*)>/g)) {
+  const name=match[1];
+  assert(!new RegExp('class\\s+'+name+'\\s+final\\b').test(headers), name+' cannot be final when registered with qmlRegisterType');
+ }
+});
 console.log(`${passed} regression scenarios passed`);
 

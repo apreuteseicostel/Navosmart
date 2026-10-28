@@ -2129,9 +2129,19 @@ Item {
                 width:Math.min(560,parent.width-24);height:Math.min(620,parent.height-24)
                 padding:14
                 title:"Editează punct"
+                header:Label {
+                    text:spotEditDialog.title;color:root.text;font.bold:true;font.pixelSize:18
+                    leftPadding:14;rightPadding:14;topPadding:10;bottomPadding:8
+                    background:Rectangle { color:root.panel;radius:12 }
+                }
                 property string errorText:""
                 palette.windowText:root.text;palette.text:root.text;palette.buttonText:root.text
                 background:Rectangle { color:root.panel;radius:12;border.color:root.cyan }
+                component EditorButton: Button {
+                    Layout.fillWidth:true;implicitHeight:40
+                    contentItem:Label { text:parent.text;color:root.text;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter }
+                    background:Rectangle { radius:6;color:parent.down ? "#254b60" : "#142c3c";border.color:root.cyan }
+                }
                 component SpotField: TextField {
                     Layout.fillWidth:true;selectByMouse:true
                     color:root.text;placeholderTextColor:root.muted
@@ -2161,7 +2171,7 @@ Item {
                         Label { text:"Culoare marker (cod HEX)";color:root.text }
                         SpotField { objectName:"spotEditColor";text:fishingPageRoot.spotEditColor;onTextEdited:fishingPageRoot.spotEditColor=text }
                         Flow {
-                            Layout.fillWidth:true;implicitHeight:childrenRect.height;spacing:8
+                            Layout.fillWidth:true;spacing:8
                             Repeater {
                                 model:["#31d67b","#ef4444","#3b82f6","#facc15","#a855f7","#f97316"]
                                 delegate:Button {
@@ -2181,8 +2191,8 @@ Item {
                     Label { Layout.fillWidth:true;Layout.margins:10;visible:text.length>0;text:spotEditDialog.errorText;color:root.warn;wrapMode:Text.WordWrap }
                     RowLayout {
                         Layout.fillWidth:true;Layout.margins:10
-                        Button { text:"Anulează";Layout.fillWidth:true;onClicked:spotEditDialog.reject() }
-                        Button { objectName:"spotEditSave";text:"Salvează";Layout.fillWidth:true;onClicked:fishingPageRoot.saveSpotEdit() }
+                        EditorButton { text:"Anulează";onClicked:spotEditDialog.reject() }
+                        EditorButton { objectName:"spotEditSave";text:"Salvează";onClicked:fishingPageRoot.saveSpotEdit() }
                     }
                 }
             }

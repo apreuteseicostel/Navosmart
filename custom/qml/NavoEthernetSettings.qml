@@ -231,7 +231,7 @@ Rectangle {
                                 Label { text: "IP / Host"; color: root.bright; font.pixelSize: 12 }
                                 NavField { id: cameraHost; Layout.fillWidth: true; text: cfg.cameraHost; placeholderText: "192.168.x.x"; Accessible.name: "Adresă IP cameră" }
                                 Label { text: "Port"; color: root.bright; font.pixelSize: 12 }
-                                NavField { id: cameraPort; Layout.fillWidth: true; text: cfg.cameraPort > 0 ? String(cfg.cameraPort) : ""; validator: IntValidator { bottom: 1; top: 65535 }; inputMethodHints: Qt.ImhDigitsOnly; placeholderText: "554"; Accessible.name: "Port rețea cameră" }
+                                NavField { id: cameraPort; Layout.fillWidth: true; text: cfg.cameraPort > 0 ? String(cfg.cameraPort) : ""; validator: IntValidator { bottom: 1; top: 65535 } inputMethodHints: Qt.ImhDigitsOnly; placeholderText: "554"; Accessible.name: "Port rețea cameră" }
                                 Label { text: "Transport"; color: root.bright; font.pixelSize: 12 }
                                 CheckBox { id: cameraUdp; checked: cfg.cameraUdp; text: checked ? "UDP" : "TCP"; palette.windowText: root.bright; font.pixelSize: 12 }
                                 Label { text: "URL video"; color: root.bright; font.pixelSize: 12 }
@@ -322,7 +322,7 @@ Rectangle {
                         Label { text: "IP / Host"; color: root.bright; font.pixelSize: 12 }
                         NavField { id: sonarHost; Layout.fillWidth: true; text: cfg.sonarHost; placeholderText: "192.168.x.x"; Accessible.name: "IP Kogger" }
                         Label { text: "Port"; color: root.bright; font.pixelSize: 12 }
-                        NavField { id: sonarPort; Layout.fillWidth: true; text: cfg.sonarPort > 0 ? String(cfg.sonarPort) : ""; validator: IntValidator { bottom: 1; top: 65535 }; inputMethodHints: Qt.ImhDigitsOnly; placeholderText: "8899"; Accessible.name: "Port Kogger" }
+                        NavField { id: sonarPort; Layout.fillWidth: true; text: cfg.sonarPort > 0 ? String(cfg.sonarPort) : ""; validator: IntValidator { bottom: 1; top: 65535 } inputMethodHints: Qt.ImhDigitsOnly; placeholderText: "8899"; Accessible.name: "Port Kogger" }
                         Label { text: "Transport"; color: root.bright; font.pixelSize: 12 }
                         CheckBox { id: sonarUdp; checked: cfg.sonarUdp; text: checked ? "UDP" : "TCP"; palette.windowText: root.bright; font.pixelSize: 12 }
                     }
@@ -368,3 +368,4 @@ Rectangle {
         }
     }
 }
+

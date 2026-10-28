@@ -444,15 +444,16 @@ Item {
         }
     }
     Dialog {
-        id:finishDialog;parent:Overlay.overlay;anchors.centerIn:parent;width:Math.min(360,root.width);modal:true;palette.windowText:"#eff9ff"; background:Rectangle{color:"#071e30";radius:12;border.color:"#ffd166"};title:"Închei partida?";standardButtons:Dialog.Yes|Dialog.No
+        id:finishDialog;parent:Overlay.overlay;anchors.centerIn:parent;width:Math.min(360,root.width);modal:true;palette.windowText:"#eff9ff"; background:Rectangle{color:"#071e30";radius:12;border.color:"#ffd166"} title:"Închei partida?";standardButtons:Dialog.Yes|Dialog.No
         onAccepted:if(root.selected)root.persistence.finishFishingTrip(root.selectedId)
     }
     Dialog {
-        id:deleteDialog;parent:Overlay.overlay;anchors.centerIn:parent;width:Math.min(360,root.width);modal:true;palette.windowText:"#eff9ff"; background:Rectangle{color:"#071e30";radius:12;border.color:"#ff8793"};title:"Ștergi partida și însemnările?";standardButtons:Dialog.Yes|Dialog.No
+        id:deleteDialog;parent:Overlay.overlay;anchors.centerIn:parent;width:Math.min(360,root.width);modal:true;palette.windowText:"#eff9ff"; background:Rectangle{color:"#071e30";radius:12;border.color:"#ff8793"} title:"Ștergi partida și însemnările?";standardButtons:Dialog.Yes|Dialog.No
         onAccepted:if(root.persistence.deleteFishingTrip(root.pendingDeleteId))root.selectedId=""
     }
     Dialog {
-        id:deleteEntryDialog;parent:Overlay.overlay;anchors.centerIn:parent;width:Math.min(360,root.width);modal:true;palette.windowText:"#eff9ff"; background:Rectangle{color:"#071e30";radius:12;border.color:"#ff8793"};title:"Ștergi însemnarea?";standardButtons:Dialog.Yes|Dialog.No
+        id:deleteEntryDialog;parent:Overlay.overlay;anchors.centerIn:parent;width:Math.min(360,root.width);modal:true;palette.windowText:"#eff9ff"; background:Rectangle{color:"#071e30";radius:12;border.color:"#ff8793"} title:"Ștergi însemnarea?";standardButtons:Dialog.Yes|Dialog.No
         onAccepted:root.persistence.deleteFishingEntry(root.pendingDeleteId,root.pendingEntryId)
     }
 }
+

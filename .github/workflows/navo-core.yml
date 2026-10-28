@@ -72,6 +72,7 @@ jobs:
           /tmp/navo-ui-env/bin/python tests/missions-ui.py
           /tmp/navo-ui-env/bin/python tests/map-framing-ui.py
           /tmp/navo-ui-env/bin/python tests/saved-spots-ui.py
+          /tmp/navo-ui-env/bin/python tests/saved-spot-editor-ui.py
           /tmp/navo-ui-env/bin/python tests/steering-ui.py
           /tmp/navo-ui-env/bin/python tests/sonar-recording-ui.py
           /tmp/navo-ui-env/bin/python tests/replay-notes-ui.py
@@ -85,3 +86,4 @@ jobs:
           path: |
             build/firmware-nano/NAVO_NANO.hex
             build/firmware-nano/NAVO_NANO.elf
+

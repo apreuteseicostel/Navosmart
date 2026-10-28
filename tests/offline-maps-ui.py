@@ -1,7 +1,9 @@
 import os
 os.environ.setdefault('QT_QPA_PLATFORM','offscreen');os.environ.setdefault('QT_QUICK_BACKEND','software')
 from pathlib import Path
-from PySide6.QtCore import QUrl,QObject,QMetaObject,Q_ARG,Q_RETURN_ARG,QAbstractListModel,QModelIndex,Qt,Property,Signal,Slot
+import tempfile, subprocess
+import PySide6
+from PySide6.QtCore import QUrl,QObject,QMetaObject,Q_ARG,Q_RETURN_ARG,QAbstractListModel,QModelIndex,Qt,Property,Signal,Slot,QResource
 from PySide6.QtGui import QGuiApplication,QColor
 from PySide6.QtQml import QQmlComponent
 from PySide6.QtQuick import QQuickView
@@ -22,6 +24,13 @@ class Sets(QAbstractListModel):
  @Slot()
  def clear(self):self.beginResetModel();self.items=[];self.endResetModel();self.countChanged.emit()
 app=QGuiApplication([]);repo=Path(__file__).resolve().parent.parent
+# The production page now uses the packaged map icon; register real resources.
+resource_dir=tempfile.TemporaryDirectory()
+qrc=Path(resource_dir.name)/'icons.qrc'
+qrc.write_text('<RCC><qresource prefix="/qml/NavoSmart/icons">'+''.join(f'<file alias="{p.name}">{p}</file>' for p in (repo/'custom/icons').glob('*.svg'))+'</qresource></RCC>')
+resource=Path(resource_dir.name)/'icons.rcc'
+subprocess.run([str(Path(PySide6.__file__).parent/'Qt/libexec/rcc'),'--binary',str(qrc),'-o',str(resource)],check=True)
+assert QResource.registerResource(str(resource))
 view=QQuickView();view.setColor(QColor("#081522"));view.setResizeMode(QQuickView.SizeRootObjectToView);errors=[]
 view.engine().warnings.connect(lambda ws:errors.extend(str(w) for w in ws))
 view.setSource(QUrl.fromLocalFile(str(repo/'custom/qml/NavoOfflineMaps.qml')))
@@ -63,3 +72,4 @@ manager.setProperty('tileCount',5001);assert not root.property('ready')
 root.setProperty('region',{'west':170,'east':-170,'north':52,'south':51.9});assert not root.property('validRegion') and not root.property('ready')
 assert not errors,errors
 print('PASS offline UI: actual manager API double, region/limit guards, duplicate names, asynchronous creation, 236/320/900px')
+
