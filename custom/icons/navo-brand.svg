@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Dashboard-only yellow bait-boat mark from the approved NAVO design direction.
+       Launcher variant 5 must use its original asset when recovered. -->
+  <path d="M32 4C20 9 15 24 15 44l17 15 17-15C49 24 44 9 32 4Z" fill="#ffca27" stroke="#f5a900" stroke-width="2"/>
+  <path d="M32 14C25 20 23 31 23 43l9 8 9-8c0-12-2-23-9-29Z" fill="#092433"/>
+  <path d="M27 38V25l10 13V25" fill="none" stroke="#ffca27" stroke-linecap="round" stroke-linejoin="round" stroke-width="3"/>
+  <path d="M10 34v16l9 5M54 34v16l-9 5" fill="none" stroke="#ffca27" stroke-linecap="round" stroke-width="4"/>
+  <path d="M27 54h10" stroke="#ffed9a" stroke-width="3" stroke-linecap="round"/>
+</svg>
