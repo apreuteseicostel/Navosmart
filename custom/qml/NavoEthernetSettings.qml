@@ -22,7 +22,7 @@ Rectangle {
     signal status(string text)
 
     color: "transparent"
-    implicitHeight: panels.implicitHeight + (lanDiscovery.devices.length ? Math.min(98, lanDiscovery.devices.length*34+10) : 0) + 41
+    implicitHeight: body.implicitHeight
 
     Settings {
         id: cfg
@@ -74,6 +74,7 @@ Rectangle {
 
     component NavField: TextField {
         id: field
+        Layout.minimumWidth: 0
         implicitHeight: 34
         font.pixelSize: 12
         color: "#eff9ff"
@@ -108,6 +109,7 @@ Rectangle {
         id: command
         property color commandColor: "#20d9ed"
         implicitHeight: 34
+        implicitWidth: Math.ceil(contentItem.implicitWidth) + leftPadding + rightPadding
         padding: 6
         font.pixelSize: 12
         font.bold: true
@@ -121,8 +123,56 @@ Rectangle {
             text: command.text
             color: command.enabled ? command.commandColor : "#a4b7c6"
             font: command.font
+            elide: Text.ElideRight
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
+        }
+    }
+    component TransportSelector: Rectangle {
+        id: transportSelector
+        property bool checked: false // Existing persisted endpoint flag: false=TCP, true=UDP.
+        implicitWidth: 132
+        implicitHeight: 32
+        Layout.preferredWidth: 132
+        Layout.maximumWidth: 132
+        color: "#092439"
+        radius: 7
+        border.color: "#537b91"
+        RowLayout {
+            anchors.fill: parent
+            anchors.margins: 3
+            spacing: 3
+            Repeater {
+                model: ["TCP", "UDP"]
+                delegate: Button {
+                    id: transportChoice
+                    required property string modelData
+                    required property int index
+                    readonly property bool selected: transportSelector.checked === (index === 1)
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    padding: 0
+                    text: modelData
+                    Accessible.role: Accessible.RadioButton
+                    Accessible.name: modelData
+                    Accessible.checkable: true
+                    Accessible.checked: selected
+                    onClicked: transportSelector.checked = index === 1
+                    background: Rectangle {
+                        radius: 5
+                        color: transportChoice.selected ? "#17634f" : "transparent"
+                        border.color: transportChoice.activeFocus ? root.bright : (transportChoice.selected ? root.mint : "transparent")
+                    }
+                    contentItem: Label {
+                        text: transportChoice.text
+                        color: transportChoice.selected ? root.mint : root.subdued
+                        font.pixelSize: 12
+                        font.bold: transportChoice.selected
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                }
+            }
         }
     }
     component NavSelect: ComboBox {
@@ -232,7 +282,7 @@ Rectangle {
                                 Label { text: "Port"; color: root.bright; font.pixelSize: 12 }
                                 NavField { id: cameraPort; objectName: "settingsCameraPort"; Layout.fillWidth: true; text: cfg.cameraPort > 0 ? String(cfg.cameraPort) : ""; validator: IntValidator { bottom: 1; top: 65535 } inputMethodHints: Qt.ImhDigitsOnly; placeholderText: "554"; Accessible.name: "Port rețea cameră" }
                                 Label { text: "Transport"; color: root.bright; font.pixelSize: 12 }
-                                CheckBox { id: cameraUdp; checked: cfg.cameraUdp; text: checked ? "UDP" : "TCP"; palette.windowText: root.bright; font.pixelSize: 12 }
+                                TransportSelector { id: cameraUdp; objectName: "settingsCameraTransport"; checked: cfg.cameraUdp }
                                 Label { text: "URL video"; color: root.bright; font.pixelSize: 12 }
                                 NavField { id: streamUrl; objectName: "settingsStreamUrl"; Layout.fillWidth: true; text: cfg.cameraStreamUrl; placeholderText: "rtsp://... sau http://..."; Accessible.name: "URL video cameră" }
                                 Label { text: "Protocol"; color: root.bright; font.pixelSize: 12 }
@@ -299,12 +349,13 @@ Rectangle {
                 id: sonarBox
                 Layout.fillWidth: true
                 Layout.preferredWidth: root.compact ? root.width : root.width*0.36
-                Layout.preferredHeight: root.compact ? 231 : 264
+                Layout.preferredHeight: Math.max(root.compact ? 231 : 264, sonarContent.implicitHeight + 20)
                 color: "#061827"
                 border.color: "#20d9ed"
                 border.width: 1
                 radius: 10
                 ColumnLayout {
+                    id: sonarContent
                     anchors.fill: parent
                     anchors.margins: 10
                     spacing: 7
@@ -323,29 +374,41 @@ Rectangle {
                         Label { text: "Port"; color: root.bright; font.pixelSize: 12 }
                         NavField { id: sonarPort; objectName: "settingsSonarPort"; Layout.fillWidth: true; text: cfg.sonarPort > 0 ? String(cfg.sonarPort) : ""; validator: IntValidator { bottom: 1; top: 65535 } inputMethodHints: Qt.ImhDigitsOnly; placeholderText: "8899"; Accessible.name: "Port Kogger" }
                         Label { text: "Transport"; color: root.bright; font.pixelSize: 12 }
-                        CheckBox { id: sonarUdp; checked: cfg.sonarUdp; text: checked ? "UDP" : "TCP"; palette.windowText: root.bright; font.pixelSize: 12 }
+                        TransportSelector { id: sonarUdp; objectName: "settingsSonarTransport"; checked: cfg.sonarUdp }
                     }
                     Label {
                         Layout.fillWidth: true
-                        text: "Stare: " + (root.sonar ? (root.sonar.dataAlive ? "KOGGER LIVE" : root.sonar.status) : "OFFLINE")
-                        color: root.sonar && root.sonar.dataAlive ? root.mint : root.subdued
-                        font.pixelSize: 11; elide: Text.ElideRight
+                        objectName: "settingsSonarStatus"
+                        text: !root.sonar ? "Stare: OFFLINE" : root.sonar.replayMode ? "Stare: REDARE • fără conexiune live" :
+                              "Stare " + (root.sonar.udp ? "UDP" : "TCP") + ": " +
+                              (root.sonar.dataAlive ? "KOGGER LIVE" : root.sonar.status === "RX DATA" ? "Date recepționate • fără ecogramă validă" : root.sonar.status)
+                        color: root.sonar && !root.sonar.replayMode && root.sonar.dataAlive ? root.mint : root.subdued
+                        font.pixelSize: 11; wrapMode: Text.WordWrap
+                    }
+                    Label {
+                        Layout.fillWidth: true
+                        visible: !!root.sonar && sonarUdp.checked !== root.sonar.udp
+                        text: "Selectat: " + (sonarUdp.checked ? "UDP" : "TCP") + " • apasă Conectează pentru aplicare"
+                        color: root.warning
+                        font.pixelSize: 10; wrapMode: Text.WordWrap
                     }
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 7
-                        NavCommand { text: "Conectează"; Layout.fillWidth: true; commandColor: root.mint; enabled: !!root.sonar && sonarHost.text.trim().length > 0 && (parseInt(sonarPort.text)||0)>0; onClicked: { if (root.saveEndpoints()) root.sonar.connectSonar() } }
-                        NavCommand { text: "Stop"; Layout.preferredWidth: 53; commandColor: root.danger; enabled: !!root.sonar; onClicked: root.sonar.disconnectSonar() }
+                        NavCommand { objectName: "settingsSonarConnect"; text: "Conectează"; Layout.preferredWidth: 108; Layout.maximumWidth: 108; Layout.preferredHeight: 32; commandColor: root.mint; enabled: !!root.sonar && (sonarUdp.checked || sonarHost.text.trim().length > 0) && sonarPort.acceptableInput && sonarPort.text.length > 0; onClicked: { if (root.saveEndpoints()) root.sonar.connectSonar() } }
+                        NavCommand { objectName: "settingsSonarStop"; text: "Stop"; Layout.preferredWidth: 53; Layout.maximumWidth: 53; Layout.preferredHeight: 32; commandColor: root.danger; enabled: !!root.sonar; onClicked: root.sonar.disconnectSonar() }
+                        Item { Layout.fillWidth: true }
                     }
                     Item { Layout.fillHeight: true }
                 }
             }
         }
-        RowLayout {
+        GridLayout {
             Layout.fillWidth: true
-            spacing: 10
-            CheckBox { text: "Conectare Kogger la pornire"; checked: cfg.connectOnStartup; onToggled: cfg.connectOnStartup = checked; palette.windowText: root.bright; font.pixelSize: 11 }
-            Item { Layout.fillWidth: true }
+            columns: root.width < 500 ? 2 : 3
+            columnSpacing: 10
+            rowSpacing: 5
+            CheckBox { Layout.columnSpan: root.width < 500 ? 2 : 1; Layout.fillWidth: true; text: "Conectare Kogger la pornire"; checked: cfg.connectOnStartup; onToggled: cfg.connectOnStartup = checked; palette.windowText: root.bright; font.pixelSize: 11 }
             NavCommand { text: lanDiscovery.scanning ? "Oprește căutarea" : "Caută LAN"; commandColor: root.accent; onClicked: lanDiscovery.scanning ? lanDiscovery.stop() : lanDiscovery.scan() }
             Label { text: lanDiscovery.scanning ? "Căutare..." : (lanDiscovery.devices.length + " dispozitive"); color: root.subdued; font.pixelSize: 10 }
         }
@@ -367,4 +430,5 @@ Rectangle {
         }
     }
 }
+
 

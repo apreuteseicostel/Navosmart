@@ -69,6 +69,7 @@ jobs:
           python3 -m venv /tmp/navo-ui-env
           /tmp/navo-ui-env/bin/pip install PySide6-Essentials==6.8.3 PySide6-Addons==6.8.3
           /tmp/navo-ui-env/bin/python tests/qml-module-import.py
+          /tmp/navo-ui-env/bin/python tests/ethernet-settings-ui.py
           /tmp/navo-ui-env/bin/python tests/missions-ui.py
           /tmp/navo-ui-env/bin/python tests/map-framing-ui.py
           /tmp/navo-ui-env/bin/python tests/saved-spots-ui.py
@@ -89,4 +90,5 @@ jobs:
           path: |
             build/firmware-nano/NAVO_NANO.hex
             build/firmware-nano/NAVO_NANO.elf
+
 
