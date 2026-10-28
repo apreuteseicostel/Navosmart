@@ -90,6 +90,37 @@ Item {
             verticalAlignment: Text.AlignVCenter
         }
     }
+    component OfflineSpin: SpinBox {
+        id: spin
+        implicitHeight: 37
+        implicitWidth: 110
+        leftPadding: 32; rightPadding: 32
+        font.pixelSize: 13
+        editable: true
+        contentItem: TextInput {
+            text: spin.textFromValue(spin.value, spin.locale)
+            font: spin.font; color: "#eff9ff"
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            readOnly: !spin.editable
+            validator: spin.validator
+            inputMethodHints: Qt.ImhFormattedNumbersOnly
+        }
+        up.indicator: Rectangle {
+            x: spin.width - width
+            width: 32; height: spin.height
+            color: spin.up.pressed ? "#174c60" : "#0b344a"
+            radius: 6; border.color: "#26718b"
+            Label { anchors.centerIn: parent; text: "+"; font.pixelSize: 19; color: "#eff9ff" }
+        }
+        down.indicator: Rectangle {
+            width: 32; height: spin.height
+            color: spin.down.pressed ? "#174c60" : "#0b344a"
+            radius: 6; border.color: "#26718b"
+            Label { anchors.centerIn: parent; text: "−"; font.pixelSize: 19; color: "#eff9ff" }
+        }
+        background: Rectangle { color: "#092439"; border.color: spin.activeFocus ? "#20d9ed" : "#54869d"; radius: 8 }
+    }
     component OfflineField: TextField {
         id: field
         implicitHeight: 38
@@ -210,14 +241,14 @@ Item {
                         Layout.fillWidth: true; spacing: 8
                         Label { text: "Zoom"; color: "#eff9ff"; font.pixelSize: 12 }
                         Label { text: "Min"; color: "#c1d7e6"; font.pixelSize: 11 }
-                        SpinBox {
+                        OfflineSpin {
                             id: minZoom; objectName: "offlineMinZoom"
                             from: 2; to: 20; value: 13; editable: true
                             Layout.preferredWidth: 116; Layout.maximumWidth: 118
                             onValueModified: root.estimate()
                         }
                         Label { text: "Max"; color: "#c1d7e6"; font.pixelSize: 11 }
-                        SpinBox {
+                        OfflineSpin {
                             id: maxZoom; objectName: "offlineMaxZoom"
                             from: 2; to: 20; value: 17; editable: true
                             Layout.preferredWidth: 116; Layout.maximumWidth: 118
@@ -301,7 +332,21 @@ Item {
                                           " • " + tileSet.savedTileCount + "/" + tileSet.totalTileCount + " imagini • " + tileSet.errorCount + " erori"
                                     color: "#c1d7e6"; font.pixelSize: 11; wrapMode: Text.WordWrap
                                 }
-                                ProgressBar { Layout.fillWidth: true; from: 0; to: Math.max(1, tileSet.totalTileCount); value: tileSet.savedTileCount }
+                                ProgressBar {
+                                    id: tileProgress
+                                    Layout.fillWidth: true
+                                    implicitHeight: 14
+                                    from: 0; to: Math.max(1, tileSet.totalTileCount); value: tileSet.savedTileCount
+                                    background: Rectangle { implicitHeight: 7; radius: 4; color: "#315063" }
+                                    contentItem: Item {
+                                        implicitHeight: 7
+                                        Rectangle {
+                                            height: 7; radius: 4
+                                            width: tileProgress.visualPosition * parent.width
+                                            color: tileSet.complete ? "#37e9a2" : "#20d9ed"
+                                        }
+                                    }
+                                }
                                 Flow {
                                     Layout.fillWidth: true; spacing: 7
                                     OfflineAction { text: tileSet.downloading ? "Ⅱ Pauză" : "▶ Reia"; visible: !tileSet.complete; enabled: !tileSet.deleting; onClicked: tileSet.downloading ? tileSet.cancelDownloadTask() : tileSet.resumeDownloadTask() }
