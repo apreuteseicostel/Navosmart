@@ -611,7 +611,7 @@ test('NAVO compact journal and offline layouts wrap narrow-screen actions',()=>{
   assert.match(journal,/Flow\s*\{\s*Layout\.fillWidth:\s*true[\s\S]*?text: "Deschide însemnările"/);
   assert.match(journal,/onClicked: root\.journalTab = 1/);
   assert.match(offline,/columns:\s*root\.width < 370 \? 2 : 3/);
-  assert.match(offline,/columns:\s*root\.width < 380 \? 2 : 5/);
+  assert.match(offline,/columns:\s*root\.width < 460 \? 2 : 5/);
   assert.match(offline,/columns:\s*root\.width < 440 \? 1 : 2/);
   assert.match(offline,/id:\s*minZoom;\s*objectName:\s*"offlineMinZoom"/);
   assert.match(offline,/id:\s*maxZoom;\s*objectName:\s*"offlineMaxZoom"/);
