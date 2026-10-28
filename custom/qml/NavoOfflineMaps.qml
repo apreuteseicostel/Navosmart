@@ -155,11 +155,18 @@ Item {
                     id: offlineHeading
                     anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
                     anchors.margins: 8; spacing: 5
-                    RowLayout {
+                    GridLayout {
                         Layout.fillWidth: true
+                        columns: root.width < 370 ? 2 : 3
+                        columnSpacing: 7; rowSpacing: 6
                         Image { source: "qrc:/qml/NavoSmart/icons/map.svg"; Layout.preferredWidth: 25; Layout.preferredHeight: 25 }
-                        Label { text: "HĂRȚI OFFLINE"; color: "#eff9ff"; font.pixelSize: 18; font.bold: true; Layout.fillWidth: true }
-                        OfflineAction { text: "Alege zona"; tint: "#37e9a2"; onClicked: root.chooseRegionRequested() }
+                        Label { text: "HĂRȚI OFFLINE"; color: "#eff9ff"; font.pixelSize: root.width < 370 ? 15 : 18; font.bold: true; Layout.fillWidth: true; elide: Text.ElideRight }
+                        OfflineAction {
+                            text: "Alege zona"; tint: "#37e9a2"
+                            Layout.columnSpan: root.width < 370 ? 2 : 1
+                            Layout.alignment: root.width < 370 ? Qt.AlignLeft : Qt.AlignRight
+                            onClicked: root.chooseRegionRequested()
+                        }
                     }
                     Label {
                         Layout.fillWidth: true
@@ -237,27 +244,35 @@ Item {
                             }
                         }
                     }
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 8
-                        Label { text: "Zoom"; color: "#eff9ff"; font.pixelSize: 12 }
+                    GridLayout {
+                        Layout.fillWidth: true
+                        columns: root.width < 380 ? 2 : 5
+                        columnSpacing: 7; rowSpacing: 5
+                        Label {
+                            text: "Zoom"
+                            color: "#eff9ff"; font.pixelSize: 12; font.bold: true
+                            Layout.columnSpan: root.width < 380 ? 2 : 1
+                        }
                         Label { text: "Min"; color: "#c1d7e6"; font.pixelSize: 11 }
                         OfflineSpin {
                             id: minZoom; objectName: "offlineMinZoom"
                             from: 2; to: 20; value: 13; editable: true
-                            Layout.preferredWidth: 116; Layout.maximumWidth: 118
+                            Layout.preferredWidth: 108
                             onValueModified: root.estimate()
                         }
                         Label { text: "Max"; color: "#c1d7e6"; font.pixelSize: 11 }
                         OfflineSpin {
                             id: maxZoom; objectName: "offlineMaxZoom"
                             from: 2; to: 20; value: 17; editable: true
-                            Layout.preferredWidth: 116; Layout.maximumWidth: 118
+                            Layout.preferredWidth: 108
                             onValueModified: root.estimate()
                         }
                     }
                     Rectangle { Layout.fillWidth: true; height: 1; color: "#19546b" }
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 9
+                    GridLayout {
+                        Layout.fillWidth: true
+                        columns: root.width < 440 ? 1 : 2
+                        columnSpacing: 9; rowSpacing: 6
                         Label {
                             Layout.fillWidth: true
                             text: root.manager && root.validRegion ?
@@ -269,6 +284,7 @@ Item {
                         OfflineAction {
                             text: root.pendingName.length ? "Se creează…" : "↓ Descarcă zona"
                             tint: "#37e9a2"
+                            Layout.alignment: Qt.AlignLeft
                             enabled: root.ready && setName.text.trim().length>0
                             onClicked: root.beginDownload()
                         }
