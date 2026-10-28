@@ -87,59 +87,300 @@ Item {
     onReplayModeChanged: entryDialog.close()
     onSelectedIdChanged: entryDialog.close()
     Timer {interval:60000;repeat:true;running:!!root.selected && !root.selected.endedAt;onTriggered:root.clockMs=Date.now()}
+    readonly property color navoCyan: "#20d9ed"
+    readonly property color navoText: "#eff9ff"
+    readonly property color navoMuted: "#c1d7e6"
+    property int journalTab: 0 // Partide, Însemnări, Statistici
+
+    component JournalButton: Button {
+        id: btn
+        property color tint: "#20d9ed"
+        implicitHeight: 35
+        padding: 7
+        font.pixelSize: 12
+        font.bold: true
+        background: Rectangle {
+            radius: 8
+            color: btn.down ? "#16475c" : (btn.hovered ? "#103247" : "#082236")
+            border.color: btn.enabled ? btn.tint : "#506779"
+            border.width: 1
+        }
+        contentItem: Label {
+            text: btn.text
+            font: btn.font
+            color: btn.enabled ? "#eff9ff" : "#b7c3cf"
+            elide: Text.ElideRight
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
+    }
+    component JournalTab: Button {
+        id: tab
+        property int target: 0
+        implicitHeight: 38
+        implicitWidth: 128
+        font.pixelSize: 12
+        font.bold: root.journalTab === target
+        onClicked: root.journalTab = target
+        background: Rectangle {
+            radius: 9
+            color: root.journalTab === tab.target ? "#10394d" : "#071e30"
+            border.width: root.journalTab === tab.target ? 2 : 1
+            border.color: root.journalTab === tab.target ? "#20d9ed" : "#26718b"
+        }
+        contentItem: Label {
+            text: tab.text; font: tab.font
+            color: "#eff9ff"
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
+    }
+    Rectangle { anchors.fill: parent; color: "#051521"; radius: 10; border.color: "#174c68" }
     ScrollView {
+        id: journalScroll
         anchors.fill: parent
+        anchors.margins: 8
+        contentWidth: availableWidth
         clip: true
+        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
         ScrollBar.vertical.policy: ScrollBar.AsNeeded
         ColumnLayout {
-        width: Math.max(0, root.width - 18)
-        spacing: 6
-        Label { text:"JURNAL DE PARTIDĂ"; color:"#21b7ff"; font.bold:true }
-        Label { Layout.fillWidth:true; wrapMode:Text.WordWrap; color:"#bbcbd9"; text:root.activeTrip ? "În desfășurare: "+root.activeTrip.title+" • "+root.activeTrip.lakeName : "Începe o partidă pe balta activă pentru capturi și observații." }
-        RowLayout {
-            Layout.fillWidth:true
-            Button { text:"+ Partidă"; enabled:!!root.persistence && !root.activeTrip && !!root.lakeId && !root.replayMode; onClicked:{tripTitle.text=root.lakeName;startDialog.open()} }
-            Button { text:"Partida activă"; enabled:!!root.activeTrip; Layout.fillWidth:true; onClicked:root.selectedId=root.activeTrip.id }
-        }
-        Label { Layout.fillWidth:true; visible:!!root.persistence && !!root.persistence.journalError; text:root.persistence ? root.persistence.journalError : ""; color:"#ff907e"; wrapMode:Text.WordWrap }
-        ComboBox {
-            objectName:"journalTrips"; Layout.fillWidth:true; model:root.trips; textRole:"title"
-            displayText:root.selected ? root.selected.title+" • "+root.selected.lakeName : "Alege partida"
-            onActivated:root.selectedId=root.trips[currentIndex].id
-        }
-        Label { Layout.fillWidth:true; visible:!!root.selected; color:"#bbcbd9"; wrapMode:Text.WordWrap; text:root.selected ? root.when(root.selected.startedAt)+(root.selected.endedAt ? " → "+root.when(root.selected.endedAt) : " • ACTIVĂ") : "" }
-        Label {
-            objectName:"journalSummary";Layout.fillWidth:true;visible:!!root.selected;color:"#67dfdc";font.pixelSize:12;wrapMode:Text.WordWrap
-            text:Math.floor(root.summary.minutes/60)+" h "+root.summary.minutes%60+" min • "+root.summary.catches+" capturi • "+root.summary.bait+" nădiri • "+root.summary.notes+" observații\n"+root.summary.weighed+" cântărite • total "+root.summary.totalKg.toFixed(3)+" kg"+(root.summary.weighed ? " • maxim "+root.summary.maxKg.toFixed(3)+" kg" : "")
-        }
-        ComboBox {objectName:"journalEntryFilter";Layout.fillWidth:true;model:["Toate însemnările","Capturi","Nădire","Observații"];onCurrentIndexChanged:root.entryFilter=currentIndex}
-        RowLayout {
-            Layout.fillWidth:true
-            Button { text:"+ Notă"; enabled:!!root.selected && !root.selected.endedAt && root.selected.lakeId===root.lakeId && !root.replayMode; onClicked:root.beginEntry(null) }
-            Button { text:"Încheie"; enabled:!!root.selected && !root.selected.endedAt && !root.replayMode; onClicked:finishDialog.open() }
-            ToolButton { text:"×"; Accessible.name:"Șterge partida"; enabled:!!root.selected; onClicked:{root.pendingDeleteId=root.selectedId;deleteDialog.open()} }
-        }
-        ListView {
-            objectName:"journalEntries"; Layout.fillWidth:true; Layout.preferredHeight: Math.max(220, contentHeight); interactive:false; clip:true; spacing:6
-            model:root.visibleEntries
-            ScrollBar.vertical:ScrollBar {}
-            delegate:Rectangle {
-                required property var modelData
-                width:ListView.view.width; height:entryColumn.implicitHeight+16; color:"#0b1a27";radius:8;border.color:"#31506a"
+            width: journalScroll.availableWidth
+            spacing: 9
+
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: headingContent.implicitHeight + 16
+                color: "#071e30"
+                radius: 10
+                border.color: "#20d9ed"
                 ColumnLayout {
-                    id:entryColumn; anchors.left:parent.left;anchors.right:parent.right;anchors.top:parent.top;anchors.margins:8;spacing:4
-                    Label { Layout.fillWidth:true; color:"#21b7ff";text:root.kind(modelData.type)+" • "+root.when(modelData.createdAt);wrapMode:Text.WordWrap }
-                    Label { Layout.fillWidth:true; color:"#e1eaf2";text:modelData.text;textFormat:Text.PlainText;wrapMode:Text.WrapAnywhere }
-                    Label { Layout.fillWidth:true; color:"#bbcbd9";wrapMode:Text.WordWrap;text:(modelData.lat!==undefined ? Number(modelData.lat).toFixed(6)+", "+Number(modelData.lon).toFixed(6) : "GPS necunoscut")+(modelData.depth!==undefined ? " • "+Number(modelData.depth).toFixed(2)+" m" : "")+(modelData.temperature!==undefined ? " • "+Number(modelData.temperature).toFixed(1)+" °C" : "") }
-                    Label {Layout.fillWidth:true;visible:text.length>0;color:"#67dfdc";wrapMode:Text.WordWrap;text:root.entryDetails(modelData);textFormat:Text.PlainText}
+                    id: headingContent
+                    anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+                    anchors.margins: 8
+                    spacing: 5
                     RowLayout {
-                        Button { text:"Editează";onClicked:root.beginEntry(modelData) }
-                        Button { text:"Șterge";onClicked:{root.pendingEntryId=modelData.id;root.pendingDeleteId=root.selectedId;deleteEntryDialog.open()} }
+                        Layout.fillWidth: true
+                        Label { text: "◷"; color: "#20d9ed"; font.pixelSize: 20 }
+                        Label { text: "JURNAL DE PARTIDĂ"; color: "#eff9ff"; font.bold: true; font.pixelSize: 18; Layout.fillWidth: true; elide: Text.ElideRight }
+                        JournalButton {
+                            text: "+ Partidă"
+                            tint: "#37e9a2"
+                            enabled: !!root.persistence && !root.activeTrip && !!root.lakeId && !root.replayMode
+                            onClicked: { tripTitle.text = root.lakeName; startDialog.open() }
+                        }
+                    }
+                    Label {
+                        Layout.fillWidth: true
+                        text: root.activeTrip ? "● ACTIVĂ • " + root.activeTrip.title + " • " + root.activeTrip.lakeName
+                            : (root.lakeId ? "Fără partidă activă • selectează sau creează una" : "Selectează mai întâi o baltă")
+                        color: root.activeTrip ? "#37e9a2" : "#c1d7e6"
+                        wrapMode: Text.WordWrap
+                        font.pixelSize: 11
+                    }
+                    Label {
+                        visible: !!root.persistence && !!root.persistence.journalError
+                        Layout.fillWidth: true
+                        text: root.persistence ? root.persistence.journalError : ""
+                        color: "#ffb0b8"; font.pixelSize: 12; wrapMode: Text.WordWrap
                     }
                 }
             }
-            Label { anchors.centerIn:parent;visible:parent.count===0;text:root.entryFilter ? "Nicio însemnare de acest tip" : "Nicio însemnare";color:"#bbcbd9" }
-        }
+
+            Rectangle {
+                Layout.fillWidth: true; Layout.preferredHeight: 49
+                radius: 9; color: "#071e30"; border.color: "#19546b"
+                Flickable {
+                    anchors.fill: parent; anchors.margins: 5
+                    contentWidth: journalTabs.implicitWidth; contentHeight: height
+                    clip: true; boundsBehavior: Flickable.StopAtBounds
+                    Row {
+                        id: journalTabs
+                        height: parent.height; spacing: 7
+                        JournalTab { text: "Partide"; target: 0 }
+                        JournalTab { text: "Însemnări"; target: 1 }
+                        JournalTab { text: "Statistici"; target: 2 }
+                    }
+                }
+            }
+
+            Rectangle {
+                visible: root.journalTab === 0
+                Layout.fillWidth: true
+                implicitHeight: tripContent.implicitHeight + 20
+                color: "#061827"; radius: 10; border.color: "#20d9ed"
+                ColumnLayout {
+                    id: tripContent
+                    anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+                    anchors.margins: 10
+                    spacing: 9
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Label { text: "Partide salvate"; color: "#eff9ff"; font.pixelSize: 15; font.bold: true; Layout.fillWidth: true }
+                        JournalButton {
+                            text: "Partida activă"
+                            enabled: !!root.activeTrip
+                            onClicked: root.selectedId = root.activeTrip.id
+                        }
+                    }
+                    Rectangle { Layout.fillWidth: true; height: 1; color: "#19546b" }
+                    Label { text: "Alege partida"; color: "#c1d7e6"; font.pixelSize: 11 }
+                    ComboBox {
+                        id: journalTrips
+                        objectName: "journalTrips"
+                        Layout.fillWidth: true
+                        implicitHeight: 39
+                        model: root.trips; textRole: "title"
+                        displayText: root.selected ? root.selected.title + " • " + root.selected.lakeName : "Alege partida"
+                        onActivated: root.selectedId = root.trips[currentIndex].id
+                        contentItem: Label {
+                            text: journalTrips.displayText
+                            color: "#eff9ff"; font.pixelSize: 13
+                            leftPadding: 10; rightPadding: 27
+                            elide: Text.ElideRight
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle { color: "#0a293e"; border.color: "#54869d"; radius: 8 }
+                    }
+                    Label {
+                        Layout.fillWidth: true; visible: !!root.selected
+                        text: root.selected ? root.when(root.selected.startedAt) +
+                              (root.selected.endedAt ? " → " + root.when(root.selected.endedAt) : " • ACTIVĂ") : ""
+                        color: "#c1d7e6"; font.pixelSize: 12; wrapMode: Text.WordWrap
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        JournalButton {
+                            text: "Deschide însemnările"
+                            enabled: !!root.selected
+                            onClicked: root.journalTab = 1
+                        }
+                        JournalButton {
+                            text: "Încheie"
+                            tint: "#ffd166"
+                            enabled: !!root.selected && !root.selected.endedAt && !root.replayMode
+                            onClicked: finishDialog.open()
+                        }
+                        Item { Layout.fillWidth: true }
+                        JournalButton {
+                            text: "Șterge"
+                            tint: "#ff8793"
+                            Accessible.name: "Șterge partida"
+                            enabled: !!root.selected
+                            onClicked: { root.pendingDeleteId = root.selectedId; deleteDialog.open() }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                visible: root.journalTab === 1
+                Layout.fillWidth: true
+                implicitHeight: notesContent.implicitHeight + 18
+                color: "#061827"; radius: 10; border.color: "#20d9ed"
+                ColumnLayout {
+                    id: notesContent
+                    anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+                    anchors.margins: 9
+                    spacing: 8
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Label { text: "Capturi • Nădiri • Observații"; color: "#eff9ff"; font.bold: true; font.pixelSize: 14; Layout.fillWidth: true; elide: Text.ElideRight }
+                        JournalButton {
+                            text: "+ Însemnare"
+                            tint: "#37e9a2"
+                            enabled: !!root.selected && !root.selected.endedAt && root.selected.lakeId===root.lakeId && !root.replayMode
+                            onClicked: root.beginEntry(null)
+                        }
+                    }
+                    Rectangle { Layout.fillWidth: true; height: 1; color: "#19546b" }
+                    ComboBox {
+                        id: journalEntryFilter
+                        objectName: "journalEntryFilter"
+                        Layout.fillWidth: true
+                        implicitHeight: 36
+                        model: ["Toate însemnările", "Capturi", "Nădire", "Observații"]
+                        onCurrentIndexChanged: root.entryFilter = currentIndex
+                        contentItem: Label {
+                            text: journalEntryFilter.displayText; color: "#eff9ff"
+                            leftPadding: 10; rightPadding: 29
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle { color: "#0a293e"; border.color: "#54869d"; radius: 8 }
+                    }
+                    ListView {
+                        objectName: "journalEntries"
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: Math.max(190, contentHeight)
+                        clip: true; interactive: false; spacing: 7
+                        model: root.visibleEntries
+                        delegate: Rectangle {
+                            required property var modelData
+                            width: ListView.view.width
+                            height: entryColumn.implicitHeight + 17
+                            radius: 9
+                            color: "#092334"
+                            border.color: "#2a7892"
+                            ColumnLayout {
+                                id: entryColumn
+                                anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+                                anchors.margins: 8; spacing: 5
+                                Label { Layout.fillWidth: true; text: root.kind(modelData.type)+" • "+root.when(modelData.createdAt); color: "#20d9ed"; font.bold: true; wrapMode: Text.WordWrap }
+                                Rectangle { Layout.fillWidth: true; height: 1; color: "#19546b" }
+                                Label { Layout.fillWidth: true; text: modelData.text; textFormat: Text.PlainText; color: "#eff9ff"; wrapMode: Text.WrapAnywhere }
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: (modelData.lat!==undefined ? Number(modelData.lat).toFixed(6)+", "+Number(modelData.lon).toFixed(6) : "GPS necunoscut")
+                                         +(modelData.depth!==undefined ? " • "+Number(modelData.depth).toFixed(2)+" m" : "")
+                                         +(modelData.temperature!==undefined ? " • "+Number(modelData.temperature).toFixed(1)+" °C" : "")
+                                    color: "#c1d7e6"; font.pixelSize: 11; wrapMode: Text.WordWrap
+                                }
+                                Label { Layout.fillWidth: true; visible: text.length>0; text: root.entryDetails(modelData); textFormat: Text.PlainText; color: "#79eff0"; wrapMode: Text.WordWrap; font.pixelSize: 11 }
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    JournalButton { text: "Editează"; onClicked: root.beginEntry(modelData) }
+                                    JournalButton {
+                                        text: "Șterge"
+                                        tint: "#ff8793"
+                                        onClicked: { root.pendingEntryId=modelData.id; root.pendingDeleteId=root.selectedId; deleteEntryDialog.open() }
+                                    }
+                                    Item { Layout.fillWidth: true }
+                                }
+                            }
+                        }
+                        Label {
+                            anchors.centerIn: parent
+                            visible: parent.count === 0
+                            text: root.entryFilter ? "Nicio însemnare de acest tip" : "Nicio însemnare"
+                            color: "#c1d7e6"; font.pixelSize: 12
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                visible: root.journalTab === 2
+                Layout.fillWidth: true
+                implicitHeight: statsContent.implicitHeight + 20
+                radius: 10; color: "#061827"; border.color: "#20d9ed"
+                ColumnLayout {
+                    id: statsContent
+                    anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+                    anchors.margins: 10; spacing: 9
+                    Label { text: "Rezumat partidă"; color: "#eff9ff"; font.pixelSize: 16; font.bold: true }
+                    Rectangle { Layout.fillWidth: true; height: 1; color: "#19546b" }
+                    Label {
+                        objectName: "journalSummary"
+                        Layout.fillWidth: true
+                        text: Math.floor(root.summary.minutes/60)+" h "+root.summary.minutes%60+" min • "+root.summary.catches+" capturi • "+root.summary.bait+" nădiri • "+root.summary.notes+" observații\n"+root.summary.weighed+" cântărite • total "+root.summary.totalKg.toFixed(3)+" kg"+(root.summary.weighed ? " • maxim "+root.summary.maxKg.toFixed(3)+" kg" : "")
+                        color: "#79eff0"; font.pixelSize: 13; wrapMode: Text.WordWrap
+                    }
+                    Label {
+                        Layout.fillWidth: true; color: "#c1d7e6"; font.pixelSize: 11; wrapMode: Text.WordWrap
+                        text: "Statistici calculate din însemnările reale ale partidei selectate. Greutățile lipsă nu sunt estimate."
+                    }
+                }
+            }
         }
     }
     Dialog {
