@@ -144,12 +144,30 @@ Popup {
                     elide: Text.ElideRight
                 }
                 Button {
-                    text: "✕"
+                    id: detailsCloseButton
                     Accessible.name: "Închide diagnosticul"
-                    implicitWidth: 34; implicitHeight: 32
+                    Layout.minimumWidth: 44
+                    Layout.minimumHeight: 44
+                    implicitWidth: 44
+                    implicitHeight: 44
+                    padding: 0
                     onClicked: details.close()
-                    background: Rectangle { color: "#103044"; radius: 9; border.color: details.line }
-                    contentItem: Label { text: parent.text; color: details.cyan; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; font.pixelSize: 17 }
+                    background: Rectangle {
+                        radius: 9
+                        color: detailsCloseButton.down ? "#20536a" : "#103044"
+                        border.color: "#20d9ed"
+                        border.width: 1.5
+                    }
+                    // Vector icon stays visible even when Android lacks the Unicode cross glyph.
+                    contentItem: Item {
+                        Image {
+                            anchors.centerIn: parent
+                            width: 24
+                            height: 24
+                            source: "qrc:/qml/NavoSmart/icons/close.svg"
+                            fillMode: Image.PreserveAspectFit
+                        }
+                    }
                 }
             }
             Rectangle { Layout.fillWidth: true; height: 1; color: details.line }

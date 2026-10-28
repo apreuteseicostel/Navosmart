@@ -1318,11 +1318,30 @@ Item {
                 Image { source: "qrc:/qml/NavoSmart/icons/satellite.svg"; Layout.preferredWidth: 25; Layout.preferredHeight: 25 }
                 Label { text: "GNSS / UM982 • Diagnostic"; color: "#edf8ff"; font.bold: true; font.pixelSize: 17; Layout.fillWidth: true }
                 Button {
-                    text: "✕"; Accessible.name: "Închide diagnosticul GPS"
-                    implicitWidth: 34; implicitHeight: 31
+                    id: gnssCloseButton
+                    Accessible.name: "Închide diagnosticul GPS"
+                    Layout.minimumWidth: 44
+                    Layout.minimumHeight: 44
+                    implicitWidth: 44
+                    implicitHeight: 44
+                    padding: 0
                     onClicked: gnssDiagnostic.close()
-                    background: Rectangle { radius: 9; color: "#103044"; border.color: "#174e68" }
-                    contentItem: Label { text: parent.text; color: "#20d9ed"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                    background: Rectangle {
+                        radius: 9
+                        color: gnssCloseButton.down ? "#20536a" : "#103044"
+                        border.color: "#20d9ed"
+                        border.width: 1.5
+                    }
+                    // Vector icon stays visible even when Android lacks the Unicode cross glyph.
+                    contentItem: Item {
+                        Image {
+                            anchors.centerIn: parent
+                            width: 24
+                            height: 24
+                            source: "qrc:/qml/NavoSmart/icons/close.svg"
+                            fillMode: Image.PreserveAspectFit
+                        }
+                    }
                 }
             }
             Rectangle {
