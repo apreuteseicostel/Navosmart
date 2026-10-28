@@ -1296,7 +1296,7 @@ Item {
         id: sidebar
         anchors.left: parent.left; anchors.top: header.bottom; anchors.bottom: parent.bottom
         visible: !root.mapMaximized && root.activePage !== 10
-        width: root.width < 1100 ? 64 : 72; color: root.panel; border.color: root.line
+        width: root.width < 1100 ? 64 : 72; color: "#071926"; border.color: "#174e68"
         Flickable {
             anchors.fill: parent
             anchors.margins: 8
@@ -2575,7 +2575,12 @@ Item {
         onCanceled: longPressHint = false
         Layout.fillWidth: true
         Layout.preferredHeight: Math.max(38, Math.min(46, (sidebar.height - 58) / 9))
-        background: Rectangle { radius: 6; color: parent.active ? "#183248" : "transparent"; border.color: parent.active ? root.accent : "transparent" }
+        background: Rectangle {
+            radius: 9
+            color: parent.active ? "#103b4d" : (parent.hovered ? "#0d2a38" : "transparent")
+            border.color: parent.active ? "#20d9ed" : (parent.hovered ? "#167a93" : "transparent")
+            border.width: 1
+        }
         contentItem: Item {
             Image {
                 anchors.centerIn: parent
