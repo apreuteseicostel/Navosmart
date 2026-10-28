@@ -2288,14 +2288,22 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 48
-                radius: 8
-                color: "#26384a"
+                radius: 9
+                color: "#102a39"
+                border.color: "#ffd166"
                 visible: root.pendingBaitJournalCount>0
                 RowLayout {
                     anchors.fill: parent
-                    anchors.margins: 5
-                    Label { Layout.fillWidth: true; color: "#ffce7b"; wrapMode: Text.WordWrap; text: root.pendingBaitJournalCount+" nădiri așteaptă salvarea" }
-                    Button { text: "Recuperează"; onClicked: root.retryPendingBaitJournal() }
+                    anchors.margins: 7
+                    spacing: 8
+                    Label { Layout.fillWidth: true; color: "#ffe09a"; font.pixelSize: 12; wrapMode: Text.WordWrap; text: root.pendingBaitJournalCount+" nădiri așteaptă salvarea" }
+                    Button {
+                        text: "Recuperează"
+                        implicitHeight: 33
+                        onClicked: root.retryPendingBaitJournal()
+                        background: Rectangle { radius: 8; color: "#0b3546"; border.color: "#20d9ed" }
+                        contentItem: Label { text: parent.text; color: "#eff9ff"; font.pixelSize: 12; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                    }
                 }
             }
             NavoFishingJournal {
