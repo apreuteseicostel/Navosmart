@@ -1192,37 +1192,47 @@ Item {
 
     Rectangle {
         id: header
+        // Reserve the final compass before sizing telemetry, so it remains on screen.
+        readonly property real sideMargin: root.width < 1000 ? 8 : 12
+        readonly property real itemGap: root.width < 1000 ? 5 : 8
+        readonly property real brandWidth: root.width < 1000 ? 136 : 164
+        readonly property real compassWidth: root.activePage===2 ? 40 : 46
+        readonly property real telemetryScale: Math.max(0.76, Math.min(1,
+            (width - 2*sideMargin - brandWidth - compassWidth - 8*itemGap - 8) / 551))
         visible: root.activePage !== 10 && !(root.activePage===2 && root.mapMaximized)
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
         height: root.activePage===2 ? (root.mapMaximized ? 0 : 48) : 64
         color: "#071926"; border.color: "#13617a"; z: 2000
         Flickable {
             anchors.fill: parent
-            clip: false
-            contentWidth: Math.max(width, headerItems.implicitWidth + 32)
+            clip: true
+            contentWidth: Math.max(width, headerItems.implicitWidth + 2*header.sideMargin)
             contentHeight: height
             boundsBehavior: Flickable.StopAtBounds
         RowLayout {
             id: headerItems
-            x: 16; height: parent.height; spacing: 8
+            x: header.sideMargin; height: parent.height; spacing: header.itemGap
             Item {
-                Layout.preferredWidth: root.compactUi ? 166 : 205
+                Layout.preferredWidth: header.brandWidth
+                Layout.minimumWidth: header.brandWidth
+                Layout.maximumWidth: header.brandWidth
                 Layout.preferredHeight: 48
                 RowLayout {
                     anchors.fill: parent
-                    spacing: 6
+                    spacing: 5
                     Image {
                         source: "qrc:/qml/NavoSmart/icons/navo-brand.svg"
-                        Layout.preferredWidth: root.activePage===2 ? 28 : 36
-                        Layout.preferredHeight: root.activePage===2 ? 28 : 36
+                        Layout.preferredWidth: root.activePage===2 ? 26 : 28
+                        Layout.preferredHeight: root.activePage===2 ? 26 : 28
                         fillMode: Image.PreserveAspectFit
                     }
                     ColumnLayout {
                         id: titleLabels
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         spacing: 1
-                        Label { text: "NAVO SMART"; color: root.text; font.pixelSize: root.activePage===2 ? 16 : 20; font.bold: true }
-                        Label { visible:root.activePage!==2; text: "Pescaru' lu' Pește"; color: "#7edff2"; font.pixelSize: 11 }
+                        Label { Layout.fillWidth:true; text: "NAVO SMART"; color: root.text; font.pixelSize: root.width < 1000 ? 14 : 16; font.bold: true }
+                        Label { visible:root.activePage!==2; text: "Pescaru' lu' Pește"; color: "#7edff2"; font.pixelSize: 10 }
                     }
                 }
                 MouseArea {
@@ -1243,8 +1253,8 @@ Item {
             StatusPill { pillWidth:88; iconSource:"qrc:/qml/NavoSmart/icons/mode.svg"; title: "MOD"; value: g20Controller.dashboardModeValid ? g20Controller.dashboardModePosition : (root.flightMode.length ? root.flightMode : "--"); good: root.linkAlive; interactive:true; onClicked:dashboardDetails.showSection("mode") }
             NavoHeadingCompass {
                 id: headingCompass
-                Layout.preferredWidth: root.activePage===2 ? 40 : 54
-                Layout.preferredHeight: root.activePage===2 ? 40 : 54
+                Layout.preferredWidth: header.compassWidth
+                Layout.preferredHeight: header.compassWidth
                 headingDeg: root.headingDeg
                 headingSource: root.headingSource
                 waypointBearingDeg: root.waypointBearingDeg
@@ -2761,7 +2771,7 @@ Item {
         signal clicked()
         signal pressAndHold()
         property real pillWidth: 76
-        Layout.preferredWidth: pillWidth; Layout.preferredHeight: root.compactUi ? 36 : 42; radius: 9
+        Layout.preferredWidth: pillWidth * header.telemetryScale; Layout.preferredHeight: root.compactUi ? 36 : 42; radius: 9
         color: pillMouse.containsMouse && interactive ? "#143747" : "#0a2332"
         border.color: pillMouse.containsMouse && interactive ? "#20d9ed" : (interactive ? "#167a93" : root.line)
         border.width: 1
@@ -2769,11 +2779,11 @@ Item {
         ToolTip.text: "Deschide " + title.toLowerCase()
         ToolTip.delay: 500
         MouseArea { id:pillMouse; anchors.fill:parent; enabled:parent.interactive; hoverEnabled:true; cursorShape:parent.interactive?Qt.PointingHandCursor:Qt.ArrowCursor; pressAndHoldInterval:1600; onClicked:parent.clicked(); onPressAndHold:parent.pressAndHold() }
-        Row { anchors.centerIn:parent; spacing:5
-            Image { width:20;height:20;anchors.verticalCenter:parent.verticalCenter;source:iconSource;fillMode:Image.PreserveAspectFit }
-            Column { anchors.verticalCenter:parent.verticalCenter; spacing:0
-                Label { anchors.horizontalCenter:parent.horizontalCenter;text:title;color:"#9cc4d7";font.pixelSize:8 }
-                Label { anchors.horizontalCenter:parent.horizontalCenter;text:value;color:good?root.ok:root.text;font.pixelSize:11;font.bold:true }
+        Row { width:parent.width-6; anchors.centerIn:parent; spacing:header.telemetryScale<1 ? 3 : 5
+            Image { id:pillIcon;width:header.telemetryScale<1 ? 16 : 20;height:width;anchors.verticalCenter:parent.verticalCenter;source:iconSource;fillMode:Image.PreserveAspectFit }
+            Column { width:parent.width-pillIcon.width-parent.spacing;anchors.verticalCenter:parent.verticalCenter;spacing:0
+                Label { width:parent.width;horizontalAlignment:Text.AlignHCenter;elide:Text.ElideRight;text:title;color:"#9cc4d7";font.pixelSize:8 }
+                Label { width:parent.width;horizontalAlignment:Text.AlignHCenter;elide:Text.ElideRight;text:value;color:good?root.ok:root.text;font.pixelSize:header.telemetryScale<1 ? 10 : 11;font.bold:true }
             }
         }
     }
