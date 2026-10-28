@@ -111,6 +111,22 @@ Rectangle {
                 from: 0; to: 1; stepSize: 0.05
                 value: root.controller ? root.controller.volume : 0.7
                 onMoved: root.apply()
+                background: Rectangle {
+                    x: volume.leftPadding
+                    y: volume.topPadding + volume.availableHeight/2 - height/2
+                    width: volume.availableWidth
+                    height: 5
+                    radius: 3
+                    color: "#35566b"
+                    Rectangle { width: volume.visualPosition * parent.width; height: parent.height; radius: 3; color: "#20d9ed" }
+                }
+                handle: Rectangle {
+                    x: volume.leftPadding + volume.visualPosition * (volume.availableWidth - width)
+                    y: volume.topPadding + volume.availableHeight/2 - height/2
+                    width: 16; height: 16; radius: 8
+                    color: "#eff9ff"
+                    border.color: "#20d9ed"; border.width: 2
+                }
             }
             Label { text: Math.round(volume.value*100) + "%"; color: "#eff9ff"; font.pixelSize: 12; Layout.preferredWidth: 35 }
             Item { Layout.fillWidth: true }
