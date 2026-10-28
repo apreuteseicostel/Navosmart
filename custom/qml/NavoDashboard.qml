@@ -2273,12 +2273,12 @@ Item {
                 spacing: 9
                 Rectangle {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 52
+                    Layout.preferredHeight: 40
                     color: "#071e30"; radius: 10; border.color: "#20d9ed"
                     RowLayout {
-                        anchors.fill: parent; anchors.margins: 10
-                        Image { source: "qrc:/qml/NavoSmart/icons/lake.svg"; Layout.preferredWidth: 25; Layout.preferredHeight: 25 }
-                        Label { text: "BĂLȚILE MELE"; color: "#eff9ff"; font.pixelSize: root.compactUi ? 16 : 20; font.bold: true; Layout.fillWidth: true }
+                        anchors.fill: parent; anchors.margins: 4
+                        Image { source: "qrc:/qml/NavoSmart/icons/lake.svg"; Layout.preferredWidth: 18; Layout.preferredHeight: 18 }
+                        Label { text: "Bălțile mele"; color: "#eff9ff"; font.pixelSize: 12; font.bold: true; Layout.fillWidth: true }
                         Button {
                             text: "Manager"
                             Accessible.name: "Deschide managerul Bălțile mele"
@@ -2405,18 +2405,18 @@ Item {
                                         onClicked: { myLakesPopup.selectLake(modelData); myLakesPopup.open() }
                                     }
                                     Button {
-                                        text: "✎"; implicitWidth: 36; implicitHeight: 36
+                                        text: "Redenumește";implicitWidth:42;implicitHeight:40;padding:8
                                         ToolTip.visible: hovered; ToolTip.text: "Redenumește"
                                         onClicked: { myLakesPopup.open(); myLakesPopup.beginRename(modelData) }
                                         background: Rectangle { radius: 7; color: "#0b3546"; border.color: "#20d9ed" }
-                                        contentItem: Label { text: parent.text; color: "#eff9ff"; font.pixelSize: 17; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                                        contentItem:Image { source:"qrc:/qml/NavoSmart/icons/edit.svg";fillMode:Image.PreserveAspectFit }
                                     }
                                     Button {
-                                        text: "×"; implicitWidth: 36; implicitHeight: 36
+                                        text: "Șterge";implicitWidth:42;implicitHeight:40;padding:8
                                         ToolTip.visible: hovered; ToolTip.text: "Șterge"
                                         onClicked: { myLakesPopup.open(); myLakesPopup.beginDelete(modelData) }
                                         background: Rectangle { radius: 7; color: "#291e30"; border.color: "#ff8793" }
-                                        contentItem: Label { text: parent.text; color: "#ff8793"; font.pixelSize: 19; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                                        contentItem:Image { source:"qrc:/qml/NavoSmart/icons/delete.svg";fillMode:Image.PreserveAspectFit }
                                     }
                                 }
                             }

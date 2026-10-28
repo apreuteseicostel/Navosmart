@@ -13,9 +13,13 @@ Popup {
     property int lakesTab: 0 // Prezentare, Sesiuni, Acțiuni
     component LakeIconButton: Button {
         id: iconButton
-        width: 36; height: 35; padding: 0
+        implicitWidth:42;implicitHeight:40;padding:8
+        Layout.preferredWidth:42;Layout.preferredHeight:40
+        Layout.minimumWidth:42;Layout.minimumHeight:40
+        property url iconSource:""
+        contentItem:Image { source:iconButton.iconSource;fillMode:Image.PreserveAspectFit }
         property string hint: ""
-        ToolTip.visible: hovered; ToolTip.text: hint
+        ToolTip.visible: hovered || down; ToolTip.text: hint
         Accessible.name: hint
         background: Rectangle {
             radius: 8
@@ -62,6 +66,7 @@ Popup {
     }
 
     modal: true
+    padding:8
     focus: true
     width: Math.min(960, parent ? parent.width - 18 : 960)
     height: Math.min(630, parent ? parent.height - 18 : 630)
@@ -180,30 +185,32 @@ Popup {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 11
-        spacing: 9
+        anchors.margins: 0
+        spacing: 6
         Rectangle {
             Layout.fillWidth: true
-            implicitHeight: 47
+            implicitHeight: 36
             color: "#071e30"; border.color: "#20d9ed"; radius: 10
             RowLayout {
-                anchors.fill: parent; anchors.margins: 8
-                spacing: 9
-                Image { source: "qrc:/qml/NavoSmart/icons/lake.svg"; Layout.preferredWidth: 25; Layout.preferredHeight: 25 }
-                Label { text: "BĂLȚILE MELE"; color: "#eff9ff"; font.bold: true; font.pixelSize: 19; Layout.fillWidth: true }
+                anchors.fill: parent; anchors.margins: 2
+                spacing: 6
+                Image { source: "qrc:/qml/NavoSmart/icons/lake.svg"; Layout.preferredWidth: 18; Layout.preferredHeight: 18 }
+                Label { text: "Bălțile mele"; color: "#eff9ff"; font.bold: true; font.pixelSize: 12; Layout.fillWidth: true }
                 LakeIconButton {
-                    hint: "Închide"
-                    contentItem: Label { anchors.centerIn: parent; text: "✕"; font.pixelSize: 19; color: "#20d9ed" }
+                    hint: "Închide";objectName:"lakesClose"
+                    Layout.preferredWidth:34;Layout.minimumWidth:34
+                    Layout.preferredHeight:32;Layout.minimumHeight:32
+                    iconSource:"qrc:/qml/NavoSmart/icons/close.svg"
                     onClicked: root.close()
                 }
             }
         }
         Rectangle {
             Layout.fillWidth: true
-            implicitHeight: 53
+            implicitHeight: 48
             radius: 9; color: "#061827"; border.color: "#19546b"
             RowLayout {
-                anchors.fill: parent; anchors.margins: 7
+                anchors.fill: parent; anchors.margins: 5
                 spacing: 8
                 TextField {
                     id: newLakeName
@@ -241,7 +248,7 @@ Popup {
             Rectangle {
                 SplitView.preferredWidth: Math.min(270, root.width*.32)
                 SplitView.minimumWidth: 170
-                SplitView.preferredHeight: root.width < 600 ? 175 : root.height - 170
+                SplitView.preferredHeight: root.width < 600 ? Math.min(150,root.height*.30) : root.height - 140
                 color: "#061827"; border.color: "#20d9ed"; radius: 10
                 ColumnLayout {
                     anchors.fill: parent; anchors.margins: 8; spacing: 7
@@ -260,7 +267,7 @@ Popup {
                         delegate: Rectangle {
                             required property var modelData
                             width: ListView.view.width
-                            height: 47; radius: 8
+                            height: 52; radius: 8
                             color: root.selectedLakeId===modelData.id ? "#10394d" : "#092334"
                             border.color: root.selectedLakeId===modelData.id ? "#20d9ed" : "#2a7892"
                             RowLayout {
@@ -278,16 +285,13 @@ Popup {
                                     onClicked: root.selectLake(modelData)
                                 }
                                 LakeIconButton {
-                                    hint: "Redenumește"
-                                    Layout.preferredWidth: 30; Layout.preferredHeight: 32
-                                    contentItem: Label { anchors.centerIn: parent; text: "✎"; color: "#20d9ed"; font.pixelSize: 17 }
+                                    hint: "Redenumește";objectName:"lakeListRename"
+                                    iconSource:"qrc:/qml/NavoSmart/icons/edit.svg"
                                     onClicked: root.beginRename(modelData)
                                 }
                                 LakeIconButton {
-                                    hint: "Șterge"
-                                    ToolTip.text: "Șterge"
-                                    Layout.preferredWidth: 30; Layout.preferredHeight: 32
-                                    contentItem: Label { anchors.centerIn: parent; text: "×"; color: "#ff8793"; font.pixelSize: 20 }
+                                    hint: "Șterge";objectName:"lakeListDelete"
+                                    iconSource:"qrc:/qml/NavoSmart/icons/delete.svg"
                                     onClicked: root.beginDelete(modelData)
                                 }
                             }
@@ -300,25 +304,30 @@ Popup {
                 SplitView.fillWidth: true
                 SplitView.fillHeight: true
                 color: "#061827"; border.color: "#20d9ed"; radius: 10
+                ScrollView {
+                    id:lakeDetailsScroll;objectName:"lakeDetailsScroll"
+                    anchors.fill:parent;anchors.margins:8
+                    clip:true;contentWidth:availableWidth
+                    ScrollBar.horizontal.policy:ScrollBar.AlwaysOff
                 ColumnLayout {
-                    anchors.fill: parent; anchors.margins: 9; spacing: 7
+                    width:lakeDetailsScroll.availableWidth;spacing:6
                     RowLayout {
                         Layout.fillWidth: true
                         Label {
                             text: root.selectedLake ? (root.selectedLake.name || "Baltă") : "Selectează o baltă"
-                            color: "#eff9ff"; font.pixelSize: 17; font.bold: true
-                            Layout.fillWidth: true; elide: Text.ElideRight
+                            color: "#eff9ff"; font.pixelSize: 14; font.bold: true
+                            Layout.fillWidth: true;Layout.minimumWidth:0;elide: Text.ElideRight
                         }
                         LakeIconButton {
                             visible: !!root.selectedLake
-                            hint: "Redenumește balta"
-                            contentItem: Label { anchors.centerIn: parent; text: "✎"; color: "#20d9ed"; font.pixelSize: 18 }
+                            hint: "Redenumește balta";objectName:"lakeSelectedRename"
+                            iconSource:"qrc:/qml/NavoSmart/icons/edit.svg"
                             onClicked: root.beginRename(root.selectedLake)
                         }
                         LakeIconButton {
                             visible: !!root.selectedLake
-                            hint: "Șterge balta"
-                            contentItem: Label { anchors.centerIn: parent; text: "×"; color: "#ff8793"; font.pixelSize: 20 }
+                            hint: "Șterge balta";objectName:"lakeSelectedDelete"
+                            iconSource:"qrc:/qml/NavoSmart/icons/delete.svg"
                             onClicked: root.beginDelete(root.selectedLake)
                         }
                     }
@@ -326,16 +335,11 @@ Popup {
                     Rectangle {
                         Layout.fillWidth: true; Layout.preferredHeight: 43
                         radius: 8; color: "#071e30"; border.color: "#19546b"
-                        Flickable {
-                            anchors.fill: parent; anchors.margins: 4
-                            clip: true; contentWidth: lakeTabs.implicitWidth; contentHeight: height
-                            boundsBehavior: Flickable.StopAtBounds
-                            Row {
-                                id: lakeTabs; spacing: 6; height: parent.height
-                                LakeTab { text: "Prezentare"; target: 0 }
-                                LakeTab { text: "Sesiuni sonar"; target: 1 }
-                                LakeTab { text: "Acțiuni"; target: 2 }
-                            }
+                        RowLayout {
+                            id:lakeTabs;anchors.fill:parent;anchors.margins:4;spacing:5
+                            LakeTab { Layout.fillWidth:true;Layout.minimumWidth:0;text:"Prezentare";target:0 }
+                            LakeTab { Layout.fillWidth:true;Layout.minimumWidth:0;text:"Sesiuni sonar";target:1 }
+                            LakeTab { Layout.fillWidth:true;Layout.minimumWidth:0;text:"Acțiuni";target:2 }
                         }
                     }
 
@@ -376,7 +380,7 @@ Popup {
                     ListView {
                         visible: root.lakesTab===1
                         Layout.fillWidth: true
-                        Layout.fillHeight: true
+                        Layout.preferredHeight:visible ? Math.max(120,Math.min(280,root.height-230)) : 0
                         clip: true; spacing: 7
                         model: root.selectedLake ? root.sessionsForLake(root.selectedLakeId) : []
                         delegate: Rectangle {
@@ -407,7 +411,7 @@ Popup {
                     ColumnLayout {
                         visible: root.lakesTab===2 && !!root.selectedLake
                         Layout.fillWidth: true; spacing: 9
-                        Label { text: "Acțiuni pentru balta selectată"; color: "#eff9ff"; font.pixelSize: 13; font.bold: true }
+                        Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;text: "Acțiuni pentru balta selectată"; color: "#eff9ff"; font.pixelSize: 13; font.bold: true }
                         Flow {
                             Layout.fillWidth: true; spacing: 7
                             LakeAction { text: "Deschide harta"; onClicked: root.restoreAndOpen("map") }
@@ -428,17 +432,18 @@ Popup {
                         Label {
                             Layout.fillWidth: true
                             color: "#c1d7e6"; font.pixelSize: 11; wrapMode: Text.WordWrap
-                            text: "Restaurarea include eșantioanele sonar, punctele salvate și progresul Area Scan. Ștergerea bălții cere confirmare separată."
+                            objectName:"lakeActionsHelp";text: "Restaurarea include eșantioanele sonar, punctele salvate și progresul Area Scan. Ștergerea bălții cere confirmare separată."
                         }
                     }
-                    Item { Layout.fillHeight: true }
+                }
                 }
             }
         }
     }
 
     Dialog {
-        id: renameDialog
+        id: renameDialog;objectName:"lakeRenameDialog"
+        width:Math.min(360,parent.width-24)
         parent: Overlay.overlay
         anchors.centerIn: parent
         modal: true
@@ -451,7 +456,7 @@ Popup {
             placeholderTextColor: "#a7c1d3"
             background: Rectangle { radius: 8; color: "#092439"; border.color: "#54869d" }
             id: renameField
-            width: Math.min(320, parent ? parent.width-40 : 320)
+            width:renameDialog.availableWidth
             placeholderText: "Nume baltă"
             selectByMouse: true
         }
@@ -459,7 +464,7 @@ Popup {
     }
 
     Dialog {
-        id: deleteDialog
+        id: deleteDialog;objectName:"lakeDeleteDialog"
         parent: Overlay.overlay
         anchors.centerIn: parent
         modal: true
@@ -487,3 +492,4 @@ Popup {
         }
     }
 }
+
