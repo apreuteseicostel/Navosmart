@@ -64,7 +64,12 @@ Item {
     property bool mapLayerMenuOpen: false
     property bool showStatusHint: true
     property var rulerPoints: []
-    readonly property real boatHeadingDeg: vehicle && vehicle.heading && isFinite(Number(vehicle.heading.rawValue)) ? Number(vehicle.heading.rawValue) : NaN
+    // Inject the same GNSS-first visual heading used by Dashboard, including
+    // in Heading Up and Area Scan. Default remains compatible with standalone maps.
+    property bool headingOverrideEnabled: false
+    property real headingOverrideDeg: NaN
+    readonly property real boatHeadingDeg: headingOverrideEnabled ? headingOverrideDeg
+        : (vehicle && vehicle.heading && isFinite(Number(vehicle.heading.rawValue)) ? Number(vehicle.heading.rawValue) : NaN)
     property bool operatorLocationEnabled: true
     readonly property var operatorCoordinate: QGroundControl.qgcPositionManger && QGroundControl.qgcPositionManger.gcsPosition && QGroundControl.qgcPositionManger.gcsPosition.isValid ? QGroundControl.qgcPositionManger.gcsPosition : operatorPositionSource.position.coordinate
     readonly property bool operatorLocationValid: operatorCoordinate && operatorCoordinate.isValid
@@ -332,6 +337,7 @@ Item {
         sourceItem: Item {
             width:48; height:84
             rotation: isFinite(root.boatHeadingDeg) ? root.boatHeadingDeg - liveMap.bearing : 0
+            opacity: isFinite(root.boatHeadingDeg) ? 1 : 0.45
             Behavior on rotation { RotationAnimation { duration:240; direction:RotationAnimation.Shortest } }
             NavoBoatVisual { anchors.fill: parent }
         }
