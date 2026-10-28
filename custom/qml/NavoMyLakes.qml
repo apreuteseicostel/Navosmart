@@ -444,7 +444,12 @@ Popup {
         modal: true
         title: "Redenumește balta"
         standardButtons: Dialog.Save | Dialog.Cancel
-        TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff";
+        palette.windowText: "#eff9ff"; palette.text: "#eff9ff"
+        background: Rectangle { color: "#071e30"; radius: 12; border.color: "#20d9ed" }
+        TextField {
+            color: "#eff9ff"
+            placeholderTextColor: "#a7c1d3"
+            background: Rectangle { radius: 8; color: "#092439"; border.color: "#54869d" }
             id: renameField
             width: Math.min(320, parent ? parent.width-40 : 320)
             placeholderText: "Nume baltă"
@@ -470,15 +475,15 @@ Popup {
         contentItem: Label {
             width: deleteDialog.availableWidth
             wrapMode: Text.WordWrap
-            color: "#c9d5df"; font.pixelSize: 13
+            color: "#eff9ff"; font.pixelSize: 13
             text: "Ștergi «"+(root.editLake ? (root.editLake.name||"Baltă") : "Baltă")+"» și toate datele salvate? Acțiunea nu poate fi anulată."
         }
         footer: Row {
             spacing: 10
             padding: 12
             layoutDirection: Qt.RightToLeft
-            Button { text: "ȘTERGE"; width: 92; onClicked: root.deleteCurrentLake() }
-            Button { text: "ANULEAZĂ"; width: 100; onClicked: deleteDialog.close() }
+            LakeAction { text: "ȘTERGE"; tint: "#ff8793"; width: 92; onClicked: root.deleteCurrentLake() }
+            LakeAction { text: "ANULEAZĂ"; width: 100; onClicked: deleteDialog.close() }
         }
     }
 }
