@@ -102,25 +102,103 @@ Rectangle {
         }
     }
 
+    component ConfirmationAction: Button {
+        id: action
+        property color accent: "#c1d7e6"
+        implicitWidth: Math.min(112, Math.max(0, (confirmation.width - 36) / 2))
+        implicitHeight: 34
+        padding: 7
+        background: Rectangle {
+            radius: 7
+            color: action.down ? "#17495b" : (action.hovered ? "#103449" : "#092439")
+            border.color: action.activeFocus ? "#eff9ff" : action.accent
+            opacity: action.enabled ? 1 : 0.45
+        }
+        contentItem: Label {
+            text: action.text
+            color: action.enabled ? action.accent : "#8495a4"
+            font.pixelSize: 12
+            font.bold: true
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+    }
+
     Dialog {
         id: confirmation
         objectName: "steeringConfirmation"
         parent: Overlay.overlay
         anchors.centerIn: parent
-        width: Math.min(410, parent ? parent.width-24 : 410)
-        height: Math.min(268, parent ? parent.height-24 : 268)
+        width: Math.min(340, parent ? parent.width-24 : 340)
+        height: Math.min(implicitHeight, parent ? parent.height-24 : implicitHeight)
+        leftPadding: 14
+        rightPadding: 14
+        topPadding: 0
+        bottomPadding: 0
         modal: true
         title: "Activează STEERING?"
-        standardButtons: Dialog.Ok | Dialog.Cancel
+        background: Rectangle {
+            color: "#071d2d"
+            radius: 11
+            border.color: "#20d9ed"
+            border.width: 1
+        }
+        Overlay.modal: Rectangle { color: "#99040d17" }
+        header: Item {
+            implicitHeight: 46
+            Label {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.leftMargin: 14
+                anchors.rightMargin: 14
+                text: confirmation.title
+                color: "#eff9ff"
+                font.pixelSize: 14
+                font.bold: true
+                elide: Text.ElideRight
+            }
+        }
         contentItem: ScrollView {
+            id: confirmationScroll
+            implicitHeight: confirmationText.implicitHeight
             clip: true
             contentWidth: availableWidth
+            ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
             Label {
-                width: parent.width
+                id: confirmationText
+                objectName: "steeringConfirmationText"
+                width: confirmationScroll.availableWidth
                 wrapMode: Text.WordWrap
-                text: "Pune manșele la neutru înainte de schimbarea modului. H743 controlează cârma și propulsia conform configurării sale; viteza se comandă din G20. Verifică zona liberă și pregătirea PRE-LAUNCH."
+                color: "#c1d7e6"
+                font.pixelSize: 12
+                text: "Manșe la neutru. Verifică zona liberă și PRE-LAUNCH.\n\nH743 controlează cârma și propulsia conform configurării sale. Viteza se comandă din G20."
+            }
+        }
+        footer: DialogButtonBox {
+            buttonLayout: DialogButtonBox.MacLayout
+            spacing: 8
+            topPadding: 12
+            bottomPadding: 14
+            leftPadding: 14
+            rightPadding: 14
+            alignment: Qt.AlignRight
+            background: Rectangle { color: "transparent" }
+            ConfirmationAction {
+                objectName: "steeringCancel"
+                text: "Anulează"
+                DialogButtonBox.buttonRole: DialogButtonBox.RejectRole
+            }
+            ConfirmationAction {
+                objectName: "steeringConfirmEnable"
+                text: "Activează"
+                accent: "#37e9a2"
+                enabled: !!root.controller && root.controller.canEnable
+                DialogButtonBox.buttonRole: DialogButtonBox.AcceptRole
             }
         }
         onAccepted: root.enableRequested()
     }
 }
+
