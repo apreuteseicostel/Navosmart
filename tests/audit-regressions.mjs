@@ -772,5 +772,58 @@ test('RTL cancellation remains reachable and Area Scan controls explain hover an
  assert.match(map,/onPressed: root\.showToolHelp\(ToolTip\.text\)/);assert.match(map,/interval:4000/);
  assert.match(dash,/if\(areaScanMap && root\.pendingAreaDrawMode==="rectangle"\)/);
 });
+function editableSpot() {
+ const original={id:'s',name:'Old',lat:52,lon:-1,depth:null,temp:null,note:'old',color:'#31d67b',createdAt:123,sonarEvidence:{samples:9}};
+ let updates=0;
+ const model=context('NavoFishingSpots.qml',{fishingSpots:[original],spotUpdated:()=>updates++});
+ const fields={name:' New ',lat:53.1,lon:-2.1,depth:4.2,temp:12.5,note:'mud',color:'#ef4444'};
+ return {model,original,fields,updates:()=>updates};
+}
+test('Complete spot edit updates GPS and metadata together, preserving identity and sonar',()=>{
+ const {model,original,fields,updates}=editableSpot();assert(model.updateSpot('s',fields));
+ const s=model.fishingSpots[0];assert.equal(s.name,'New');assert.equal(s.lat,53.1);assert.equal(s.lon,-2.1);
+ assert.equal(s.depth,4.2);assert.equal(s.temp,12.5);assert.equal(s.note,'mud');assert.equal(s.color,'#ef4444');
+ assert.equal(s.createdAt,123);assert.equal(s.id,'s');assert.equal(s.sonarEvidence,original.sonarEvidence);
+ assert.equal(original.name,'Old');assert.equal(updates(),1);
+});
+test('Invalid spot fields and missing IDs leave the entire original record untouched',()=>{
+ for(const patch of [{name:''},{lat:91},{lat:NaN},{lat:'52'},{lon:-181},{lon:Infinity},{depth:-1},{depth:''},{temp:NaN},{color:'red'},{note:null}]){
+  const {model,original,fields,updates}=editableSpot();assert.equal(model.updateSpot('s',{...fields,...patch}),false);
+  assert.equal(model.fishingSpots[0],original);assert.equal(updates(),0);
+ }
+ const {model,fields,updates}=editableSpot();assert.equal(model.updateSpot('deleted',fields),false);assert.equal(updates(),0);
+});
+test('Unknown depth/temperature remain null, while measured zero is preserved',()=>{
+ const {model,fields}=editableSpot();assert(model.updateSpot('s',{...fields,depth:null,temp:null}));assert.equal(model.fishingSpots[0].depth,null);
+ assert(model.updateSpot('s',{...fields,depth:0,temp:0}));assert.equal(model.fishingSpots[0].depth,0);assert.equal(model.fishingSpots[0].temp,0);
+});
+function spotEditPage(save=true){
+ const {model,original}=editableSpot();let closed=false,writes=0;
+ const page=context('NavoDashboard.qml',{actionActive:false,missionBusy:false,steeringModeBusy:false,sonar:{replayMode:false},
+  spotEditLakeId:'lake',spotEditId:'s',spotEditColor:'#ef4444',fishingSpots:model,
+  scanCoordinator:{lakeId:'lake',checkpoint(){writes++;return save}},
+  spotName:{text:'New'},spotLatitude:{text:'53,25'},spotLongitude:{text:'-2.5'},spotDepth:{text:''},spotTemperature:{text:'0'},spotNote:{text:'note'},
+  spotEditDialog:{errorText:'',close(){closed=true}}});
+ return {page,model,original,closed:()=>closed,writes:()=>writes};
+}
+test('Editor parses comma decimals and refuses blank GPS or trailing garbage',()=>{
+ const {page}=spotEditPage();assert.equal(page.spotNumber('53,25'),53.25);assert.equal(page.spotNumber(' -2.5 '),-2.5);
+ for(const value of ['', ' ', '12junk', '0x10','1,2,3','Infinity'])assert(Number.isNaN(page.spotNumber(value)));
+});
+test('Editor persists all fields once and closes only on checkpoint success',()=>{
+ const {page,model,closed,writes}=spotEditPage();assert(page.saveSpotEdit());assert(closed());assert.equal(writes(),1);
+ assert.equal(model.fishingSpots[0].lat,53.25);assert.equal(model.fishingSpots[0].depth,null);assert.equal(model.fishingSpots[0].temp,0);
+});
+test('Disk failure rolls back the spot and keeps editor input for retry',()=>{
+ const {page,model,original,closed}=spotEditPage(false);assert.equal(page.saveSpotEdit(),false);
+ assert.equal(model.fishingSpots[0],original);assert.equal(closed(),false);assert.equal(page.spotName.text,'New');assert.match(page.spotEditDialog.errorText,/eșuat/);
+});
+test('Lake changes, replay and actions begun during editing block save',()=>{
+ for(const flag of ['lake','replay','actionActive','missionBusy','steeringModeBusy']){
+  const {page,model,original,writes}=spotEditPage();
+  if(flag==='lake')page.scanCoordinator.lakeId='other';else if(flag==='replay')page.sonar.replayMode=true;else page[flag]=true;
+  assert.equal(page.saveSpotEdit(),false);assert.equal(model.fishingSpots[0],original);assert.equal(writes(),0);
+ }
+});
 console.log(`${passed} regression scenarios passed`);
 

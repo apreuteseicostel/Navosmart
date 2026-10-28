@@ -128,7 +128,7 @@ Item {
         property bool expanded:false
         modal:false;dim:false
         width:Math.min(320,parent.width-24)
-        height:Math.min(expanded ? 330 : 250,parent.height*0.48)
+        height:Math.min(expanded ? 390 : 300,parent.height-24)
         x:Math.max(12,parent.width-width-12);y:Math.max(12,parent.height-height-12)
         padding:10;topPadding:6
         closePolicy:Popup.CloseOnEscape | Popup.CloseOnPressOutside
@@ -139,11 +139,19 @@ Item {
             Label { Layout.leftMargin:12;Layout.fillWidth:true;text:root.currentSpot ? root.currentSpot.name : "Punct pescuit";color:"#e8f4fa";font.pixelSize:14;font.bold:true;elide:Text.ElideRight }
             ToolButton { objectName:"savedSpotClose";text:"×";implicitWidth:34;implicitHeight:34;onClicked:spotDetails.close();contentItem:Text{text:parent.text;font.pixelSize:22;color:"#67dfdc";horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter} Accessible.name:"Închide detaliile punctului" }
         }
-        footer:null
+        footer:RowLayout {
+            spacing:5
+            SpotActionButton { objectName:"savedSpotMore";Layout.fillWidth:true;Layout.minimumWidth:0;text:spotDetails.expanded ? "Mai puțin" : "Detalii";onClicked:spotDetails.expanded=!spotDetails.expanded }
+            SpotActionButton { objectName:"savedSpotEdit";Layout.fillWidth:true;Layout.minimumWidth:0;text:"Editare";enabled:root.actionsAllowed && !!root.currentSpot;onClicked:{var spot=root.currentSpot;spotDetails.close();root.renameSpotRequested(spot)} }
+            SpotActionButton { objectName:"savedSpotList";Layout.fillWidth:true;Layout.minimumWidth:0;text:"Listă";onClicked:{var spot=root.currentSpot;spotDetails.close();root.openFishingSpotsRequested(spot)} }
+        }
         contentItem:ScrollView {
+            id:spotDetailsScroll
             clip:true;contentWidth:availableWidth
+            ScrollBar.horizontal.policy:ScrollBar.AlwaysOff
+            ScrollBar.vertical.policy:ScrollBar.AsNeeded
             ColumnLayout {
-                width:spotDetails.availableWidth;spacing:5
+                width:spotDetailsScroll.availableWidth;spacing:5
                 Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;color:"#67dfdc";font.pixelSize:11
                     text:(root.currentSpot && typeof root.currentSpot.depth==="number" && isFinite(root.currentSpot.depth) ? root.currentSpot.depth.toFixed(2)+" m" : "Adâncime --")+"  •  "+(root.currentSpot && typeof root.currentSpot.temp==="number" && isFinite(root.currentSpot.temp) ? root.currentSpot.temp.toFixed(1)+" °C" : "Apă --")+"  •  "+(root.spotCoordinateValid && root.boatCoordinate && root.boatCoordinate.isValid ? "Barcă "+Math.round(root.boatCoordinate.distanceTo(QtPositioning.coordinate(root.currentSpot.lat,root.currentSpot.lon)))+" m" : "Barcă --") }
                 Label { Layout.fillWidth:true;visible:spotDetails.expanded;wrapMode:Text.WordWrap;font.pixelSize:11;color:"#a8becd";text:root.spotCoordinateValid ? "GPS: "+root.currentSpot.lat.toFixed(6)+", "+root.currentSpot.lon.toFixed(6) : "Coordonate indisponibile" }
@@ -175,13 +183,9 @@ Item {
                         onClicked:{var spot=root.currentSpot,size=spotScanSize.value;spotDetails.close();root.spotActionRequested(spot,"scan",0,size)} }
                 }
                 Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;text:"Zonă: latura în metri. Pornire separată prin START.";font.pixelSize:10;color:"#91a3b5" }
-                RowLayout {
-                    Layout.fillWidth:true;spacing:5
-                    SpotActionButton { objectName:"savedSpotMore";Layout.fillWidth:true;text:spotDetails.expanded ? "Mai puțin" : "Detalii";onClicked:spotDetails.expanded=!spotDetails.expanded }
-                    SpotActionButton { Layout.fillWidth:true;text:"Editare";enabled:root.actionsAllowed && !!root.currentSpot;onClicked:{var spot=root.currentSpot;spotDetails.close();root.renameSpotRequested(spot)} }
-                    SpotActionButton { Layout.fillWidth:true;text:"Listă";onClicked:{var spot=root.currentSpot;spotDetails.close();root.openFishingSpotsRequested(spot)} }
-                }
+
             }
         }
     }
 }
+

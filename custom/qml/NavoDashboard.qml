@@ -2089,34 +2089,101 @@ Item {
                     }
                 }
             }
+            property string spotEditLakeId: ""
             function openEdit(spot) {
-                spotEditId=spot.id; spotName.text=spot.name||""; spotEditColor=spot.color||"#31d67b"; spotEditDialog.open()
+                if(root.missionBusy || root.actionActive || sonar.replayMode || root.steeringModeBusy || !scanCoordinator.lakeId.length)return
+                spotEditId=spot.id;spotEditLakeId=scanCoordinator.lakeId
+                spotName.text=spot.name||"";spotEditColor=spot.color||"#31d67b"
+                spotLatitude.text=String(spot.lat);spotLongitude.text=String(spot.lon)
+                spotDepth.text=typeof spot.depth==="number" && isFinite(spot.depth) ? String(spot.depth) : ""
+                spotTemperature.text=typeof spot.temp==="number" && isFinite(spot.temp) ? String(spot.temp) : ""
+                spotNote.text=spot.note||"";spotEditDialog.errorText="";spotEditDialog.open()
+            }
+            function spotNumber(text) {
+                var clean=text.trim().replace(",", ".")
+                return /^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)$/.test(clean) ? Number(clean) : NaN
+            }
+            function saveSpotEdit() {
+                if(root.actionActive || root.missionBusy || sonar.replayMode || root.steeringModeBusy ||
+                   !spotEditLakeId.length || spotEditLakeId!==scanCoordinator.lakeId){
+                    spotEditDialog.errorText="Editare blocată: operație activă, replay sau baltă schimbată.";return false
+                }
+                var before=fishingSpots.fishingSpots.slice(0)
+                var fields={name:spotName.text,lat:spotNumber(spotLatitude.text),lon:spotNumber(spotLongitude.text),
+                    depth:spotDepth.text.trim().length ? spotNumber(spotDepth.text) : null,
+                    temp:spotTemperature.text.trim().length ? spotNumber(spotTemperature.text) : null,
+                    note:spotNote.text,color:spotEditColor}
+                if(!fishingSpots.updateSpot(spotEditId,fields)){
+                    spotEditDialog.errorText="Verifică numele, GPS (-90…90 / -180…180), adâncimea ≥ 0 și temperatura. Punctul trebuie să existe.";return false
+                }
+                if(!scanCoordinator.checkpoint("fishing-spot-edit")){
+                    fishingSpots.fishingSpots=before
+                    spotEditDialog.errorText="Salvarea a eșuat. Datele vechi au fost păstrate; poți reîncerca.";return false
+                }
+                root.lastNavigationStatus="Punct salvat: "+fields.name.trim()
+                spotEditDialog.close();return true
             }
             Dialog {
-                id:spotEditDialog; parent:Overlay.overlay; anchors.centerIn:parent; modal:true
-                title:"Editează punct"; standardButtons:Dialog.Save|Dialog.Cancel
-                Column {
-                    spacing:8
-                    TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff"; id:spotName; width:280; placeholderText:"Lanseta verde" }
-                    Label { text:"Culoare marker" }
-                    Row {
-                        spacing:8
-                        Repeater {
-                            model:["#31d67b","#ef4444","#3b82f6","#facc15","#a855f7","#f97316"]
-                            delegate:Rectangle {
-                                required property var modelData
-                                width:30;height:30;radius:15;color:modelData
-                                border.color:fishingPageRoot.spotEditColor===modelData?"white":"#607080"
-                                border.width:fishingPageRoot.spotEditColor===modelData?3:1
-                                MouseArea { anchors.fill:parent; onClicked:fishingPageRoot.spotEditColor=modelData }
+                id:spotEditDialog;objectName:"savedSpotEditor"
+                parent:Overlay.overlay;anchors.centerIn:parent;modal:true
+                width:Math.min(560,parent.width-24);height:Math.min(620,parent.height-24)
+                padding:14
+                title:"Editează punct"
+                property string errorText:""
+                palette.windowText:root.text;palette.text:root.text;palette.buttonText:root.text
+                background:Rectangle { color:root.panel;radius:12;border.color:root.cyan }
+                component SpotField: TextField {
+                    Layout.fillWidth:true;selectByMouse:true
+                    color:root.text;placeholderTextColor:root.muted
+                    background:Rectangle { radius:6;color:root.bg;border.color:root.line }
+                }
+                contentItem:ScrollView {
+                    id:spotEditScroll;clip:true;contentWidth:availableWidth
+                    ScrollBar.horizontal.policy:ScrollBar.AlwaysOff
+                    ColumnLayout {
+                        width:spotEditScroll.availableWidth;spacing:7
+                        Label { text:"Nume";color:root.text }
+                        SpotField { id:spotName;objectName:"spotEditName";placeholderText:"Lanseta verde" }
+                        Label { text:"Latitudine GPS (grade zecimale)";color:root.text }
+                        SpotField { id:spotLatitude;objectName:"spotEditLatitude";inputMethodHints:Qt.ImhFormattedNumbersOnly }
+                        Label { text:"Longitudine GPS (grade zecimale)";color:root.text }
+                        SpotField { id:spotLongitude;objectName:"spotEditLongitude";inputMethodHints:Qt.ImhFormattedNumbersOnly }
+                        Label { text:"Adâncime (m) • gol = necunoscută";color:root.text }
+                        SpotField { id:spotDepth;objectName:"spotEditDepth";inputMethodHints:Qt.ImhFormattedNumbersOnly }
+                        Label { text:"Temperatura apei (°C) • gol = necunoscută";color:root.text }
+                        SpotField { id:spotTemperature;objectName:"spotEditTemperature";inputMethodHints:Qt.ImhFormattedNumbersOnly }
+                        Label { text:"Notițe";color:root.text }
+                        TextArea {
+                            id:spotNote;objectName:"spotEditNote";Layout.fillWidth:true;Layout.minimumHeight:70
+                            wrapMode:TextEdit.Wrap;selectByMouse:true;color:root.text
+                            background:Rectangle { radius:6;color:root.bg;border.color:root.line }
+                        }
+                        Label { text:"Culoare marker (cod HEX)";color:root.text }
+                        SpotField { objectName:"spotEditColor";text:fishingPageRoot.spotEditColor;onTextEdited:fishingPageRoot.spotEditColor=text }
+                        Flow {
+                            Layout.fillWidth:true;implicitHeight:childrenRect.height;spacing:8
+                            Repeater {
+                                model:["#31d67b","#ef4444","#3b82f6","#facc15","#a855f7","#f97316"]
+                                delegate:Button {
+                                    required property var modelData
+                                    width:38;height:38
+                                    Accessible.name:"Culoare "+modelData
+                                    background:Rectangle { radius:19;color:parent.modelData;border.color:fishingPageRoot.spotEditColor===parent.modelData ? "white" : "#607080";border.width:3 }
+                                    onClicked:fishingPageRoot.spotEditColor=modelData
+                                }
                             }
                         }
+                        Label { Layout.fillWidth:true;text:"Datele sonar originale și data creării rămân asociate punctului.";color:root.muted;wrapMode:Text.WordWrap;font.pixelSize:11 }
                     }
                 }
-                onAccepted:{
-                    if(fishingSpots.renameSpot(fishingPageRoot.spotEditId,spotName.text))
-                        fishingSpots.setSpotColor(fishingPageRoot.spotEditId,fishingPageRoot.spotEditColor)
-                    scanCoordinator.checkpoint("fishing-spot-edit")
+                footer:ColumnLayout {
+                    spacing:6
+                    Label { Layout.fillWidth:true;Layout.margins:10;visible:text.length>0;text:spotEditDialog.errorText;color:root.warn;wrapMode:Text.WordWrap }
+                    RowLayout {
+                        Layout.fillWidth:true;Layout.margins:10
+                        Button { text:"Anulează";Layout.fillWidth:true;onClicked:spotEditDialog.reject() }
+                        Button { objectName:"spotEditSave";text:"Salvează";Layout.fillWidth:true;onClicked:fishingPageRoot.saveSpotEdit() }
+                    }
                 }
             }
         }
