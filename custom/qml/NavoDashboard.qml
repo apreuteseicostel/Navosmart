@@ -1275,13 +1275,13 @@ Item {
                     onClicked: { root.mapMaximized=false; root.activePage=0; root.showHomeCredit=true }
                 }
             }
-            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/satellite.svg"; title: "SATELIȚI"; value: vehicle && vehicle.gps ? String(vehicle.gps.count.rawValue) : "--"; good: vehicle && vehicle.gps && Number(vehicle.gps.lock.rawValue) >= 3; interactive:true; onClicked:gnssDiagnostic.open() }
-            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/home.svg"; title: "HOME"; value: Number(root.distanceToHome).toFixed(0) + " m"; good: !!vehicle; interactive:true
+            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/satellite.svg"; title: "SATELIȚI"; value: vehicle && vehicle.gps ? String(vehicle.gps.count.rawValue) : "--"; good: root.linkAlive && vehicle.gps && Number(vehicle.gps.lock.rawValue)>=3 && isFinite(Number(vehicle.gps.count.rawValue)) && Number(vehicle.gps.count.rawValue)>=0 && Number(vehicle.gps.count.rawValue)<255; interactive:true; onClicked:gnssDiagnostic.open() }
+            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/home.svg"; title: "HOME"; value: Number(root.distanceToHome).toFixed(0) + " m"; good: root.linkAlive && vehicle.homePosition && vehicle.homePosition.isValid && vehicle.coordinate && vehicle.coordinate.isValid && vehicle.distanceToHome && isFinite(Number(vehicle.distanceToHome.rawValue)); interactive:true
                 onClicked: { root.activePage=0; Qt.callLater(function(){ if(root.mapController && root.mapController.centerHome && !root.mapController.centerHome()) root.lastNavigationStatus="HOME indisponibil" }) }
                 onPressAndHold: { if(!root.vehicle || !root.vehicle.homePosition || !root.vehicle.homePosition.isValid || !root.vehicle.coordinate || !root.vehicle.coordinate.isValid || !root.vehicle.gps || root.vehicle.gps.lock.rawValue<3) root.lastNavigationStatus="RTL blocat: HOME/GPS invalid"; else homeRtlConfirm.open() }
             }
-            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/speed.svg"; title: "VITEZĂ"; value: vehicle && vehicle.groundSpeed ? Number(vehicle.groundSpeed.rawValue * 3.6).toFixed(1) + " km/h" : "--"; good: !!vehicle }
-            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/target.svg"; title: "ȚINTĂ"; value: root.distanceToTarget > 0 ? Number(root.distanceToTarget).toFixed(0) + " m" : "--"; good: root.distanceToTarget > 0 }
+            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/speed.svg"; title: "VITEZĂ"; value: vehicle && vehicle.groundSpeed ? Number(vehicle.groundSpeed.rawValue * 3.6).toFixed(1) + " km/h" : "--"; good: root.linkAlive && vehicle.groundSpeed && isFinite(Number(vehicle.groundSpeed.rawValue)) }
+            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/target.svg"; title: "ȚINTĂ"; value: root.distanceToTarget > 0 ? Number(root.distanceToTarget).toFixed(0) + " m" : "--"; good: root.linkAlive && isFinite(root.distanceToTarget) && root.distanceToTarget > 0 }
             StatusPill { pillWidth:82; iconSource:"qrc:/qml/NavoSmart/icons/battery.svg"; title: "BATERIE"; value: root.linkAlive && battery && battery.percentRemaining && isFinite(Number(battery.percentRemaining.rawValue)) && Number(battery.percentRemaining.rawValue)>=0 ? Number(battery.percentRemaining.rawValue).toFixed(0) + "%" : "--"; good: root.linkAlive && battery && battery.percentRemaining && Number(battery.percentRemaining.rawValue)>20; interactive:true; onClicked:dashboardDetails.showSection("battery") }
             StatusPill { pillWidth:77; iconSource:"qrc:/qml/NavoSmart/icons/temp.svg"; title: "TEMP"; value: h743Telemetry.connected && h743Telemetry.temperatureValid && isFinite(h743Telemetry.batteryTempC) ? Number(h743Telemetry.batteryTempC).toFixed(1) + "°" : "--"; good: h743Telemetry.connected && h743Telemetry.temperatureValid && safetyManager.state !== "CRITICAL"; interactive:true; onClicked:dashboardDetails.showSection("temperature") }
             StatusPill { pillWidth:88; iconSource:"qrc:/qml/NavoSmart/icons/mode.svg"; title: "MOD"; value: g20Controller.dashboardModeValid ? g20Controller.dashboardModePosition : (root.flightMode.length ? root.flightMode : "--"); good: root.linkAlive; interactive:true; onClicked:dashboardDetails.showSection("mode") }
@@ -2808,14 +2808,15 @@ Item {
         property string title: ""
         property string value: "--"
         property bool good: false
+        readonly property bool healthy: good && root.linkAlive && value.length>0 && value!=="--"
         property bool interactive: false
         signal clicked()
         signal pressAndHold()
         property real pillWidth: 76
         Layout.preferredWidth: pillWidth * header.telemetryScale; Layout.preferredHeight: root.compactUi ? 36 : 42; radius: 9
         color: pillMouse.containsMouse && interactive ? "#143747" : "#0a2332"
-        border.color: pillMouse.containsMouse && interactive ? "#20d9ed" : (interactive ? "#167a93" : root.line)
-        border.width: 1
+        border.color: healthy ? root.ok : (pillMouse.containsMouse && interactive ? "#20d9ed" : (interactive ? "#167a93" : root.line))
+        border.width: healthy ? 2 : 1
         ToolTip.visible: pillMouse.containsMouse && interactive
         ToolTip.text: "Deschide " + title.toLowerCase()
         ToolTip.delay: 500
@@ -2824,7 +2825,7 @@ Item {
             Image { id:pillIcon;width:header.telemetryScale<1 ? 16 : 20;height:width;anchors.verticalCenter:parent.verticalCenter;source:iconSource;fillMode:Image.PreserveAspectFit }
             Column { width:parent.width-pillIcon.width-parent.spacing;anchors.verticalCenter:parent.verticalCenter;spacing:0
                 Label { width:parent.width;horizontalAlignment:Text.AlignHCenter;elide:Text.ElideRight;text:title;color:"#9cc4d7";font.pixelSize:8 }
-                Label { width:parent.width;horizontalAlignment:Text.AlignHCenter;elide:Text.ElideRight;text:value;color:good?root.ok:root.text;font.pixelSize:header.telemetryScale<1 ? 10 : 11;font.bold:true }
+                Label { width:parent.width;horizontalAlignment:Text.AlignHCenter;elide:Text.ElideRight;text:value;color:healthy?root.ok:root.text;font.pixelSize:header.telemetryScale<1 ? 10 : 11;font.bold:true }
             }
         }
     }
