@@ -127,6 +127,7 @@ qt_add_qml_module(NavoSmartModule
         icons/ruler.svg
         icons/fullscreen.svg
         icons/navigate.svg
+        icons/north.svg
         icons/edit.svg
         icons/delete.svg
         icons/save.svg

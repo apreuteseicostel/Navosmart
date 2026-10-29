@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Outlined letter N: no font dependency on Android. -->
+  <path fill="#f4f7fb" d="M10 13V1h3l6 8V1h3v12h-3l-6-8v8Z"/>
+  <!-- North pointer, split into two contrasting faces. -->
+  <path fill="#20d9ed" d="M16 15 3 31 16 26Z"/>
+  <path fill="#75ddff" d="M16 15 29 31 16 26Z"/>
+</svg>

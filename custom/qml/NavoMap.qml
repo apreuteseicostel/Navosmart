@@ -687,7 +687,23 @@ Item {
             contentItem:Image { anchors.centerIn:parent;width:23;height:23;source:parent.iconSource;fillMode:Image.PreserveAspectFit }
         }
         RightTool { text:"MAP"; iconSource:"qrc:/qml/NavoSmart/icons/map.svg";font.pixelSize:11;checkable:true;checked:root.bathymetryHDEnabled;ToolTip.visible:hovered || down;ToolTip.text:root.bathymetryHDEnabled?"Ascunde batimetria HD":"Afișează batimetria HD";onClicked:root.toggleMapLayer() }
-        RightTool { text:"HD"; iconSource:"qrc:/qml/NavoSmart/icons/lake.svg";font.pixelSize:14;checkable:true;checked:root.headingUp;ToolTip.visible:hovered || down;ToolTip.text:root.headingUp?"Heading Up activ • apasă pentru Nord sus":"Heading Up • rotește după barcă";onClicked:root.headingUp=!root.headingUp }
+        RightTool {
+            objectName: "mapNorthHeading"
+            text: "N"
+            iconSource: "qrc:/qml/NavoSmart/icons/north.svg"
+            checkable: true
+            checked: root.headingUp
+            ToolTip.visible: hovered || down
+            ToolTip.text: root.headingUp ? "Direcția bărcii sus • apasă pentru Nord sus" : "Nord sus • apasă pentru direcția bărcii sus"
+            onClicked: root.headingUp = !root.headingUp
+            contentItem: Image {
+                anchors.centerIn: parent
+                width: 32
+                height: 32
+                source: "qrc:/qml/NavoSmart/icons/north.svg"
+                fillMode: Image.PreserveAspectFit
+            }
+        }
         RightTool { text:"RUL"; iconSource:"qrc:/qml/NavoSmart/icons/ruler.svg";font.pixelSize:11;checkable:true;checked:root.rulerMode;ToolTip.visible:hovered || down;ToolTip.text:root.rulerMode?root.rulerDistanceText():"Măsoară distanța între două puncte";onClicked:root.toggleRuler() }
         RightTool { text:root.maximized?"MIN":"MAX"; iconSource:"qrc:/qml/NavoSmart/icons/fullscreen.svg";font.pixelSize:10;ToolTip.visible:hovered || down;ToolTip.text:root.maximized?"Revino la dashboard":"Hartă pe tot ecranul";onClicked:root.maximizeRequested() }
     }
