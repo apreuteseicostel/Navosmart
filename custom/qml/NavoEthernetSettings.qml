@@ -243,14 +243,18 @@ Rectangle {
 
             Rectangle {
                 id: cameraBox
+                objectName: "settingsCameraBox"
                 Layout.fillWidth: true
                 Layout.preferredWidth: root.compact ? root.width : root.width*0.59
-                Layout.preferredHeight: root.compact ? 335 : 264
+                // Include every form row, preview and playback control in the card.
+                Layout.minimumHeight: cameraContent.implicitHeight + 20
+                Layout.preferredHeight: Math.max(root.compact ? 335 : 264, cameraContent.implicitHeight + 20)
                 color: "#061827"
                 border.color: "#20d9ed"
                 border.width: 1
                 radius: 10
                 ColumnLayout {
+                    id: cameraContent
                     anchors.fill: parent
                     anchors.margins: 10
                     spacing: 7
@@ -299,11 +303,15 @@ Rectangle {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             Layout.minimumWidth: root.compact ? 0 : 155
-                            Layout.minimumHeight: 120
+                            id: cameraPreview
+                            objectName: "settingsCameraPreview"
+                            Layout.minimumHeight: previewContent.implicitHeight + 14
+                            Layout.preferredHeight: Math.max(150, previewContent.implicitHeight + 14)
                             radius: 8
                             color: "#081f2e"
                             border.color: "#2f849b"
                             ColumnLayout {
+                                id: previewContent
                                 anchors.fill: parent
                                 anchors.margins: 7
                                 spacing: 4
@@ -313,7 +321,8 @@ Rectangle {
                                     id: videoTest
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
-                                    Layout.minimumHeight: 37
+                                    Layout.minimumHeight: 72
+                                    Layout.preferredHeight: 96
                                     streamUrl: streamUrl.text
                                     protocol: protocol.currentValue
                                     onVideoError: function(message) { root.status("Video: " + message) }
