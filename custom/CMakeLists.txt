@@ -26,6 +26,8 @@ qt_add_qml_module(NavoSmartModule
         QtQuick3D
     QML_FILES
         qml/NavoDashboard.qml
+        qml/NavoStatusDetails.qml
+        qml/NavoSettingsV3.qml
         qml/NavoPreLaunchCheck.qml
         qml/NavoAndroidAcceptance.qml
         qml/NavoMap.qml
@@ -121,9 +123,11 @@ qt_add_qml_module(NavoSmartModule
         icons/zoom-out.svg
         icons/center.svg
         icons/boat.svg
+        icons/navo-brand.svg
         icons/ruler.svg
         icons/fullscreen.svg
         icons/navigate.svg
+        icons/north.svg
         icons/edit.svg
         icons/delete.svg
         icons/save.svg
@@ -175,6 +179,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoLanDiscovery.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoH743Telemetry.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoH743Telemetry.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoGnssHeading.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoGnssHeading.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoBathymetryMesh.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoBathymetryMesh.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoBathymetryGeometry.cc

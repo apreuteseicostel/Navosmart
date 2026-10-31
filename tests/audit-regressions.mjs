@@ -191,7 +191,7 @@ test('Saved lakes expose persistent rename and confirmed delete controls',()=>{
   const ui=fs.readFileSync(path.join(dir,'NavoMyLakes.qml'),'utf8');
   const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
   const coordinator=fs.readFileSync(path.join(dir,'NavoScanCoordinator.qml'),'utf8');
-  for(const token of ['beginRename','beginDelete','renameCurrentLake','deleteCurrentLake','ToolTip.text: "Șterge"'])
+  for(const token of ['beginRename','beginDelete','renameCurrentLake','deleteCurrentLake','hint: "Șterge"'])
     assert(ui.includes(token),token);
   // Rename/delete controls live in NavoMyLakes; dashboard only opens/selects the persistent lake UI.
   assert(dash.includes('id: myLakesPopup'));
@@ -506,4 +506,337 @@ test('V3 close can supersede a pending release but cannot bypass stale telemetry
  assert.equal(c.sendOnboard(3,1),false);assert(c.closeOnboard());assert.equal(sent[0][3],4);
  c.hardwareTelemetry.connected=false;assert.equal(c.closeOnboard(),false);assert.equal(sent.length,1);
 });
+test('Dashboard keeps battery/temperature diagnostics and displays only the confirmed H743 mode',()=>{
+  const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+  const panel=fs.readFileSync(path.join(dir,'NavoStatusDetails.qml'),'utf8');
+  const g20=fs.readFileSync(path.join(dir,'NavoG20Controller.qml'),'utf8');
+  assert.match(dash,/Pescaru' lu' Pește/);
+  assert.match(dash,/build and design by Costel Apreutesei/);
+  for(const section of ['battery','temperature'])
+    assert(dash.includes('dashboardDetails.showSection("'+section+'")'));
+  assert.match(dash,/NavoStatusDetails\s*\{/);
+  assert.match(panel,/temperatureSamples/);
+  assert.match(panel,/date/i); // Date.now-based genuine time series, not demo points.
+  assert.match(panel,/FĂRĂ TELEMETRIE/);
+  assert.match(panel,/BMS \/ echilibrare celule/);
+  assert.doesNotMatch(dash,/dashboardDetails\.showSection\("mode"\)/);
+  assert.doesNotMatch(panel,/modeSignalValid|modePosition|Selector fizic G20/);
+  assert.match(g20,/nativeModeChannel: 5/);
+  assert.doesNotMatch(g20,/function modeSwitch|mode3Action|dashboardModePosition/);
+  assert.match(dash,/value: root\.linkAlive && root\.flightMode\.length \? root\.flightMode\.toUpperCase\(\) : "--"; good: root\.linkAlive; interactive:false/);
+  assert.doesNotMatch(panel,/\bsendCommand\s*\(|\bflightMode\s*=/);
+});
+test('Tabbed NAVO settings expose real camera, sonar, audio, energy and QGC controls',()=>{
+  const page=fs.readFileSync(path.join(dir,'NavoSettingsV3.qml'),'utf8');
+  const ethernet=fs.readFileSync(path.join(dir,'NavoEthernetSettings.qml'),'utf8');
+  const alerts=fs.readFileSync(path.join(dir,'NavoAlertSettings.qml'),'utf8');
+  const steering=fs.readFileSync(path.join(dir,'NavoSteeringPanel.qml'),'utf8');
+  const dashboard=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+  const cmake=fs.readFileSync(path.resolve(dir,'../CMakeLists.txt'),'utf8');
+  for(const name of ['General','Avansat','Integrare','QGroundControl'])
+    assert(page.includes('"'+name+'"'),name+' tab absent');
+  assert(!page.includes('text: "Unități"'));
+  assert.equal((page.match(/root\.settingsToolRequested\(\)/g)||[]).length,1);
+  assert.match(dashboard,/id: settingsPage\s*NavoSettingsV3\s*\{/);
+  assert.match(cmake,/qml\/NavoSettingsV3\.qml/);
+  assert.match(page,/anchors\.bottom: saveFooter\.visible \? saveFooter\.top : parent\.bottom/);
+  assert.match(page,/ethernetSettings\.saveEndpoints\(\)/);
+  assert.match(dashboard,/onSettingsToolRequested:/);
+  assert.match(ethernet,/function saveEndpoints\(\)/);
+  assert.match(ethernet,/videoTest\.start\(\)/);
+  assert.match(ethernet,/videoTest\.stop\(\)/);
+  assert.match(ethernet,/root\.sonar\.connectSonar\(\)/);
+  assert.match(ethernet,/root\.sonar\.disconnectSonar\(\)/);
+  assert.match(ethernet,/lanDiscovery\.scan\(\)/);
+  assert.match(alerts,/controller\.configure\(sound\.checked, voice\.checked, volume\.value\)/);
+  assert.match(alerts,/root\.controller\.test\(\)/);
+  assert.match(alerts,/root\.audio\.stop\(\)/);
+  assert.match(steering,/objectName: "steeringConfirmation"/);
+  assert.match(steering,/objectName: "steeringEnable"/);
+  assert.match(steering,/objectName: "steeringStop"/);
+  assert.match(page,/confirmed = false; root\.energy\.reservePercent = value/);
+  assert.match(page,/confirmed = false; root\.energy\.consumptionPercentPerKm = value/);
+  assert.doesNotMatch(page,/\bvehicle\.flightMode\s*=/);
+  assert.doesNotMatch(ethernet,/\bvehicle\.flightMode\s*=/);
+});
+test('NAVO journal tabs preserve trip persistence, frozen entry context and accessible editors',()=>{
+  const journal=fs.readFileSync(path.join(dir,'NavoFishingJournal.qml'),'utf8');
+  for(const label of ['Partide','Însemnări','Statistici','Capturi • Nădiri • Observații'])
+    assert(journal.includes('"'+label+'"'),label);
+  for(const marker of ['journalTrips','journalSummary','journalEntryFilter','journalEntries','journalEntryEditor','journalEntrySave','journalSpecies','journalWeight','journalBait','journalEntryText'])
+    assert(journal.includes('"'+marker+'"'),marker);
+  assert.match(journal,/function beginEntry\(entry\)/);
+  assert.match(journal,/function saveEntry\(\)/);
+  assert.match(journal,/persistence\.saveFishingEntry\(selectedId,data\)/);
+  assert.match(journal,/pendingEntryId=modelData\.id/);
+  assert.match(journal,/startFishingTrip\(root\.lakeId,tripTitle\.text\)/);
+  assert.match(journal,/finishFishingTrip\(root\.selectedId\)/);
+  assert.match(journal,/deleteFishingTrip\(root\.pendingDeleteId\)/);
+  assert.match(journal,/replayMode \|\| selected\.endedAt/);
+  assert.match(journal,/background: Rectangle \{ color: "#071e30"; radius: 12; border.color: "#20d9ed" \}/);
+});
+test('NAVO lake library preserves saved partitions, session replay and confirmed delete',()=>{
+  const lakes=fs.readFileSync(path.join(dir,'NavoMyLakes.qml'),'utf8');
+  const dashboard=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+  for(const tab of ['Prezentare','Sesiuni sonar','Acțiuni','Bălți salvate','Baltă activă','Administrare'])
+    assert((lakes+dashboard).includes('"'+tab+'"'),tab);
+  for(const action of ['selectLake(lake)','beginRename(lake)','beginDelete(lake)','renameCurrentLake()','deleteCurrentLake()','restoreAndOpen(destination)','sessionsForLake(id)'])
+    assert(lakes.includes(action),action);
+  for(const event of ['lakeRestored(selectedLakeId)','openLakeMap(selectedLakeId)','openLakeBathymetry(selectedLakeId)','openLakeFishingSpots(selectedLakeId)','resumeLakeScan(selectedLakeId)','root.openSession(modelData)'])
+    assert(lakes.includes(event),event);
+  assert.match(lakes,/scanCoordinator\.deleteLake\(id\)/);
+  assert.match(lakes,/scanCoordinator\.renameLake\(editLake\.id,name\)/);
+  assert.match(lakes,/scanCoordinator\.restoreLake\(selectedLakeId\)/);
+  assert.match(dashboard,/myLakesPopup\.selectLake\(modelData\)/);
+  assert.match(dashboard,/myLakesPopup\.beginRename\(modelData\)/);
+  assert.match(dashboard,/myLakesPopup\.beginDelete\(modelData\)/);
+});
+test('NAVO offline tabs keep quota, async downloads, pause/resume and delete safeguards',()=>{
+  const offline=fs.readFileSync(path.join(dir,'NavoOfflineMaps.qml'),'utf8');
+  for(const tab of ['Descarcă','Zone salvate','Informații'])
+    assert(offline.includes('"'+tab+'"'),tab);
+  for(const marker of ['offlineSetName','offlineMapType','offlineMinZoom','offlineMaxZoom'])
+    assert(offline.includes('"'+marker+'"'),marker);
+  assert.match(offline,/Math\.min\(5000,tileLimit\)/);
+  assert.match(offline,/manager\.startDownload\(name,typeChoice\.currentText\)/);
+  assert.match(offline,/manager\.findName\(name\)/);
+  assert.match(offline,/tileSet\.cancelDownloadTask\(\)/);
+  assert.match(offline,/tileSet\.resumeDownloadTask\(\)/);
+  assert.match(offline,/root\.showRegionRequested\(/);
+  assert.match(offline,/root\.manager\.deleteTileSet\(root\.pendingDelete\)/);
+  assert.match(offline,/!root\.pendingDelete\.defaultSet && !root\.pendingDelete\.downloading/);
+  assert.match(offline,/root\.validRegion/);
+});
+test('NAVO compact journal and offline layouts wrap narrow-screen actions',()=>{
+  const journal=fs.readFileSync(path.join(dir,'NavoFishingJournal.qml'),'utf8');
+  const offline=fs.readFileSync(path.join(dir,'NavoOfflineMaps.qml'),'utf8');
+  const dashboard=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+  assert.match(journal,/columns:\s*root\.width < 385 \? 2 : 3/);
+  assert.match(journal,/Flow\s*\{\s*Layout\.fillWidth:\s*true[\s\S]*?text: "Deschide însemnările"/);
+  assert.match(journal,/onClicked: root\.journalTab = 1/);
+  assert.match(offline,/columns:\s*root\.width < 370 \? 2 : 3/);
+  assert.match(offline,/columns:\s*root\.width < 460 \? 2 : 5/);
+  assert.match(offline,/columns:\s*root\.width < 440 \? 1 : 2/);
+  assert.match(offline,/id:\s*minZoom;\s*objectName:\s*"offlineMinZoom"/);
+  assert.match(offline,/id:\s*maxZoom;\s*objectName:\s*"offlineMaxZoom"/);
+  assert.match(dashboard,/id:\s*lakesPage/);
+  assert.match(dashboard,/id:\s*myLakesPopup/);
+  // No UI button can silently delete a tile set or a lake without its confirmation dialog.
+  assert.match(offline,/root\.pendingDelete=tileSet;\s*deleteDialog\.open\(\)/);
+  assert.match(dashboard,/myLakesPopup\.beginDelete\(modelData\)/);
+});
+
+test('GNSS moving-baseline yaw has explicit GPS1/GPS2 priority and H743 fallback',()=>{
+  const dirSrc=path.resolve(dir,'../src');
+  const header=fs.readFileSync(path.join(dirSrc,'NavoGnssHeading.h'),'utf8');
+  const cpp=fs.readFileSync(path.join(dirSrc,'NavoGnssHeading.cc'),'utf8');
+  const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+  const map=fs.readFileSync(path.join(dir,'NavoMap.qml'),'utf8');
+  const compass=fs.readFileSync(path.join(dir,'NavoHeadingCompass.qml'),'utf8');
+  const plugin=fs.readFileSync(path.join(dirSrc,'CustomPlugin.cc'),'utf8');
+  const cmake=fs.readFileSync(path.resolve(dir,'../CMakeLists.txt'),'utf8');
+  assert.match(plugin,/qmlRegisterType<NavoGnssHeading>/);
+  assert.match(cmake,/src\/NavoGnssHeading\.cc/);
+  assert.match(header,/Q_PROPERTY\(double selectedHeadingDeg/);
+  assert.match(header,/Q_PROPERTY\(QString headingSource/);
+  assert.match(cpp,/MAVLINK_MSG_ID_GPS_RAW_INT/);
+  assert.match(cpp,/MAVLINK_MSG_ID_GPS2_RAW/);
+  assert.match(cpp,/_observe\(_gps1, gps\.fix_type, gps\.satellites_visible, gps\.yaw\)/);
+  assert.match(cpp,/_observe\(_gps2, gps\.fix_type, gps\.satellites_visible, gps\.yaw\)/);
+  assert.doesNotMatch(cpp,/gps\.cog|gps\.hdg/); // COG is travel direction, not antenna yaw.
+  assert.match(cpp,/rawYaw >= 1 && rawYaw <= 36000/);
+  assert.match(cpp,/rawYaw == 36000 \? 0\.0/); // True north, NOT invalid.
+  assert.match(cpp,/fix >= 3 && receiver\.sats >= 4/);
+  assert.match(cpp,/lastYawMs = -1/); // Explicit invalidity revokes old heading.
+  assert.match(header,/kYawTimeoutMs = 3000/);
+  assert.match(cpp,/if \(_available\(_gps1\)\) return &_gps1/);
+  assert.match(cpp,/if \(_available\(_gps2\)\) return &_gps2/);
+  assert.match(cpp,/return _autopilotHeadingDeg;\s*\/\/ Only display fallback/);
+  assert.match(cpp,/if \(!alive\) \{/);
+  assert.match(cpp,/if \(next == _vehicle\) return/);
+  assert.match(dash,/id: gnssHeading/);
+  assert.match(dash,/headingDeg: gnssHeading\.selectedHeadingDeg/);
+  assert.equal((dash.match(/headingOverrideEnabled: true/g)||[]).length,4);
+  assert.equal((dash.match(/headingOverrideDeg: root\.headingDeg/g)||[]).length,4);
+  assert.match(map,/headingOverrideEnabled \? headingOverrideDeg/);
+  assert.match(map,/root\.boatHeadingDeg - liveMap\.bearing/);
+  assert.match(compass,/headingSource/);
+  assert.match(dash,/Heading GNSS dual-antenă/);
+  assert.match(dash,/Heading H743 \(rezervă\)/);
+  assert.doesNotMatch(cpp,/setFlightMode|sendCommand|armVehicle|disarmVehicle/);
+});
+function cancellable(options={}) {
+ const events=[];
+ const bait=context('NavoBaitingController.qml',{enabled:true,state:2,idleState:0,navigateState:1,approachState:2,
+   finalApproachState:3,settleState:4,releaseState:5,exitState:6,returnHomeState:7,completeState:8,abortedState:9,
+   targetSpeedMps:1,commandedSpeedMps:1,monitorTimer:{stop(){events.push('monitor-stop')}},
+   settleTimer:{stop(){events.push('settle-stop')}},postDropTimer:{stop(){events.push('drop-stop')}},
+   rampTimer:{running:true,stop(){this.running=false;events.push('ramp-stop')}},
+   stopRequested(){events.push('extra-hold')},stateChangedDetailed:noop,cycleFinished:noop});
+ const route=context('NavoRoutePlan.qml',{active:true,startedAtMs:0,generation:5,state:'RUNNING',changed:noop,status:noop});
+ const uploader=context('NavoMissionUploader.qml',{uploadTimeout:{stop(){events.push('upload-timer-stop')}},uploadInProgress:true,uploadVerified:true,preparedCount:8,verifiedCount:8});
+ const c=context('NavoDashboard.qml',{sonarController:{replayMode:false},linkAlive:true,awaitingMissionStart:true,directGotoActive:true,
+   areaDrawingGeneration:0,pendingAreaDrawMode:'rectangle',pendingBaitPointPick:true,pendingMode:'RTL',pendingModeLabel:'RTL',
+   routePlan:route,baitingController:bait,missionUploader:uploader,
+   digitalAnchor:{release(){events.push('anchor-release')}},scanCoordinator:{cancel(){events.push('scan-cancel')}},
+   hopperBridge:{commandPending:false,leftOpen:false,rightOpen:false,closePending(){events.push('close')}},
+   vehicle:{flightMode:'RTL',pauseFlightMode:'HOLD',pauseVehicle(){events.push('hold')}},...options});
+ return {c,bait,route,uploader,events};
+}
+test('Cancel stops bait timers, route generation and pending upload/START before one HOLD',()=>{
+ const {c,bait,route,uploader,events}=cancellable();assert(c.cancelCurrentAction());
+ assert.equal(route.active,false);assert.equal(route.generation,6);assert.equal(bait.enabled,false);
+ for(const e of ['monitor-stop','settle-stop','drop-stop','ramp-stop','scan-cancel','upload-timer-stop'])assert(events.includes(e));
+ assert.equal(events.filter(e=>e==='hold').length,1);assert(!events.includes('extra-hold'));
+ assert.equal(c.awaitingMissionStart,false);assert.equal(c.directGotoActive,false);assert.equal(c.pendingBaitPointPick,false);
+ assert.equal(uploader.uploadInProgress,false);assert.equal(uploader.uploadVerified,false);assert.equal(uploader.preparedCount,0);
+ assert.equal(c.pendingMode,'HOLD');assert.match(c.lastNavigationStatus,/aștept confirmarea/);
+});
+test('Cancel RTL stops a leftover speed ramp even after bait cycle reports finished',()=>{
+ const {c,bait,events}=cancellable();bait.enabled=false;bait.state=7;
+ assert(c.cancelCurrentAction());assert(events.includes('ramp-stop'));assert.equal(bait.state,9);
+});
+test('Link loss cancels local actions without sending HOLD or hopper commands',()=>{
+ const {c,bait,uploader,events}=cancellable({linkAlive:false});c.hopperBridge.commandPending=true;
+ assert.equal(c.cancelCurrentAction(),false);assert.equal(bait.enabled,false);assert.equal(uploader.preparedCount,0);
+ assert(!events.includes('hold'));assert(!events.includes('close'));assert.match(c.lastNavigationStatus,/nu este confirmată/);
+});
+test('Cancellation during release requests closure and never opens another hopper',()=>{
+ const {c,events}=cancellable();c.hopperBridge.commandPending=true;
+ assert(c.cancelCurrentAction());assert.equal(events.filter(e=>e==='close').length,1);
+});
+test('Replay suspends local continuation without sending live HOLD or hopper commands',()=>{
+ const {c,bait,events}=cancellable({sonarController:{replayMode:true}});
+ assert.equal(c.cancelCurrentAction(),false);assert.equal(bait.enabled,false);assert(!events.includes('hold'));assert(!events.includes('close'));
+});
+test('Late upload completion cannot revalidate or auto-start a cancelled mission',()=>{
+ const {c,uploader}=cancellable();c.cancelCurrentAction();
+ const source=fs.readFileSync(path.join(dir,'NavoMissionUploader.qml'),'utf8');
+ const start=source.indexOf('function(success)',source.indexOf('onUploadCompleted:'));
+ vm.runInContext('('+callable(source,start)+')(true)',uploader);
+ assert.equal(uploader.uploadVerified,false);assert.equal(uploader.preparedCount,0);assert.equal(c.awaitingMissionStart,false);
+});
+function clearable() {
+ const a=area();a.generatedPoints=[coord(52,0),coord(52,.001)];a.completedLanes=[0];a.activeLaneIndex=0;a.paused=true;
+ const sonar={scanning:true,paused:true,currentLane:1,completedLanes:1,totalLanes:2,rawSamples:[{depth:3}],trackCoordinates:[coord(52,0)]};
+ const c=context('NavoScanCoordinator.qml',{vehicle:null,areaScan:a,sonarMapping:sonar,readOnlyReplay:false,routePlan:{active:false},
+  state:'PAUSED',lakeId:'lake-A',areaPoints:a.generatedPoints,missionLanes:[0],missionWaypointCount:2,missionCurrentIndex:2,
+  lastCompletedLaneFromMission:0,lastCompletedRouteLaneFromMission:0,bathymetryCells:[{depth:3}],nativeSurfaceMesh:{indices:[0,1,2]},status:noop});
+ c.checkpoint=()=>true;return {c,a,sonar};
+}
+test('Cancel Area Scan preserves geometry, completed lanes and samples for explicit Resume',()=>{
+ const {c,a,sonar}=clearable();c.state='SCANNING';sonar.paused=false;
+ a.safetyActionRequested=noop;sonar.pauseScan=()=>{sonar.paused=true};
+ assert(c.cancel('User cancel'));assert.equal(c.state,'PAUSED');assert.equal(a.generatedPoints.length,2);
+ assert.equal(a.completedLanes.length,1);assert.equal(sonar.rawSamples.length,1);assert.equal(sonar.paused,true);
+});
+test('Clear old Area Scan removes only geometry/progress and saves an empty checkpoint',()=>{
+ const {c,a,sonar}=clearable();let saved=false;
+ c.checkpoint=reason=>{assert.equal(reason,'area-cleared');assert.equal(c.areaPoints.length,0);assert.equal(c.missionWaypointCount,0);saved=true;return true};
+ assert(c.clearArea());assert(saved);assert.equal(c.state,'IDLE');assert.equal(a.generatedPoints.length,0);
+ assert.equal(a.completedLanes.length,0);assert.equal(a.activeLaneIndex,-1);assert.equal(sonar.scanning,false);
+ assert.equal(sonar.rawSamples.length,1);assert.equal(sonar.trackCoordinates.length,1);assert.equal(c.bathymetryCells.length,1);assert.equal(c.nativeSurfaceMesh.indices.length,3);
+});
+test('Replay transition pauses live scan locally without changing its saved lake',()=>{
+ const {c,a,sonar}=clearable();c.readOnlyReplay=true;c.state='SCANNING';sonar.paused=false;
+ c.checkpoint=()=>{throw Error('Replay must not write the live lake')};
+ assert(c.cancel('Replay'));assert.equal(c.state,'PAUSED');assert.equal(a.paused,true);assert.equal(sonar.paused,true);
+ assert.equal(sonar.rawSamples.length,1);assert.equal(a.generatedPoints.length,2);
+});
+test('Failed geometry save restores area, resume progress and sonar state',()=>{
+ const {c,a,sonar}=clearable();c.checkpoint=()=>false;
+ assert.equal(c.clearArea(),false);assert.equal(c.state,'PAUSED');assert.equal(c.areaPoints.length,2);
+ assert.equal(a.generatedPoints.length,2);assert.equal(a.completedLanes.length,1);assert.equal(a.activeLaneIndex,0);
+ assert.equal(sonar.scanning,true);assert.equal(sonar.paused,true);assert.equal(c.missionWaypointCount,2);
+});
+test('Clear is blocked during active scan, pending start, RTL, active route and replay',()=>{
+ for(const state of ['SCANNING','READY','RESUME_READY','RTL']){
+  const {c,a}=clearable();c.state=state;assert.equal(c.clearArea(),false);assert.equal(a.generatedPoints.length,2);
+ }
+ for(const flag of ['readOnlyReplay','route']){
+  const {c,a}=clearable();if(flag==='route')c.routePlan.active=true;else c.readOnlyReplay=true;
+  assert.equal(c.clearArea(),false);assert.equal(a.generatedPoints.length,2);
+ }
+});
+test('Dashboard deletion rechecks the guard and resets every map only after persisted success',()=>{
+ let saved=false,invalidated=0;
+ const c=context('NavoDashboard.qml',{canClearArea:false,areaDrawingGeneration:4,pendingAreaDrawMode:'rectangle',
+ scanCoordinator:{clearArea:()=>saved},missionUploader:{invalidate(){invalidated++}}});
+ assert.equal(c.clearAreaScan(),false);c.canClearArea=true;assert.equal(c.clearAreaScan(),false);assert.equal(invalidated,0);
+ saved=true;assert(c.clearAreaScan());assert.equal(c.areaDrawingGeneration,5);assert.equal(c.pendingAreaDrawMode,'none');assert.equal(invalidated,1);
+ const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');assert.equal((dash.match(/areaDrawingGeneration: root\.areaDrawingGeneration/g)||[]).length,4);
+ const map=context('NavoMap.qml',{areaDraftPoints:[1,2],lastAreaOutline:[1,2,3],areaDrawMode:'rectangle',rectangleDragCorner:1});
+ map.clearAreaDrawing();assert.equal(map.lastAreaOutline.length,0);assert.equal(map.areaDraftPoints.length,0);assert.equal(map.areaDrawMode,'none');
+});
+test('RTL cancellation remains reachable and Area Scan controls explain hover and touch',()=>{
+ const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8'),map=fs.readFileSync(path.join(dir,'NavoMap.qml'),'utf8'),strip=fs.readFileSync(path.join(dir,'NavoMissionStatus.qml'),'utf8');
+ assert.match(dash,/visible:root\.actionActive \|\| root\.activePage===2/);assert.match(dash,/cancelText:root\.rtlActive \? "ANULEAZĂ RTL"/);
+ assert.match(strip,/onClicked:root\.cancelRequested\(\)/);assert.match(strip,/enabled:root\.cancelAvailable/);
+ assert.match(dash,/onPressed:helpTimer\.restart\(\)/);assert.match(dash,/scanHover\.hovered \|\| scanButton\.down \|\| helpTimer\.running/);
+ assert.match(map,/onPressed: root\.showToolHelp\(ToolTip\.text\)/);assert.match(map,/interval:4000/);
+ assert.match(dash,/if\(areaScanMap && root\.pendingAreaDrawMode==="rectangle"\)/);
+});
+function editableSpot() {
+ const original={id:'s',name:'Old',lat:52,lon:-1,depth:null,temp:null,note:'old',color:'#31d67b',createdAt:123,sonarEvidence:{samples:9}};
+ let updates=0;
+ const model=context('NavoFishingSpots.qml',{fishingSpots:[original],spotUpdated:()=>updates++});
+ const fields={name:' New ',lat:53.1,lon:-2.1,depth:4.2,temp:12.5,note:'mud',color:'#ef4444'};
+ return {model,original,fields,updates:()=>updates};
+}
+test('Complete spot edit updates GPS and metadata together, preserving identity and sonar',()=>{
+ const {model,original,fields,updates}=editableSpot();assert(model.updateSpot('s',fields));
+ const s=model.fishingSpots[0];assert.equal(s.name,'New');assert.equal(s.lat,53.1);assert.equal(s.lon,-2.1);
+ assert.equal(s.depth,4.2);assert.equal(s.temp,12.5);assert.equal(s.note,'mud');assert.equal(s.color,'#ef4444');
+ assert.equal(s.createdAt,123);assert.equal(s.id,'s');assert.equal(s.sonarEvidence,original.sonarEvidence);
+ assert.equal(original.name,'Old');assert.equal(updates(),1);
+});
+test('Invalid spot fields and missing IDs leave the entire original record untouched',()=>{
+ for(const patch of [{name:''},{lat:91},{lat:NaN},{lat:'52'},{lon:-181},{lon:Infinity},{depth:-1},{depth:''},{temp:NaN},{color:'red'},{note:null}]){
+  const {model,original,fields,updates}=editableSpot();assert.equal(model.updateSpot('s',{...fields,...patch}),false);
+  assert.equal(model.fishingSpots[0],original);assert.equal(updates(),0);
+ }
+ const {model,fields,updates}=editableSpot();assert.equal(model.updateSpot('deleted',fields),false);assert.equal(updates(),0);
+});
+test('Unknown depth/temperature remain null, while measured zero is preserved',()=>{
+ const {model,fields}=editableSpot();assert(model.updateSpot('s',{...fields,depth:null,temp:null}));assert.equal(model.fishingSpots[0].depth,null);
+ assert(model.updateSpot('s',{...fields,depth:0,temp:0}));assert.equal(model.fishingSpots[0].depth,0);assert.equal(model.fishingSpots[0].temp,0);
+});
+function spotEditPage(save=true){
+ const {model,original}=editableSpot();let closed=false,writes=0;
+ const page=context('NavoDashboard.qml',{actionActive:false,missionBusy:false,steeringModeBusy:false,sonar:{replayMode:false},
+  spotEditLakeId:'lake',spotEditId:'s',spotEditColor:'#ef4444',fishingSpots:model,
+  scanCoordinator:{lakeId:'lake',checkpoint(){writes++;return save}},
+  spotName:{text:'New'},spotLatitude:{text:'53,25'},spotLongitude:{text:'-2.5'},spotDepth:{text:''},spotTemperature:{text:'0'},spotNote:{text:'note'},
+  spotEditDialog:{errorText:'',close(){closed=true}}});
+ return {page,model,original,closed:()=>closed,writes:()=>writes};
+}
+test('Editor parses comma decimals and refuses blank GPS or trailing garbage',()=>{
+ const {page}=spotEditPage();assert.equal(page.spotNumber('53,25'),53.25);assert.equal(page.spotNumber(' -2.5 '),-2.5);
+ for(const value of ['', ' ', '12junk', '0x10','1,2,3','Infinity'])assert(Number.isNaN(page.spotNumber(value)));
+});
+test('Editor persists all fields once and closes only on checkpoint success',()=>{
+ const {page,model,closed,writes}=spotEditPage();assert(page.saveSpotEdit());assert(closed());assert.equal(writes(),1);
+ assert.equal(model.fishingSpots[0].lat,53.25);assert.equal(model.fishingSpots[0].depth,null);assert.equal(model.fishingSpots[0].temp,0);
+});
+test('Disk failure rolls back the spot and keeps editor input for retry',()=>{
+ const {page,model,original,closed}=spotEditPage(false);assert.equal(page.saveSpotEdit(),false);
+ assert.equal(model.fishingSpots[0],original);assert.equal(closed(),false);assert.equal(page.spotName.text,'New');assert.match(page.spotEditDialog.errorText,/eșuat/);
+});
+test('Lake changes, replay and actions begun during editing block save',()=>{
+ for(const flag of ['lake','replay','actionActive','missionBusy','steeringModeBusy']){
+  const {page,model,original,writes}=spotEditPage();
+  if(flag==='lake')page.scanCoordinator.lakeId='other';else if(flag==='replay')page.sonar.replayMode=true;else page[flag]=true;
+  assert.equal(page.saveSpotEdit(),false);assert.equal(model.fishingSpots[0],original);assert.equal(writes(),0);
+ }
+});
+test('QML-creatable backend classes permit the Qt QQmlElement wrapper to derive',()=>{
+ const src=path.join(dir,'../src');
+ const plugin=fs.readFileSync(path.join(src,'CustomPlugin.cc'),'utf8');
+ const headers=fs.readdirSync(src).filter(n=>n.endsWith('.h')).map(n=>fs.readFileSync(path.join(src,n),'utf8')).join('\n');
+ for(const match of plugin.matchAll(/qmlRegisterType<([A-Za-z_][A-Za-z_0-9]*)>/g)) {
+  const name=match[1];
+  assert(!new RegExp('class\\s+'+name+'\\s+final\\b').test(headers), name+' cannot be final when registered with qmlRegisterType');
+ }
+});
 console.log(`${passed} regression scenarios passed`);
+

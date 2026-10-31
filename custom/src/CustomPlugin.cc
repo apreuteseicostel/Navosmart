@@ -9,6 +9,7 @@
 #include "NavoEthernetTransport.h"
 #include "NavoLanDiscovery.h"
 #include "NavoH743Telemetry.h"
+#include "NavoGnssHeading.h"
 #include "NavoBathymetryMesh.h"
 #include "NavoBathymetryGeometry.h"
 #include "NavoTrack3DGeometry.h"
@@ -50,6 +51,7 @@ CustomPlugin::CustomPlugin(QObject* parent):QGCCorePlugin(parent),_options(new C
  qmlRegisterType<NavoEthernetTransport>("NavoSmart.Backend",1,0,"NavoEthernetTransport");
  qmlRegisterType<NavoLanDiscovery>("NavoSmart.Backend",1,0,"NavoLanDiscovery");
  qmlRegisterType<NavoH743Telemetry>("NavoSmart.Backend",1,0,"NavoH743Telemetry");
+ qmlRegisterType<NavoGnssHeading>("NavoSmart.Backend",1,0,"NavoGnssHeading");
  qmlRegisterType<NavoBathymetryMesh>("NavoSmart.Backend",1,0,"NavoBathymetryMesh");
  qmlRegisterType<NavoBathymetryGeometry>("NavoSmart.Backend",1,0,"NavoBathymetryGeometry");
  qmlRegisterType<NavoTrack3DGeometry>("NavoSmart.Backend",1,0,"NavoTrack3DGeometry");

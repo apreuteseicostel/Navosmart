@@ -40,6 +40,7 @@ Item {
     }
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
     property var planController: _planController
+    readonly property var settingsAlertsController: alerts
     readonly property var mapBaitingController: baitingController
     readonly property var mapAreaScanController: areaScanController
 
@@ -256,6 +257,18 @@ Item {
     property bool missionScanSelected: true
     property real scanEstimateSpeedMps: 1.5
     readonly property bool missionBusy: routePlan.active || baitingController.enabled || scanCoordinator.state==="SCANNING" || root.awaitingMissionStart || missionUploader.uploadInProgress
+    property bool directGotoActive: false
+    property int areaDrawingGeneration: 0
+    readonly property bool rtlActive: root.pendingModeLabel==="RTL" && root.pendingMode.length>0 ||
+        ["RTL","SMARTRTL","SMART_RTL"].indexOf(String(root.flightMode).toUpperCase())>=0 ||
+        (!!root.vehicle && !!root.vehicle.rtlFlightMode && String(root.flightMode).toUpperCase()===String(root.vehicle.rtlFlightMode).toUpperCase())
+    readonly property bool actionActive: root.missionBusy || root.directGotoActive || root.rtlActive ||
+        root.pendingMode.length>0 || ["AUTO","GUIDED"].indexOf(String(root.flightMode).toUpperCase())>=0
+    readonly property bool canClearArea: !sonar.replayMode && !root.actionActive &&
+        ["READY","RESUME_READY","RTL"].indexOf(scanCoordinator.state)<0 &&
+        (!sonarMapping.scanning || sonarMapping.paused) && !root.awaitingMissionStart && !missionUploader.uploadInProgress &&
+        !(root.planController && (root.planController.syncInProgress ||
+          (root.planController.missionController && root.planController.missionController.syncInProgress)))
     readonly property var scanEstimate: {
         var points=areaScanController.generatedPoints
         var origin=root.vehicle ? root.vehicle.coordinate : null
@@ -495,7 +508,7 @@ Item {
     }
     property bool awaitingMissionStart: false
     property string areaScanFinishAction: "HOLD"
-    onVehicleChanged: { if(routePlan && routePlan.active) routePlan.cancel("Autopilot schimbat"); proBoatTrack=[]; awaitingMissionStart=false; if(baitingController && baitingController.enabled) baitingController.abortCycle("Autopilot schimbat"); if(scanCoordinator && scanCoordinator.state==="SCANNING") scanCoordinator.pause("Autopilot schimbat") }
+    onVehicleChanged: { directGotoActive=false; if(routePlan && routePlan.active) routePlan.cancel("Autopilot schimbat"); proBoatTrack=[]; awaitingMissionStart=false; if(baitingController && baitingController.enabled) baitingController.abortCycle("Autopilot schimbat"); if(scanCoordinator && scanCoordinator.state==="SCANNING") scanCoordinator.pause("Autopilot schimbat") }
     property string pendingMode: ""
     property string pendingModeLabel: ""
     Timer {
@@ -503,6 +516,7 @@ Item {
         onTriggered: { root.lastNavigationStatus=root.pendingModeLabel+" fără confirmare autopilot"; root.pendingMode="" }
     }
     onFlightModeChanged: {
+        if(String(flightMode).toUpperCase()!=="GUIDED") directGotoActive=false
         if(pendingMode.length && flightMode.toUpperCase()===pendingMode.toUpperCase()) {
             lastNavigationStatus="Autopilot confirmă "+pendingModeLabel; pendingMode=""
         }
@@ -527,6 +541,7 @@ Item {
     property real distanceToTarget: vehicle && vehicle.distanceToGoal ? vehicle.distanceToGoal.rawValue : 0
     property string boatId: "NAV0001"
     property int activePage: 0
+    property bool showHomeCredit: false
     property bool hopperStatusExpanded: false
     property bool mapFullscreen: false
     property bool headingOverlayOpen: false
@@ -561,7 +576,8 @@ Item {
     property color ok: "#47d16c"
     property color warn: "#ffc857"
     property color danger: "#ff5c5c"
-    readonly property real headingDeg: vehicle && vehicle.heading && isFinite(Number(vehicle.heading.rawValue)) ? Number(vehicle.heading.rawValue) : NaN
+    readonly property real headingDeg: gnssHeading.selectedHeadingDeg
+    readonly property string headingSource: gnssHeading.headingSource
     readonly property real rollDeg: vehicle && vehicle.roll && isFinite(Number(vehicle.roll.rawValue)) ? Number(vehicle.roll.rawValue) : NaN
     readonly property real pitchDeg: vehicle && vehicle.pitch && isFinite(Number(vehicle.pitch.rawValue)) ? Number(vehicle.pitch.rawValue) : NaN
     readonly property real waypointBearingDeg: {
@@ -671,6 +687,16 @@ Item {
         vehicle: root.vehicle
         v3Profile: true // NAVO V3 receives only NV3* messages from H743
     }
+    // Display-only priority: GPS_RAW_INT / GPS2_RAW yaw when valid and fresh;
+    // otherwise the H743's normal vehicle.heading. EKF/mode/failsafes untouched.
+    NavoGnssHeading {
+        id: gnssHeading
+        vehicle: root.vehicle
+        linkAlive: root.linkAlive
+        autopilotHeadingDeg: root.vehicle && root.vehicle.heading &&
+            isFinite(Number(root.vehicle.heading.rawValue))
+                ? Number(root.vehicle.heading.rawValue) : NaN
+    }
     NavoHopperBridge {
         id: hopperBridge
         onboardTiming: h743Telemetry.v3Profile
@@ -731,14 +757,6 @@ Item {
         if(action==="CAMERA") { activePage=5; cameraFullscreen=!cameraFullscreen; lastNavigationStatus="G20 "+control+" • CAMERA FAȚĂ"; return }
         if(action==="HOLD") { holdMission(); lastNavigationStatus="G20 "+control+" • HOLD"; return }
         if(action==="RTL") { homeRtlConfirm.open(); lastNavigationStatus="G20 "+control+" • confirmă RTL / ACASĂ"; return }
-        if(action==="MANUAL") {
-            if(vehicle) { vehicle.flightMode="Manual"; pendingMode="Manual"; pendingModeLabel="MANUAL"; lastNavigationStatus="G20 • MANUAL solicitat" }
-            return
-        }
-        if(action==="AUTO") {
-            lastNavigationStatus="G20 • AUTO selectat • folosește START pentru pornirea misiunii"
-            return
-        }
         if(action==="FAR") { commandH743Light(1,2,"Far"); return }
         if(action==="POZITII") { commandH743Light(2,2,"Poziții"); return }
     }
@@ -951,22 +969,92 @@ Item {
         return true
     }
     function stopMission() {
-        if(routePlan.active) routePlan.cancel("STOP utilizator")
+        return root.cancelCurrentAction()
+    }
+    function cancelCurrentAction() {
+        var liveAllowed=root.allowLiveAction()
+        // Stop local producers before callbacks can queue another leg/drop/START.
         root.awaitingMissionStart = false
-        if(baitingController.enabled) baitingController.abortCycle("STOP utilizator")
+        root.directGotoActive = false
+        root.pendingBaitPointPick = false
+        root.pendingAreaDrawMode = "none"
+        root.areaDrawingGeneration++
+        if(routePlan.active) routePlan.cancel("Acțiune anulată de utilizator")
+        if(baitingController.enabled || baitingController.state===baitingController.returnHomeState || baitingController.rampTimer.running)
+            baitingController.abortCycle("Nădire anulată de utilizator", true)
         digitalAnchor.release()
-        if(scanCoordinator.state==="SCANNING") scanCoordinator.pause("STOP utilizator")
-        else if(scanCoordinator.state==="READY" || scanCoordinator.state==="RESUME_READY") {
-            areaScanController.hold("STOP înainte de START", root.vehicle && root.vehicle.coordinate ? root.vehicle.coordinate : null)
-            scanCoordinator.state="PAUSED"
-            scanCoordinator.checkpoint("stop-before-start")
-        }
+        scanCoordinator.cancel("Area Scan anulat de utilizator")
         missionUploader.invalidate()
-        if (!vehicle || !vehicle.pauseVehicle) { root.lastNavigationStatus = "STOP indisponibil: autopilot deconectat"; return false }
+        root.pendingMode=""; root.pendingModeLabel=""
+        if(!liveAllowed) {
+            root.lastNavigationStatus="Continuarea locală anulată • replay activ; HOLD netrimis, verifică H743"
+            return false
+        }
+        // Close an already requested release; cancellation cannot undo bait released.
+        if(root.linkAlive && (hopperBridge.commandPending || hopperBridge.leftOpen || hopperBridge.rightOpen))
+            hopperBridge.closePending()
+        if (!root.linkAlive || !vehicle || !vehicle.pauseVehicle) {
+            root.lastNavigationStatus = "Acțiunea locală anulată • HOLD netrimis: H743 indisponibil; oprirea bărcii nu este confirmată"
+            return false
+        }
         vehicle.pauseVehicle()
-        root.pendingMode=vehicle.pauseFlightMode; root.pendingModeLabel="STOP (HOLD)"
-        root.lastNavigationStatus = "Comandă STOP/HOLD trimisă • aștept confirmarea autopilotului"
+        root.pendingMode=vehicle.pauseFlightMode; root.pendingModeLabel="ANULARE (HOLD)"
+        root.lastNavigationStatus = "Acțiune anulată în aplicație • HOLD trimis; aștept confirmarea H743"
+        if(String(vehicle.flightMode).toUpperCase()===String(vehicle.pauseFlightMode).toUpperCase()) {
+            root.pendingMode=""
+            root.lastNavigationStatus="Acțiune anulată • H743 raportează HOLD"
+        }
         return true
+    }
+    function clearAreaScan() {
+        if(!root.canClearArea) { root.lastNavigationStatus="Anulează acțiunea și așteaptă HOLD înainte de ștergerea zonei"; return false }
+        if(!scanCoordinator.clearArea()) return false
+        missionUploader.invalidate()
+        root.pendingAreaDrawMode="none"
+        root.areaDrawingGeneration++
+        root.lastNavigationStatus="Zona și culoarele Area Scan șterse • măsurătorile sonar păstrate"
+        return true
+    }
+    Dialog {
+        id:clearAreaConfirm;objectName:"scanClearConfirm"
+        parent:Overlay.overlay;anchors.centerIn:parent;modal:true
+        width:Math.min(360,parent.width-24);height:Math.min(226,parent.height-24)
+        padding:12;closePolicy:Popup.CloseOnEscape
+        title:"Ștergi zona Area Scan?"
+        onOpened:clearAreaCancel.forceActiveFocus()
+        background:Rectangle { radius:12;color:"#071e30";border.color:"#27cddd" }
+        header:Label {
+            text:clearAreaConfirm.title;color:"#eff9ff";font.bold:true;font.pixelSize:16
+            leftPadding:12;rightPadding:12;topPadding:12;bottomPadding:8
+            background:Rectangle { color:"#071e30";radius:12 }
+        }
+        contentItem:ScrollView {
+            id:clearAreaText;clip:true;contentWidth:availableWidth
+            ScrollBar.horizontal.policy:ScrollBar.AlwaysOff
+            Label {
+                width:clearAreaText.availableWidth;wrapMode:Text.WordWrap;color:"#c1d7e6";font.pixelSize:12
+                text:"Se șterg chenarul, culoarele și progresul scanării.\n\nMăsurătorile sonar, batimetria și punctele salvate se păstrează."
+            }
+        }
+        footer:Item {
+            implicitHeight:54
+            RowLayout {
+                anchors.fill:parent;anchors.margins:10;spacing:8
+                Button {
+                    id:clearAreaCancel;objectName:"scanClearCancel";text:"Renunță";Layout.fillWidth:true;implicitHeight:36
+                    contentItem:Label { text:parent.text;color:"#eff9ff";horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter }
+                    background:Rectangle { radius:7;color:parent.down ? "#254b60" : "#142c3c";border.color:parent.activeFocus ? "#67dfdc" : "#316078" }
+                    onClicked:clearAreaConfirm.reject()
+                }
+                Button {
+                    objectName:"scanClearAccept";text:"Șterge zona";Layout.fillWidth:true;implicitHeight:36;enabled:root.canClearArea
+                    contentItem:Label { text:parent.text;color:parent.enabled ? "#ffffff" : "#9aaebd";horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter }
+                    background:Rectangle { radius:7;color:parent.down ? "#a72d37" : "#72212b";border.color:"#ff8793";opacity:parent.enabled ? 1 : .45 }
+                    onClicked:clearAreaConfirm.accept()
+                }
+            }
+        }
+        onAccepted:root.clearAreaScan()
     }
     function saveSonarPoint(pro, entry, name, note, prepare) {
         if(!pro.sonarPointValid(entry) || entry.lakeId!==scanCoordinator.lakeId || !root.requireActiveLakeForPointSave()) {
@@ -1062,6 +1150,7 @@ Item {
         if(!root.checkEnergyForRoute([c]))return false
         digitalAnchor.release()
         vehicle.guidedModeGotoLocation(c)
+        root.directGotoActive = true
         root.lastNavigationStatus = "Comandă GUIDED trimisă către punct"
         return true
     }
@@ -1106,48 +1195,94 @@ Item {
 
     Rectangle { anchors.fill: parent; color: root.bg }
 
+    // Credits appear only after the user presses the NAVO SMART home branding.
+    Rectangle {
+        visible: root.showHomeCredit && root.activePage === 0 && !root.mapMaximized
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 3
+        width: Math.min(root.width - 30, homeCredit.implicitWidth + 30)
+        height: 23
+        radius: 8
+        color: "#071926"
+        border.color: "#13617a"
+        z: 1900
+        Label {
+            id: homeCredit
+            anchors.centerIn: parent
+            text: "build and design by Costel Apreutesei"
+            color: "#7edff2"
+            font.pixelSize: 11
+        }
+    }
+
     Rectangle {
         id: header
+        // Reserve the final compass before sizing telemetry, so it remains on screen.
+        readonly property real sideMargin: root.width < 1000 ? 8 : 12
+        readonly property real itemGap: root.width < 1000 ? 5 : 8
+        readonly property real brandWidth: root.width < 1000 ? 136 : 164
+        readonly property real compassWidth: root.activePage===2 ? 40 : 46
+        readonly property real telemetryScale: Math.max(0.76, Math.min(1,
+            (width - 2*sideMargin - brandWidth - compassWidth - 8*itemGap - 8) / 551))
         visible: root.activePage !== 10 && !(root.activePage===2 && root.mapMaximized)
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
         height: root.activePage===2 ? (root.mapMaximized ? 0 : 48) : 64
-        color: "#101822"; border.color: root.line; z: 2000
+        color: "#071926"; border.color: "#13617a"; z: 2000
         Flickable {
             anchors.fill: parent
-            clip: false
-            contentWidth: Math.max(width, headerItems.implicitWidth + 32)
+            clip: true
+            contentWidth: Math.max(width, headerItems.implicitWidth + 2*header.sideMargin)
             contentHeight: height
             boundsBehavior: Flickable.StopAtBounds
         RowLayout {
             id: headerItems
-            x: 16; height: parent.height; spacing: 8
+            x: header.sideMargin; height: parent.height; spacing: header.itemGap
             Item {
-                Layout.preferredWidth: 150
-                Layout.preferredHeight: titleLabels.implicitHeight
-                ColumnLayout {
-                    id: titleLabels
+                Layout.preferredWidth: header.brandWidth
+                Layout.minimumWidth: header.brandWidth
+                Layout.maximumWidth: header.brandWidth
+                Layout.preferredHeight: 48
+                RowLayout {
                     anchors.fill: parent
-                    spacing: 0
-                    Label { text: "NAVO SMART"; color: root.text; font.pixelSize: root.activePage===2 ? 18 : 22; font.bold: true }
-                    Label { visible:root.activePage!==2; text: "Pescarul lu Peste"; color: root.muted; font.pixelSize: 11 }
+                    spacing: 5
+                    Image {
+                        source: "qrc:/qml/NavoSmart/icons/navo-brand.svg"
+                        Layout.preferredWidth: root.activePage===2 ? 26 : 28
+                        Layout.preferredHeight: root.activePage===2 ? 26 : 28
+                        fillMode: Image.PreserveAspectFit
+                    }
+                    ColumnLayout {
+                        id: titleLabels
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        spacing: 1
+                        Label { Layout.fillWidth:true; text: "NAVO SMART"; color: root.text; font.pixelSize: root.width < 1000 ? 14 : 16; font.bold: true }
+                        Label { visible:root.activePage!==2; text: "Pescaru' lu' Pește"; color: "#7edff2"; font.pixelSize: 10 }
+                    }
                 }
-                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.mapMaximized=false; root.activePage=0 } }
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: { root.mapMaximized=false; root.activePage=0; root.showHomeCredit=true }
+                }
             }
-            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/satellite.svg"; title: "SATELIȚI"; value: vehicle && vehicle.gps ? String(vehicle.gps.count.rawValue) : "--"; good: vehicle && vehicle.gps && Number(vehicle.gps.lock.rawValue) >= 3; interactive:true; onClicked:gnssDiagnostic.open() }
-            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/home.svg"; title: "HOME"; value: Number(root.distanceToHome).toFixed(0) + " m"; good: !!vehicle; interactive:true
+            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/satellite.svg"; title: "SATELIȚI"; value: vehicle && vehicle.gps ? String(vehicle.gps.count.rawValue) : "--"; good: root.linkAlive && vehicle.gps && Number(vehicle.gps.lock.rawValue)>=3 && isFinite(Number(vehicle.gps.count.rawValue)) && Number(vehicle.gps.count.rawValue)>=0 && Number(vehicle.gps.count.rawValue)<255; interactive:true; onClicked:gnssDiagnostic.open() }
+            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/home.svg"; title: "HOME"; value: Number(root.distanceToHome).toFixed(0) + " m"; good: root.linkAlive && vehicle.homePosition && vehicle.homePosition.isValid && vehicle.coordinate && vehicle.coordinate.isValid && vehicle.distanceToHome && isFinite(Number(vehicle.distanceToHome.rawValue)); interactive:true
                 onClicked: { root.activePage=0; Qt.callLater(function(){ if(root.mapController && root.mapController.centerHome && !root.mapController.centerHome()) root.lastNavigationStatus="HOME indisponibil" }) }
                 onPressAndHold: { if(!root.vehicle || !root.vehicle.homePosition || !root.vehicle.homePosition.isValid || !root.vehicle.coordinate || !root.vehicle.coordinate.isValid || !root.vehicle.gps || root.vehicle.gps.lock.rawValue<3) root.lastNavigationStatus="RTL blocat: HOME/GPS invalid"; else homeRtlConfirm.open() }
             }
-            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/speed.svg"; title: "VITEZĂ"; value: vehicle && vehicle.groundSpeed ? Number(vehicle.groundSpeed.rawValue * 3.6).toFixed(1) + " km/h" : "--"; good: !!vehicle }
-            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/target.svg"; title: "ȚINTĂ"; value: root.distanceToTarget > 0 ? Number(root.distanceToTarget).toFixed(0) + " m" : "--"; good: root.distanceToTarget > 0 }
-            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/battery.svg"; title: "BATERIE"; value: battery ? Number(battery.percentRemaining.rawValue).toFixed(0) + "%" : "--"; good: battery && battery.percentRemaining.rawValue > 20 }
-            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/temp.svg"; title: "TEMP"; value: h743Telemetry.connected && !isNaN(h743Telemetry.batteryTempC) ? Number(h743Telemetry.batteryTempC).toFixed(1) + "°" : "--"; good: h743Telemetry.connected && safetyManager.state !== "CRITICAL" }
-            StatusPill { pillWidth: 58; iconSource:"qrc:/qml/NavoSmart/icons/mode.svg"; title: "MOD"; value: root.flightMode.length ? root.flightMode : "OFF"; good: vehicle !== null }
+            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/speed.svg"; title: "VITEZĂ"; value: vehicle && vehicle.groundSpeed ? Number(vehicle.groundSpeed.rawValue * 3.6).toFixed(1) + " km/h" : "--"; good: root.linkAlive && vehicle.groundSpeed && isFinite(Number(vehicle.groundSpeed.rawValue)) }
+            StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/target.svg"; title: "ȚINTĂ"; value: root.distanceToTarget > 0 ? Number(root.distanceToTarget).toFixed(0) + " m" : "--"; good: root.linkAlive && isFinite(root.distanceToTarget) && root.distanceToTarget > 0 }
+            StatusPill { pillWidth:82; iconSource:"qrc:/qml/NavoSmart/icons/battery.svg"; title: "BATERIE"; value: root.linkAlive && battery && battery.percentRemaining && isFinite(Number(battery.percentRemaining.rawValue)) && Number(battery.percentRemaining.rawValue)>=0 ? Number(battery.percentRemaining.rawValue).toFixed(0) + "%" : "--"; good: root.linkAlive && battery && battery.percentRemaining && Number(battery.percentRemaining.rawValue)>20; interactive:true; onClicked:dashboardDetails.showSection("battery") }
+            StatusPill { pillWidth:77; iconSource:"qrc:/qml/NavoSmart/icons/temp.svg"; title: "TEMP"; value: h743Telemetry.connected && h743Telemetry.temperatureValid && isFinite(h743Telemetry.batteryTempC) ? Number(h743Telemetry.batteryTempC).toFixed(1) + "°" : "--"; good: h743Telemetry.connected && h743Telemetry.temperatureValid && safetyManager.state !== "CRITICAL"; interactive:true; onClicked:dashboardDetails.showSection("temperature") }
+            StatusPill { pillWidth:88; iconSource:"qrc:/qml/NavoSmart/icons/mode.svg"; title: "MOD"; value: root.linkAlive && root.flightMode.length ? root.flightMode.toUpperCase() : "--"; good: root.linkAlive; interactive:false }
             NavoHeadingCompass {
                 id: headingCompass
-                Layout.preferredWidth: root.activePage===2 ? 40 : 54
-                Layout.preferredHeight: root.activePage===2 ? 40 : 54
+                Layout.preferredWidth: header.compassWidth
+                Layout.preferredHeight: header.compassWidth
                 headingDeg: root.headingDeg
+                headingSource: root.headingSource
                 waypointBearingDeg: root.waypointBearingDeg
                 rollDeg: root.rollDeg
                 pitchDeg: root.pitchDeg
@@ -1160,60 +1295,177 @@ Item {
 
     Popup {
         id: gnssDiagnostic
+        objectName: "gnssDiagnostic"
         modal: false
         focus: true
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        x: Math.max(8, Math.min(170, root.width - width - 8))
-        y: 68
-        width: Math.min(380, root.width - 16)
-        padding: 14
-        z: 6500
-        background: Rectangle { radius: 12; color: "#101822"; border.color: "#21b7ff"; border.width: 1 }
+        x: Math.max(8, Math.min(165, root.width - width - 8))
+        y: Math.max(8, Math.min(66, root.height - height - 8))
+        width: Math.min(420, root.width - 18)
+        height: Math.min(510, Math.max(0, root.height - 16))
+        padding: 12
+        z: 6800
+        background: Rectangle { radius: 14; color: "#071926"; border.color: "#20d9ed"; border.width: 1.5 }
         property string checkResult: ""
         function factValue(fact) {
             if (!fact || fact.rawValue === undefined || fact.rawValue === null) return "--"
             var n = Number(fact.rawValue)
             return isFinite(n) ? n.toFixed(2) : "--"
         }
+        component GnssLine: Item {
+            property string name: ""
+            property string value: "--"
+            Layout.fillWidth: true
+            Layout.preferredHeight: Math.max(23, captionLabel.implicitHeight, valueLabel.implicitHeight)
+            Label {
+                id: captionLabel
+                width: (parent.width - 10) * 0.52
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                text: parent.name; color: root.muted; font.pixelSize: 12
+                wrapMode: Text.WordWrap
+            }
+            Label {
+                id: valueLabel
+                width: (parent.width - 10) * 0.48
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                text: parent.value; color: root.text; font.pixelSize: 12; font.bold: true
+                wrapMode: Text.WrapAnywhere; horizontalAlignment: Text.AlignRight
+            }
+        }
         ColumnLayout {
-            width: parent.width
-            spacing: 8
+            anchors.fill: parent
+            spacing: 6
             RowLayout {
                 Layout.fillWidth: true
-                Label { text: "GNSS / UM982 • Diagnostic"; color: "#ffffff"; font.bold: true; font.pixelSize: 16; Layout.fillWidth: true }
-                Button { text: "✕"; flat: true; onClicked: gnssDiagnostic.close() }
-            }
-            Label { text: !root.vehicle ? "H743 deconectat" : !root.vehicle.gps ? "Nu sunt date GPS de la H743" : Number(root.vehicle.gps.lock.rawValue) >= 3 ? "Poziție GPS validă" : "GPS detectat • fără fix 3D"; color: root.vehicle && root.vehicle.gps && Number(root.vehicle.gps.lock.rawValue) >= 3 ? "#43d49e" : "#ffc857"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
-            Label { text: "Sateliți: " + (root.vehicle && root.vehicle.gps ? String(root.vehicle.gps.count.rawValue) : "--"); color: "#ffffff" }
-            Label { text: "Tip fix (MAVLink): " + (root.vehicle && root.vehicle.gps ? String(root.vehicle.gps.lock.rawValue) : "--") + "  (3 = 3D, 4 = DGPS, 5/6 = RTK)"; color: "#d5e2ee"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
-            Label { text: "Latitudine: " + (root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? Number(root.vehicle.coordinate.latitude).toFixed(7) + "°" : "--"); color: "#d5e2ee" }
-            Label { text: "Longitudine: " + (root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? Number(root.vehicle.coordinate.longitude).toFixed(7) + "°" : "--"); color: "#d5e2ee" }
-            Label { text: "Altitudine GPS: " + (root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? Number(root.vehicle.coordinate.altitude).toFixed(1) + " m" : "--"); color: "#d5e2ee" }
-            Label { text: "HDOP: " + (root.vehicle && root.vehicle.gps ? gnssDiagnostic.factValue(root.vehicle.gps.hdop) : "--") + "  •  VDOP: " + (root.vehicle && root.vehicle.gps ? gnssDiagnostic.factValue(root.vehicle.gps.vdop) : "--"); color: "#d5e2ee" }
-            Label { text: "UM982 / antene duale: identificare directă indisponibilă prin indicatorul MAVLink standard"; color: "#8ca4b8"; wrapMode: Text.WordWrap; Layout.fillWidth: true; font.pixelSize: 11 }
-            Button {
-                Layout.fillWidth: true
-                text: "Verifică conexiunea GPS"
-                onClicked: {
-                    if (!root.vehicle) gnssDiagnostic.checkResult = "H743 nu este conectat. Verifică MAVLink."
-                    else if (!root.vehicle.gps) gnssDiagnostic.checkResult = "H743 conectat, dar nu raportează GPS. Verifică UART, alimentarea UM982 și SERIALx_PROTOCOL."
-                    else if (Number(root.vehicle.gps.lock.rawValue) < 3) gnssDiagnostic.checkResult = "GPS raportat, fără fix 3D. Verifică antenele și vizibilitatea cerului."
-                    else gnssDiagnostic.checkResult = "H743 raportează fix GPS valid. Modelul UM982 și legătura fizică nu pot fi certificate doar din acest mesaj."
+                Image { source: "qrc:/qml/NavoSmart/icons/satellite.svg"; Layout.preferredWidth: 25; Layout.preferredHeight: 25 }
+                Label { text: "GNSS / UM982 • Diagnostic"; color: "#edf8ff"; font.bold: true; font.pixelSize: 15; Layout.fillWidth: true; elide: Text.ElideRight }
+                Button {
+                    id: gnssCloseButton
+                    Accessible.name: "Închide diagnosticul GPS"
+                    Layout.minimumWidth: 44
+                    Layout.minimumHeight: 44
+                    implicitWidth: 44
+                    implicitHeight: 44
+                    padding: 0
+                    onClicked: gnssDiagnostic.close()
+                    background: Rectangle {
+                        radius: 9
+                        color: gnssCloseButton.down ? "#20536a" : "#103044"
+                        border.color: "#20d9ed"
+                        border.width: 1.5
+                    }
+                    // Vector icon stays visible even when Android lacks the Unicode cross glyph.
+                    contentItem: Item {
+                        Image {
+                            anchors.centerIn: parent
+                            width: 24
+                            height: 24
+                            source: "qrc:/qml/NavoSmart/icons/close.svg"
+                            fillMode: Image.PreserveAspectFit
+                        }
+                    }
                 }
             }
-            Label { visible: gnssDiagnostic.checkResult.length > 0; text: gnssDiagnostic.checkResult; color: "#21b7ff"; wrapMode: Text.WordWrap; Layout.fillWidth: true }
+            Flickable {
+                id: gnssScroll
+                objectName: "gnssScroll"
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                contentWidth: width
+                contentHeight: gnssRows.implicitHeight
+                clip: true
+                boundsBehavior: Flickable.StopAtBounds
+                flickableDirection: Flickable.VerticalFlick
+                ScrollBar.vertical: ScrollBar { id: gnssScrollBar; objectName: "gnssScrollBar"; policy: ScrollBar.AsNeeded }
+                ColumnLayout {
+                    id: gnssRows
+                    objectName: "gnssRows"
+                    // Reserve a stable gutter even while the Android scrollbar is active.
+                    width: Math.max(0, gnssScroll.width - Math.max(18, gnssScrollBar.implicitWidth + 10))
+                    spacing: 5
+                    Rectangle {
+                        Layout.fillWidth: true; Layout.preferredHeight: 28
+                        radius: 9; color: "#0d2a39"; border.color: "#174e68"
+                        Label {
+                            anchors.centerIn: parent
+                            text: !root.vehicle ? "H743 deconectat" : !root.vehicle.gps ? "Fără date GPS" : Number(root.vehicle.gps.lock.rawValue) >= 3 ? "● Poziție GPS validă" : "● GPS fără fix 3D"
+                            color: root.vehicle && root.vehicle.gps && Number(root.vehicle.gps.lock.rawValue) >= 3 ? "#31d6a5" : "#ffd166"
+                            font.pixelSize: 12; font.bold: true
+                        }
+                    }
+                    GnssLine { name: "Sursă orientare"; value: gnssHeading.headingSource }
+                    Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
+                    GnssLine { name: "Heading GNSS dual-antenă"; value: gnssHeading.gpsYawValid ? Number(gnssHeading.gpsYawDeg).toFixed(2) + "°" : "--" }
+                    GnssLine { name: "Heading H743 (rezervă)"; value: root.vehicle && root.vehicle.heading && root.linkAlive && isFinite(Number(root.vehicle.heading.rawValue)) ? Number(root.vehicle.heading.rawValue).toFixed(2) + "°" : "--" }
+                    GnssLine { name: "Vechime orientare GNSS"; value: gnssHeading.gpsYawValid ? String(gnssHeading.gpsYawAgeMs) + " ms" : "--" }
+                    Label { Layout.fillWidth: true; text: gnssHeading.headingDetail; color: gnssHeading.gpsYawValid ? "#31d6a5" : "#ffd166"; wrapMode: Text.WordWrap; font.pixelSize: 11 }
+                    Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
+                    GnssLine { name: "Sateliți"; value: root.vehicle && root.vehicle.gps ? String(root.vehicle.gps.count.rawValue) : "--" }
+                    Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
+                    GnssLine { name: "Fix GPS / MAVLink"; value: root.vehicle && root.vehicle.gps ? String(root.vehicle.gps.lock.rawValue) : "--" }
+                    Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
+                    GnssLine { name: "Latitudine"; value: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? Number(root.vehicle.coordinate.latitude).toFixed(7) + "°" : "--" }
+                    Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
+                    GnssLine { name: "Longitudine"; value: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? Number(root.vehicle.coordinate.longitude).toFixed(7) + "°" : "--" }
+                    Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
+                    GnssLine { name: "Altitudine GPS"; value: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? Number(root.vehicle.coordinate.altitude).toFixed(1) + " m" : "--" }
+                    Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
+                    GnssLine { name: "HDOP"; value: root.vehicle && root.vehicle.gps ? gnssDiagnostic.factValue(root.vehicle.gps.hdop) : "--" }
+                    GnssLine { name: "VDOP"; value: root.vehicle && root.vehicle.gps ? gnssDiagnostic.factValue(root.vehicle.gps.vdop) : "--" }
+                    Label {
+                        Layout.fillWidth: true
+                        text: "3 = 3D • 4 = DGPS • 5/6 = RTK. Identitatea UM982 și antenele duale nu pot fi confirmate prin fixul MAVLink."
+                        color: "#9cc4d7"; wrapMode: Text.WordWrap; font.pixelSize: 11
+                    }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Item { Layout.fillWidth: true }
+                        Button {
+                            text: "Verifică GPS"
+                            implicitHeight: 34
+                            onClicked: {
+                                if (!root.vehicle) gnssDiagnostic.checkResult = "H743 nu este conectat. Verifică MAVLink."
+                                else if (!root.vehicle.gps) gnssDiagnostic.checkResult = "H743 conectat, dar nu raportează GPS. Verifică UART, alimentarea UM982 și SERIALx_PROTOCOL."
+                                else if (Number(root.vehicle.gps.lock.rawValue) < 3) gnssDiagnostic.checkResult = "GPS raportat, fără fix 3D. Verifică antenele și vizibilitatea cerului."
+                                else if (!gnssHeading.gpsYawValid) gnssDiagnostic.checkResult = "GPS are fix, dar nu există GPS yaw valid de la antenele duale. Momentan orientarea bărcii folosește H743 ca rezervă. Verifică GPS1_TYPE=25, EK3_SRC1_YAW și antenele."
+                                else gnssDiagnostic.checkResult = "Orientare GNSS validă (" + gnssHeading.headingSource + "): " + Number(gnssHeading.gpsYawDeg).toFixed(2) + "°. Identitatea fizică UM982 se validează separat."
+                            }
+                            background: Rectangle { radius: 9; color: "#103044"; border.color: "#20d9ed" }
+                            contentItem: Label { text: parent.text; color: "#20d9ed"; font.bold: true; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        }
+                    }
+                    Label { Layout.fillWidth: true; visible: gnssDiagnostic.checkResult.length>0; text: gnssDiagnostic.checkResult; color: "#20d9ed"; wrapMode: Text.WordWrap; font.pixelSize: 11 }
+                }
+            }
         }
-        onOpened: checkResult = ""
+
+        onOpened: {
+            checkResult = ""
+            gnssScroll.contentY = 0
+        }
     }
 
+    NavoStatusDetails {
+        id: dashboardDetails
+        viewportWidth: root.width
+        viewportHeight: root.height
+        vehicle: root.vehicle
+        battery: root.battery
+        linkAlive: root.linkAlive
+        temperatureFresh: h743Telemetry.connected && h743Telemetry.temperatureValid && isFinite(h743Telemetry.batteryTempC)
+        temperatureC: h743Telemetry.batteryTempC
+        temperatureSource: "Temperatură NTC baterie / H743"
+    }
 
-    NavoHeadingCompass { id:headingCompassOverlay; visible:root.headingOverlayOpen && root.activePage !== 10; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; onToggleRequested:root.headingOverlayOpen=false }
+    NavoHeadingCompass { id:headingCompassOverlay; visible:root.headingOverlayOpen && root.activePage !== 10; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; headingSource:root.headingSource; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; onToggleRequested:root.headingOverlayOpen=false }
 
     Rectangle {
         id: sidebar
         anchors.left: parent.left; anchors.top: header.bottom; anchors.bottom: parent.bottom
         visible: !root.mapMaximized && root.activePage !== 10
-        width: root.width < 1100 ? 64 : 72; color: root.panel; border.color: root.line
+        width: root.width < 1100 ? 64 : 72; color: "#071926"; border.color: "#174e68"
         Flickable {
             anchors.fill: parent
             anchors.margins: 8
@@ -1246,17 +1498,20 @@ Item {
 
     NavoMissionStatus {
         id:missionStrip
-        visible:root.missionBusy || root.activePage===2
+        visible:root.actionActive || root.activePage===2
         anchors.left:root.mapMaximized || root.activePage===10 ? parent.left : sidebar.right
         anchors.right:parent.right
         anchors.top:root.activePage===10 ? parent.top : header.bottom
         height:visible ? implicitHeight : 0
         z:6001
-        active:root.missionBusy
+        active:root.actionActive
+        cancelAvailable:!sonar.replayMode && (root.actionActive || scanCoordinator.state==="READY" || scanCoordinator.state==="RESUME_READY" || scanCoordinator.state==="PAUSED")
+        cancelText:root.rtlActive ? "ANULEAZĂ RTL" : "ANULEAZĂ"
+        onCancelRequested:root.cancelCurrentAction()
         connected:root.linkAlive
         homeAvailable:!sonar.replayMode && !!root.vehicle && !!root.vehicle.guidedModeRTL && !!root.vehicle.homePosition && root.vehicle.homePosition.isValid
         progress:routePlan.active ? 100*(routePlan.currentIndex+Math.min(0.95,Math.max(0,root.routeLegDistanceM>0 && isFinite(baitingController.distanceToTarget()) ? 1-baitingController.distanceToTarget()/root.routeLegDistanceM : 0)))/Math.max(1,routePlan.runningStops.length) : root.missionScanSelected ? areaScanController.progressPercent() : routePlan.state==="DISPATCHED" ? 100 : 0
-        statusText:routePlan.active ? (routePlan.missionKind==="point" ? "Mergi la punct" : "Traseu cu opriri")+" • oprire "+(routePlan.currentIndex+1)+"/"+routePlan.runningStops.length+" • "+baitingController.stateText(baitingController.state) : root.missionScanSelected ? "Scanare • "+root.missionStateLabel(scanCoordinator.state) : "Misiune • "+root.missionStateLabel(routePlan.state)
+        statusText:root.pendingMode.length ? root.lastNavigationStatus : root.rtlActive ? "Întoarcere HOME • RTL activ" : root.directGotoActive ? "Mergi la punct • comandă GUIDED trimisă" : routePlan.active ? (routePlan.missionKind==="point" ? "Mergi la punct" : "Traseu cu opriri")+" • oprire "+(routePlan.currentIndex+1)+"/"+routePlan.runningStops.length+" • "+baitingController.stateText(baitingController.state) : root.missionScanSelected ? "Scanare • "+root.missionStateLabel(scanCoordinator.state) : "Misiune • "+root.missionStateLabel(routePlan.state)
         onPauseRequested:root.holdMission()
         onHomeRequested:homeRtlConfirm.open()
     }
@@ -1310,6 +1565,9 @@ Item {
             id: fishingPageRoot
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             NavoMap {
+                headingOverrideEnabled: true
+                areaDrawingGeneration: root.areaDrawingGeneration
+                headingOverrideDeg: root.headingDeg
                 spotActionsAllowed:!root.missionBusy && !sonar.replayMode && !root.steeringModeBusy
                 onFishingSpotActionRequested:function(spot,action,hopper,size){root.prepareFishingSpotAction(spot,action,hopper,size)}
                 onFishingSpotRenameRequested:function(spot){root.prepareFishingSpotAction(spot,"edit",0,0)}
@@ -1712,6 +1970,9 @@ Item {
                         Layout.rightMargin:routeEditor.opened && !root.missionScanSelected && parent.width>=700 ? routeEditor.width+8 : 0
                         radius: 8; color: root.bg; border.color: root.line; clip: true
                         NavoMap {
+                headingOverrideEnabled: true
+                areaDrawingGeneration: root.areaDrawingGeneration
+                headingOverrideDeg: root.headingDeg
                 spotActionsAllowed:!root.missionBusy && !sonar.replayMode && !root.steeringModeBusy
                 onFishingSpotActionRequested:function(spot,action,hopper,size){root.prepareFishingSpotAction(spot,action,hopper,size)}
                 onFishingSpotRenameRequested:function(spot){root.prepareFishingSpotAction(spot,"edit",0,0)}
@@ -1751,53 +2012,80 @@ Item {
                     }
                     ScrollView {
                         visible:root.missionScanSelected && !root.mapMaximized
-                        Layout.preferredWidth: root.compactUi ? 112 : 126
-                        Layout.minimumWidth: 106; Layout.maximumWidth: 132
+                        id:scanToolsScroll
+                        objectName:"scanToolsScroll"
+                        Layout.preferredWidth:112
+                        Layout.minimumWidth:112;Layout.maximumWidth:112
                         Layout.fillHeight: true
                         clip:true;contentWidth:availableWidth
+                        ScrollBar.horizontal.policy:ScrollBar.AlwaysOff
                         Flow {
-                        width:parent.width
+                        width:scanToolsScroll.availableWidth
                         spacing: 6
                         component ScanIconButton: Button {
-                            width: 52; height: 46; padding: 0
+                            id: scanButton
+                            width:52;height:46;padding:0;hoverEnabled:true
                             property string hint: ""
-                            ToolTip.visible: hovered
-                            ToolTip.text: hint
+                            property string caption: hint
+                            Accessible.name: caption
+                            Accessible.description: hint
+                            HoverHandler { id:scanHover;acceptedDevices:PointerDevice.Mouse | PointerDevice.TouchPad }
+                            Timer { id:helpTimer;interval:4000;repeat:false }
+                            onPressed:helpTimer.restart()
+                            ToolTip {
+                                id:scanHelpTip;objectName:"scanToolTip"
+                                visible:(scanHover.hovered || scanButton.down || helpTimer.running) && !clearAreaConfirm.opened
+                                delay:scanHover.hovered && !helpTimer.running ? 300 : 0
+                                timeout:-1
+                                width:Math.min(280,root.width-24);padding:8;margins:8
+                                x:(scanButton.width-width)/2;y:-height-6
+                                text:scanButton.caption===scanButton.hint ? scanButton.hint : scanButton.caption+" • "+scanButton.hint
+                                contentItem:Label { text:scanHelpTip.text;color:"#eff9ff";font.pixelSize:12;wrapMode:Text.WordWrap }
+                                background:Rectangle { radius:7;color:"#102536";border.color:"#38badb" }
+                            }
                             background: Rectangle { radius: 8; color: parent.down ? "#18354a" : "#101b25"; border.color: parent.enabled ? "#31506a" : "#26313a" }
                         }
                         ScanIconButton {
                             hint: "Desenează dreptunghi"
                             enabled: !root.missionBusy && !sonar.replayMode
-                            contentItem: Canvas { anchors.fill: parent; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.strokeRect(12,11,28,24)} }
-                            onClicked: { root.pendingAreaDrawMode="rectangle"; Qt.callLater(function(){if(areaScanMap){areaScanMap.beginAreaRectangle();root.pendingAreaDrawMode="none"}}); root.lastNavigationStatus="Atinge două colțuri pe hartă pentru dreptunghi" }
+                            contentItem: Canvas { anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.strokeRect(12,11,28,24)} }
+                            onClicked: { root.pendingAreaDrawMode="rectangle"; Qt.callLater(function(){if(areaScanMap && root.pendingAreaDrawMode==="rectangle"){areaScanMap.beginAreaRectangle();root.pendingAreaDrawMode="none"}}); root.lastNavigationStatus="Atinge două colțuri pe hartă pentru dreptunghi" }
                         }
                         ScanIconButton {
                             hint: "Desenează poligon"
                             enabled: !root.missionBusy && !sonar.replayMode
-                            contentItem: Canvas { anchors.fill: parent; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.beginPath();p.moveTo(12,31);p.lineTo(17,12);p.lineTo(38,9);p.lineTo(42,30);p.lineTo(27,37);p.closePath();p.stroke()} }
-                            onClicked: { root.pendingAreaDrawMode="polygon"; Qt.callLater(function(){if(areaScanMap){areaScanMap.beginAreaPolygon();root.pendingAreaDrawMode="none"}}); root.lastNavigationStatus="Atinge cel puțin trei puncte și apoi TERMINĂ" }
+                            contentItem: Canvas { anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.beginPath();p.moveTo(12,31);p.lineTo(17,12);p.lineTo(38,9);p.lineTo(42,30);p.lineTo(27,37);p.closePath();p.stroke()} }
+                            onClicked: { root.pendingAreaDrawMode="polygon"; Qt.callLater(function(){if(areaScanMap && root.pendingAreaDrawMode==="polygon"){areaScanMap.beginAreaPolygon();root.pendingAreaDrawMode="none"}}); root.lastNavigationStatus="Atinge cel puțin trei puncte și apoi TERMINĂ" }
                         }
                         ScanIconButton {
                             hint: "Pregătește misiunea"
                             enabled: areaScanController.generatedPoints.length>0 && scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
-                            contentItem: Canvas { anchors.fill: parent; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#21b7ff";p.fillStyle="#21b7ff";p.lineWidth=2;p.beginPath();p.moveTo(11,34);p.lineTo(22,22);p.lineTo(31,29);p.lineTo(41,13);p.stroke();for(var i=0;i<4;i++){var a=[[11,34],[22,22],[31,29],[41,13]][i];p.beginPath();p.arc(a[0],a[1],2.5,0,Math.PI*2);p.fill()}} }
+                            contentItem: Canvas { anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#21b7ff";p.fillStyle="#21b7ff";p.lineWidth=2;p.beginPath();p.moveTo(11,34);p.lineTo(22,22);p.lineTo(31,29);p.lineTo(41,13);p.stroke();for(var i=0;i<4;i++){var a=[[11,34],[22,22],[31,29],[41,13]][i];p.beginPath();p.arc(a[0],a[1],2.5,0,Math.PI*2);p.fill()}} }
                             onClicked: { if(!root.allowLiveAction()) return; missionUploader.invalidate(); var prepared=scanCoordinator.prepareMission(false); if(prepared&&prepared.length)root.lastNavigationStatus="Misiune pregătită • "+prepared.length+" WP • următorul pas: UPLOAD"; else if(!root.lastNavigationStatus.length)root.lastNavigationStatus="Pregătirea misiunii a eșuat" }
                         }
                         ScanIconButton {
                             hint: missionUploader.uploadVerified ? "Start autopilot" : "Upload misiune"
                             enabled: missionUploader.preparedCount>0 && !missionUploader.uploadInProgress
-                            contentItem: Canvas { anchors.fill: parent; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#31d67b";p.fillStyle="#31d67b";p.lineWidth=2;if(missionUploader.uploadVerified){p.beginPath();p.moveTo(17,11);p.lineTo(38,23);p.lineTo(17,35);p.closePath();p.fill()}else{p.beginPath();p.moveTo(26,35);p.lineTo(26,12);p.moveTo(17,21);p.lineTo(26,12);p.lineTo(35,21);p.stroke()}} }
+                            contentItem: Canvas { anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#31d67b";p.fillStyle="#31d67b";p.lineWidth=2;if(missionUploader.uploadVerified){p.beginPath();p.moveTo(17,11);p.lineTo(38,23);p.lineTo(17,35);p.closePath();p.fill()}else{p.beginPath();p.moveTo(26,35);p.lineTo(26,12);p.moveTo(17,21);p.lineTo(26,12);p.lineTo(35,21);p.stroke()}} }
                             onClicked: root.startMission()
                         }
                         ScanIconButton {
-                            hint: "Continuă scanarea"
+                            caption: "Continuă scanarea"
+                            hint: "Pregătește culoarele rămase; apoi apasă Upload și Start autopilot"
                             enabled: (scanCoordinator.state==="PAUSED"||scanCoordinator.state==="RTL") && !missionUploader.uploadInProgress && areaScanController.generatedPoints.length>0 && areaScanController.completedLanes.length<areaScanController.laneCount()
-                            contentItem: Canvas { anchors.fill: parent; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.beginPath();p.arc(26,23,12,.45,5.3);p.stroke();p.beginPath();p.moveTo(34,10);p.lineTo(39,17);p.lineTo(31,18);p.stroke()} }
+                            contentItem: Canvas { anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.beginPath();p.arc(26,23,12,.45,5.3);p.stroke();p.beginPath();p.moveTo(34,10);p.lineTo(39,17);p.lineTo(31,18);p.stroke()} }
                             onClicked:{var mission=scanCoordinator.resume();if(mission.length)root.lastNavigationStatus="Resume pregătit • apasă UPLOAD și apoi START AUTOPILOT"}
                         }
-                        ScanIconButton { hint:"HOLD"; enabled:scanCoordinator.state==="SCANNING"||root.awaitingMissionStart; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.fillStyle="#ffc857";p.fillRect(15,12,7,23);p.fillRect(30,12,7,23)}} onClicked:root.holdMission() }
-                        ScanIconButton { hint:"RTL / întoarcere acasă"; enabled:scanCoordinator.state==="SCANNING"||scanCoordinator.state==="PAUSED"||scanCoordinator.state==="RESUME_READY"; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#21b7ff";p.lineWidth=2;p.beginPath();p.moveTo(10,25);p.lineTo(26,11);p.lineTo(42,25);p.moveTo(16,22);p.lineTo(16,37);p.lineTo(36,37);p.lineTo(36,22);p.stroke()}} onClicked:root.rtlMission() }
-                        ScanIconButton { hint:"STOP"; enabled:scanCoordinator.state==="SCANNING"||scanCoordinator.state==="PAUSED"||scanCoordinator.state==="READY"||scanCoordinator.state==="RESUME_READY"||root.awaitingMissionStart; contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.fillStyle="#ff5c5c";p.fillRect(15,12,23,23)}} onClicked:root.stopMission() }
+                        ScanIconButton { caption:"Pauză / HOLD"; hint:"Pune scanarea în pauză și solicită HOLD"; enabled:scanCoordinator.state==="SCANNING"||root.awaitingMissionStart; contentItem:Canvas{anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46;onPaint:{var p=getContext("2d");p.reset();p.fillStyle="#ffc857";p.fillRect(15,12,7,23);p.fillRect(30,12,7,23)}} onClicked:root.holdMission() }
+                        ScanIconButton { hint:"RTL / întoarcere acasă"; enabled:scanCoordinator.state==="SCANNING"||scanCoordinator.state==="PAUSED"||scanCoordinator.state==="RESUME_READY"; contentItem:Canvas{anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#21b7ff";p.lineWidth=2;p.beginPath();p.moveTo(10,25);p.lineTo(26,11);p.lineTo(42,25);p.moveTo(16,22);p.lineTo(16,37);p.lineTo(36,37);p.lineTo(36,22);p.stroke()}} onClicked:root.rtlMission() }
+                        ScanIconButton { objectName:"scanCancel"; caption:root.rtlActive ? "Anulează RTL" : "Anulează acțiunea"; hint:"Anulează scanarea, navigarea sau RTL și solicită HOLD"; enabled:!sonar.replayMode && (root.actionActive || scanCoordinator.state==="PAUSED" || scanCoordinator.state==="READY" || scanCoordinator.state==="RESUME_READY"); contentItem:Canvas{anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46;onPaint:{var p=getContext("2d");p.reset();p.fillStyle="#ff5c5c";p.fillRect(15,12,23,23)}} onClicked:root.stopMission() }
+                        ScanIconButton {
+                            objectName:"scanClearArea"; caption:"Șterge zona"
+                            hint:"Șterge chenarul și culoarele Area Scan; păstrează măsurătorile sonar"
+                            enabled:root.canClearArea
+                            contentItem:Canvas { anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#ff8b93";p.lineWidth=2;p.strokeRect(17,15,20,23);p.beginPath();p.moveTo(13,12);p.lineTo(41,12);p.moveTo(22,8);p.lineTo(32,8);p.stroke()} }
+                            onClicked:clearAreaConfirm.open()
+                        }
                         }
                     }
                 }
@@ -1827,6 +2115,9 @@ Item {
                     Layout.minimumWidth: 320
                     radius:8; color:root.bg; border.color:root.line; clip:true
                     NavoMap {
+                headingOverrideEnabled: true
+                areaDrawingGeneration: root.areaDrawingGeneration
+                headingOverrideDeg: root.headingDeg
                 spotActionsAllowed:!root.missionBusy && !sonar.replayMode && !root.steeringModeBusy
                 onFishingSpotActionRequested:function(spot,action,hopper,size){root.prepareFishingSpotAction(spot,action,hopper,size)}
                 onFishingSpotRenameRequested:function(spot){root.prepareFishingSpotAction(spot,"edit",0,0)}
@@ -1903,34 +2194,111 @@ Item {
                     }
                 }
             }
+            property string spotEditLakeId: ""
             function openEdit(spot) {
-                spotEditId=spot.id; spotName.text=spot.name||""; spotEditColor=spot.color||"#31d67b"; spotEditDialog.open()
+                if(root.missionBusy || root.actionActive || sonar.replayMode || root.steeringModeBusy || !scanCoordinator.lakeId.length)return
+                spotEditId=spot.id;spotEditLakeId=scanCoordinator.lakeId
+                spotName.text=spot.name||"";spotEditColor=spot.color||"#31d67b"
+                spotLatitude.text=String(spot.lat);spotLongitude.text=String(spot.lon)
+                spotDepth.text=typeof spot.depth==="number" && isFinite(spot.depth) ? String(spot.depth) : ""
+                spotTemperature.text=typeof spot.temp==="number" && isFinite(spot.temp) ? String(spot.temp) : ""
+                spotNote.text=spot.note||"";spotEditDialog.errorText="";spotEditDialog.open()
+            }
+            function spotNumber(text) {
+                var clean=text.trim().replace(",", ".")
+                return /^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)$/.test(clean) ? Number(clean) : NaN
+            }
+            function saveSpotEdit() {
+                if(root.actionActive || root.missionBusy || sonar.replayMode || root.steeringModeBusy ||
+                   !spotEditLakeId.length || spotEditLakeId!==scanCoordinator.lakeId){
+                    spotEditDialog.errorText="Editare blocată: operație activă, replay sau baltă schimbată.";return false
+                }
+                var before=fishingSpots.fishingSpots.slice(0)
+                var fields={name:spotName.text,lat:spotNumber(spotLatitude.text),lon:spotNumber(spotLongitude.text),
+                    depth:spotDepth.text.trim().length ? spotNumber(spotDepth.text) : null,
+                    temp:spotTemperature.text.trim().length ? spotNumber(spotTemperature.text) : null,
+                    note:spotNote.text,color:spotEditColor}
+                if(!fishingSpots.updateSpot(spotEditId,fields)){
+                    spotEditDialog.errorText="Verifică numele, GPS (-90…90 / -180…180), adâncimea ≥ 0 și temperatura. Punctul trebuie să existe.";return false
+                }
+                if(!scanCoordinator.checkpoint("fishing-spot-edit")){
+                    fishingSpots.fishingSpots=before
+                    spotEditDialog.errorText="Salvarea a eșuat. Datele vechi au fost păstrate; poți reîncerca.";return false
+                }
+                root.lastNavigationStatus="Punct salvat: "+fields.name.trim()
+                spotEditDialog.close();return true
             }
             Dialog {
-                id:spotEditDialog; parent:Overlay.overlay; anchors.centerIn:parent; modal:true
-                title:"Editează punct"; standardButtons:Dialog.Save|Dialog.Cancel
-                Column {
-                    spacing:8
-                    TextField { palette.text:"#0b1118"; palette.base:"#ffffff"; palette.placeholderText:"#5f6b76"; palette.highlight:"#21b7ff"; palette.highlightedText:"#ffffff"; id:spotName; width:280; placeholderText:"Lanseta verde" }
-                    Label { text:"Culoare marker" }
-                    Row {
-                        spacing:8
-                        Repeater {
-                            model:["#31d67b","#ef4444","#3b82f6","#facc15","#a855f7","#f97316"]
-                            delegate:Rectangle {
-                                required property var modelData
-                                width:30;height:30;radius:15;color:modelData
-                                border.color:fishingPageRoot.spotEditColor===modelData?"white":"#607080"
-                                border.width:fishingPageRoot.spotEditColor===modelData?3:1
-                                MouseArea { anchors.fill:parent; onClicked:fishingPageRoot.spotEditColor=modelData }
+                id:spotEditDialog;objectName:"savedSpotEditor"
+                parent:Overlay.overlay;anchors.centerIn:parent;modal:true
+                width:Math.min(560,parent.width-24);height:Math.min(620,parent.height-24)
+                padding:14
+                title:"Editează punct"
+                header:Label {
+                    text:spotEditDialog.title;color:root.text;font.bold:true;font.pixelSize:18
+                    leftPadding:14;rightPadding:14;topPadding:10;bottomPadding:8
+                    background:Rectangle { color:root.panel;radius:12 }
+                }
+                property string errorText:""
+                palette.windowText:root.text;palette.text:root.text;palette.buttonText:root.text
+                background:Rectangle { color:root.panel;radius:12;border.color:root.cyan }
+                component EditorButton: Button {
+                    Layout.fillWidth:true;implicitHeight:40
+                    contentItem:Label { text:parent.text;color:root.text;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter }
+                    background:Rectangle { radius:6;color:parent.down ? "#254b60" : "#142c3c";border.color:root.cyan }
+                }
+                component SpotField: TextField {
+                    Layout.fillWidth:true;selectByMouse:true
+                    color:root.text;placeholderTextColor:root.muted
+                    background:Rectangle { radius:6;color:root.bg;border.color:root.line }
+                }
+                contentItem:ScrollView {
+                    id:spotEditScroll;clip:true;contentWidth:availableWidth
+                    ScrollBar.horizontal.policy:ScrollBar.AlwaysOff
+                    ColumnLayout {
+                        width:spotEditScroll.availableWidth;spacing:7
+                        Label { text:"Nume";color:root.text }
+                        SpotField { id:spotName;objectName:"spotEditName";placeholderText:"Lanseta verde" }
+                        Label { text:"Latitudine GPS (grade zecimale)";color:root.text }
+                        SpotField { id:spotLatitude;objectName:"spotEditLatitude";inputMethodHints:Qt.ImhFormattedNumbersOnly }
+                        Label { text:"Longitudine GPS (grade zecimale)";color:root.text }
+                        SpotField { id:spotLongitude;objectName:"spotEditLongitude";inputMethodHints:Qt.ImhFormattedNumbersOnly }
+                        Label { text:"Adâncime (m) • gol = necunoscută";color:root.text }
+                        SpotField { id:spotDepth;objectName:"spotEditDepth";inputMethodHints:Qt.ImhFormattedNumbersOnly }
+                        Label { text:"Temperatura apei (°C) • gol = necunoscută";color:root.text }
+                        SpotField { id:spotTemperature;objectName:"spotEditTemperature";inputMethodHints:Qt.ImhFormattedNumbersOnly }
+                        Label { text:"Notițe";color:root.text }
+                        TextArea {
+                            id:spotNote;objectName:"spotEditNote";Layout.fillWidth:true;Layout.minimumHeight:70
+                            wrapMode:TextEdit.Wrap;selectByMouse:true;color:root.text
+                            background:Rectangle { radius:6;color:root.bg;border.color:root.line }
+                        }
+                        Label { text:"Culoare marker (cod HEX)";color:root.text }
+                        SpotField { objectName:"spotEditColor";text:fishingPageRoot.spotEditColor;onTextEdited:fishingPageRoot.spotEditColor=text }
+                        Flow {
+                            Layout.fillWidth:true;spacing:8
+                            Repeater {
+                                model:["#31d67b","#ef4444","#3b82f6","#facc15","#a855f7","#f97316"]
+                                delegate:Button {
+                                    required property var modelData
+                                    width:38;height:38
+                                    Accessible.name:"Culoare "+modelData
+                                    background:Rectangle { radius:19;color:parent.modelData;border.color:fishingPageRoot.spotEditColor===parent.modelData ? "white" : "#607080";border.width:3 }
+                                    onClicked:fishingPageRoot.spotEditColor=modelData
+                                }
                             }
                         }
+                        Label { Layout.fillWidth:true;text:"Datele sonar originale și data creării rămân asociate punctului.";color:root.muted;wrapMode:Text.WordWrap;font.pixelSize:11 }
                     }
                 }
-                onAccepted:{
-                    if(fishingSpots.renameSpot(fishingPageRoot.spotEditId,spotName.text))
-                        fishingSpots.setSpotColor(fishingPageRoot.spotEditId,fishingPageRoot.spotEditColor)
-                    scanCoordinator.checkpoint("fishing-spot-edit")
+                footer:ColumnLayout {
+                    spacing:6
+                    Label { Layout.fillWidth:true;Layout.margins:10;visible:text.length>0;text:spotEditDialog.errorText;color:root.warn;wrapMode:Text.WordWrap }
+                    RowLayout {
+                        Layout.fillWidth:true;Layout.margins:10
+                        EditorButton { text:"Anulează";onClicked:spotEditDialog.reject() }
+                        EditorButton { objectName:"spotEditSave";text:"Salvează";onClicked:fishingPageRoot.saveSpotEdit() }
+                    }
                 }
             }
         }
@@ -1950,138 +2318,209 @@ Item {
     Component {
         id: lakesPage
         Item {
-            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
+            id: lakesHome
+            property int selectedTab: 0
+            Rectangle { anchors.fill: parent; color: "#051521"; radius: 10; border.color: "#174c68" }
             ColumnLayout {
-                anchors.fill: parent; anchors.margins: root.compactUi ? 8 : 16; spacing: root.responsiveGap
-                Label { text: "BALȚILE MELE"; color: root.text; font.pixelSize: root.compactUi ? 16 : 20; font.bold: true }
-                Label {
+                anchors.fill: parent
+                anchors.margins: root.compactUi ? 8 : 11
+                spacing: 9
+                Rectangle {
                     Layout.fillWidth: true
-                    text: persistence.lakes.length + " bălți salvate • sonar + puncte + Area Scan + Resume"
-                    color: root.muted
-                    wrapMode: Text.WordWrap
-                    maximumLineCount: 2
-                    elide: Text.ElideRight
-                }
-                RowLayout {
-                    Layout.fillWidth: true
-                    TextField {
-                        id: inlineLakeName
-                        Layout.fillWidth: true
-                        placeholderText: "Nume baltă nouă"
-                        color: "#0b1118"
-                        placeholderTextColor: "#5f6b76"
-                        selectionColor: "#21b7ff"
-                        selectedTextColor: "#ffffff"
-                        palette.text: "#0b1118"
-                        palette.base: "#ffffff"
-                        palette.placeholderText: "#5f6b76"
-                        palette.highlight: "#21b7ff"
-                        palette.highlightedText: "#ffffff"
-                        background: Rectangle {
-                            color: "#ffffff"
-                            border.color: inlineLakeName.activeFocus ? "#21b7ff" : "#c7d0d8"
-                            border.width: inlineLakeName.activeFocus ? 2 : 1
-                            radius: 2
-                        }
-                        onAccepted: {
-                            addLakeButton.clicked()
-                            focus = false
+                    Layout.preferredHeight: 40
+                    color: "#071e30"; radius: 10; border.color: "#20d9ed"
+                    RowLayout {
+                        anchors.fill: parent; anchors.margins: 4
+                        Image { source: "qrc:/qml/NavoSmart/icons/lake.svg"; Layout.preferredWidth: 18; Layout.preferredHeight: 18 }
+                        Label { text: "Bălțile mele"; color: "#eff9ff"; font.pixelSize: 12; font.bold: true; Layout.fillWidth: true }
+                        Button {
+                            text: "Manager"
+                            Accessible.name: "Deschide managerul Bălțile mele"
+                            implicitWidth: 92; implicitHeight: 35
+                            onClicked: myLakesPopup.open()
+                            background: Rectangle { radius: 8; color: "#0a293e"; border.color: "#20d9ed" }
+                            contentItem: Label { text: parent.text; color: "#eff9ff"; font.pixelSize: 12; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                         }
                     }
-                    Button {
-                        id: addLakeButton
-                        text: "+ ADAUGĂ"
-                        enabled: inlineLakeName.text.trim().length > 0
-                        onClicked: {
-                            var name=inlineLakeName.text.trim()
-                            var id=persistence.saveLake({name:name})
-                            var found=false
-                            for (var i=0;i<persistence.lakes.length;i++)
-                                if (persistence.lakes[i].id===id) { found=true; break }
-                            if (found) {
-                                inlineLakeName.clear()
-                                root.lakeSaveStatus="Salvată: "+name
-                                // Make the new lake the active session immediately so
-                                // subsequent sonar/spots/Area Scan checkpoints belong to it.
-                                for (var j=0;j<persistence.lakes.length;j++) {
-                                    if (persistence.lakes[j].id===id) {
-                                        myLakesPopup.selectLake(persistence.lakes[j])
-                                        break
+                }
+                Rectangle {
+                    Layout.fillWidth: true; Layout.preferredHeight: 47
+                    color: "#071e30"; radius: 9; border.color: "#19546b"
+                    Flickable {
+                        anchors.fill: parent; anchors.margins: 5
+                        contentWidth: lakesHomeTabs.implicitWidth; contentHeight: height
+                        clip: true; boundsBehavior: Flickable.StopAtBounds
+                        Row {
+                            id: lakesHomeTabs; height: parent.height; spacing: 7
+                            Repeater {
+                                model: ["Bălți salvate", "Baltă activă", "Administrare"]
+                                delegate: Button {
+                                    required property string modelData
+                                    required property int index
+                                    implicitWidth: index === 0 ? 145 : 125
+                                    implicitHeight: 36
+                                    onClicked: lakesHome.selectedTab = index
+                                    background: Rectangle {
+                                        radius: 8
+                                        color: lakesHome.selectedTab===index ? "#10394d" : "#071e30"
+                                        border.color: lakesHome.selectedTab===index ? "#20d9ed" : "#26718b"
+                                        border.width: lakesHome.selectedTab===index ? 2 : 1
+                                    }
+                                    contentItem: Label {
+                                        text: modelData; color: "#eff9ff"; font.pixelSize: 12
+                                        font.bold: lakesHome.selectedTab===index
+                                        horizontalAlignment: Text.AlignHCenter
+                                        verticalAlignment: Text.AlignVCenter
                                     }
                                 }
-                                scanCoordinator.checkpoint("lake-created")
-                            } else root.lakeSaveStatus="Salvarea a eșuat • încearcă din nou"
+                            }
                         }
                     }
                 }
-                Label { Layout.fillWidth: true; visible: root.lakeSaveStatus.length>0; text: root.lakeSaveStatus; color: root.accent }
-                ListView {
-                    Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 5
-                    model: persistence.lakes
-                    delegate: Rectangle {
-                        required property var modelData
-                        width: ListView.view.width; height: 48; radius: 7
-                        color: root.bg; border.color: root.line
+                Rectangle {
+                    visible: lakesHome.selectedTab===0
+                    Layout.fillWidth: true
+                    implicitHeight: 56
+                    color: "#061827"; border.color: "#20d9ed"; radius: 10
+                    RowLayout {
+                        anchors.fill: parent; anchors.margins: 9; spacing: 8
+                        TextField {
+                            id: inlineLakeName
+                            Layout.fillWidth: true
+                            implicitHeight: 37
+                            placeholderText: "Nume baltă nouă"
+                            color: "#eff9ff"; placeholderTextColor: "#a7c1d3"
+                            selectByMouse: true
+                            background: Rectangle { color: "#092439"; border.color: inlineLakeName.activeFocus ? "#20d9ed" : "#54869d"; radius: 8 }
+                            onAccepted: { addLakeButton.clicked(); focus = false }
+                        }
+                        Button {
+                            id: addLakeButton
+                            text: "+ Salvează"
+                            enabled: inlineLakeName.text.trim().length > 0
+                            implicitHeight: 36
+                            implicitWidth: 105
+                            onClicked: {
+                                var name=inlineLakeName.text.trim()
+                                var id=persistence.saveLake({name:name})
+                                var found=false
+                                for(var i=0;i<persistence.lakes.length;i++)
+                                    if(persistence.lakes[i].id===id){found=true;break}
+                                if(found){
+                                    inlineLakeName.clear()
+                                    root.lakeSaveStatus="Salvată: "+name
+                                    // Existing NAVO checkpoint preserves the sonar/spots/mission lake partition.
+                                    for(var j=0;j<persistence.lakes.length;j++)
+                                        if(persistence.lakes[j].id===id){myLakesPopup.selectLake(persistence.lakes[j]);break}
+                                    scanCoordinator.checkpoint("lake-created")
+                                } else root.lakeSaveStatus="Salvarea a eșuat • încearcă din nou"
+                            }
+                            background: Rectangle { radius: 8; color: "#0b3546"; border.color: parent.enabled ? "#37e9a2" : "#506778" }
+                            contentItem: Label { text: parent.text; color: parent.enabled ? "#eff9ff" : "#b7c3cf"; font.pixelSize: 12; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        }
+                    }
+                }
+                Label {
+                    visible: root.lakeSaveStatus.length>0
+                    Layout.fillWidth: true
+                    text: root.lakeSaveStatus; color: "#9be9e2"
+                    font.pixelSize: 11; wrapMode: Text.WordWrap
+                }
+                Rectangle {
+                    visible: lakesHome.selectedTab===0
+                    Layout.fillWidth: true; Layout.fillHeight: true
+                    color: "#061827"; border.color: "#20d9ed"; radius: 10
+                    ColumnLayout {
+                        anchors.fill: parent; anchors.margins: 9; spacing: 6
                         RowLayout {
-                            anchors.fill: parent; anchors.margins: 4; spacing: 4
-                            Button {
-                                Layout.fillWidth: true
-                                text: modelData.name || "Baltă"
-                                flat: true
-                                contentItem: Label {
-                                    text: parent.text
-                                    color: root.text
-                                    font.bold: true
-                                    verticalAlignment: Text.AlignVCenter
-                                    horizontalAlignment: Text.AlignHCenter
-                                    elide: Text.ElideRight
-                                }
-                                background: Rectangle {
-                                    radius: 6
-                                    color: parent.hovered ? "#183248" : "transparent"
-                                    border.color: parent.hovered ? root.accent : "transparent"
-                                }
-                                onClicked: {
-                                    myLakesPopup.selectLake(modelData)
-                                    myLakesPopup.open()
+                            Layout.fillWidth: true
+                            Label { text: "Bibliotecă bălți"; color: "#eff9ff"; font.bold: true; font.pixelSize: 15; Layout.fillWidth: true }
+                            Label { text: persistence.lakes.length+" salvate"; color: "#79eff0"; font.pixelSize: 11 }
+                        }
+                        Rectangle { Layout.fillWidth: true; height: 1; color: "#19546b" }
+                        ListView {
+                            Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 6
+                            model: persistence.lakes
+                            delegate: Rectangle {
+                                required property var modelData
+                                width: ListView.view.width; height: 52; radius: 8
+                                color: "#092334"; border.color: "#2a7892"
+                                RowLayout {
+                                    anchors.fill: parent; anchors.margins: 5; spacing: 7
+                                    Button {
+                                        Layout.fillWidth: true
+                                        Layout.fillHeight: true
+                                        text: modelData.name || "Baltă"
+                                        flat: true
+                                        contentItem: Label {
+                                            text: parent.text; color: "#eff9ff"; font.pixelSize: 13; font.bold: true
+                                            verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
+                                        }
+                                        onClicked: { myLakesPopup.selectLake(modelData); myLakesPopup.open() }
+                                    }
+                                    Button {
+                                        text: "Redenumește";implicitWidth:42;implicitHeight:40;padding:8
+                                        ToolTip.visible: hovered; ToolTip.text: "Redenumește"
+                                        onClicked: { myLakesPopup.open(); myLakesPopup.beginRename(modelData) }
+                                        background: Rectangle { radius: 7; color: "#0b3546"; border.color: "#20d9ed" }
+                                        contentItem:Image { source:"qrc:/qml/NavoSmart/icons/edit.svg";fillMode:Image.PreserveAspectFit }
+                                    }
+                                    Button {
+                                        text: "Șterge";implicitWidth:42;implicitHeight:40;padding:8
+                                        ToolTip.visible: hovered; ToolTip.text: "Șterge"
+                                        onClicked: { myLakesPopup.open(); myLakesPopup.beginDelete(modelData) }
+                                        background: Rectangle { radius: 7; color: "#291e30"; border.color: "#ff8793" }
+                                        contentItem:Image { source:"qrc:/qml/NavoSmart/icons/delete.svg";fillMode:Image.PreserveAspectFit }
+                                    }
                                 }
                             }
-                            Button {
-                                text: "NUME"
-                                onClicked: {
-                                    myLakesPopup.open()
-                                    myLakesPopup.beginRename(modelData)
-                                }
-                            }
-                            Button {
-                                text: "ȘTERGE"
-                                onClicked: {
-                                    myLakesPopup.open()
-                                    myLakesPopup.beginDelete(modelData)
-                                }
-                            }
+                            Label { visible: parent.count===0; anchors.centerIn: parent; text: "Nu există încă bălți salvate"; color: "#c1d7e6" }
                         }
                     }
                 }
-                Button {
-                    Layout.alignment: Qt.AlignLeft
-                    Layout.preferredWidth: 172
-                    Layout.preferredHeight: 36
-                    flat: true
-                    ToolTip.visible: hovered
-                    ToolTip.text: "Deschide managerul Bălțile mele"
-                    background: Rectangle {
-                        radius: 8
-                        color: parent.hovered ? "#153047" : "#0b1a27"
-                        border.color: parent.hovered ? root.accent : root.line
+                Rectangle {
+                    visible: lakesHome.selectedTab===1
+                    Layout.fillWidth: true; Layout.fillHeight: true
+                    color: "#061827"; border.color: "#20d9ed"; radius: 10
+                    ColumnLayout {
+                        anchors.fill: parent; anchors.margins: 13; spacing: 10
+                        Label { text: "Baltă activă"; color: "#eff9ff"; font.bold: true; font.pixelSize: 17 }
+                        Rectangle { Layout.fillWidth: true; height: 1; color: "#19546b" }
+                        Label { text: scanCoordinator.lakeName.length ? scanCoordinator.lakeName : "Nicio baltă activă"; color: "#79eff0"; font.pixelSize: 16 }
+                        Label {
+                            Layout.fillWidth: true; wrapMode: Text.WordWrap; font.pixelSize: 12; color: "#c1d7e6"
+                            text: "Datele Sonar PRO, punctele de pescuit, batimetria și progresul Area Scan se salvează separat pentru fiecare baltă."
+                        }
+                        Button {
+                            text: "Deschide managerul bălții"
+                            enabled: persistence.lakes.length>0
+                            onClicked: myLakesPopup.open()
+                            background: Rectangle { color: "#0b3546"; border.color: "#20d9ed"; radius: 8 }
+                            contentItem: Label { text: parent.text; color: "#eff9ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        }
+                        Item { Layout.fillHeight: true }
                     }
-                    contentItem: Row {
-                        spacing: 8
-                        anchors.centerIn: parent
-                        Image { width:22; height:22; source:"qrc:/qml/NavoSmart/icons/lake.svg"; fillMode:Image.PreserveAspectFit }
-                        Label { text:"Deschide Bălțile mele"; color:root.accent; font.pixelSize:11; font.bold:true; anchors.verticalCenter:parent.verticalCenter }
+                }
+                Rectangle {
+                    visible: lakesHome.selectedTab===2
+                    Layout.fillWidth: true; Layout.fillHeight: true
+                    color: "#061827"; border.color: "#20d9ed"; radius: 10
+                    ColumnLayout {
+                        anchors.fill: parent; anchors.margins: 13; spacing: 10
+                        Label { text: "Administrare și restaurare"; color: "#eff9ff"; font.bold: true; font.pixelSize: 17 }
+                        Rectangle { Layout.fillWidth: true; height: 1; color: "#19546b" }
+                        Label {
+                            Layout.fillWidth: true; wrapMode: Text.WordWrap; color: "#c1d7e6"; font.pixelSize: 12
+                            text: "Selectează o baltă pentru a încărca sesiunile sonar, pentru a deschide harta sau pentru a continua o scanare. Redenumirea și ștergerea sunt protejate de dialoguri."
+                        }
+                        Button {
+                            text: "Deschide Bălțile mele"
+                            onClicked: myLakesPopup.open()
+                            background: Rectangle { radius: 8; color: "#0b3546"; border.color: "#20d9ed" }
+                            contentItem: Label { text: parent.text; color: "#eff9ff"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                        }
+                        Item { Layout.fillHeight: true }
                     }
-                    onClicked: myLakesPopup.open()
                 }
             }
             NavoMyLakes {
@@ -2134,14 +2573,22 @@ Item {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 48
-                radius: 8
-                color: "#26384a"
+                radius: 9
+                color: "#102a39"
+                border.color: "#ffd166"
                 visible: root.pendingBaitJournalCount>0
                 RowLayout {
                     anchors.fill: parent
-                    anchors.margins: 5
-                    Label { Layout.fillWidth: true; color: "#ffce7b"; wrapMode: Text.WordWrap; text: root.pendingBaitJournalCount+" nădiri așteaptă salvarea" }
-                    Button { text: "Recuperează"; onClicked: root.retryPendingBaitJournal() }
+                    anchors.margins: 7
+                    spacing: 8
+                    Label { Layout.fillWidth: true; color: "#ffe09a"; font.pixelSize: 12; wrapMode: Text.WordWrap; text: root.pendingBaitJournalCount+" nădiri așteaptă salvarea" }
+                    Button {
+                        text: "Recuperează"
+                        implicitHeight: 33
+                        onClicked: root.retryPendingBaitJournal()
+                        background: Rectangle { radius: 8; color: "#0b3546"; border.color: "#20d9ed" }
+                        contentItem: Label { text: parent.text; color: "#eff9ff"; font.pixelSize: 12; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                    }
                 }
             }
             NavoFishingJournal {
@@ -2168,6 +2615,9 @@ Item {
                     Layout.fillWidth: true; Layout.fillHeight: true
                     radius: 8; color: root.panel; border.color: root.line; clip: true
                     NavoMap {
+                headingOverrideEnabled: true
+                areaDrawingGeneration: root.areaDrawingGeneration
+                headingOverrideDeg: root.headingDeg
                 spotActionsAllowed:!root.missionBusy && !sonar.replayMode && !root.steeringModeBusy
                 onFishingSpotActionRequested:function(spot,action,hopper,size){root.prepareFishingSpotAction(spot,action,hopper,size)}
                 onFishingSpotRenameRequested:function(spot){root.prepareFishingSpotAction(spot,"edit",0,0)}
@@ -2372,66 +2822,23 @@ Item {
 
     Component {
         id: settingsPage
-        Item {
-            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
-            ScrollView {
-                id: settingsScroll
-                contentWidth: availableWidth
-                anchors.fill: parent
-                anchors.margins: root.responsiveMargin
-                clip: true
-                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                ScrollBar.vertical.policy: contentHeight > availableHeight ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
-
-                ColumnLayout {
-                    width: settingsScroll.availableWidth
-                    spacing: root.responsiveGap
-                    Button {
-                        Layout.maximumWidth: 230
-                        text: g20Advanced.visible ? "Închide Avansat • G20" : "Avansat • integrare G20"
-                        onClicked: g20Advanced.visible = !g20Advanced.visible
-                    }
-                    NavoG20Settings {
-                        id: g20Advanced
-                        visible: false
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: implicitHeight
-                        controller: g20Controller
-                    }
-                    NavoAlertSettings { Layout.fillWidth:true;controller:alerts;audio:alertAudio }
-                    NavoSteeringPanel {
-                        Layout.fillWidth:true
-                        controller:steeringAssist
-                        onEnableRequested:steeringAssist.enable()
-                    }
-                    NavoEthernetSettings {
-                        id: ethernetSettings
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: implicitHeight
-                        sonar: root.sonarController
-                        camera: cameraEthernet
-                        onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
-                        onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
-                        onStatus: function(text) { root.lastNavigationStatus=text }
-                        onUnitsRequested: { if (typeof mainWindow !== "undefined" && mainWindow.showSettingsTool) mainWindow.showSettingsTool() }
-                    }
-                    GroupBox {
-                        title:"Rezervă energie • traseu + întoarcere HOME"
-                        Layout.fillWidth:true
-                        ColumnLayout {
-                            anchors.fill:parent
-                            Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;color:root.muted;text:"Activează verificarea numai după măsurarea consumului pe barcă. Estimarea verifică navigarea, nădirea și START Area Scan; nu comandă automat RTL." }
-                            GridLayout {
-                                columns:2;Layout.fillWidth:true
-                                Label { text:"Rezervă %";color:root.text }
-                                SpinBox { Layout.fillWidth:true;from:5;to:80;value:energySettings.reservePercent;onValueModified:{energySettings.confirmed=false;energySettings.reservePercent=value} }
-                                Label { text:"Consum %/km";color:root.text }
-                                SpinBox { Layout.fillWidth:true;from:1;to:100;value:energySettings.consumptionPercentPerKm;onValueModified:{energySettings.confirmed=false;energySettings.consumptionPercentPerKm=value} }
-                            }
-                            CheckBox { text:"Consum verificat • activează verificarea înainte de plecare";palette.windowText:"#d7e3ee";checked:energySettings.confirmed;onToggled:energySettings.confirmed=checked }
-                        }
-                    }
-                }
+        NavoSettingsV3 {
+            anchors.fill: parent
+            sonar: root.sonarController
+            camera: cameraEthernet
+            alerts: root.settingsAlertsController
+            audio: alertAudio
+            steering: steeringAssist
+            g20: g20Controller
+            energy: energySettings
+            onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
+            onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
+            onStatus: function(message) { root.lastNavigationStatus = message }
+            onEnableSteeringRequested: steeringAssist.enable()
+            onSettingsToolRequested: {
+                if (typeof mainWindow !== "undefined" && mainWindow.showSettingsTool)
+                    mainWindow.showSettingsTool()
+                else root.lastNavigationStatus = "Setările native QGroundControl nu sunt disponibile în acest context."
             }
         }
     }
@@ -2455,18 +2862,24 @@ Item {
         property string title: ""
         property string value: "--"
         property bool good: false
+        readonly property bool healthy: good && root.linkAlive && value.length>0 && value!=="--"
         property bool interactive: false
         signal clicked()
         signal pressAndHold()
-        property real pillWidth: 72
-        Layout.preferredWidth: pillWidth; Layout.preferredHeight: 36; radius: 7
-        color: root.panel; border.color: good ? root.ok : root.line
+        property real pillWidth: 76
+        Layout.preferredWidth: pillWidth * header.telemetryScale; Layout.preferredHeight: root.compactUi ? 36 : 42; radius: 9
+        color: pillMouse.containsMouse && interactive ? "#143747" : "#0a2332"
+        border.color: healthy ? root.ok : (pillMouse.containsMouse && interactive ? "#20d9ed" : (interactive ? "#167a93" : root.line))
+        border.width: healthy ? 2 : 1
+        ToolTip.visible: pillMouse.containsMouse && interactive
+        ToolTip.text: "Deschide " + title.toLowerCase()
+        ToolTip.delay: 500
         MouseArea { id:pillMouse; anchors.fill:parent; enabled:parent.interactive; hoverEnabled:true; cursorShape:parent.interactive?Qt.PointingHandCursor:Qt.ArrowCursor; pressAndHoldInterval:1600; onClicked:parent.clicked(); onPressAndHold:parent.pressAndHold() }
-        Row { anchors.centerIn:parent; spacing:5
-            Image { width:20;height:20;anchors.verticalCenter:parent.verticalCenter;source:iconSource;fillMode:Image.PreserveAspectFit }
-            Column { anchors.verticalCenter:parent.verticalCenter; spacing:0
-                Label { anchors.horizontalCenter:parent.horizontalCenter;text:title;color:root.muted;font.pixelSize:7 }
-                Label { anchors.horizontalCenter:parent.horizontalCenter;text:value;color:good?root.ok:root.text;font.pixelSize:10;font.bold:true }
+        Row { width:parent.width-6; anchors.centerIn:parent; spacing:header.telemetryScale<1 ? 3 : 5
+            Image { id:pillIcon;width:header.telemetryScale<1 ? 16 : 20;height:width;anchors.verticalCenter:parent.verticalCenter;source:iconSource;fillMode:Image.PreserveAspectFit }
+            Column { width:parent.width-pillIcon.width-parent.spacing;anchors.verticalCenter:parent.verticalCenter;spacing:0
+                Label { width:parent.width;horizontalAlignment:Text.AlignHCenter;elide:Text.ElideRight;text:title;color:"#9cc4d7";font.pixelSize:8 }
+                Label { width:parent.width;horizontalAlignment:Text.AlignHCenter;elide:Text.ElideRight;text:value;color:healthy?root.ok:root.text;font.pixelSize:header.telemetryScale<1 ? 10 : 11;font.bold:true }
             }
         }
     }
@@ -2487,7 +2900,12 @@ Item {
         onCanceled: longPressHint = false
         Layout.fillWidth: true
         Layout.preferredHeight: Math.max(38, Math.min(46, (sidebar.height - 58) / 9))
-        background: Rectangle { radius: 6; color: parent.active ? "#183248" : "transparent"; border.color: parent.active ? root.accent : "transparent" }
+        background: Rectangle {
+            radius: 9
+            color: parent.active ? "#103b4d" : (parent.hovered ? "#0d2a38" : "transparent")
+            border.color: parent.active ? "#20d9ed" : (parent.hovered ? "#167a93" : "transparent")
+            border.width: 1
+        }
         contentItem: Item {
             Image {
                 anchors.centerIn: parent
@@ -2524,3 +2942,5 @@ Item {
         Label { text: parent.value; color: parent.valueColor; font.bold: true }
     }
 }
+
+

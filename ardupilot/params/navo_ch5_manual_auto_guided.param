@@ -1,0 +1,12 @@
+# NAVO Rover/Boat: native physical RC channel 5 mode selector.
+# Low -> MANUAL; middle -> AUTO; high -> GUIDED.
+# Import explicitly on H743 only after checking actual CH5 PWM and motor isolation.
+# This file does not arm, set a current mode, or change throttle/failsafes.
+MODE_CH 5
+MODE1 0
+MODE2 0
+MODE3 10
+MODE4 10
+MODE5 15
+MODE6 15
+RC5_OPTION 0
