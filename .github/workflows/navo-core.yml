@@ -77,6 +77,7 @@ jobs:
           node tests/route-plan.mjs
           node tests/installed-spots-driver.mjs
           node tests/steering-bottom.mjs
+          node tests/map-visual-position.mjs
       - name: Render production Missions UI with Qt 6.8.3
         run: |
           python3 -m venv /tmp/navo-ui-env

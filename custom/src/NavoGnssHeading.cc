@@ -89,6 +89,9 @@ void NavoGnssHeading::_mavlink(const mavlink_message_t& message) {
         mavlink_gps_raw_int_t gps{};
         mavlink_msg_gps_raw_int_decode(&message, &gps);
         _observe(_gps1, gps.fix_type, gps.satellites_visible, gps.yaw);
+        // GPS_RAW_INT.h_acc is a MAVLink2 extension in millimetres; zero is unknown.
+        _gps1.accuracyM = gps.h_acc > 0 && gps.h_acc < UINT32_MAX
+            ? double(gps.h_acc) / 1000.0 : qQNaN();
         emit headingChanged();
         break;
     }
@@ -172,4 +175,13 @@ int NavoGnssHeading::gpsYawAgeMs() const {
 void NavoGnssHeading::_refresh() {
     // Periodically notify QML when yaw freshness expires (even without packets).
     emit headingChanged();
+}
+
+// GPS1 precision is not HDOP and is independent of dual-antenna yaw availability.
+bool NavoGnssHeading::positionFresh() const {
+    return _linkAlive && _vehicle && _gps1.fix >= 3 && _gps1.lastPacketMs >= 0
+        && _clock.elapsed() - _gps1.lastPacketMs < kYawTimeoutMs;
+}
+double NavoGnssHeading::positionAccuracyM() const {
+    return positionFresh() ? _gps1.accuracyM : qQNaN();
 }
