@@ -19,6 +19,7 @@ class NavoConnectivity : public QObject {
     Q_PROPERTY(bool autoConnect READ autoConnect WRITE setAutoConnect NOTIFY autoConnectChanged)
     Q_PROPERTY(bool liveSuspended READ liveSuspended WRITE setLiveSuspended NOTIFY connectionsChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY connectionsChanged)
+    Q_PROPERTY(bool replaying READ replaying NOTIFY connectionsChanged)
     Q_PROPERTY(int serialBaud READ serialBaud NOTIFY connectionsChanged)
     Q_PROPERTY(QString status READ status NOTIFY connectionsChanged)
 public:
@@ -29,6 +30,7 @@ public:
     bool liveSuspended() const { return _liveSuspended; }
     void setLiveSuspended(bool suspended);
     int serialBaud() const { return _baud; }
+    bool replaying() const { return replayActive(); }
     bool busy() const { return !_pending.isEmpty(); }
     QString status() const { return _status; }
     Q_INVOKABLE void refresh();
