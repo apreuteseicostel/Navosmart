@@ -15,7 +15,7 @@ ColumnLayout {
         var rows=controller ? controller.connections : []
         for(var i=0;i<rows.length;i++) {
             if(i<links.count && links.get(i).key!==rows[i].key)links.remove(i,links.count-i)
-            var row={key:String(rows[i].key),name:String(rows[i].name),endpoint:String(rows[i].endpoint),stateText:String(rows[i].state),detail:String(rows[i].detail||""),checksJson:JSON.stringify(rows[i].checks||[]),live:!!rows[i].live,canConnect:!!rows[i].canConnect,received:String(rows[i].bytes||0)}
+            var row={key:String(rows[i].key),name:String(rows[i].name),endpoint:String(rows[i].endpoint),stateText:String(rows[i].state),detail:String(rows[i].detail||""),explanation:String(rows[i].explanation||""),nextAction:String(rows[i].nextAction||""),diagnosisCode:String(rows[i].diagnosisCode||""),checksJson:JSON.stringify(rows[i].checks||[]),live:!!rows[i].live,canConnect:!!rows[i].canConnect,received:String(rows[i].bytes||0)}
             if(i<links.count)links.set(i,row);else links.append(row)
         }
         if(links.count>rows.length)links.remove(rows.length,links.count-rows.length)
@@ -60,6 +60,9 @@ ColumnLayout {
             required property string name
             required property string endpoint
             required property string stateText
+            required property string explanation
+            required property string nextAction
+            required property string diagnosisCode
             required property string detail
             required property string checksJson
             property var checks:JSON.parse(checksJson)
@@ -74,7 +77,9 @@ ColumnLayout {
                 Label { Layout.fillWidth:true;text:name;wrapMode:Text.WordWrap;color:"#eff9ff";font.bold:true;font.pixelSize:12 }
                 Label { Layout.fillWidth:true;text:endpoint;wrapMode:Text.WrapAnywhere;color:"#bfd6e5";font.pixelSize:11 }
                 Label { Layout.fillWidth:true;text:stateText;wrapMode:Text.WordWrap;color:live ? "#31d67b" : "#ffd166";font.pixelSize:11 }
-                Label { Layout.fillWidth:true;text:detail;visible:text.length>0;wrapMode:Text.WordWrap;color:"#bfd6e5";font.pixelSize:11 }
+                Label { objectName:"connectivityExplanation";Layout.fillWidth:true;text:explanation;visible:text.length>0;wrapMode:Text.WordWrap;color:"#eff9ff";font.pixelSize:12 }
+                Label { objectName:"connectivityNextAction";Layout.fillWidth:true;text:nextAction.length ? "Ce poți face: "+nextAction : "";visible:nextAction.length>0;wrapMode:Text.WordWrap;color:live ? "#9be9e2" : "#ffd166";font.pixelSize:11 }
+                Label { Layout.fillWidth:true;text:detail;visible:text.length>0 && (key!=="skydroid:g20" || radioExpanded || diagnosisCode==="sdk_error");wrapMode:Text.WordWrap;color:"#bfd6e5";font.pixelSize:11 }
                 Repeater {
                     model:checks
                     delegate:Label {

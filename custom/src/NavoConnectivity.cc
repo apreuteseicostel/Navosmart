@@ -1,6 +1,7 @@
 #include "NavoConnectivity.h"
 #include "NavoSkydroidLink.h"
 #include "NavoConnectionPolicy.h"
+#include "NavoConnectivityDiagnosis.h"
 #include "LinkManager.h"
 #include "LinkConfiguration.h"
 #include "LinkInterface.h"
@@ -227,6 +228,7 @@ void NavoConnectivity::refresh() {
         if (!link && _retry.value(it.key()).attempts >= 5) detail = "Încercări automate oprite • verifică și reconectează manual";
         QString endpoint = it.key();
         QVariantList checks;
+        QString diagnosisCode, explanation, nextAction;
         if (it.key() == "skydroid:g20") {
             auto info = NavoSkydroidLink::deviceInfo();
             if (auto sdk = qobject_cast<NavoSkydroidLink *>(link)) info = sdk->diagnostics();
@@ -238,13 +240,30 @@ void NavoConnectivity::refresh() {
             else if (!info.value("supported").toBool() && !QSettings().value("NavoConnectivity/g20Selected", false).toBool()) detail = "Model G20 nedetectat automat • apasă Conectează numai pe G20";
             else if (!info.value("error").toString().isEmpty()) detail = info.value("error").toString();
             else if (detail.isEmpty()) detail = "Telecomandă: " + QString(info.value("rc").toBool() ? "DA" : "NU") + " • canal GR01: " + QString(info.value("channel").toBool() ? "DA" : "NU") + " • TX SDK: " + QString::number(info.value("tx").toLongLong()) + " • RX pierdut: " + QString::number(info.value("dropped").toLongLong()) + " • închide FLY/Device Tool; firmware G20 ≥20250110";
+            NavoConnectivityDiagnosis::Input diagnosis;
+            diagnosis.platform = info.value("arm").toBool();
+            diagnosis.selected = info.value("supported").toBool() || QSettings().value("NavoConnectivity/g20Selected", false).toBool();
+            diagnosis.replay = replayActive(); diagnosis.stopped = _g20Stopped;
+            diagnosis.link = bool(link); diagnosis.rc = info.value("rc").toBool();
+            diagnosis.channel = connected && info.value("channel").toBool();
+            diagnosis.live = live; diagnosis.heartbeatSeen = evidence.heartbeat > 0;
+            diagnosis.sdkError = !info.value("error").toString().isEmpty() || (!link && !_lastErrors.value(it.key()).isEmpty());
+            diagnosis.attempts = _retry.value(it.key()).attempts;
+            diagnosis.bytes = evidence.bytes;
+            const auto health = info.value("health").toMap();
+            // Missing keys remain unknown; QVariant::toInt() alone would invent disconnection.
+            diagnosis.receiver = health.contains("receiver") ? health.value("receiver").toInt() : -1;
+            const auto result = NavoConnectivityDiagnosis::explain(diagnosis);
+            diagnosisCode = QString::fromUtf8(result.code);
+            explanation = QString::fromUtf8(result.explanation);
+            nextAction = QString::fromUtf8(result.action);
             available = info.value("arm").toBool() && !replayActive();
             if (replayActive()) detail = "Redare activă • canalul live RCSDK este oprit";
             else if (_g20Stopped) { state = "OPRIT MANUAL"; detail = "Canalul SDK este oprit • apasă Conectează pentru reluare"; }
             else if (!link && _retry.value(it.key()).attempts >= 5) detail += " • 5 încercări epuizate; reconectare manuală";
         }
         rows.append(QVariantMap{{"key", it.key()}, {"name", config->name()}, {"endpoint", endpoint},
-                               {"state", state}, {"detail", detail}, {"checks", checks}, {"live", live}, {"connected", connected},
+                               {"state", state}, {"detail", detail}, {"diagnosisCode", diagnosisCode}, {"explanation", explanation}, {"nextAction", nextAction}, {"checks", checks}, {"live", live}, {"connected", connected},
                                {"canConnect", available && !link}, {"bytes", evidence.bytes}, {"systemId", evidence.systemId}});
     }
     for (auto it = _excluded.cbegin(); it != _excluded.cend(); ++it)
