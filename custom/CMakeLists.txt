@@ -97,6 +97,7 @@ qt_add_qml_module(NavoSmartModule
         # Imported by relative URL only. Exporting this script in qmldir makes
         # Qt 6.8.3's implicit + explicit NavoSmart imports ambiguous at startup.
         qml/NavoBottomAnalysis.js
+        qml/NavoVisualPosition.js
         icons/layers.svg
         icons/route.svg
         icons/map.svg
@@ -156,6 +157,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/navo_mosaic_provider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/NavoKoggerService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/KoggerApp/src/mosaic_index_provider.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoSkydroidLink.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoSkydroidLink.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoConnectivity.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoConnectivity.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoConnectionPolicy.h

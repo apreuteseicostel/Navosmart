@@ -27,6 +27,9 @@ class NavoGnssHeading : public QObject {
     Q_PROPERTY(int gpsYawAgeMs READ gpsYawAgeMs NOTIFY headingChanged)
     Q_PROPERTY(bool fallbackActive READ fallbackActive NOTIFY headingChanged)
 
+    Q_PROPERTY(double positionAccuracyM READ positionAccuracyM NOTIFY headingChanged)
+    Q_PROPERTY(bool positionFresh READ positionFresh NOTIFY headingChanged)
+
 public:
     explicit NavoGnssHeading(QObject* parent = nullptr);
     QObject* vehicle() const;
@@ -36,6 +39,8 @@ public:
     double autopilotHeadingDeg() const { return _autopilotHeadingDeg; }
     void setAutopilotHeadingDeg(double);
 
+    double positionAccuracyM() const;
+    bool positionFresh() const;
     bool gpsYawValid() const;
     double gpsYawDeg() const;
     double selectedHeadingDeg() const;
@@ -56,6 +61,7 @@ private slots:
 
 private:
     struct Receiver {
+        double accuracyM = qQNaN();
         double yawDeg = qQNaN();
         qint64 lastYawMs = -1;
         int fix = 0;

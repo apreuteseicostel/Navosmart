@@ -17,6 +17,7 @@ class NavoConnectivity : public QObject {
     Q_OBJECT
     Q_PROPERTY(QVariantList connections READ connections NOTIFY connectionsChanged)
     Q_PROPERTY(bool autoConnect READ autoConnect WRITE setAutoConnect NOTIFY autoConnectChanged)
+    Q_PROPERTY(bool liveSuspended READ liveSuspended WRITE setLiveSuspended NOTIFY connectionsChanged)
     Q_PROPERTY(bool busy READ busy NOTIFY connectionsChanged)
     Q_PROPERTY(int serialBaud READ serialBaud NOTIFY connectionsChanged)
     Q_PROPERTY(QString status READ status NOTIFY connectionsChanged)
@@ -25,12 +26,15 @@ public:
     QVariantList connections() const { return _rows; }
     bool autoConnect() const { return _autoConnect; }
     void setAutoConnect(bool enabled);
+    bool liveSuspended() const { return _liveSuspended; }
+    void setLiveSuspended(bool suspended);
     int serialBaud() const { return _baud; }
     bool busy() const { return !_pending.isEmpty(); }
     QString status() const { return _status; }
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void connectAll();
     Q_INVOKABLE void connectOne(const QString &key);
+    Q_INVOKABLE void disconnectOne(const QString &key);
     Q_INVOKABLE void verifyOne(const QString &key);
     Q_INVOKABLE bool addTcp(const QString &host, int port);
     Q_INVOKABLE void setSerialBaud(int baud);
@@ -44,6 +48,7 @@ private:
     struct Retry { int attempts = 0; qint64 at = 0; };
     QString keyFor(const LinkConfiguration *config) const;
     void discover();
+    void stopSkydroid();
     void observe();
     void queue(bool force);
     void attemptNext();
@@ -58,9 +63,12 @@ private:
     QHash<LinkInterface *, Evidence> _evidence;
     QSet<LinkInterface *> _watched;
     QHash<QString, Retry> _retry;
+    QMap<QString, QString> _lastErrors;
     QStringList _pending;
     QString _status;
     bool _autoConnect = true;
     bool _ready = false;
+    bool _liveSuspended = false;
+    bool _g20Stopped = false;
     int _baud = 115200;
 };
