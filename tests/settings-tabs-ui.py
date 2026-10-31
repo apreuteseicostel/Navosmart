@@ -36,6 +36,8 @@ import QtQuick.Layouts
 import "'''+QUrl.fromLocalFile(str(repo/'custom/qml')).toString()+'''"
 ApplicationWindow {
  id:root;visible:true;width:800;height:650;color:"#051521"
+ property bool cameraConnected:false
+ QtObject {id:connectivityController;property var connections:[];property bool autoConnect:false;property bool busy:false;property string status:"Test";property int serialBaud:115200}
  property bool linkAlive:false
  property var vehicle:null
  property bool viewSwitchAllowed:true
@@ -97,6 +99,10 @@ with tempfile.TemporaryDirectory() as directory:
   page.setProperty('selectedTab',2);QTest.qWait(20)
   assert forms==window.findChild(QObject,'settingsEthernetForms')
   assert window.findChild(QObject,'settingsSonarPort').property('text')=='23'
+ page.setProperty('selectedTab',0);QTest.qWait(20)
+ QMetaObject.invokeMethod(window.findChild(QObject,'settingsConnectivity'),'clicked');QTest.qWait(20)
+ assert page.property('selectedTab')==4 and window.findChild(QObject,'settingsConnectivityPanel').property('visible')
+ QMetaObject.invokeMethod(window.findChild(QObject,'connectivityBack'),'clicked');QTest.qWait(20);assert page.property('selectedTab')==0
  assert QMetaObject.invokeMethod(page,'saveAll',Q_RETURN_ARG('QVariant'))
  window.findChild(QObject,'settingsCameraPort').setProperty('text','70000')
  assert not QMetaObject.invokeMethod(page,'saveAll',Q_RETURN_ARG('QVariant'))

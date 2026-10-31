@@ -6,6 +6,8 @@ import QtQuick.Layouts
 // All control actions are backed by existing NAVO modules; QGC handles its own parameters.
 Rectangle {
     id: root
+    property var connectivity: null
+    property bool cameraLive: false
     property bool vehicleConnected: false
     property var sonar: null
     property var camera: null
@@ -209,6 +211,7 @@ Rectangle {
                 objectName:"settingsGeneralPanel"
                 Layout.fillWidth: true
                 spacing: 9
+                ActionButton { objectName:"settingsConnectivity";text:"Conectivitate • porturi și stare conexiuni";Layout.fillWidth:true;onClicked:root.selectedTab=4 }
 
                 GridLayout {
                     Layout.fillWidth: true
@@ -374,6 +377,17 @@ Rectangle {
                     }
                     ActionButton { objectName:"settingsOpenQgc";text: "Setări aplicație QGC"; Layout.fillWidth:true; onClicked: root.settingsToolRequested() }
                 }
+            }
+
+            NavoConnectivityPanel {
+                visible:root.selectedTab===4
+                objectName:"settingsConnectivityPanel"
+                Layout.fillWidth:true
+                controller:root.connectivity
+                sonar:root.sonar
+                camera:root.camera
+                videoLive:root.cameraLive
+                onBackRequested:root.selectedTab=0
             }
 
             Label {

@@ -15,6 +15,25 @@ import NavoSmart.Backend 1.0
 
 Item {
     id: root
+    property bool networkStartupLoaded: false
+    property bool sonarStartupEnabled: true
+    NavoConnectivity {
+        id: connectivityController
+        onNetworkConnectRequested: function(automatic) { root.connectConfiguredNetworkServices(automatic) }
+    }
+    function connectConfiguredNetworkServices(automatic) {
+        if(!root.networkStartupLoaded) {
+            var saved=connectivityController.savedEthernet()
+            root.sonarStartupEnabled=saved.connectOnStartup!==false
+            if(!sonar.connected && !sonar.replayMode) {sonar.host=String(saved.sonarHost||"");sonar.port=Number(saved.sonarPort||0);sonar.udp=!!saved.sonarUdp}
+            if(!cameraEthernet.connected) {cameraEthernet.host=String(saved.cameraHost||"");cameraEthernet.port=Number(saved.cameraPort||0);cameraEthernet.udp=!!saved.cameraUdp}
+            if(!root.cameraStreamUrl.length)root.cameraStreamUrl=String(saved.cameraStreamUrl||"")
+            root.cameraProtocol=String(saved.cameraProtocol||"auto")
+            root.networkStartupLoaded=true
+        }
+        if((!automatic || root.sonarStartupEnabled) && !sonar.replayMode && !sonar.connected && sonar.port>0 && sonar.port<=65535 && (sonar.udp || sonar.host.length))sonar.connectSonar()
+        if(!cameraEthernet.connected && cameraEthernet.port>0 && cameraEthernet.port<=65535 && (cameraEthernet.udp || cameraEthernet.host.length))cameraEthernet.connectCamera()
+    }
     readonly property string activePageName: ["HARTA","SONAR","MISIUNI","PUNCTE PESCUIT","BALȚILE MELE","CAMERA","SETARI","3D","NĂDIRE","SIGURANȚĂ","SONAR PRO","JURNAL","HĂRȚI OFFLINE"][activePage] || "HARTA"
     implicitWidth: 1280
     implicitHeight: 720
@@ -2864,6 +2883,8 @@ Item {
         NavoSettingsV3 {
             anchors.fill: parent
             vehicleConnected:root.linkAlive && !!root.vehicle
+            connectivity:connectivityController
+            cameraLive:root.cameraConnected
             sonar: root.sonarController
             camera: cameraEthernet
             alerts: root.settingsAlertsController
