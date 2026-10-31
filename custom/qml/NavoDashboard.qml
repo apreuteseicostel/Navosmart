@@ -339,6 +339,7 @@ Item {
         readOnly:sonar.replayMode
         operationsBusy:root.missionBusy || digitalAnchor.active
         preLaunchReady:preLaunchCheck.navigationReady
+        preLaunchMessage:preLaunchCheck.blockingMessage
         onStatus:function(text){root.lastNavigationStatus=text}
     }
     readonly property bool steeringModeBusy:steeringAssist.busy

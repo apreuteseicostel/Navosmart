@@ -37,43 +37,64 @@ Rectangle {
             }
         }
         Rectangle { Layout.fillWidth: true; height: 1; color: "#19546b" }
-        RowLayout {
-            Layout.fillWidth: true; Layout.preferredHeight: 33
+        GridLayout {
+            columns:root.width<360 ? 1 : 3
+            Layout.fillWidth:true
             Label { text: "Activare asistență"; color: "#eff9ff"; font.pixelSize: 12; Layout.fillWidth: true }
             Label {
-                text: root.controller && root.controller.busy ? "● STEERING" : "● OPRIT"
-                color: root.controller && root.controller.busy ? "#37e9a2" : "#c1d7e6"
+                objectName:"steeringState"
+                text:root.controller ? "● "+root.controller.assistLabel : "● INDISPONIBILĂ"
+                color:root.controller && root.controller.pending ? "#ffd166" : root.controller && root.controller.active ? "#37e9a2" : "#c1d7e6"
                 font.pixelSize: 11; font.bold: true
             }
             Button {
                 objectName: "steeringEnable"
-                text: "Activează"
-                Accessible.name: "Activează asistența cârmei"
-                implicitHeight: 32; implicitWidth: 89
-                enabled: !!root.controller && root.controller.canEnable
-                onClicked: confirmation.open()
-                background: Rectangle { radius: 8; color: parent.down ? "#154d57" : "#092838"; border.color: "#37e9a2" }
+                text:root.controller && root.controller.pending ? "Așteaptă…" : root.controller && root.controller.active ? "Dezactivează" : "Activează"
+                Accessible.name:text+" asistența cârmei"
+                highlighted:!!root.controller && root.controller.active
+                implicitHeight: 32; implicitWidth: 104
+                enabled:!!root.controller && !root.controller.pending && (root.controller.active ? root.controller.canStop : root.controller.canEnable)
+                onClicked:if(root.controller.active)root.controller.stop();else confirmation.open()
+                background: Rectangle { radius: 8; color:parent.down ? "#154d57" : root.controller && root.controller.active ? "#13513c" : "#092838"; border.color:parent.enabled ? "#37e9a2" : "#526372" }
                 contentItem: Label { text: parent.text; color: parent.enabled ? "#37e9a2" : "#a0aebe"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; font.pixelSize: 11; font.bold: true }
             }
         }
         Rectangle { Layout.fillWidth: true; height: 1; color: "#173c51" }
-        RowLayout {
-            Layout.fillWidth: true; Layout.preferredHeight: 34
+        GridLayout {
+            columns:root.width<360 ? 1 : 3
+            Layout.fillWidth:true
             Label { text: "Mod H743"; color: "#eff9ff"; font.pixelSize: 12; Layout.fillWidth: true }
             Label {
-                text: root.controller && root.controller.steeringMode.length > 0 ? root.controller.steeringMode : "INDISPONIBIL"
+                objectName:"steeringMode"
+                text:root.controller && root.controller.confirmedMode.length ? root.controller.confirmedMode : "NECONFIRMAT"
                 color: root.controller && root.controller.steeringMode.length > 0 ? "#20d9ed" : "#ffd166"
                 font.pixelSize: 11; font.bold: true
             }
             Button {
                 objectName: "steeringStop"
-                text: "■ HOLD"
-                implicitHeight: 32; implicitWidth: 83
-                enabled: !!root.controller && root.controller.busy && !root.controller.readOnly
-                onClicked: root.controller.stop()
-                background: Rectangle { radius: 8; color: "#1d2838"; border.color: "#ff6872" }
+                text:root.controller && root.controller.pending ? "Așteaptă…" : root.controller && root.controller.holdActive ? "Dezactivează HOLD" : "Activează HOLD"
+                Accessible.name:text
+                highlighted:!!root.controller && root.controller.holdActive
+                implicitHeight:32;implicitWidth:126
+                enabled:!!root.controller && root.controller.canToggleHold
+                ToolTip.visible:hovered
+                ToolTip.text:root.controller && root.controller.holdActive ? "Dezactivează HOLD și solicită MANUAL pe H743" : "Solicită HOLD pe H743"
+                onClicked:root.controller.toggleHold()
+                background: Rectangle { radius: 8; color:parent.down ? "#5c2838" : root.controller && root.controller.holdActive ? "#56352a" : "#1d2838"; border.color:parent.enabled ? "#ff6872" : "#526372" }
                 contentItem: Label { text: parent.text; color: parent.enabled ? "#ff8893" : "#a0aebe"; font.pixelSize: 11; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
             }
+        }
+        Label {
+            objectName:"holdState";Layout.fillWidth:true
+            text:root.controller ? "HOLD: "+root.controller.holdLabel : "HOLD: INDISPONIBIL"
+            color:root.controller && root.controller.pending ? "#ffd166" : root.controller && root.controller.holdActive ? "#37e9a2" : "#c1d7e6"
+            font.pixelSize:11;wrapMode:Text.WordWrap
+        }
+        Label {
+            objectName:"steeringBlockedReason";Layout.fillWidth:true
+            visible:!!root.controller && !root.controller.canEnable && !root.controller.active && !root.controller.pending
+            text:root.controller ? root.controller.availabilityMessage : "H743 indisponibil"
+            color:"#ffd166";font.pixelSize:11;wrapMode:Text.WordWrap
         }
         Rectangle { Layout.fillWidth: true; height: 1; color: "#173c51" }
         RowLayout {
@@ -92,9 +113,9 @@ Rectangle {
         Label {
             visible: !!root.controller && root.controller.message.length > 0
             Layout.fillWidth: true
-            text: root.controller ? root.controller.message : ""
+            text:root.controller ? (root.controller.active && !root.controller.pending ? "STEERING confirmat de H743" : root.controller.holdActive && !root.controller.pending ? "HOLD confirmat de H743" : root.controller.message) : ""
             color: "#c1d7e6"
-            elide: Text.ElideRight
+            wrapMode:Text.WordWrap
             font.pixelSize: 10
             ToolTip.visible: messageMouse.containsMouse
             ToolTip.text: text
