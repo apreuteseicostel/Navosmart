@@ -8,6 +8,7 @@ import NavoSmart.Backend 1.0
 // Real, editable endpoints and real connection actions; no demo values.
 Rectangle {
     id: root
+    property var lanDiagnostics: null
     property var sonar
     property var camera
     property string cameraStreamUrl: ""
@@ -233,6 +234,7 @@ Rectangle {
         id: body
         anchors.fill: parent
         spacing: 8
+        NavoLanDiagnosticPanel { Layout.fillWidth:true;backend:root.lanDiagnostics }
         GridLayout {
             id: panels
             Layout.fillWidth: true

@@ -36,6 +36,8 @@ import QtQuick.Layouts
 import "'''+QUrl.fromLocalFile(str(repo/'custom/qml')).toString()+'''"
 ApplicationWindow {
  id:root;visible:true;width:800;height:650;color:"#051521"
+ property var lanService:null
+ property int settingsStartTab:0
  property bool cameraConnected:false
  QtObject {id:connectivityController;property var connections:[];property bool autoConnect:false;property bool busy:false;property string status:"Test";property int serialBaud:115200}
  property bool linkAlive:false

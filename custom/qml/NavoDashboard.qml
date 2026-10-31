@@ -15,6 +15,24 @@ import NavoSmart.Backend 1.0
 
 Item {
     id: root
+    NavoLanDiagnostics {
+        id: lanService
+        suspended: root.sonarReplayMode || connectivityController.replaying
+        busyEndpoints: {
+            var endpoints=[]
+            if(sonar.connected)endpoints.push({host:sonar.host,port:sonar.port})
+            if(cameraEthernet.connected)endpoints.push({host:cameraEthernet.host,port:cameraEthernet.port})
+            var links=connectivityController.connections
+            for(var i=0;i<links.length;i++)if(links[i].connected && String(links[i].key).indexOf("tcp:")===0){
+                var key=String(links[i].key), colon=key.lastIndexOf(":")
+                endpoints.push({host:key.substring(4,colon),port:Number(key.substring(colon+1))})
+            }
+            return endpoints
+        }
+    }
+    readonly property bool verifiedLanOnline: lanService.online || root.cameraConnected
+        || (sonar.connected && (!sonar.udp || sonar.dataAlive))
+    property int settingsStartTab: 0
     property bool networkStartupLoaded: false
     property bool sonarStartupEnabled: true
     NavoConnectivity {
@@ -1707,7 +1725,7 @@ Item {
                     ToolTip.text: toolTipText
                 }
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/autopilot.svg"; title:"AP"; value:vehicle?"ON":"OFF"; good:!!vehicle }
-                MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/lan.svg"; title:"LAN"; value:sonar.transport&&sonar.transport.connected?"ON":"OFF"; good:sonar.transport&&sonar.transport.connected }
+                MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/lan.svg"; title:"LAN"; value:root.verifiedLanOnline?"ON":"?"; good:root.verifiedLanOnline;clickable:true;toolTipText:lanService.status;onClicked:{root.settingsStartTab=2;root.activePage=6;root.lastNavigationStatus=lanService.status} }
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/sonar.svg"; title:"SONAR"; value:root.sonarConnected?"ON":"OFF"; good:root.sonarConnected }
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/navigate.svg";title:"ANCORĂ";value:digitalAnchor.active?"CERUTĂ":"OFF";good:digitalAnchor.guidedConfirmed;clickable:true;toolTipText:digitalAnchor.active?"Dezactivează ancora GPS și solicită HOLD":"Menține poziția GPS curentă";onClicked:root.toggleDigitalAnchor() }
                 MiniStatus {
@@ -2903,6 +2921,8 @@ Item {
             anchors.fill: parent
             vehicleConnected:root.linkAlive && !!root.vehicle
             connectivity:connectivityController
+            lanDiagnostics:lanService
+            selectedTab:root.settingsStartTab
             cameraLive:root.cameraConnected
             sonar: root.sonarController
             camera: cameraEthernet

@@ -67,6 +67,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoSonarEthernet.qml
         qml/NavoCameraEthernet.qml
         qml/NavoEthernetSettings.qml
+        qml/NavoLanDiagnosticPanel.qml
         qml/NavoEthernetIndicator.qml
         qml/NavoVideoPlayer.qml
         qml/NavoCameraFullScreen.qml
@@ -182,6 +183,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoPersistence.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoLanDiagnostics.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoLanDiagnostics.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoLanDiscovery.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoLanDiscovery.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoH743Telemetry.cc

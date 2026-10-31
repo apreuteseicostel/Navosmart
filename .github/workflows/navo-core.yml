@@ -66,6 +66,8 @@ jobs:
         run: cmake -S tests/hardware -B /tmp/navo-hardware && cmake --build /tmp/navo-hardware -j2 && /tmp/navo-hardware/navo-hardware-test
       - name: Skydroid SDK bridge lifecycle and duplex regressions
         run: python3 tests/skydroid/bridge-test.py
+      - name: LAN witness and passive UART diagnostics
+        run: cmake -S tests/lan-uart -B /tmp/navo-lan-uart && cmake --build /tmp/navo-lan-uart -j2 && /tmp/navo-lan-uart/navo-lan-uart-test
       - name: G20 physical RC input regressions
         run: node tests/g20-input.mjs
       - name: Connectivity retry and heartbeat policy
@@ -84,6 +86,7 @@ jobs:
           /tmp/navo-ui-env/bin/pip install PySide6-Essentials==6.8.3 PySide6-Addons==6.8.3
           /tmp/navo-ui-env/bin/python tests/qml-module-import.py
           /tmp/navo-ui-env/bin/python tests/ethernet-settings-ui.py
+          /tmp/navo-ui-env/bin/python tests/lan-diagnostics-ui.py
           /tmp/navo-ui-env/bin/python tests/missions-ui.py
           /tmp/navo-ui-env/bin/python tests/map-framing-ui.py
           /tmp/navo-ui-env/bin/python tests/saved-spots-ui.py

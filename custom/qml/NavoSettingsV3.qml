@@ -6,6 +6,7 @@ import QtQuick.Layouts
 // All control actions are backed by existing NAVO modules; QGC handles its own parameters.
 Rectangle {
     id: root
+    property var lanDiagnostics: null
     property var connectivity: null
     property bool cameraLive: false
     property bool vehicleConnected: false
@@ -333,6 +334,7 @@ Rectangle {
                 spacing: 9
                 NavoEthernetSettings {
                     id: ethernetSettings
+                    lanDiagnostics: root.lanDiagnostics
                     objectName:"settingsEthernetForms"
                     Layout.fillWidth: true
                     Layout.preferredHeight: implicitHeight
