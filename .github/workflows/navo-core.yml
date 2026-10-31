@@ -62,6 +62,8 @@ jobs:
         run: cmake -S tests/persistence -B /tmp/navo-persistence && cmake --build /tmp/navo-persistence -j2 && /tmp/navo-persistence/navo-persistence-test
       - name: Test V3 onboard service and bounded hopper cycles
         run: lua5.3 tests/firmware/v3-service.lua
+      - name: SHT31 environment CRC and telemetry service
+        run: lua5.3 tests/firmware/sht31.lua
       - name: Hardware profiles and independent sensor expiry
         run: cmake -S tests/hardware -B /tmp/navo-hardware && cmake --build /tmp/navo-hardware -j2 && /tmp/navo-hardware/navo-hardware-test
       - name: Skydroid SDK bridge lifecycle and duplex regressions
@@ -102,11 +104,13 @@ jobs:
           /tmp/navo-ui-env/bin/python tests/offline-maps-ui.py
           /tmp/navo-ui-env/bin/python tests/alerts-ui.py
           /tmp/navo-ui-env/bin/python tests/hardware-safety-ui.py
+          /tmp/navo-ui-env/bin/python tests/environment-ui.py
       - uses: actions/upload-artifact@v4
         with:
           name: NAVO-NANO-FIRMWARE
           path: |
             build/firmware-nano/NAVO_NANO.hex
             build/firmware-nano/NAVO_NANO.elf
+
 
 

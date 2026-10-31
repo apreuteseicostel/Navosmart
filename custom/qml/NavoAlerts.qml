@@ -10,6 +10,12 @@ QtObject {
     property bool waterValid:telemetryConnected
     property bool temperatureValid:telemetryConnected
     property bool waterConfirmed:false
+    property bool environmentValid:false
+    property bool environmentAlertsEnabled:false
+    property real interiorTempC:NaN
+    property real humidityRh:NaN
+    property int humidityLimit:80
+    property int interiorTempLimit:45
     property real batteryTempC:NaN
     property real batteryPercent:NaN
     property bool gpsHealthy:false
@@ -67,6 +73,13 @@ QtObject {
         edge("gps",linkHealthy ? !gpsHealthy : null,"Poziția GPS este pierdută",true)
         edge("battery",linkHealthy && isFinite(batteryPercent) && batteryPercent>=0 ? batteryPercent<=20 : null,"Bateria bărcii este scăzută",true)
         edge("water",waterValid ? waterConfirmed : null,"Apă confirmată în barcă",true)
+        if(!environmentAlertsEnabled) {
+            audioQueue=audioQueue.filter(function(item){return item.key!=="humidity" && item.key!=="interior-temperature"})
+            var reset=Object.assign({},previous);delete reset.humidity;delete reset["interior-temperature"];previous=reset
+        } else {
+            edge("humidity",environmentValid && isFinite(humidityRh) ? humidityRh>=humidityLimit : null,"Umiditatea din barcă depășește pragul configurat",false)
+            edge("interior-temperature",environmentValid && isFinite(interiorTempC) ? interiorTempC>=interiorTempLimit : null,"Temperatura interioară depășește pragul configurat",false)
+        }
         edge("temperature",temperatureValid && isFinite(batteryTempC) ? batteryTempC>=55 : null,"Temperatura bateriei este critică",true)
     }
     function dispatch() {
@@ -85,3 +98,4 @@ QtObject {
     property Timer dispatcher:Timer { interval:250;repeat:true;running:true;onTriggered:root.dispatch() }
     property Timer monitor:Timer { interval:500;repeat:true;running:true;onTriggered:root.tick() }
 }
+

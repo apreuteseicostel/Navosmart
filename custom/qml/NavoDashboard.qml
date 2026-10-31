@@ -88,11 +88,24 @@ Item {
         Component.onCompleted: start()
     }
 
+    Settings {
+        id: environmentSettings
+        category: "NavoEnvironment"
+        property bool alertsEnabled: false
+        property int humidityLimit: 80
+        property int temperatureLimit: 45
+    }
     NavoPersistence { id: persistence }
     NavoAlertAudio { id:alertAudio;volume:alerts.volume }
     NavoAlerts {
         id:alerts;output:alertAudio;vehicle:root.vehicle;replayMode:sonar.replayMode
         telemetryConnected:h743Telemetry.connected
+        environmentValid:h743Telemetry.interiorValid && root.linkAlive
+        interiorTempC:h743Telemetry.interiorTempC
+        humidityRh:h743Telemetry.humidityRh
+        environmentAlertsEnabled:environmentSettings.alertsEnabled
+        humidityLimit:environmentSettings.humidityLimit
+        interiorTempLimit:environmentSettings.temperatureLimit
         waterValid:h743Telemetry.waterValid
         temperatureValid:h743Telemetry.temperatureValid
         waterConfirmed:safetyManager.waterConfirmed
@@ -1515,6 +1528,19 @@ Item {
         temperatureFresh: h743Telemetry.connected && h743Telemetry.temperatureValid && isFinite(h743Telemetry.batteryTempC)
         temperatureC: h743Telemetry.batteryTempC
         temperatureSource: "Temperatură NTC baterie / H743"
+        interiorValid: h743Telemetry.interiorValid && root.linkAlive && !sonar.replayMode
+        interiorStatus: root.linkAlive && !sonar.replayMode ? h743Telemetry.interiorStatus : 0
+        interiorTempC: h743Telemetry.interiorTempC
+        humidityRh: h743Telemetry.humidityRh
+        interiorAgeMs: h743Telemetry.interiorAgeMs
+        environmentAlertsEnabled: environmentSettings.alertsEnabled
+        humidityLimit: environmentSettings.humidityLimit
+        interiorTempLimit: environmentSettings.temperatureLimit
+        onEnvironmentConfigured: function(enabled, humidity, temperature) {
+            environmentSettings.alertsEnabled=enabled
+            environmentSettings.humidityLimit=humidity
+            environmentSettings.temperatureLimit=temperature
+        }
     }
 
     NavoHeadingCompass { id:headingCompassOverlay; visible:root.headingOverlayOpen && root.activePage !== 10; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; headingSource:root.headingSource; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; onToggleRequested:root.headingOverlayOpen=false }
@@ -3056,5 +3082,6 @@ Item {
         Label { text: parent.value; color: parent.valueColor; font.bold: true }
     }
 }
+
 
 
