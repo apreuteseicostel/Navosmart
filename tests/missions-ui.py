@@ -69,6 +69,10 @@ ApplicationWindow {
  property bool canClearArea:false
  property int clearCalls:0
  function clearAreaScan(){if(!canClearArea)return false;clearCalls++;return true}
+ property int scanUploads:0
+ property int scanStarts:0
+ function setScanStage(stage){scanCoordinator.state="READY";missionUploader.preparedCount=stage===0 ? 0 : 10;missionUploader.uploadInProgress=stage===2;missionUploader.uploadVerified=stage===3}
+ function startMission(){if(missionUploader.uploadVerified)scanStarts++;else scanUploads++}
  property int fits:0
  property int pauses:0
  property int homes:0
@@ -201,8 +205,31 @@ with tempfile.TemporaryDirectory() as folder:
  # Actual compact scan tools and confirmation: hover/touch help, reject, guard, accept.
  window.setProperty('linkAlive',True);window.setProperty('canClearArea',True)
  window.setProperty('mapMaximized',False);assert call('choose',2)
+ def setStage(stage):
+  QMetaObject.invokeMethod(window,'setScanStage',Q_ARG('QVariant',stage))
+ # Upload and START must have persistent labels; upload confirmation never issues START by itself.
+ primary=window.findChild(QObject,'scanUploadStart');prepare=window.findChild(QObject,'scanPrepare')
+ assert primary and prepare and prepare.property('text')=='PREGĂTEȘTE'
+ setStage(0);QTest.qWait(30)
+ assert not primary.property('enabled') and primary.property('text')=='ÎNCARCĂ MISIUNEA'
+ setStage(1);QTest.qWait(30)
+ assert primary.property('enabled')
+ def pressPrimary():
+  pos=primary.mapToScene(QPointF(primary.property('width')/2,primary.property('height')/2))
+  QTest.mouseClick(window,Qt.LeftButton,Qt.NoModifier,QPoint(round(pos.x()),round(pos.y())));QTest.qWait(20)
+ pressPrimary();assert window.property('scanUploads')==1 and window.property('scanStarts')==0
+ setStage(2);QTest.qWait(30)
+ assert not primary.property('enabled') and primary.property('text')=='SE ÎNCARCĂ…'
+ setStage(3);QTest.qWait(30)
+ assert primary.property('enabled') and primary.property('text')=='START AUTOPILOT' and window.property('scanStarts')==0
+ pressPrimary();assert window.property('scanStarts')==1
+ setStage(0)
  for width,height in [(480,420),(800,600)]:
   window.setWidth(width);window.setHeight(height);QTest.qWait(60)
+  for control in [primary,prepare]:
+   pos=control.mapToScene(QPointF(0,0))
+   assert pos.y()>=0 and pos.y()+control.property('height')<=height
+   assert pos.x()>=0 and pos.x()+control.property('width')<=width
   clear=window.findChild(QObject,'scanClearArea');cancel=window.findChild(QObject,'scanCancel')
   assert clear.property('width')==52 and clear.property('height')==46
   assert cancel.property('width')==52 and cancel.property('height')==46

@@ -280,6 +280,11 @@ Item {
         return {valid:isFinite(d),distanceM:d,durationSeconds:d/root.scanEstimateSpeedMps}
     }
     function missionStateLabel(state) {
+        if(root.missionScanSelected && (state==="READY" || state==="RESUME_READY")) {
+            if(missionUploader.uploadInProgress)return "Încărcare pe H743 în curs"
+            if(missionUploader.uploadVerified)return "Misiune încărcată • apasă START"
+            return missionUploader.preparedCount>0 ? "Pregătit pentru încărcare" : "Zonă pregătită • apasă PREGĂTEȘTE"
+        }
         var labels={DRAFT:"Schiță",RUNNING:"În curs",DISPATCHED:"Acțiuni comandate",STOPPED:"Oprit",IDLE:"Pregătit",READY:"Pregătit pentru START",RESUME_READY:"Reluare pregătită",SCANNING:"În curs",PAUSED:"Pauză",RTL:"Întoarcere HOME comandată",COMPLETE:"Încheiată"}
         return labels[state] || state
     }
@@ -2046,6 +2051,34 @@ Item {
                             background: Rectangle { radius: 8; color: parent.down ? "#18354a" : "#101b25"; border.color: parent.enabled ? "#31506a" : "#26313a" }
                         }
                         ScanIconButton {
+                            objectName:"scanPrepare"
+                            width:scanToolsScroll.availableWidth;height:38
+                            text:"PREGĂTEȘTE"
+                            caption:text
+                            hint: "Pregătește misiunea"
+                            enabled: areaScanController.generatedPoints.length>0 && scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
+                            contentItem:Label { text:parent.text;color:parent.enabled ? "#21b7ff" : "#879ba9";font.pixelSize:12;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter }
+                            onClicked: { if(!root.allowLiveAction()) return; missionUploader.invalidate(); var prepared=scanCoordinator.prepareMission(false); if(prepared&&prepared.length)root.lastNavigationStatus="Misiune pregătită • "+prepared.length+" WP • următorul pas: UPLOAD"; else if(!root.lastNavigationStatus.length)root.lastNavigationStatus="Pregătirea misiunii a eșuat" }
+                        }
+                        ScanIconButton {
+                            objectName:"scanUploadStart"
+                            width:scanToolsScroll.availableWidth
+                            height:46
+                            text:missionUploader.uploadInProgress ? "SE ÎNCARCĂ…" : missionUploader.uploadVerified ? "START AUTOPILOT" : "ÎNCARCĂ MISIUNEA"
+                            caption:text
+                            hint:missionUploader.uploadVerified ? "Pornește misiunea încărcată; autopilotul confirmă modul AUTO" : "Încarcă misiunea pe H743; pornirea se confirmă separat"
+                            enabled: missionUploader.preparedCount>0 && !missionUploader.uploadInProgress
+                            contentItem:Label {
+                                text:parent.text
+                                color:parent.enabled ? "#31d67b" : "#879ba9"
+                                font.pixelSize:12;font.bold:true
+                                horizontalAlignment:Text.AlignHCenter
+                                verticalAlignment:Text.AlignVCenter
+                                wrapMode:Text.WordWrap
+                            }
+                            onClicked: root.startMission()
+                        }
+                        ScanIconButton {
                             hint: "Desenează dreptunghi"
                             enabled: !root.missionBusy && !sonar.replayMode
                             contentItem: Canvas { anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.strokeRect(12,11,28,24)} }
@@ -2056,18 +2089,6 @@ Item {
                             enabled: !root.missionBusy && !sonar.replayMode
                             contentItem: Canvas { anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.beginPath();p.moveTo(12,31);p.lineTo(17,12);p.lineTo(38,9);p.lineTo(42,30);p.lineTo(27,37);p.closePath();p.stroke()} }
                             onClicked: { root.pendingAreaDrawMode="polygon"; Qt.callLater(function(){if(areaScanMap && root.pendingAreaDrawMode==="polygon"){areaScanMap.beginAreaPolygon();root.pendingAreaDrawMode="none"}}); root.lastNavigationStatus="Atinge cel puțin trei puncte și apoi TERMINĂ" }
-                        }
-                        ScanIconButton {
-                            hint: "Pregătește misiunea"
-                            enabled: areaScanController.generatedPoints.length>0 && scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
-                            contentItem: Canvas { anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#21b7ff";p.fillStyle="#21b7ff";p.lineWidth=2;p.beginPath();p.moveTo(11,34);p.lineTo(22,22);p.lineTo(31,29);p.lineTo(41,13);p.stroke();for(var i=0;i<4;i++){var a=[[11,34],[22,22],[31,29],[41,13]][i];p.beginPath();p.arc(a[0],a[1],2.5,0,Math.PI*2);p.fill()}} }
-                            onClicked: { if(!root.allowLiveAction()) return; missionUploader.invalidate(); var prepared=scanCoordinator.prepareMission(false); if(prepared&&prepared.length)root.lastNavigationStatus="Misiune pregătită • "+prepared.length+" WP • următorul pas: UPLOAD"; else if(!root.lastNavigationStatus.length)root.lastNavigationStatus="Pregătirea misiunii a eșuat" }
-                        }
-                        ScanIconButton {
-                            hint: missionUploader.uploadVerified ? "Start autopilot" : "Upload misiune"
-                            enabled: missionUploader.preparedCount>0 && !missionUploader.uploadInProgress
-                            contentItem: Canvas { anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#31d67b";p.fillStyle="#31d67b";p.lineWidth=2;if(missionUploader.uploadVerified){p.beginPath();p.moveTo(17,11);p.lineTo(38,23);p.lineTo(17,35);p.closePath();p.fill()}else{p.beginPath();p.moveTo(26,35);p.lineTo(26,12);p.moveTo(17,21);p.lineTo(26,12);p.lineTo(35,21);p.stroke()}} }
-                            onClicked: root.startMission()
                         }
                         ScanIconButton {
                             caption: "Continuă scanarea"
