@@ -133,3 +133,14 @@ RCSDK 1.9.2 classes; production reader tests cover zero/invalid/stale/partial/ra
 samples, baud UNKNOWN, GET failures, old replies/listeners, restart and cleanup.
 Connectivity QML tests exercise compact/expanded diagnostics at 320/480/800 px.
 Real G20 radio values and the new APK remain hardware/CI acceptance work.
+
+
+## Explanatory diagnosis
+
+Connectivity now shows an explanation and a suggested next check above technical radio details. A pure read-only policy distinguishes unsupported platform, replay, manual stop, unrecognised model, exhausted attempts, SDK error, controller pending, explicitly disconnected receiver, unopened channel, zero received bytes, received bytes without an autopilot heartbeat, expired heartbeat and confirmed live telemetry.
+
+Radio state reaches native code as structured evidence with a six-second TTL; unknown, malformed, partial, stopped and expired samples remain unknown. Display strings are never parsed. A fresh parsed heartbeat takes precedence over missing or contradictory vendor radio metadata. Replay and manual stop take precedence over previously live evidence. Suggested wiring/baud/protocol checks are hypotheses, not automatic diagnoses of defective hardware. TX accepted by the SDK remains distinct from a hardware acknowledgement.
+
+No baud comparison, parameter writes, binding, RF reconfiguration, active probes, mode changes or actuator commands are added. Camera and sonar retain their separate evidence and controls. The diagnosis describes the current SDK session, not connectivity through another USB/TCP link.
+
+Checks: existing connection-policy C++ test now exercises explanatory states and contradictory/unknown evidence. Java diagnostics tests verify fresh/disconnected/stale/stopped structured receiver values. Qt panel test includes explanation/action labels and retains compact widths and expanded radio details.

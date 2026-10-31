@@ -19,6 +19,7 @@ final class SkydroidDiagnostics {
     private final Handler main = new Handler(Looper.getMainLooper());
     private boolean running;
     private int generation;
+    private int receiverState = -1;
     private static final class Reading {
         String value = "", error = "";
         long at;
@@ -70,6 +71,7 @@ final class SkydroidDiagnostics {
         try { KeyManager.INSTANCE.cancelListen(signalListener); } catch (Throwable ignored) { }
         try { KeyManager.INSTANCE.cancelListen(rawListener); } catch (Throwable ignored) { }
         for (Reading field : readings) field.clear();
+        receiverState = -1;
     }
     private synchronized void pollMetadata() {
         if (!running) return;
@@ -119,11 +121,15 @@ final class SkydroidDiagnostics {
         if (!running || listenerGeneration != epoch) return;
         // Each raw sample must stand on its own: missing keys never inherit previous readings.
         for (Reading field : new Reading[]{receiver, pairing, snr, errors}) field.clear();
+        receiverState = -1;
         try {
             if (value == null || value.length() > 16384) throw new IllegalArgumentException("date radio invalide");
             JSONObject raw = new JSONObject(value);
             Object connected = raw.opt("dev_connect"), binding = raw.opt("is_pairing");
-            if (connected instanceof Boolean) put(receiver, (Boolean)connected ? "CONECTAT" : "DECONECTAT");
+            if (connected instanceof Boolean) {
+                receiverState = (Boolean)connected ? 1 : 0;
+                put(receiver, receiverState == 1 ? "CONECTAT" : "DECONECTAT");
+            }
             if (binding instanceof Boolean) put(pairing, (Boolean)binding ? "ÎN CURS" : "INACTIVĂ");
             String ap = number(raw, "ap_snr"), dev = number(raw, "dev_snr");
             if (ap != null && dev != null) put(snr, "G20 " + ap + " / GR01 " + dev);
@@ -146,6 +152,19 @@ final class SkydroidDiagnostics {
             result = age >= 0 && age <= ttl ? field.value : "date învechite";
         } else if (!field.error.isEmpty()) result += " • " + field.error;
         return label + ": " + result;
+    }
+    private boolean fresh(Reading field, long ttl) {
+        long age = SystemClock.elapsedRealtime() - field.at;
+        return running && field.known && age >= 0 && age <= ttl;
+    }
+    // Machine-readable evidence; consumers must not parse translated display labels.
+    synchronized JSONObject health() {
+        JSONObject out = new JSONObject();
+        try {
+            out.put("receiver", fresh(receiver, 6000)
+                ? receiverState : -1);
+        } catch (Exception ignored) { }
+        return out;
     }
     synchronized JSONArray snapshot() {
         JSONArray rows = new JSONArray();

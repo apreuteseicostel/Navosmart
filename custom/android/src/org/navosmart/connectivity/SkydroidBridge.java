@@ -156,6 +156,7 @@ public final class SkydroidBridge {
             out.put("model", Build.MODEL); out.put("sdk", "1.9.2");
             boolean valid = s != null && s.id == id && s.running;
             out.put("checks", valid ? s.diagnostics.snapshot() : new org.json.JSONArray());
+            out.put("health", valid ? s.diagnostics.health() : new JSONObject());
             out.put("running", valid); out.put("rc", valid && s.rc); out.put("channel", valid && s.channel);
             out.put("error", valid ? s.error : ""); out.put("rx", valid ? s.rx : 0);
             out.put("tx", valid ? s.tx : 0); out.put("dropped", valid ? s.dropped : 0);
