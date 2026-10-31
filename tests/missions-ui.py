@@ -69,6 +69,14 @@ ApplicationWindow {
  property bool canClearArea:false
  property int clearCalls:0
  function clearAreaScan(){if(!canClearArea)return false;clearCalls++;return true}
+ property int scanUploads:0
+ property int scanStarts:0
+ function setScanStage(stage){scanCoordinator.state="READY";missionUploader.preparedCount=stage===0 ? 0 : 10;missionUploader.uploadInProgress=stage===2;missionUploader.uploadVerified=stage===3}
+ function startMission(){if(missionUploader.uploadVerified)scanStarts++;else scanUploads++}
+ property int resumeCalls:0
+ function seedPausedScan(){areaScanController.generatedPoints=[1,2,3,4];areaScanController.completedLanes=[0];scanCoordinator.state="PAUSED";missionUploader.uploadVerified=false;missionUploader.preparedCount=0}
+ function reportScanRunning(){scanCoordinator.state="SCANNING"}
+ function replayScan(value){sonar.replayMode=value}
  property int fits:0
  property int pauses:0
  property int homes:0
@@ -77,9 +85,9 @@ ApplicationWindow {
  function allowLiveAction(){return !sonar.replayMode}
  function startRoute(loaded){missionScanSelected=false;return routePlan.start(loaded)}
  QtObject{id:sonar;property bool replayMode:false}
- QtObject{id:scanCoordinator;property string state:"IDLE";property int missionCurrentIndex:0;function resume(){return []}}
+ QtObject{id:scanCoordinator;property string state:"IDLE";property int missionCurrentIndex:0;function resume(){root.resumeCalls++;state="RESUME_READY";missionUploader.uploadVerified=false;missionUploader.preparedCount=10;return [1,2]}}
  QtObject{id:missionUploader;property bool uploadInProgress:false;property bool uploadVerified:false;property int preparedCount:0}
- QtObject{id:areaScanController;property var generatedPoints:[];property var completedLanes:[];function laneCount(){return 0}function progressPercent(){return 0}}
+ QtObject{id:areaScanController;property var generatedPoints:[];property var completedLanes:[];function laneCount(){return generatedPoints.length ? 2 : 0}function progressPercent(){return 0}}
  QtObject{id:fishingSpots;property var fishingSpots:[]}
  QtObject{id:baitingController;property var targetWaypoint:({name:"Destinație",coordinate:QtPositioning.coordinate(52,.001)});property bool silentMode:false;property real normalSpeedMps:1.5;property real silentSpeedMps:.8;property int state:1;function distanceToTarget(){return 50}function stateText(state){return "Navigare"}}
  NavoRoutePlan{id:routePlan}
@@ -100,7 +108,8 @@ ApplicationWindow {
  function replaceBaitPoint(hopper){return routePlan.setPoint(baitingController.targetWaypoint,"Noua destinație",hopper)}
  function choose(index){return selectMission(index)}
 }'''
-wrapper=wrapper[:-1]+selection+strip+page+clearDialog+'}'
+scanStart=source[source.index('    function startScanFromStatus() {'):source.index('    function startMission() {')]
+wrapper=wrapper[:-1]+selection+scanStart+strip+page+clearDialog+'}'
 app=QGuiApplication([])
 device=QTest.createTouchDevice(QInputDevice.DeviceType.TouchScreen)
 engine=QQmlApplicationEngine();errors=[]
@@ -201,8 +210,54 @@ with tempfile.TemporaryDirectory() as folder:
  # Actual compact scan tools and confirmation: hover/touch help, reject, guard, accept.
  window.setProperty('linkAlive',True);window.setProperty('canClearArea',True)
  window.setProperty('mapMaximized',False);assert call('choose',2)
+ def setStage(stage):
+  QMetaObject.invokeMethod(window,'setScanStage',Q_ARG('QVariant',stage))
+ # Upload and START must have persistent labels; upload confirmation never issues START by itself.
+ primary=window.findChild(QObject,'scanUploadStart');prepare=window.findChild(QObject,'scanPrepare')
+ assert primary and prepare and prepare.property('text')=='PREGĂTEȘTE'
+ setStage(0);QTest.qWait(30)
+ assert not primary.property('enabled') and primary.property('text')=='ÎNCARCĂ MISIUNEA'
+ setStage(1);QTest.qWait(30)
+ assert primary.property('enabled')
+ def pressPrimary():
+  pos=primary.mapToScene(QPointF(primary.property('width')/2,primary.property('height')/2))
+  QTest.mouseClick(window,Qt.LeftButton,Qt.NoModifier,QPoint(round(pos.x()),round(pos.y())));QTest.qWait(20)
+ pressPrimary();assert window.property('scanUploads')==1 and window.property('scanStarts')==0
+ setStage(2);QTest.qWait(30)
+ assert not primary.property('enabled') and primary.property('text')=='SE ÎNCARCĂ…'
+ setStage(3);QTest.qWait(30)
+ assert primary.property('enabled') and primary.property('text')=='START AUTOPILOT' and window.property('scanStarts')==0
+ pressPrimary();assert window.property('scanStarts')==1
+ setStage(0)
+ # Header is a real PAUSE/START action. Resume prepares remaining lanes and still needs upload confirmation.
+ QMetaObject.invokeMethod(window,'seedPausedScan');QTest.qWait(30)
+ assert pause.property('text')=='START' and pause.property('enabled')
+ uploads=window.property('scanUploads');starts=window.property('scanStarts')
+ def pressHeader():
+  pos=pause.mapToScene(QPointF(pause.property('width')/2,pause.property('height')/2))
+  QTest.mouseClick(window,Qt.LeftButton,Qt.NoModifier,QPoint(round(pos.x()),round(pos.y())));QTest.qWait(20)
+ window.setProperty('linkAlive',False);QTest.qWait(20);assert not pause.property('enabled')
+ pressHeader();assert window.property('resumeCalls')==0
+ window.setProperty('linkAlive',True)
+ QMetaObject.invokeMethod(window,'replayScan',Q_ARG('QVariant',True));QTest.qWait(20);assert not pause.property('enabled')
+ QMetaObject.invokeMethod(window,'replayScan',Q_ARG('QVariant',False));QTest.qWait(20)
+ pressHeader();assert window.property('resumeCalls')==1 and window.property('scanUploads')==uploads+1 and window.property('scanStarts')==starts
+ setStage(3);QTest.qWait(20);assert pause.property('text')=='START' and window.property('scanStarts')==starts
+ pressHeader();assert window.property('scanStarts')==starts+1
+ QMetaObject.invokeMethod(window,'reportScanRunning');QTest.qWait(20);assert pause.property('text')=='PAUZĂ'
+ pauses=window.property('pauses');pressHeader();assert window.property('pauses')==pauses+1
+ assert pause.property('text')=='START'
+ for width in [236,320,800]:
+  window.setWidth(width);QTest.qWait(30)
+  pos=pause.mapToScene(QPointF(0,0));assert pos.x()>=0 and pos.x()+pause.property('width')<=width
+  assert pause.property('keepLabel')
+  assert window.grabWindow().save(f'/tmp/navo-header-start-{width}.png')
  for width,height in [(480,420),(800,600)]:
   window.setWidth(width);window.setHeight(height);QTest.qWait(60)
+  for control in [primary,prepare]:
+   pos=control.mapToScene(QPointF(0,0))
+   assert pos.y()>=0 and pos.y()+control.property('height')<=height
+   assert pos.x()>=0 and pos.x()+control.property('width')<=width
   clear=window.findChild(QObject,'scanClearArea');cancel=window.findChild(QObject,'scanCancel')
   assert clear.property('width')==52 and clear.property('height')==46
   assert cancel.property('width')==52 and cancel.property('height')==46

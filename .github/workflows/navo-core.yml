@@ -15,6 +15,7 @@ on:
       - 'tests/persistence/**'
       - 'tests/hardware/**'
       - 'tests/*.mjs'
+      - 'tests/connection-policy.cpp'
       - 'tests/*ui.py'
       - 'tests/qml-module-import.py'
       - '.github/workflows/navo-core.yml'
@@ -30,6 +31,7 @@ on:
       - 'tests/persistence/**'
       - 'tests/hardware/**'
       - 'tests/*.mjs'
+      - 'tests/connection-policy.cpp'
       - 'tests/*ui.py'
       - 'tests/qml-module-import.py'
       - '.github/workflows/navo-core.yml'
@@ -58,8 +60,11 @@ jobs:
         run: cmake -S tests/hardware -B /tmp/navo-hardware && cmake --build /tmp/navo-hardware -j2 && /tmp/navo-hardware/navo-hardware-test
       - name: G20 physical RC input regressions
         run: node tests/g20-input.mjs
+      - name: Connectivity retry and heartbeat policy
+        run: g++ -std=c++17 tests/connection-policy.cpp -o /tmp/navo-connection-policy && /tmp/navo-connection-policy
       - name: Controller regressions
         run: |
+          node tests/connectivity-startup.mjs
           node tests/audit-regressions.mjs
           node tests/route-plan.mjs
           node tests/installed-spots-driver.mjs
@@ -75,6 +80,7 @@ jobs:
           /tmp/navo-ui-env/bin/python tests/saved-spots-ui.py
           /tmp/navo-ui-env/bin/python tests/saved-spot-editor-ui.py
           /tmp/navo-ui-env/bin/python tests/settings-tabs-ui.py
+          /tmp/navo-ui-env/bin/python tests/connectivity-ui.py
           /tmp/navo-ui-env/bin/python tests/lakes-manager-ui.py
           /tmp/navo-ui-env/bin/python tests/mode-indicator-ui.py
           /tmp/navo-ui-env/bin/python tests/steering-ui.py

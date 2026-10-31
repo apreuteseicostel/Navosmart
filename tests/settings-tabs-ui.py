@@ -5,7 +5,7 @@ os.environ.setdefault('QT_QUICK_BACKEND','software')
 from pathlib import Path
 import tempfile,subprocess
 import PySide6
-from PySide6.QtCore import QObject,Property,Signal,Slot,QResource,QUrl,QMetaObject,Q_ARG,Q_RETURN_ARG,QPointF,QCoreApplication,QEvent
+from PySide6.QtCore import QPoint,Qt,QObject,Property,Signal,Slot,QResource,QUrl,QMetaObject,Q_ARG,Q_RETURN_ARG,QPointF,QCoreApplication,QEvent
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine,qmlRegisterType
 from PySide6.QtQuick import QQuickItem,QQuickWindow
@@ -36,6 +36,22 @@ import QtQuick.Layouts
 import "'''+QUrl.fromLocalFile(str(repo/'custom/qml')).toString()+'''"
 ApplicationWindow {
  id:root;visible:true;width:800;height:650;color:"#051521"
+ property bool cameraConnected:false
+ QtObject {id:connectivityController;property var connections:[];property bool autoConnect:false;property bool busy:false;property string status:"Test";property int serialBaud:115200}
+ property bool linkAlive:false
+ property var vehicle:null
+ property bool viewSwitchAllowed:true
+ property int parameterOpens:0
+ property int vehicleOpens:0
+ property int applicationOpens:0
+ function connectVehicle(){vehicle=({});linkAlive=true}
+ QtObject {
+  id:mainWindow
+  function allowViewSwitch(){return root.viewSwitchAllowed}
+  function showVehicleConfigParametersPage(){root.parameterOpens++}
+  function showVehicleConfig(){root.vehicleOpens++}
+  function showSettingsTool(){root.applicationOpens++}
+ }
  property var sonarController:sonarMock
  readonly property var settingsAlertsController:alerts
  property var alertAudio:null
@@ -83,9 +99,35 @@ with tempfile.TemporaryDirectory() as directory:
   page.setProperty('selectedTab',2);QTest.qWait(20)
   assert forms==window.findChild(QObject,'settingsEthernetForms')
   assert window.findChild(QObject,'settingsSonarPort').property('text')=='23'
+ page.setProperty('selectedTab',0);QTest.qWait(20)
+ QMetaObject.invokeMethod(window.findChild(QObject,'settingsConnectivity'),'clicked');QTest.qWait(20)
+ assert page.property('selectedTab')==4 and window.findChild(QObject,'settingsConnectivityPanel').property('visible')
+ QMetaObject.invokeMethod(window.findChild(QObject,'connectivityBack'),'clicked');QTest.qWait(20);assert page.property('selectedTab')==0
  assert QMetaObject.invokeMethod(page,'saveAll',Q_RETURN_ARG('QVariant'))
  window.findChild(QObject,'settingsCameraPort').setProperty('text','70000')
  assert not QMetaObject.invokeMethod(page,'saveAll',Q_RETURN_ARG('QVariant'))
+ # Invoke the actual Dashboard handlers through the Settings controls. Only QGC's native window is doubled.
+ page.setProperty('selectedTab',3);window.setWidth(800);QTest.qWait(40)
+ params=window.findChild(QObject,'settingsOpenParameters');vehicle=window.findChild(QObject,'settingsOpenVehicle')
+ assert not params.property('enabled') and not vehicle.property('enabled')
+ def press(button):
+  pos=button.mapToScene(QPointF(button.property('width')/2,button.property('height')/2))
+  QTest.mouseClick(window,Qt.LeftButton,Qt.NoModifier,QPoint(round(pos.x()),round(pos.y())));QTest.qWait(20)
+ press(params);assert window.property('parameterOpens')==0
+ QMetaObject.invokeMethod(window,'connectVehicle');QTest.qWait(30)
+ assert params.property('enabled') and vehicle.property('enabled')
+ window.setProperty('viewSwitchAllowed',False);press(params);assert window.property('parameterOpens')==0
+ window.setProperty('viewSwitchAllowed',True);press(params);assert window.property('parameterOpens')==1
+ assert window.property('applicationOpens')==0 and window.property('vehicleOpens')==0
+ press(vehicle);assert window.property('vehicleOpens')==1 and window.property('parameterOpens')==1
+ for width in [320,480,800]:
+  window.setWidth(width);QTest.qWait(40)
+  for button in [params,vehicle,window.findChild(QObject,'settingsOpenQgc')]:
+   pos=button.mapToScene(QPointF(0,0));assert pos.x()>=0 and pos.x()+button.property('width')<=width
+   assert pos.y()>=0 and pos.y()+button.property('height')<=window.height()
+  assert window.grabWindow().save(f'/tmp/navo-native-parameters-{width}.png')
+ window.setProperty('linkAlive',False);QTest.qWait(30)
+ assert not params.property('enabled') and not vehicle.property('enabled')
  calls=[]
  page.settingsToolRequested.connect(lambda:calls.append(True))
  QMetaObject.invokeMethod(window.findChild(QObject,'settingsOpenQgc'),'clicked')
@@ -93,4 +135,4 @@ with tempfile.TemporaryDirectory() as directory:
  window.close();window.deleteLater()
  QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete);app.processEvents()
  assert not errors,errors
- print('PASS actual Settings tabs at 480/640/800/1024: four tabs, full Integration forms, retained edits/save validation and non-circular alerts binding')
+ print('PASS Settings tabs/forms/save; native parameter/vehicle/application routing, connection and view-switch guards; buttons contained at 320/480/800')

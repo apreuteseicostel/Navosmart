@@ -28,6 +28,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoDashboard.qml
         qml/NavoStatusDetails.qml
         qml/NavoSettingsV3.qml
+        qml/NavoConnectivityPanel.qml
         qml/NavoPreLaunchCheck.qml
         qml/NavoAndroidAcceptance.qml
         qml/NavoMap.qml
@@ -155,6 +156,9 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/navo_mosaic_provider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/NavoKoggerService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/KoggerApp/src/mosaic_index_provider.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoConnectivity.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoConnectivity.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoConnectionPolicy.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/CustomPlugin.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoAndroidAcceptance.h

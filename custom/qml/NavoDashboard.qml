@@ -15,6 +15,25 @@ import NavoSmart.Backend 1.0
 
 Item {
     id: root
+    property bool networkStartupLoaded: false
+    property bool sonarStartupEnabled: true
+    NavoConnectivity {
+        id: connectivityController
+        onNetworkConnectRequested: function(automatic) { root.connectConfiguredNetworkServices(automatic) }
+    }
+    function connectConfiguredNetworkServices(automatic) {
+        if(!root.networkStartupLoaded) {
+            var saved=connectivityController.savedEthernet()
+            root.sonarStartupEnabled=saved.connectOnStartup!==false
+            if(!sonar.connected && !sonar.replayMode) {sonar.host=String(saved.sonarHost||"");sonar.port=Number(saved.sonarPort||0);sonar.udp=!!saved.sonarUdp}
+            if(!cameraEthernet.connected) {cameraEthernet.host=String(saved.cameraHost||"");cameraEthernet.port=Number(saved.cameraPort||0);cameraEthernet.udp=!!saved.cameraUdp}
+            if(!root.cameraStreamUrl.length)root.cameraStreamUrl=String(saved.cameraStreamUrl||"")
+            root.cameraProtocol=String(saved.cameraProtocol||"auto")
+            root.networkStartupLoaded=true
+        }
+        if((!automatic || root.sonarStartupEnabled) && !sonar.replayMode && !sonar.connected && sonar.port>0 && sonar.port<=65535 && (sonar.udp || sonar.host.length))sonar.connectSonar()
+        if(!cameraEthernet.connected && cameraEthernet.port>0 && cameraEthernet.port<=65535 && (cameraEthernet.udp || cameraEthernet.host.length))cameraEthernet.connectCamera()
+    }
     readonly property string activePageName: ["HARTA","SONAR","MISIUNI","PUNCTE PESCUIT","BALȚILE MELE","CAMERA","SETARI","3D","NĂDIRE","SIGURANȚĂ","SONAR PRO","JURNAL","HĂRȚI OFFLINE"][activePage] || "HARTA"
     implicitWidth: 1280
     implicitHeight: 720
@@ -280,6 +299,11 @@ Item {
         return {valid:isFinite(d),distanceM:d,durationSeconds:d/root.scanEstimateSpeedMps}
     }
     function missionStateLabel(state) {
+        if(root.missionScanSelected && (state==="READY" || state==="RESUME_READY")) {
+            if(missionUploader.uploadInProgress)return "Încărcare pe H743 în curs"
+            if(missionUploader.uploadVerified)return "Misiune încărcată • apasă START"
+            return missionUploader.preparedCount>0 ? "Pregătit pentru încărcare" : "Zonă pregătită • apasă PREGĂTEȘTE"
+        }
         var labels={DRAFT:"Schiță",RUNNING:"În curs",DISPATCHED:"Acțiuni comandate",STOPPED:"Oprit",IDLE:"Pregătit",READY:"Pregătit pentru START",RESUME_READY:"Reluare pregătită",SCANNING:"În curs",PAUSED:"Pauză",RTL:"Întoarcere HOME comandată",COMPLETE:"Încheiată"}
         return labels[state] || state
     }
@@ -889,6 +913,20 @@ Item {
         if(!waypoint || !root.checkEnergyForRoute([waypoint.coordinate]))return false
         digitalAnchor.release()
         return baitingController.startCycle(waypoint,name,hopper)
+    }
+    function startScanFromStatus() {
+        if(!root.missionScanSelected || sonar.replayMode || !root.linkAlive || root.actionActive ||
+           missionUploader.uploadInProgress || ["PAUSED","READY","RESUME_READY"].indexOf(scanCoordinator.state)<0)return false
+        if(!areaScanController.generatedPoints.length || areaScanController.completedLanes.length>=areaScanController.laneCount())return false
+        if(scanCoordinator.state==="PAUSED") {
+            // Resume prepares only unfinished lanes. Upload ACK is never permission to start.
+            var resumed=scanCoordinator.resume()
+            if(!resumed || !resumed.length)return false
+        } else if(missionUploader.preparedCount<1) {
+            var prepared=scanCoordinator.prepareMission(false)
+            if(!prepared || !prepared.length)return false
+        }
+        return root.startMission()
     }
     function startMission() {
         if(root.steeringModeBusy){root.lastNavigationStatus="Oprește asistența cârmei înainte de navigare/misiune";return false}
@@ -1512,6 +1550,10 @@ Item {
         homeAvailable:!sonar.replayMode && !!root.vehicle && !!root.vehicle.guidedModeRTL && !!root.vehicle.homePosition && root.vehicle.homePosition.isValid
         progress:routePlan.active ? 100*(routePlan.currentIndex+Math.min(0.95,Math.max(0,root.routeLegDistanceM>0 && isFinite(baitingController.distanceToTarget()) ? 1-baitingController.distanceToTarget()/root.routeLegDistanceM : 0)))/Math.max(1,routePlan.runningStops.length) : root.missionScanSelected ? areaScanController.progressPercent() : routePlan.state==="DISPATCHED" ? 100 : 0
         statusText:root.pendingMode.length ? root.lastNavigationStatus : root.rtlActive ? "Întoarcere HOME • RTL activ" : root.directGotoActive ? "Mergi la punct • comandă GUIDED trimisă" : routePlan.active ? (routePlan.missionKind==="point" ? "Mergi la punct" : "Traseu cu opriri")+" • oprire "+(routePlan.currentIndex+1)+"/"+routePlan.runningStops.length+" • "+baitingController.stateText(baitingController.state) : root.missionScanSelected ? "Scanare • "+root.missionStateLabel(scanCoordinator.state) : "Misiune • "+root.missionStateLabel(routePlan.state)
+        startAvailable:root.missionScanSelected && !sonar.replayMode && !root.actionActive &&
+            !missionUploader.uploadInProgress && ["PAUSED","READY","RESUME_READY"].indexOf(scanCoordinator.state)>=0 &&
+            areaScanController.generatedPoints.length>0 && areaScanController.completedLanes.length<areaScanController.laneCount()
+        onStartRequested:root.startScanFromStatus()
         onPauseRequested:root.holdMission()
         onHomeRequested:homeRtlConfirm.open()
     }
@@ -2046,6 +2088,34 @@ Item {
                             background: Rectangle { radius: 8; color: parent.down ? "#18354a" : "#101b25"; border.color: parent.enabled ? "#31506a" : "#26313a" }
                         }
                         ScanIconButton {
+                            objectName:"scanPrepare"
+                            width:scanToolsScroll.availableWidth;height:38
+                            text:"PREGĂTEȘTE"
+                            caption:text
+                            hint: "Pregătește misiunea"
+                            enabled: areaScanController.generatedPoints.length>0 && scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
+                            contentItem:Label { text:parent.text;color:parent.enabled ? "#21b7ff" : "#879ba9";font.pixelSize:12;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter }
+                            onClicked: { if(!root.allowLiveAction()) return; missionUploader.invalidate(); var prepared=scanCoordinator.prepareMission(false); if(prepared&&prepared.length)root.lastNavigationStatus="Misiune pregătită • "+prepared.length+" WP • următorul pas: UPLOAD"; else if(!root.lastNavigationStatus.length)root.lastNavigationStatus="Pregătirea misiunii a eșuat" }
+                        }
+                        ScanIconButton {
+                            objectName:"scanUploadStart"
+                            width:scanToolsScroll.availableWidth
+                            height:46
+                            text:missionUploader.uploadInProgress ? "SE ÎNCARCĂ…" : missionUploader.uploadVerified ? "START AUTOPILOT" : "ÎNCARCĂ MISIUNEA"
+                            caption:text
+                            hint:missionUploader.uploadVerified ? "Pornește misiunea încărcată; autopilotul confirmă modul AUTO" : "Încarcă misiunea pe H743; pornirea se confirmă separat"
+                            enabled: missionUploader.preparedCount>0 && !missionUploader.uploadInProgress
+                            contentItem:Label {
+                                text:parent.text
+                                color:parent.enabled ? "#31d67b" : "#879ba9"
+                                font.pixelSize:12;font.bold:true
+                                horizontalAlignment:Text.AlignHCenter
+                                verticalAlignment:Text.AlignVCenter
+                                wrapMode:Text.WordWrap
+                            }
+                            onClicked: root.startMission()
+                        }
+                        ScanIconButton {
                             hint: "Desenează dreptunghi"
                             enabled: !root.missionBusy && !sonar.replayMode
                             contentItem: Canvas { anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.strokeRect(12,11,28,24)} }
@@ -2056,18 +2126,6 @@ Item {
                             enabled: !root.missionBusy && !sonar.replayMode
                             contentItem: Canvas { anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.beginPath();p.moveTo(12,31);p.lineTo(17,12);p.lineTo(38,9);p.lineTo(42,30);p.lineTo(27,37);p.closePath();p.stroke()} }
                             onClicked: { root.pendingAreaDrawMode="polygon"; Qt.callLater(function(){if(areaScanMap && root.pendingAreaDrawMode==="polygon"){areaScanMap.beginAreaPolygon();root.pendingAreaDrawMode="none"}}); root.lastNavigationStatus="Atinge cel puțin trei puncte și apoi TERMINĂ" }
-                        }
-                        ScanIconButton {
-                            hint: "Pregătește misiunea"
-                            enabled: areaScanController.generatedPoints.length>0 && scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
-                            contentItem: Canvas { anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#21b7ff";p.fillStyle="#21b7ff";p.lineWidth=2;p.beginPath();p.moveTo(11,34);p.lineTo(22,22);p.lineTo(31,29);p.lineTo(41,13);p.stroke();for(var i=0;i<4;i++){var a=[[11,34],[22,22],[31,29],[41,13]][i];p.beginPath();p.arc(a[0],a[1],2.5,0,Math.PI*2);p.fill()}} }
-                            onClicked: { if(!root.allowLiveAction()) return; missionUploader.invalidate(); var prepared=scanCoordinator.prepareMission(false); if(prepared&&prepared.length)root.lastNavigationStatus="Misiune pregătită • "+prepared.length+" WP • următorul pas: UPLOAD"; else if(!root.lastNavigationStatus.length)root.lastNavigationStatus="Pregătirea misiunii a eșuat" }
-                        }
-                        ScanIconButton {
-                            hint: missionUploader.uploadVerified ? "Start autopilot" : "Upload misiune"
-                            enabled: missionUploader.preparedCount>0 && !missionUploader.uploadInProgress
-                            contentItem: Canvas { anchors.top:parent.top;anchors.horizontalCenter:parent.horizontalCenter;width:52;height:46; onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#31d67b";p.fillStyle="#31d67b";p.lineWidth=2;if(missionUploader.uploadVerified){p.beginPath();p.moveTo(17,11);p.lineTo(38,23);p.lineTo(17,35);p.closePath();p.fill()}else{p.beginPath();p.moveTo(26,35);p.lineTo(26,12);p.moveTo(17,21);p.lineTo(26,12);p.lineTo(35,21);p.stroke()}} }
-                            onClicked: root.startMission()
                         }
                         ScanIconButton {
                             caption: "Continuă scanarea"
@@ -2824,6 +2882,9 @@ Item {
         id: settingsPage
         NavoSettingsV3 {
             anchors.fill: parent
+            vehicleConnected:root.linkAlive && !!root.vehicle
+            connectivity:connectivityController
+            cameraLive:root.cameraConnected
             sonar: root.sonarController
             camera: cameraEthernet
             alerts: root.settingsAlertsController
@@ -2835,6 +2896,20 @@ Item {
             onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
             onStatus: function(message) { root.lastNavigationStatus = message }
             onEnableSteeringRequested: steeringAssist.enable()
+            onParametersToolRequested: {
+                if(!root.linkAlive || !root.vehicle) {root.lastNavigationStatus="Conectează H743 pentru a deschide parametrii.";return}
+                if(typeof mainWindow !== "undefined" && typeof mainWindow.showVehicleConfigParametersPage === "function") {
+                    if(typeof mainWindow.allowViewSwitch === "function" && !mainWindow.allowViewSwitch())return
+                    mainWindow.showVehicleConfigParametersPage()
+                } else root.lastNavigationStatus="Editorul nativ de parametri QGroundControl nu este disponibil."
+            }
+            onVehicleToolRequested: {
+                if(!root.linkAlive || !root.vehicle) {root.lastNavigationStatus="Conectează H743 pentru configurarea vehiculului.";return}
+                if(typeof mainWindow !== "undefined" && typeof mainWindow.showVehicleConfig === "function") {
+                    if(typeof mainWindow.allowViewSwitch === "function" && !mainWindow.allowViewSwitch())return
+                    mainWindow.showVehicleConfig()
+                } else root.lastNavigationStatus="Configurarea nativă a vehiculului nu este disponibilă."
+            }
             onSettingsToolRequested: {
                 if (typeof mainWindow !== "undefined" && mainWindow.showSettingsTool)
                     mainWindow.showSettingsTool()
