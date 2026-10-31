@@ -1609,6 +1609,8 @@ Item {
             id: fishingPageRoot
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             NavoMap {
+                positionFresh: gnssHeading.positionFresh
+                positionAccuracyM: gnssHeading.positionAccuracyM
                 headingOverrideEnabled: true
                 areaDrawingGeneration: root.areaDrawingGeneration
                 headingOverrideDeg: root.headingDeg
@@ -2014,6 +2016,8 @@ Item {
                         Layout.rightMargin:routeEditor.opened && !root.missionScanSelected && parent.width>=700 ? routeEditor.width+8 : 0
                         radius: 8; color: root.bg; border.color: root.line; clip: true
                         NavoMap {
+                positionFresh: gnssHeading.positionFresh
+                positionAccuracyM: gnssHeading.positionAccuracyM
                 headingOverrideEnabled: true
                 areaDrawingGeneration: root.areaDrawingGeneration
                 headingOverrideDeg: root.headingDeg
@@ -2184,6 +2188,8 @@ Item {
                     Layout.minimumWidth: 320
                     radius:8; color:root.bg; border.color:root.line; clip:true
                     NavoMap {
+                positionFresh: gnssHeading.positionFresh
+                positionAccuracyM: gnssHeading.positionAccuracyM
                 headingOverrideEnabled: true
                 areaDrawingGeneration: root.areaDrawingGeneration
                 headingOverrideDeg: root.headingDeg
@@ -2684,6 +2690,8 @@ Item {
                     Layout.fillWidth: true; Layout.fillHeight: true
                     radius: 8; color: root.panel; border.color: root.line; clip: true
                     NavoMap {
+                positionFresh: gnssHeading.positionFresh
+                positionAccuracyM: gnssHeading.positionAccuracyM
                 headingOverrideEnabled: true
                 areaDrawingGeneration: root.areaDrawingGeneration
                 headingOverrideDeg: root.headingDeg

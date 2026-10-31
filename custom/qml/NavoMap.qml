@@ -4,6 +4,7 @@ import QtLocation
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtCore
+import "NavoVisualPosition.js" as VisualPosition
 
 import QGroundControl
 import QGroundControl.Controllers
@@ -14,12 +15,45 @@ Item {
     objectName:"navoMap"
 
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
+    // Only the marker uses these coordinates; every controller keeps vehicle.coordinate.
+    property bool positionFresh: false
+    property real positionAccuracyM: NaN
+    property var visualPosition: VisualPosition.reset()
+    property real displayLatitude: NaN
+    property real displayLongitude: NaN
+    readonly property var displayCoordinate: QtPositioning.coordinate(displayLatitude, displayLongitude)
+    property bool visualAnimationEnabled: false
+    Behavior on displayLatitude { enabled: root.visualAnimationEnabled && root.positionFresh; NumberAnimation { duration: 250 } }
+    Behavior on displayLongitude { enabled: root.visualAnimationEnabled && root.positionFresh; NumberAnimation { duration: 250 } }
+    function updateVisualPosition() {
+        if (recordedReplay || replayPreview || !positionFresh || !vehicle || !vehicle.coordinate || !vehicle.coordinate.isValid) return
+        var c=vehicle.coordinate, now=Date.now()
+        var snap=!isFinite(visualPosition.lat) || now-visualPosition.at>3000
+        var speed=vehicle.groundSpeed ? Number(vehicle.groundSpeed.rawValue) : NaN
+        visualPosition=VisualPosition.update(visualPosition,c.latitude,c.longitude,speed,positionAccuracyM,now)
+        visualAnimationEnabled=!snap && Math.abs(visualPosition.lon-displayLongitude)<180
+        displayLatitude=visualPosition.lat; displayLongitude=visualPosition.lon
+    }
+    function resetVisualPosition() {
+        visualAnimationEnabled=false
+        visualPosition=VisualPosition.reset()
+        displayLatitude=NaN; displayLongitude=NaN
+        updateVisualPosition()
+    }
+    onPositionFreshChanged: {
+        if (positionFresh) { visualPosition=VisualPosition.reset(); updateVisualPosition() }
+        else { visualAnimationEnabled=false; visualPosition=VisualPosition.reset() }
+    }
+    Connections {
+        target: root.vehicle
+        function onCoordinateChanged() { root.updateVisualPosition() }
+    }
     property var planController
     signal waypointNameChanged(int sequence, string name)
     property var waypointNames: ({})
     property var fishModel
     property bool recordedReplay: false
-    onRecordedReplayChanged: if(recordedReplay) { cancelAreaDrawing(); baitPointPickMode=false; fishingSaveDialog.close(); renameDialog.close() }
+    onRecordedReplayChanged: { resetVisualPosition(); if(recordedReplay) { cancelAreaDrawing(); baitPointPickMode=false; fishingSaveDialog.close(); renameDialog.close() } }
     property var fishingSpotsModel
     property var bathymetryCells: []
     property var nativeSurfaceMesh: ({})
@@ -45,7 +79,7 @@ Item {
         }
     }
     onReplayTrackChanged: followReplay()
-    onReplayPreviewChanged: { initialCenterApplied=false; if(replayPreview) followReplay(); else centerOnBoatOnce() }
+    onReplayPreviewChanged: { resetVisualPosition(); initialCenterApplied=false; if(replayPreview) followReplay(); else centerOnBoatOnce() }
     property bool bathymetryHDEnabled: false
     property var baitingController
     property var areaScanController
@@ -311,7 +345,7 @@ Item {
         id: operatorBoatLine
         parent: liveMap
         visible: operatorMarker.visible && navoBoatMarker.visible
-        path: visible ? [root.operatorCoordinate, root.vehicle.coordinate] : []
+        path: visible ? [root.operatorCoordinate, root.displayCoordinate] : []
         line.width: 2
         line.color: "#26c6da"
         Component.onCompleted: liveMap.addMapItem(this)
@@ -329,19 +363,40 @@ Item {
         Component.onCompleted: liveMap.addMapItem(this)
         Component.onDestruction: liveMap.removeMapItem(this)
     }
+    MapCircle {
+        id: gpsPrecisionCircle
+        parent: liveMap
+        visible: !root.recordedReplay && !root.replayPreview && root.positionFresh
+                 && root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid
+                 && isFinite(root.positionAccuracyM) && root.positionAccuracyM>0
+        // Centred on raw GPS, not a smoothed point: this is reported GPS1 accuracy.
+        center: visible ? root.vehicle.coordinate : QtPositioning.coordinate()
+        radius: visible ? root.positionAccuracyM : 0
+        color: "#1226c6da"
+        border.color: "#6026c6da"; border.width: 1
+        z: 90
+        Component.onCompleted: liveMap.addMapItem(this)
+        Component.onDestruction: liveMap.removeMapItem(this)
+    }
     MapQuickItem {
         id: navoBoatMarker
         parent: liveMap
-        visible: !root.replayPreview && !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
-        coordinate: visible ? root.vehicle.coordinate : QtPositioning.coordinate()
+        visible: !root.recordedReplay && !root.replayPreview && root.displayCoordinate.isValid
+        coordinate: root.displayCoordinate
         anchorPoint.x: 24; anchorPoint.y: 42
         z: 100
         sourceItem: Item {
             width:48; height:84
             rotation: isFinite(root.boatHeadingDeg) ? root.boatHeadingDeg - liveMap.bearing : 0
-            opacity: isFinite(root.boatHeadingDeg) ? 1 : 0.45
+            opacity: root.positionFresh && isFinite(root.boatHeadingDeg) ? 1 : 0.45
             Behavior on rotation { RotationAnimation { duration:240; direction:RotationAnimation.Shortest } }
             NavoBoatVisual { anchors.fill: parent }
+            Label {
+                anchors.top: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter
+                visible: !root.positionFresh
+                text: "GPS vechi"; color: "#ffd166"; font.pixelSize: 10
+                rotation: -parent.rotation
+            }
         }
         Component.onCompleted: liveMap.addMapItem(this)
         Component.onDestruction: liveMap.removeMapItem(this)
@@ -778,9 +833,9 @@ Item {
         initialCenterApplied=true
     }
     onOperatorCoordinateChanged: Qt.callLater(centerOnOperatorOnce)
-    Component.onCompleted: { centerOnBoatOnce(); Qt.callLater(centerOnOperatorOnce) }
+    Component.onCompleted: { updateVisualPosition(); centerOnBoatOnce(); Qt.callLater(centerOnOperatorOnce) }
     onOperatorLocationValidChanged: if(operatorLocationValid)centerOnOperatorOnce()
-    onVehicleChanged: { initialCenterApplied=false; centerOnBoatOnce() }
+    onVehicleChanged: { resetVisualPosition(); initialCenterApplied=false; centerOnBoatOnce() }
 
     Connections {
         target: root.vehicle
