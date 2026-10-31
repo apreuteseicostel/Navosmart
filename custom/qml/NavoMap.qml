@@ -639,15 +639,21 @@ Item {
         z: 3000
         component DrawingTool: Button {
             property string caption: ""
-            width:72;height:68
-            Accessible.name:ToolTip.text
+            width:44;height:44
+            hoverEnabled:true
+            Accessible.name:caption + " • " + ToolTip.text
             onPressed:root.showToolHelp(ToolTip.text)
-            Label { anchors.left:parent.left;anchors.right:parent.right;anchors.bottom:parent.bottom;anchors.margins:3;height:24;z:2;text:parent.caption;color:parent.enabled ? "white" : "#879ba9";font.pixelSize:9;wrapMode:Text.WordWrap;horizontalAlignment:Text.AlignHCenter }
+            background: Rectangle {
+                radius:8
+                color:parent.down ? "#e0164963" : "#d9071827"
+                border.color:parent.enabled ? "#26c6da" : "#526471"
+                border.width:1
+            }
         }
-        DrawingTool { caption:root.areaDrawMode==="rectangle" ? "Dreptunghi" : "Poligon";padding:2;enabled:false;ToolTip.visible:hovered || down;ToolTip.text:(root.areaDrawMode==="rectangle"?"Dreptunghi ":"Poligon ")+root.areaDraftPoints.length+(root.areaDrawMode==="rectangle"?"/2":"");contentItem:Image{anchors.centerIn:parent;anchors.verticalCenterOffset:-10;width:26;height:26;source:root.areaDrawMode==="rectangle"?"qrc:/qml/NavoSmart/icons/rectangle.svg":"qrc:/qml/NavoSmart/icons/polygon.svg"} }
-        DrawingTool { caption:"GATA";visible:root.areaDrawMode==="polygon" || root.areaDrawMode==="rectangle";padding:2;enabled:root.areaDrawMode==="rectangle"?root.areaDraftPoints.length===2:root.areaDraftPoints.length>=3;ToolTip.visible:hovered || down;ToolTip.text:root.areaDrawMode==="rectangle"?"GATA • generează culoarele":"Finalizează poligonul";contentItem:Image{anchors.centerIn:parent;anchors.verticalCenterOffset:-10;width:26;height:26;source:"qrc:/qml/NavoSmart/icons/done.svg"}onClicked:root.finishAreaDrawing() }
-        DrawingTool { caption:"Înapoi";padding:2;enabled:root.areaDraftPoints.length>0;ToolTip.visible:hovered || down;ToolTip.text:"Șterge ultimul punct / segment";contentItem:Image{anchors.centerIn:parent;anchors.verticalCenterOffset:-10;width:26;height:26;source:"qrc:/qml/NavoSmart/icons/undo.svg"}onClicked:root.undoAreaPoint() }
-        DrawingTool { caption:"Anulează desen";padding:2;ToolTip.visible:hovered || down;ToolTip.text:"Șterge desenul Area Scan";contentItem:Image{anchors.centerIn:parent;anchors.verticalCenterOffset:-10;width:26;height:26;source:"qrc:/qml/NavoSmart/icons/delete.svg"}onClicked:root.clearAreaDrawing() }
+        DrawingTool { caption:root.areaDrawMode==="rectangle" ? "Dreptunghi" : "Poligon";padding:2;enabled:false;ToolTip.visible:hovered || down;ToolTip.text:(root.areaDrawMode==="rectangle"?"Dreptunghi ":"Poligon ")+root.areaDraftPoints.length+(root.areaDrawMode==="rectangle"?"/2":"");contentItem:Item { Image { anchors.centerIn:parent;width:24;height:24;opacity:parent.parent.enabled ? 1 : 0.45;source:root.areaDrawMode==="rectangle"?"qrc:/qml/NavoSmart/icons/rectangle.svg":"qrc:/qml/NavoSmart/icons/polygon.svg";fillMode:Image.PreserveAspectFit } } }
+        DrawingTool { caption:"GATA";visible:root.areaDrawMode==="polygon" || root.areaDrawMode==="rectangle";padding:2;enabled:root.areaDrawMode==="rectangle"?root.areaDraftPoints.length===2:root.areaDraftPoints.length>=3;ToolTip.visible:hovered || down;ToolTip.text:root.areaDrawMode==="rectangle"?"GATA • generează culoarele":"Finalizează poligonul";contentItem:Item { Image { anchors.centerIn:parent;width:24;height:24;opacity:parent.parent.enabled ? 1 : 0.45;source:"qrc:/qml/NavoSmart/icons/done.svg";fillMode:Image.PreserveAspectFit } }onClicked:root.finishAreaDrawing() }
+        DrawingTool { caption:"Înapoi";padding:2;enabled:root.areaDraftPoints.length>0;ToolTip.visible:hovered || down;ToolTip.text:"Șterge ultimul punct / segment";contentItem:Item { Image { anchors.centerIn:parent;width:24;height:24;opacity:parent.parent.enabled ? 1 : 0.45;source:"qrc:/qml/NavoSmart/icons/undo.svg";fillMode:Image.PreserveAspectFit } }onClicked:root.undoAreaPoint() }
+        DrawingTool { caption:"Anulează desen";padding:2;ToolTip.visible:hovered || down;ToolTip.text:"Șterge desenul Area Scan";contentItem:Item { Image { anchors.centerIn:parent;width:24;height:24;opacity:parent.parent.enabled ? 1 : 0.45;source:"qrc:/qml/NavoSmart/icons/delete.svg";fillMode:Image.PreserveAspectFit } }onClicked:root.clearAreaDrawing() }
         Rectangle {
             visible: root.areaDrawMode==="rectangle" && root.areaDraftPoints.length===2
             width:112;height:48;radius:8;color:"#d9071827";border.color:"#21b7ff"
