@@ -39,6 +39,7 @@ def prepare(qgc, aar):
     target = qgc / 'android/src/org/navosmart/connectivity/SkydroidBridge.java'
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(java, target)
+    shutil.copyfile(java.with_name("SkydroidDiagnostics.java"), target.with_name("SkydroidDiagnostics.java"))
     libs = qgc / 'android/libs'; libs.mkdir(parents=True, exist_ok=True)
     (libs / 'rcsdk-v1.9.2.aar').write_bytes(aar)
     # QGC already includes *.aar under android/libs. RCSDK uses Kotlin runtime.

@@ -35,6 +35,7 @@ public final class SkydroidBridge {
         boolean running = true, rc, channel;
         String error = "";
         Pipeline pipeline;
+        final SkydroidDiagnostics diagnostics = new SkydroidDiagnostics();
         final ArrayDeque<Chunk> input = new ArrayDeque<>();
     }
     private SkydroidBridge() {}
@@ -74,6 +75,8 @@ public final class SkydroidBridge {
                         synchronized (SkydroidBridge.class) {
                             if (active == null || !current(active)) return;
                             active.rc = false; active.channel = false; clearInput(active);
+                            final Session lost = active;
+                            MAIN.post(() -> lost.diagnostics.stop());
                             active.error = "Legătura cu telecomanda s-a întrerupt";
                         }
                     }
@@ -87,6 +90,7 @@ public final class SkydroidBridge {
         synchronized (SkydroidBridge.class) {
             if (!current(s)) return;
             s.rc = true;
+            s.diagnostics.start();
             // The SDK already reconnects an existing pipeline; do not create duplicates.
             if (s.pipeline != null) return;
         }
@@ -151,6 +155,7 @@ public final class SkydroidBridge {
             out.put("supported", supported()); out.put("arm", architectureSupported());
             out.put("model", Build.MODEL); out.put("sdk", "1.9.2");
             boolean valid = s != null && s.id == id && s.running;
+            out.put("checks", valid ? s.diagnostics.snapshot() : new org.json.JSONArray());
             out.put("running", valid); out.put("rc", valid && s.rc); out.put("channel", valid && s.channel);
             out.put("error", valid ? s.error : ""); out.put("rx", valid ? s.rx : 0);
             out.put("tx", valid ? s.tx : 0); out.put("dropped", valid ? s.dropped : 0);
@@ -163,6 +168,7 @@ public final class SkydroidBridge {
         s.running = false; s.rc = false; s.channel = false; clearInput(s);
         // FIFO on MAIN ensures the old session is closed before a later start.
         MAIN.post(() -> {
+            s.diagnostics.stop();
             try { if (s.pipeline != null) PipelineManager.INSTANCE.disconnectPipeline(s.pipeline); }
             catch (Throwable ignored) { }
             try { RCSDKManager.INSTANCE.disconnectRC(); } catch (Throwable ignored) { }

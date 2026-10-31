@@ -18,7 +18,8 @@ import "'''+QUrl.fromLocalFile(str(repo/'custom/qml')).toString()+'''"
 ApplicationWindow {
  id:root;width:480;height:640;visible:true;color:"#051521"
  property int stopCalls:0;property int allCalls:0;property int refreshCalls:0;property int connectCalls:0;property int verifyCalls:0;property int tcpCalls:0;property string selectedKey:""
- function sdkChannel(){backend.connections=[{key:"skydroid:g20",name:"G20 / GR01 RCSDK",endpoint:"RCSDK 1.9.2",state:"CANAL GR01 DESCHIS • fără HEARTBEAT recent",detail:"Telecomandă: DA • canal GR01: DA",live:false,canConnect:false,bytes:250}];backend.connectionsChanged()}
+ function sdkChannel(){backend.connections=[{key:"skydroid:g20",name:"G20 / GR01 RCSDK",endpoint:"RCSDK 1.9.2",state:"CANAL GR01 DESCHIS • fără HEARTBEAT recent",detail:"Telecomandă: DA • canal GR01: DA",checks:["Radio GR01: CONECTAT","Semnal radio: 75%","UART0 receptor: 115200","Firmware radio GR01: date învechite"],live:false,canConnect:false,bytes:250}];backend.connectionsChanged()}
+ function sdkStale(){backend.connections=[{key:"skydroid:g20",name:"G20 / GR01 RCSDK",endpoint:"RCSDK 1.9.2",state:"CANAL GR01 DESCHIS • fără HEARTBEAT recent",checks:["Radio GR01: date învechite","Semnal radio: date învechite","UART0 receptor: 115200"],live:false,canConnect:false,bytes:300}];backend.connectionsChanged()}
  function liveHeartbeat(){backend.connections=[{key:"tcp:127.0.0.1:5760",name:"GR01 test",endpoint:"tcp:127.0.0.1:5760",state:"MAVLINK LIVE",live:true,canConnect:false,bytes:250}];backend.connectionsChanged()}
  function noHeartbeat(){backend.connections=[{key:"tcp:127.0.0.1:5760",name:"GR01 test",endpoint:"tcp:127.0.0.1:5760",state:"TRANSPORT DESCHIS • fără HEARTBEAT recent",live:false,canConnect:false,bytes:120}];backend.connectionsChanged()}
  QtObject {
@@ -72,6 +73,15 @@ with tempfile.TemporaryDirectory() as folder:
  assert any(i.property('text')=='MAVLINK LIVE' for i in walk(w.contentItem()))
  QMetaObject.invokeMethod(w,'sdkChannel');QTest.qWait(20)
  assert any('canal GR01: DA' in str(i.property('text') or '') for i in walk(w.contentItem()))
+ assert any(i.property('text')=='Semnal radio: 75%' and i.property('visible') for i in walk(w.contentItem()))
+ uart=next(i for i in walk(w.contentItem()) if i.property('text')=='UART0 receptor: 115200')
+ assert not uart.property('visible')
+ expand=next(i for i in walk(w.contentItem()) if i.property('text')=='Detalii radio și receptor')
+ QMetaObject.invokeMethod(expand,'clicked');QTest.qWait(20)
+ assert uart.property('visible')
+ QMetaObject.invokeMethod(w,'sdkStale');QTest.qWait(20)
+ assert any(i.property('text')=='Semnal radio: date învechite' and i.property('visible') for i in walk(w.contentItem()))
+ assert any(i.property('text')=='UART0 receptor: 115200' and i.property('visible') for i in walk(w.contentItem()))
  assert find('connectivitySkydroidStop').property('visible')
  click('connectivitySkydroidStop');assert w.property('stopCalls')==1 and w.property('selectedKey')=='skydroid:g20'
  assert not find('connectivityConnect').property('enabled')

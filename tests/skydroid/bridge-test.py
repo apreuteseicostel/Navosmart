@@ -13,8 +13,23 @@ SOURCES = {
 'android/os/Build.java': '''package android.os; public class Build { public static String MODEL="G20", DEVICE="G20", PRODUCT="G20", CPU_ABI="arm64-v8a"; }''',
 'android/os/SystemClock.java': '''package android.os; public class SystemClock { public static long now=1; public static long elapsedRealtime(){return now;} }''',
 'android/os/Looper.java': '''package android.os; public class Looper { public static Looper getMainLooper(){return new Looper();} }''',
-'android/os/Handler.java': '''package android.os; public class Handler { public Handler(Looper l){} public boolean post(Runnable r){q.add(r);return true;} static java.util.Queue<Runnable> q=new java.util.ArrayDeque<>(); public static void drain(){while(!q.isEmpty())q.remove().run();} }''',
-'org/json/JSONObject.java': '''package org.json; public class JSONObject { java.util.Map<String,Object> map=new java.util.LinkedHashMap<>(); public JSONObject put(String k,Object v){map.put(k,v);return this;} public String toString(){return map.toString();} }''',
+'android/os/Handler.java': '''package android.os; public class Handler { public Handler(Looper l){} public boolean post(Runnable r){q.add(r);return true;} static java.util.Queue<Runnable> q=new java.util.ArrayDeque<>(); static java.util.Queue<Runnable> timers=new java.util.ArrayDeque<>(); public boolean postDelayed(Runnable r,long ms){timers.add(r);return true;} public void removeCallbacks(Runnable r){timers.removeIf(v->v==r);} public static void fireTimer(){timers.remove().run();} public static void drain(){while(!q.isEmpty())q.remove().run();} }''',
+'org/json/JSONObject.java': r'''package org.json; public class JSONObject {
+ java.util.Map<String,Object> map=new java.util.LinkedHashMap<>();
+ public JSONObject(){} public JSONObject(String text){
+  if(!text.startsWith("{")||!text.endsWith("}"))throw new IllegalArgumentException();
+  text=text.substring(1,text.length()-1);
+  if(!text.isEmpty())for(String entry:text.split(",")){
+   String[] kv=entry.split(":",2);if(kv.length!=2)throw new IllegalArgumentException();
+   String value=kv[1].trim();Object v=value.equals("true")?Boolean.TRUE:value.equals("false")?Boolean.FALSE:value.replace(String.valueOf((char)34), "");
+   map.put(kv[0].trim().replace(String.valueOf((char)34), ""),v);
+  }
+ }
+ public Object opt(String key){return map.get(key);}
+ public JSONObject put(String k,Object v){map.put(k,v);return this;}
+ public String toString(){return map.toString();}
+}''',
+'org/json/JSONArray.java': '''package org.json; public class JSONArray { java.util.List<Object> values=new java.util.ArrayList<>(); public JSONArray put(Object v){values.add(v);return this;} public String toString(){return values.toString();} }''',
 'com/skydroid/rcsdk/common/error/SkyException.java': '''package com.skydroid.rcsdk.common.error; public class SkyException extends Exception {private static final long serialVersionUID=1L;}''',
 'com/skydroid/rcsdk/SDKManagerCallBack.java': '''package com.skydroid.rcsdk; import com.skydroid.rcsdk.common.error.SkyException; public interface SDKManagerCallBack { void onRcConnected();void onRcDisconnect();void onRcConnectFail(SkyException e); }''',
 'com/skydroid/rcsdk/comm/CommListener.java': '''package com.skydroid.rcsdk.comm; import com.skydroid.rcsdk.common.error.SkyException; public interface CommListener {void onConnectSuccess();void onDisconnect();void onConnectFail(SkyException e);void onReadData(byte[] d);}''',
@@ -50,13 +65,24 @@ public class BridgeTest {
  }
 }'''
 }
+SOURCES.update({
+'com/skydroid/rcsdk/common/callback/KeyListener.java': 'package com.skydroid.rcsdk.common.callback; public interface KeyListener<T>{void onValueChange(T oldValue,T newValue);}',
+'com/skydroid/rcsdk/common/callback/CompletionCallbackWith.java': 'package com.skydroid.rcsdk.common.callback; import com.skydroid.rcsdk.common.error.SkyException; public interface CompletionCallbackWith<T>{void onSuccess(T value);void onFailure(SkyException e);}',
+'com/skydroid/rcsdk/key/info/KeyInfo.java': 'package com.skydroid.rcsdk.key.info; public class KeyInfo<T>{public final String name; public KeyInfo(String n){name=n;}}',
+'com/skydroid/rcsdk/common/airlink/UartBaudRate.java': 'package com.skydroid.rcsdk.common.airlink; public enum UartBaudRate {UNKNOWN,B9600,B57600,B115200,B921600}',
+'com/skydroid/rcsdk/key/AirLinkKey.java': 'package com.skydroid.rcsdk.key; import com.skydroid.rcsdk.key.info.KeyInfo; import com.skydroid.rcsdk.common.airlink.UartBaudRate; public class AirLinkKey { public static final AirLinkKey INSTANCE=new AirLinkKey();public KeyInfo<Integer> getKeySignalQuality(){return new KeyInfo<>("signal");} public KeyInfo<String> getKeyRawSignalQuality(){return new KeyInfo<>("raw");} public KeyInfo<UartBaudRate> getKeyUart0BaudRate(){return new KeyInfo<>("baud");} public KeyInfo<String> getKeyRCVersion(){return new KeyInfo<>("ground");} public KeyInfo<String> getKeySkyVersion(){return new KeyInfo<>("air");}}',
+'com/skydroid/rcsdk/key/RemoteControllerKey.java': 'package com.skydroid.rcsdk.key; import com.skydroid.rcsdk.key.info.KeyInfo; public class RemoteControllerKey {public static final RemoteControllerKey INSTANCE=new RemoteControllerKey();public KeyInfo<String> getKeyModel(){return new KeyInfo<>("model");} public KeyInfo<String> getKeyVersion(){return new KeyInfo<>("version");}}',
+'com/skydroid/rcsdk/KeyManager.java': 'package com.skydroid.rcsdk; import com.skydroid.rcsdk.key.info.KeyInfo;import com.skydroid.rcsdk.common.callback.*;import com.skydroid.rcsdk.common.error.SkyException;import java.util.*; public class KeyManager {\n public static final KeyManager INSTANCE=new KeyManager();public final Map<String,KeyListener<?>> listeners=new HashMap<>();public final Map<String,CompletionCallbackWith<?>> requests=new HashMap<>();public int listens,cancels,gets;\n public <T> SkyException listen(KeyInfo<T> key,KeyListener<T> cb){listeners.put(key.name,cb);listens++;return null;}\n public void cancelListen(KeyListener<?> cb){listeners.values().removeIf(v->v==cb);cancels++;}\n public <T> void get(KeyInfo<T> key,CompletionCallbackWith<T> cb){requests.put(key.name,cb);gets++;}\n @SuppressWarnings("unchecked") public void emit(String key,Object value){((KeyListener<Object>)listeners.get(key)).onValueChange(null,value);}\n @SuppressWarnings("unchecked") public void reply(String key,Object value){((CompletionCallbackWith<Object>)requests.get(key)).onSuccess(value);}\n}',
+})
 with tempfile.TemporaryDirectory(prefix='navo-skydroid-test-') as folder:
     root = Path(folder)
     for name, text in SOURCES.items():
         path = root / name; path.parent.mkdir(parents=True, exist_ok=True);path.write_text(text)
     sources = [str(p) for p in root.rglob('*.java')]
-    sources.append(str(ROOT / 'custom/android/src/org/navosmart/connectivity/SkydroidBridge.java'))
+    sources.extend(str(p) for p in (ROOT / 'custom/android/src/org/navosmart/connectivity').glob('*.java'))
+    sources.append(str(ROOT / 'tests/skydroid/DiagnosticsTest.java'))
     # ECJ permits the same test on a JRE-only workstation. CI uses javac 17.
     compiler = ['java','-jar',os.environ['NAVO_ECJ'],'-17','-proc:none'] if os.getenv('NAVO_ECJ') else ['javac','--release','17']
     subprocess.run(compiler + ['-d',str(root/'classes')] + sources, check=True)
     subprocess.run(['java','-cp',str(root/'classes'),'BridgeTest'],check=True)
+    subprocess.run(['java','-cp',str(root/'classes'),'org.navosmart.connectivity.DiagnosticsTest'],check=True)

@@ -226,9 +226,12 @@ void NavoConnectivity::refresh() {
         if (link && evidence.heartbeat > 0 && !live) detail = "HEARTBEAT expirat • autopilot neconfirmat";
         if (!link && _retry.value(it.key()).attempts >= 5) detail = "Încercări automate oprite • verifică și reconectează manual";
         QString endpoint = it.key();
+        QVariantList checks;
         if (it.key() == "skydroid:g20") {
             auto info = NavoSkydroidLink::deviceInfo();
             if (auto sdk = qobject_cast<NavoSkydroidLink *>(link)) info = sdk->diagnostics();
+            checks = info.value("checks").toList();
+            if (!checks.isEmpty()) checks.append("TX acceptat de SDK: " + QString::number(info.value("tx").toLongLong()) + " octeți • RX eliminat: " + QString::number(info.value("dropped").toLongLong()) + " octeți");
             endpoint = "SDK Skydroid 1.9.2 • G20 / GR01 • " + info.value("model").toString();
             state = live ? "MAVLINK LIVE • H743 CONFIRMAT" : connected ? "CANAL GR01 DESCHIS • fără HEARTBEAT recent" : info.value("rc").toBool() ? "TELECOMANDĂ CONECTATĂ • se deschide canalul GR01" : link ? "CONECTARE RCSDK ÎN CURS" : "RCSDK OPRIT";
             if (!info.value("arm").toBool()) detail = "Necesită Android ARM și adaptorul RCSDK inclus în APK";
@@ -241,7 +244,7 @@ void NavoConnectivity::refresh() {
             else if (!link && _retry.value(it.key()).attempts >= 5) detail += " • 5 încercări epuizate; reconectare manuală";
         }
         rows.append(QVariantMap{{"key", it.key()}, {"name", config->name()}, {"endpoint", endpoint},
-                               {"state", state}, {"detail", detail}, {"live", live}, {"connected", connected},
+                               {"state", state}, {"detail", detail}, {"checks", checks}, {"live", live}, {"connected", connected},
                                {"canConnect", available && !link}, {"bytes", evidence.bytes}, {"systemId", evidence.systemId}});
     }
     for (auto it = _excluded.cbegin(); it != _excluded.cend(); ++it)

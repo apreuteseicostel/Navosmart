@@ -15,7 +15,7 @@ ColumnLayout {
         var rows=controller ? controller.connections : []
         for(var i=0;i<rows.length;i++) {
             if(i<links.count && links.get(i).key!==rows[i].key)links.remove(i,links.count-i)
-            var row={key:String(rows[i].key),name:String(rows[i].name),endpoint:String(rows[i].endpoint),stateText:String(rows[i].state),detail:String(rows[i].detail||""),live:!!rows[i].live,canConnect:!!rows[i].canConnect,received:String(rows[i].bytes||0)}
+            var row={key:String(rows[i].key),name:String(rows[i].name),endpoint:String(rows[i].endpoint),stateText:String(rows[i].state),detail:String(rows[i].detail||""),checksJson:JSON.stringify(rows[i].checks||[]),live:!!rows[i].live,canConnect:!!rows[i].canConnect,received:String(rows[i].bytes||0)}
             if(i<links.count)links.set(i,row);else links.append(row)
         }
         if(links.count>rows.length)links.remove(rows.length,links.count-rows.length)
@@ -61,6 +61,9 @@ ColumnLayout {
             required property string endpoint
             required property string stateText
             required property string detail
+            required property string checksJson
+            property var checks:JSON.parse(checksJson)
+            property bool radioExpanded:false
             required property bool live
             required property bool canConnect
             required property string received
@@ -72,6 +75,18 @@ ColumnLayout {
                 Label { Layout.fillWidth:true;text:endpoint;wrapMode:Text.WrapAnywhere;color:"#bfd6e5";font.pixelSize:11 }
                 Label { Layout.fillWidth:true;text:stateText;wrapMode:Text.WordWrap;color:live ? "#31d67b" : "#ffd166";font.pixelSize:11 }
                 Label { Layout.fillWidth:true;text:detail;visible:text.length>0;wrapMode:Text.WordWrap;color:"#bfd6e5";font.pixelSize:11 }
+                Repeater {
+                    model:checks
+                    delegate:Label {
+                        required property string modelData
+                        required property int index
+                        visible:index<2 || radioExpanded
+                        Layout.fillWidth:true;text:modelData;wrapMode:Text.WrapAnywhere
+                        color:modelData.indexOf("învechite")>=0 || modelData.indexOf("indisponibil")>=0 ? "#ffd166" : "#bfd6e5"
+                        font.pixelSize:11
+                    }
+                }
+                Command { visible:checks.length>2;Layout.fillWidth:true;text:radioExpanded ? "Ascunde detaliile radio" : "Detalii radio și receptor";onClicked:radioExpanded=!radioExpanded }
                 Label { text:"RX: "+received+" octeți";color:"#bfd6e5";font.pixelSize:10 }
                 RowLayout {
                     Layout.fillWidth:true

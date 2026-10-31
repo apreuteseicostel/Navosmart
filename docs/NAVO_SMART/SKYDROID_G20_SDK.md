@@ -104,3 +104,32 @@ Bench acceptance, without arming or motor operation:
    data becomes live and that USB fallback still works when selected normally.
 
 No automatic mode, arming, mission, servo or parameter commands were added.
+
+## Read-only radio and receiver diagnostics
+
+The SDK adapter now owns a per-session `SkydroidDiagnostics` reader. It listens
+for `KeySignalQuality` and `KeyRawSignalQuality` and reads UART0 baud rate,
+controller model/version, and ground/air radio firmware versions every 30 seconds.
+Only GET/LISTEN are used. No baud, binding, RF, channel mapping or H743 parameters
+are changed. Firmware compatibility and successful replies must be checked on G20.
+
+Connectivity keeps the GR01 radio state and signal visible; `Detalii radio și
+receptor` expands pairing state, G20/GR01 SNR, vendor-reported LDPC error values,
+UART0 and firmware. LDPC fields are presented as vendor values, not invented
+packet-loss percentages. Radio connection is independent of channel opening and
+H743 HEARTBEAT. UART0 is the receiver setting, not Android ttyHS or an inferred
+H743 SERIAL1 parameter. No automatic baud comparison is claimed.
+
+A real 0% signal is valid. Missing/invalid fields show unavailable, never zero or
+connected. Radio readings expire after 6 seconds; GET readings after 45 seconds.
+Each raw sample replaces its own fields, so partial samples cannot retain old
+SNR/receiver state. Malformed/oversized JSON, non-Boolean connection states and
+non-finite numeric strings are rejected. Text lengths are bounded. Stopping the
+reader releases listeners/timers and invalidates pending replies; listener and
+request generations prevent old callbacks affecting a restarted reader.
+
+Local checks for this extension: production Java compiled against the original
+RCSDK 1.9.2 classes; production reader tests cover zero/invalid/stale/partial/raw
+samples, baud UNKNOWN, GET failures, old replies/listeners, restart and cleanup.
+Connectivity QML tests exercise compact/expanded diagnostics at 320/480/800 px.
+Real G20 radio values and the new APK remain hardware/CI acceptance work.
