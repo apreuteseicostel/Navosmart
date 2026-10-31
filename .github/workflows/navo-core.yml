@@ -9,6 +9,9 @@ on:
       - 'firmware/**'
       - 'custom/qml/**'
       - 'custom/src/**'
+      - 'custom/android/**'
+      - 'tools/prepare-skydroid-android.py'
+      - 'tests/skydroid/**'
       - 'custom/icons/**'
       - 'custom/CMakeLists.txt'
       - 'tests/firmware/**'
@@ -25,6 +28,9 @@ on:
       - 'firmware/**'
       - 'custom/qml/**'
       - 'custom/src/**'
+      - 'custom/android/**'
+      - 'tools/prepare-skydroid-android.py'
+      - 'tests/skydroid/**'
       - 'custom/icons/**'
       - 'custom/CMakeLists.txt'
       - 'tests/firmware/**'
@@ -58,6 +64,8 @@ jobs:
         run: lua5.3 tests/firmware/v3-service.lua
       - name: Hardware profiles and independent sensor expiry
         run: cmake -S tests/hardware -B /tmp/navo-hardware && cmake --build /tmp/navo-hardware -j2 && /tmp/navo-hardware/navo-hardware-test
+      - name: Skydroid SDK bridge lifecycle and duplex regressions
+        run: python3 tests/skydroid/bridge-test.py
       - name: G20 physical RC input regressions
         run: node tests/g20-input.mjs
       - name: Connectivity retry and heartbeat policy
