@@ -18,6 +18,7 @@ Item {
     property bool networkStartupLoaded: false
     property bool sonarStartupEnabled: true
     NavoConnectivity {
+        liveSuspended: root.sonarReplayMode
         id: connectivityController
         onNetworkConnectRequested: function(automatic) { root.connectConfiguredNetworkServices(automatic) }
     }

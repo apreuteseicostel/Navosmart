@@ -76,6 +76,7 @@ ColumnLayout {
                 RowLayout {
                     Layout.fillWidth:true
                     Command { objectName:"connectivityConnect";text:"Conectează";Layout.fillWidth:true;enabled:canConnect && !!root.controller;onClicked:root.controller.connectOne(key) }
+                    Command { objectName:"connectivitySkydroidStop";visible:key === "skydroid:g20";text:"Oprește";Layout.fillWidth:true;enabled:!!root.controller;onClicked:root.controller.disconnectOne(key) }
                     Command { objectName:"connectivityVerify";text:"Verifică";Layout.fillWidth:true;enabled:!!root.controller;onClicked:root.controller.verifyOne(key) }
                 }
             }
@@ -86,8 +87,8 @@ ColumnLayout {
         Layout.fillWidth:true;implicitHeight:tcpForm.implicitHeight+16;color:"#061827";border.color:"#31506a";radius:8
         ColumnLayout {
             id:tcpForm;anchors.left:parent.left;anchors.right:parent.right;anchors.top:parent.top;anchors.margins:8;spacing:6
-            Label { Layout.fillWidth:true;text:"TELEMETRIE TCP • G20 / GR01";color:"#eff9ff";font.bold:true;font.pixelSize:12;wrapMode:Text.WordWrap }
-            Label { Layout.fillWidth:true;text:"Dacă GR01 nu apare ca port serial, folosește adresa și portul de telemetrie furnizate de G20. Nu sunt adresa camerei sau a sonarului.";wrapMode:Text.WordWrap;color:"#bfd6e5";font.pixelSize:11 }
+            Label { Layout.fillWidth:true;text:"TELEMETRIE TCP • adresă explicită";color:"#eff9ff";font.bold:true;font.pixelSize:12;wrapMode:Text.WordWrap }
+            Label { Layout.fillWidth:true;text:"Pe G20 folosește rândul RCSDK de mai sus. TCP este pentru un endpoint cunoscut, configurat separat; nu introduce adresa camerei sau sonarului.";wrapMode:Text.WordWrap;color:"#bfd6e5";font.pixelSize:11 }
             TextField { id:tcpHost;objectName:"connectivityTcpHost";Layout.fillWidth:true;placeholderText:"Adresă IP telemetrie";selectByMouse:true }
             TextField { id:tcpPort;objectName:"connectivityTcpPort";Layout.fillWidth:true;placeholderText:"Port TCP";inputMethodHints:Qt.ImhDigitsOnly;validator:IntValidator { bottom:1;top:65535 } }
             Command { objectName:"connectivityAddTcp";Layout.fillWidth:true;text:"Salvează și conectează TCP";enabled:!!root.controller && tcpHost.text.trim().length>0 && tcpPort.text.length>0 && tcpPort.acceptableInput;onClicked:root.controller.addTcp(tcpHost.text.trim(),Number(tcpPort.text)) }

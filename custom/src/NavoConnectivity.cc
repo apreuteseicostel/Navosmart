@@ -1,4 +1,5 @@
 #include "NavoConnectivity.h"
+#include "NavoSkydroidLink.h"
 #include "NavoConnectionPolicy.h"
 #include "LinkManager.h"
 #include "LinkConfiguration.h"
@@ -25,7 +26,7 @@ NavoConnectivity::NavoConnectivity(QObject *parent) : QObject(parent) {
     if (_baud != 57600 && _baud != 115200 && _baud != 921600) _baud = 115200;
     _clock.start();
     connect(QCoreApplication::instance(), &QCoreApplication::aboutToQuit, this, [this] {
-        _ready=false;_poll.stop();_dispatch.stop();_pending.clear();
+        _ready=false;_poll.stop();_dispatch.stop();_pending.clear();stopSkydroid();
     });
     _dispatch.setInterval(300);
     connect(&_dispatch, &QTimer::timeout, this, &NavoConnectivity::attemptNext);
@@ -61,6 +62,7 @@ void NavoConnectivity::setAutoConnect(bool enabled) {
 
 QString NavoConnectivity::keyFor(const LinkConfiguration *config) const {
     if (!config) return {};
+    if (config->name() == NavoSkydroidLink::configurationName) return "skydroid:g20";
 #ifndef QGC_NO_SERIAL_LINK
     if (auto serial = qobject_cast<const SerialConfiguration *>(config)) return "serial:" + serial->portName();
 #endif
@@ -77,13 +79,31 @@ bool NavoConnectivity::serialBusy() const {
     return false;
 }
 
+void NavoConnectivity::stopSkydroid() {
+    // Own only the SDK link; do not disturb a working USB/TCP connection.
+    for (const auto &link : LinkManager::instance()->links())
+        if (link && link->linkConfiguration()->name() == NavoSkydroidLink::configurationName) link->disconnect();
+}
+
+void NavoConnectivity::setLiveSuspended(bool suspended) {
+    if (_liveSuspended == suspended) return;
+    _liveSuspended = suspended;
+    if (suspended) { _pending.clear(); _dispatch.stop(); stopSkydroid(); }
+    if (_ready) refresh();
+}
+
 bool NavoConnectivity::replayActive() const {
+    if (_liveSuspended) return true;
     for (const auto &link : LinkManager::instance()->links())
         if (link && link->isLogReplay()) return true;
     return false;
 }
 
 bool NavoConnectivity::usable(const LinkConfiguration *config) const {
+    if (config && config->name() == NavoSkydroidLink::configurationName) {
+        const auto info = NavoSkydroidLink::deviceInfo();
+        return info.value("arm").toBool() && (info.value("supported").toBool() || QSettings().value("NavoConnectivity/g20Selected", false).toBool());
+    }
     if (!config || config->isForwarding() || keyFor(config).isEmpty()) return false;
 #ifndef QGC_NO_SERIAL_LINK
     if (auto serial = qobject_cast<const SerialConfiguration *>(config))
@@ -97,6 +117,18 @@ void NavoConnectivity::discover() {
     auto model = manager->property("linkConfigurations").value<QmlObjectListModel *>();
     if (!model) return;
     _configs.clear();
+#ifdef Q_OS_ANDROID
+    // Dynamic descriptor used by the pinned factory hook, never a UDP socket.
+    bool hasSkydroid = false;
+    for (int i = 0; i < model->count(); ++i) {
+        auto config = qobject_cast<LinkConfiguration *>(model->get(i));
+        if (config && config->name() == NavoSkydroidLink::configurationName) hasSkydroid = true;
+    }
+    if (!hasSkydroid) {
+        auto config = new UDPConfiguration(NavoSkydroidLink::configurationName);
+        config->setDynamic(true); manager->addConfiguration(config);
+    }
+#endif
     for (int i = 0; i < model->count(); ++i) {
         auto config = qobject_cast<LinkConfiguration *>(model->get(i));
         const auto key = keyFor(config);
@@ -156,7 +188,9 @@ void NavoConnectivity::observe() {
             _evidence[sender].bytes += bytes.size();
         });
         connect(ptr, &LinkInterface::communicationError, this, [this, ptr](const QString &, const QString &error) {
-            _evidence[ptr].error = error; emit connectionsChanged();
+            _evidence[ptr].error = error;
+            _lastErrors[keyFor(ptr->linkConfiguration().get())] = error;
+            emit connectionsChanged();
         });
         connect(ptr, &QObject::destroyed, this, [this, ptr] { _evidence.remove(ptr); _watched.remove(ptr); });
     }
@@ -164,6 +198,7 @@ void NavoConnectivity::observe() {
 
 void NavoConnectivity::refresh() {
     if (!_ready) return;
+    if (replayActive()) stopSkydroid();
     discover(); observe();
     QVariantList rows;
     const auto now = _clock.elapsed();
@@ -174,10 +209,10 @@ void NavoConnectivity::refresh() {
         const bool connected = link && link->isConnected();
         const Evidence evidence = link ? _evidence.value(link) : Evidence{};
         const bool live = NavoConnectionPolicy::heartbeatFresh(connected, evidence.heartbeat, now);
-        if (live) _retry.remove(it.key());
+        if (live) { _retry.remove(it.key()); _lastErrors.remove(it.key()); }
         QString state = live ? "MAVLINK LIVE" : connected ? "TRANSPORT DESCHIS • fără HEARTBEAT recent" : link ? "CONECTARE ÎN CURS" : "DECONECTAT";
-        QString detail = evidence.error;
-        if (!link && _retry.value(it.key()).attempts>0) detail="Conectare eșuată • verifică alimentarea, permisiunea, adresa și viteza serială";
+        QString detail = evidence.error.isEmpty() ? _lastErrors.value(it.key()) : evidence.error;
+        if (!link && detail.isEmpty() && _retry.value(it.key()).attempts>0) detail="Conectare eșuată • verifică alimentarea, permisiunea, adresa și viteza serială";
         bool available = usable(config) && !replayActive();
         if (replayActive()) detail="Redare MAVLink • conectarea live este blocată";
 #ifndef QGC_NO_SERIAL_LINK
@@ -190,7 +225,22 @@ void NavoConnectivity::refresh() {
 #endif
         if (link && evidence.heartbeat > 0 && !live) detail = "HEARTBEAT expirat • autopilot neconfirmat";
         if (!link && _retry.value(it.key()).attempts >= 5) detail = "Încercări automate oprite • verifică și reconectează manual";
-        rows.append(QVariantMap{{"key", it.key()}, {"name", config->name()}, {"endpoint", it.key()},
+        QString endpoint = it.key();
+        if (it.key() == "skydroid:g20") {
+            auto info = NavoSkydroidLink::deviceInfo();
+            if (auto sdk = qobject_cast<NavoSkydroidLink *>(link)) info = sdk->diagnostics();
+            endpoint = "SDK Skydroid 1.9.2 • G20 / GR01 • " + info.value("model").toString();
+            state = live ? "MAVLINK LIVE • H743 CONFIRMAT" : connected ? "CANAL GR01 DESCHIS • fără HEARTBEAT recent" : info.value("rc").toBool() ? "TELECOMANDĂ CONECTATĂ • se deschide canalul GR01" : link ? "CONECTARE RCSDK ÎN CURS" : "RCSDK OPRIT";
+            if (!info.value("arm").toBool()) detail = "Necesită Android ARM și adaptorul RCSDK inclus în APK";
+            else if (!info.value("supported").toBool() && !QSettings().value("NavoConnectivity/g20Selected", false).toBool()) detail = "Model G20 nedetectat automat • apasă Conectează numai pe G20";
+            else if (!info.value("error").toString().isEmpty()) detail = info.value("error").toString();
+            else if (detail.isEmpty()) detail = "Telecomandă: " + QString(info.value("rc").toBool() ? "DA" : "NU") + " • canal GR01: " + QString(info.value("channel").toBool() ? "DA" : "NU") + " • TX SDK: " + QString::number(info.value("tx").toLongLong()) + " • RX pierdut: " + QString::number(info.value("dropped").toLongLong()) + " • închide FLY/Device Tool; firmware G20 ≥20250110";
+            available = info.value("arm").toBool() && !replayActive();
+            if (replayActive()) detail = "Redare activă • canalul live RCSDK este oprit";
+            else if (_g20Stopped) { state = "OPRIT MANUAL"; detail = "Canalul SDK este oprit • apasă Conectează pentru reluare"; }
+            else if (!link && _retry.value(it.key()).attempts >= 5) detail += " • 5 încercări epuizate; reconectare manuală";
+        }
+        rows.append(QVariantMap{{"key", it.key()}, {"name", config->name()}, {"endpoint", endpoint},
                                {"state", state}, {"detail", detail}, {"live", live}, {"connected", connected},
                                {"canConnect", available && !link}, {"bytes", evidence.bytes}, {"systemId", evidence.systemId}});
     }
@@ -207,6 +257,7 @@ void NavoConnectivity::queue(bool force) {
     if (!_ready || replayActive()) { _pending.clear(); _dispatch.stop(); return; }
     for (auto it = _configs.cbegin(); it != _configs.cend(); ++it) {
         auto config = it.value().data();
+        if (it.key() == "skydroid:g20" && _g20Stopped) continue;
         if (!usable(config) || config->link() || _pending.contains(it.key())) continue;
         const auto retry = _retry.value(it.key());
         if (force || NavoConnectionPolicy::retryAllowed(false, retry.attempts, retry.at, _clock.elapsed())) _pending.append(it.key());
@@ -216,6 +267,7 @@ void NavoConnectivity::queue(bool force) {
 }
 
 void NavoConnectivity::connectAll() {
+    _g20Stopped = false;
     refresh();
     if(replayActive())return;
     queue(true);
@@ -224,8 +276,11 @@ void NavoConnectivity::connectAll() {
 
 void NavoConnectivity::connectOne(const QString &key) {
     refresh();
+    if (key == "skydroid:g20" && !replayActive() && NavoSkydroidLink::deviceInfo().value("arm").toBool())
+        QSettings().setValue("NavoConnectivity/g20Selected", true);
     if (replayActive() || !_configs.contains(key) || !usable(_configs[key]) || _configs[key]->link()) return;
-    _retry.remove(key);
+    if (key == "skydroid:g20") _g20Stopped = false;
+    _lastErrors.remove(key); _retry.remove(key);
     if (!_pending.contains(key)) _pending.append(key);
     _dispatch.start(); emit connectionsChanged();
 }
@@ -242,6 +297,14 @@ void NavoConnectivity::attemptNext() {
         LinkManager::instance()->createConnectedLink(config);
     }
     refresh();
+}
+
+void NavoConnectivity::disconnectOne(const QString &key) {
+    if (key != "skydroid:g20") return;
+    _g20Stopped = true;
+    _pending.removeAll(key);
+    _retry[key] = Retry{5, _clock.elapsed()};
+    stopSkydroid(); refresh();
 }
 
 void NavoConnectivity::verifyOne(const QString &key) {
