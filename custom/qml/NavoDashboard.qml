@@ -2090,29 +2090,38 @@ Item {
                         }
                         ScanIconButton {
                             objectName:"scanPrepare"
-                            width:scanToolsScroll.availableWidth;height:38
                             text:"PREGĂTEȘTE"
                             caption:text
                             hint: "Pregătește misiunea"
                             enabled: areaScanController.generatedPoints.length>0 && scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
-                            contentItem:Label { text:parent.text;color:parent.enabled ? "#21b7ff" : "#879ba9";font.pixelSize:12;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter }
+                            contentItem:Canvas {
+                                anchors.centerIn:parent;width:52;height:46;opacity:parent.enabled ? 1 : 0.45
+                                onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#21b7ff";p.lineWidth=2;p.lineJoin="round";p.lineCap="round";p.beginPath();p.moveTo(12,31);p.lineTo(12,14);p.lineTo(28,14);p.lineTo(28,25);p.stroke();p.beginPath();p.moveTo(23,31);p.lineTo(29,36);p.lineTo(40,23);p.stroke()}
+                            }
                             onClicked: { if(!root.allowLiveAction()) return; missionUploader.invalidate(); var prepared=scanCoordinator.prepareMission(false); if(prepared&&prepared.length)root.lastNavigationStatus="Misiune pregătită • "+prepared.length+" WP • următorul pas: UPLOAD"; else if(!root.lastNavigationStatus.length)root.lastNavigationStatus="Pregătirea misiunii a eșuat" }
                         }
                         ScanIconButton {
                             objectName:"scanUploadStart"
-                            width:scanToolsScroll.availableWidth
-                            height:46
                             text:missionUploader.uploadInProgress ? "SE ÎNCARCĂ…" : missionUploader.uploadVerified ? "START AUTOPILOT" : "ÎNCARCĂ MISIUNEA"
                             caption:text
                             hint:missionUploader.uploadVerified ? "Pornește misiunea încărcată; autopilotul confirmă modul AUTO" : "Încarcă misiunea pe H743; pornirea se confirmă separat"
                             enabled: missionUploader.preparedCount>0 && !missionUploader.uploadInProgress
-                            contentItem:Label {
-                                text:parent.text
-                                color:parent.enabled ? "#31d67b" : "#879ba9"
-                                font.pixelSize:12;font.bold:true
-                                horizontalAlignment:Text.AlignHCenter
-                                verticalAlignment:Text.AlignVCenter
-                                wrapMode:Text.WordWrap
+                            contentItem:Canvas {
+                                anchors.centerIn:parent;width:52;height:46;opacity:parent.enabled ? 1 : 0.45
+                                property bool uploading:missionUploader.uploadInProgress
+                                property bool verified:missionUploader.uploadVerified
+                                onUploadingChanged:requestPaint()
+                                onVerifiedChanged:requestPaint()
+                                onPaint:{
+                                    var p=getContext("2d");p.reset();p.lineWidth=2;p.lineJoin="round";p.lineCap="round"
+                                    if(uploading){
+                                        p.strokeStyle="#ffc857";p.beginPath();p.arc(26,23,12,-1.3,3.8);p.stroke();p.beginPath();p.moveTo(12,25);p.lineTo(16,32);p.lineTo(22,27);p.stroke()
+                                    }else if(verified){
+                                        p.fillStyle="#31d67b";p.beginPath();p.moveTo(19,11);p.lineTo(38,23);p.lineTo(19,35);p.closePath();p.fill()
+                                    }else{
+                                        p.strokeStyle="#31d67b";p.beginPath();p.moveTo(26,29);p.lineTo(26,10);p.moveTo(18,18);p.lineTo(26,10);p.lineTo(34,18);p.moveTo(13,29);p.lineTo(13,36);p.lineTo(39,36);p.lineTo(39,29);p.stroke()
+                                    }
+                                }
                             }
                             onClicked: root.startMission()
                         }
