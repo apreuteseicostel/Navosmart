@@ -7,6 +7,8 @@ Rectangle {
     objectName: "navoMissionStatus"
     property bool active: false
     property bool connected: false
+    property bool startAvailable: false
+    signal startRequested()
     property real progress: 0
     property string statusText: "Pregătit"
     property bool homeAvailable: false
@@ -19,7 +21,8 @@ Rectangle {
     implicitHeight: body.implicitHeight + 12
     component MissionAction: Button {
         property string glyph: ""
-        implicitWidth: root.width<480 ? 36 : 82
+        property bool keepLabel: false
+        implicitWidth: root.width<480 ? (keepLabel ? 58 : 36) : 82
         implicitHeight: 34; padding: 5
         font.pixelSize: 11
         Accessible.name: text
@@ -31,10 +34,10 @@ Rectangle {
         }
         contentItem: Row {
             spacing:5
-            Image { width:18;height:18;anchors.verticalCenter:parent.verticalCenter
+            Image { visible:!parent.parent.keepLabel || root.width>=480;width:18;height:18;anchors.verticalCenter:parent.verticalCenter
                 source:"qrc:/qml/NavoSmart/icons/"+parent.parent.glyph+".svg"
                 opacity:parent.parent.enabled ? 1 : .45 }
-            Label { visible:root.width>=480;anchors.verticalCenter:parent.verticalCenter
+            Label { visible:root.width>=480 || parent.parent.keepLabel;anchors.verticalCenter:parent.verticalCenter
                 text:parent.parent.text;color:parent.parent.enabled ? "#e0f5ff" : "#788b98";font.pixelSize:11 }
         }
     }
@@ -57,7 +60,7 @@ Rectangle {
                 HoverHandler { id:connectionHover }
                 ToolTip.visible:connectionHover.hovered;ToolTip.text:root.connected ? "Conectat" : "Fără legătură"
             }
-            MissionAction { objectName:"missionPause";text:"PAUZĂ";glyph:"pause";enabled:root.active && root.connected;onClicked:root.pauseRequested() }
+            MissionAction { objectName:"missionPause";keepLabel:true;text:root.startAvailable ? "START" : "PAUZĂ";glyph:root.startAvailable ? "navigate" : "pause";enabled:(root.active || root.startAvailable) && root.connected;onClicked:{if(root.startAvailable)root.startRequested();else root.pauseRequested()} }
             MissionAction { objectName:"missionHome";text:"HOME";glyph:"home";enabled:root.homeAvailable && root.connected;onClicked:root.homeRequested() }
             Button {
                 objectName:"missionCancel"; text:root.cancelText

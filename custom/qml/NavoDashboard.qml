@@ -895,6 +895,20 @@ Item {
         digitalAnchor.release()
         return baitingController.startCycle(waypoint,name,hopper)
     }
+    function startScanFromStatus() {
+        if(!root.missionScanSelected || sonar.replayMode || !root.linkAlive || root.actionActive ||
+           missionUploader.uploadInProgress || ["PAUSED","READY","RESUME_READY"].indexOf(scanCoordinator.state)<0)return false
+        if(!areaScanController.generatedPoints.length || areaScanController.completedLanes.length>=areaScanController.laneCount())return false
+        if(scanCoordinator.state==="PAUSED") {
+            // Resume prepares only unfinished lanes. Upload ACK is never permission to start.
+            var resumed=scanCoordinator.resume()
+            if(!resumed || !resumed.length)return false
+        } else if(missionUploader.preparedCount<1) {
+            var prepared=scanCoordinator.prepareMission(false)
+            if(!prepared || !prepared.length)return false
+        }
+        return root.startMission()
+    }
     function startMission() {
         if(root.steeringModeBusy){root.lastNavigationStatus="Oprește asistența cârmei înainte de navigare/misiune";return false}
         if((routePlan && routePlan.active) || (baitingController && baitingController.enabled)) {root.lastNavigationStatus="Oprește traseul/nădirea înainte de Area Scan";return false}
@@ -1517,6 +1531,10 @@ Item {
         homeAvailable:!sonar.replayMode && !!root.vehicle && !!root.vehicle.guidedModeRTL && !!root.vehicle.homePosition && root.vehicle.homePosition.isValid
         progress:routePlan.active ? 100*(routePlan.currentIndex+Math.min(0.95,Math.max(0,root.routeLegDistanceM>0 && isFinite(baitingController.distanceToTarget()) ? 1-baitingController.distanceToTarget()/root.routeLegDistanceM : 0)))/Math.max(1,routePlan.runningStops.length) : root.missionScanSelected ? areaScanController.progressPercent() : routePlan.state==="DISPATCHED" ? 100 : 0
         statusText:root.pendingMode.length ? root.lastNavigationStatus : root.rtlActive ? "Întoarcere HOME • RTL activ" : root.directGotoActive ? "Mergi la punct • comandă GUIDED trimisă" : routePlan.active ? (routePlan.missionKind==="point" ? "Mergi la punct" : "Traseu cu opriri")+" • oprire "+(routePlan.currentIndex+1)+"/"+routePlan.runningStops.length+" • "+baitingController.stateText(baitingController.state) : root.missionScanSelected ? "Scanare • "+root.missionStateLabel(scanCoordinator.state) : "Misiune • "+root.missionStateLabel(routePlan.state)
+        startAvailable:root.missionScanSelected && !sonar.replayMode && !root.actionActive &&
+            !missionUploader.uploadInProgress && ["PAUSED","READY","RESUME_READY"].indexOf(scanCoordinator.state)>=0 &&
+            areaScanController.generatedPoints.length>0 && areaScanController.completedLanes.length<areaScanController.laneCount()
+        onStartRequested:root.startScanFromStatus()
         onPauseRequested:root.holdMission()
         onHomeRequested:homeRtlConfirm.open()
     }
