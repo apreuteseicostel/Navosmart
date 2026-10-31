@@ -6,6 +6,7 @@ import QtQuick.Layouts
 // All control actions are backed by existing NAVO modules; QGC handles its own parameters.
 Rectangle {
     id: root
+    property bool vehicleConnected: false
     property var sonar: null
     property var camera: null
     property var alerts: null
@@ -27,6 +28,8 @@ Rectangle {
     readonly property bool narrow: width < 890
     signal status(string message)
     signal settingsToolRequested()
+    signal vehicleToolRequested()
+    signal parametersToolRequested()
     signal enableSteeringRequested()
     color: "#051521"
     border.color: "#174c68"
@@ -346,13 +349,30 @@ Rectangle {
                     id: qgcColumn
                     anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
                     anchors.margins: 11; spacing: 10
-                    Label { text: "QGROUNDCONTROL • CONFIGURARE COMPLETĂ"; color: root.fg; font.pixelSize: 16; font.bold: true }
+                    Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;text: "QGROUNDCONTROL • CONFIGURARE COMPLETĂ"; color: root.fg; font.pixelSize: 14; font.bold: true }
                     Rectangle { Layout.fillWidth: true; height: 1; color: root.line }
                     Label {
                         Layout.fillWidth: true; wrapMode: Text.WordWrap; color: root.muted; font.pixelSize: 12
-                        text: "Deschide setările native QGroundControl. Testele radio, calibrarea și parametrii ArduPilot trebuie verificați în instrumentele dedicate; NAVO nu oferă o clonă a acestor funcții."
+                        text: "Parametrii și calibrarea aparțin vehiculului conectat. Setările aplicației includ conexiunile de comunicație, hărțile și preferințele QGroundControl."
                     }
-                    ActionButton { objectName:"settingsOpenQgc";text: "Deschide QGroundControl"; implicitWidth: 236; onClicked: root.settingsToolRequested() }
+                    ActionButton {
+                        objectName:"settingsOpenParameters";text:"Parametri H743"
+                        Layout.fillWidth:true
+                        enabled:root.vehicleConnected
+                        onClicked:root.parametersToolRequested()
+                    }
+                    ActionButton {
+                        objectName:"settingsOpenVehicle";text:"Configurare vehicul"
+                        Layout.fillWidth:true
+                        enabled:root.vehicleConnected
+                        onClicked:root.vehicleToolRequested()
+                    }
+                    Label {
+                        Layout.fillWidth:true;wrapMode:Text.WordWrap
+                        text:root.vehicleConnected ? "În Parametri, caută SERIAL1 pentru telemetria conectată la TX7/RX7." : "Conectează H743 prin USB sau telemetrie pentru acces la parametri și calibrare."
+                        color:root.muted;font.pixelSize:12
+                    }
+                    ActionButton { objectName:"settingsOpenQgc";text: "Setări aplicație QGC"; Layout.fillWidth:true; onClicked: root.settingsToolRequested() }
                 }
             }
 

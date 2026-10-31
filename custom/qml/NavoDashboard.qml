@@ -2863,6 +2863,7 @@ Item {
         id: settingsPage
         NavoSettingsV3 {
             anchors.fill: parent
+            vehicleConnected:root.linkAlive && !!root.vehicle
             sonar: root.sonarController
             camera: cameraEthernet
             alerts: root.settingsAlertsController
@@ -2874,6 +2875,20 @@ Item {
             onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
             onStatus: function(message) { root.lastNavigationStatus = message }
             onEnableSteeringRequested: steeringAssist.enable()
+            onParametersToolRequested: {
+                if(!root.linkAlive || !root.vehicle) {root.lastNavigationStatus="Conectează H743 pentru a deschide parametrii.";return}
+                if(typeof mainWindow !== "undefined" && typeof mainWindow.showVehicleConfigParametersPage === "function") {
+                    if(typeof mainWindow.allowViewSwitch === "function" && !mainWindow.allowViewSwitch())return
+                    mainWindow.showVehicleConfigParametersPage()
+                } else root.lastNavigationStatus="Editorul nativ de parametri QGroundControl nu este disponibil."
+            }
+            onVehicleToolRequested: {
+                if(!root.linkAlive || !root.vehicle) {root.lastNavigationStatus="Conectează H743 pentru configurarea vehiculului.";return}
+                if(typeof mainWindow !== "undefined" && typeof mainWindow.showVehicleConfig === "function") {
+                    if(typeof mainWindow.allowViewSwitch === "function" && !mainWindow.allowViewSwitch())return
+                    mainWindow.showVehicleConfig()
+                } else root.lastNavigationStatus="Configurarea nativă a vehiculului nu este disponibilă."
+            }
             onSettingsToolRequested: {
                 if (typeof mainWindow !== "undefined" && mainWindow.showSettingsTool)
                     mainWindow.showSettingsTool()
