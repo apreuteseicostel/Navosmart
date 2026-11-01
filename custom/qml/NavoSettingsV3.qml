@@ -17,6 +17,7 @@ Rectangle {
     property var steering: null
     property var g20: null
     property var energy: null
+    property var stealth: null
     property string cameraStreamUrl: ""
     property string cameraProtocol: "auto"
     property int selectedTab: 0
@@ -233,6 +234,7 @@ Rectangle {
                         onEnableRequested: root.enableSteeringRequested()
                     }
                 }
+                NavoStealthPanel { Layout.fillWidth:true; controller:root.stealth }
                 Rectangle {
                     id: energyCard
                     Layout.fillWidth: true
@@ -440,4 +442,5 @@ Rectangle {
         }
     }
 }
+
 

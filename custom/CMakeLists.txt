@@ -47,6 +47,8 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoSonarCard.qml
         qml/NavoSonarPro.qml
         qml/NavoAlertAudio.qml
+        qml/NavoStealth.qml
+        qml/NavoStealthPanel.qml
         qml/NavoAlerts.qml
         qml/NavoAlertSettings.qml
         qml/NavoOfflineMaps.qml
@@ -218,3 +220,4 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/processors.cmake)
 set(CUSTOM_SOURCES ${CUSTOM_SOURCES} ${NAVO_KOGGER_PROCESSOR_SOURCES} CACHE INTERNAL "" FORCE)
 set(CUSTOM_INCLUDE_DIRECTORIES ${CUSTOM_INCLUDE_DIRECTORIES} ${NAVO_KOGGER_PROCESSOR_INCLUDES} CACHE INTERNAL "" FORCE)
 set(CUSTOM_LIBRARIES ${CUSTOM_LIBRARIES} Qt6::Concurrent Qt6::Sql CACHE INTERNAL "" FORCE)
+
