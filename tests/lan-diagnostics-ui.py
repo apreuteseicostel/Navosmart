@@ -4,8 +4,9 @@ os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
 os.environ.setdefault('QT_QUICK_BACKEND','software')
 from pathlib import Path
 import tempfile
-from PySide6.QtCore import QUrl,QObject,QMetaObject
+from PySide6.QtCore import QUrl,QObject,QMetaObject,Q_RETURN_ARG
 from PySide6.QtGui import QGuiApplication
+from PySide6.QtQuick import QQuickWindow
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtTest import QTest
 repo=Path(__file__).resolve().parents[1]
@@ -24,6 +25,7 @@ ApplicationWindow {
   property bool suspended:false;property bool monitoring:false;property bool online:false;property bool uartConnected:false
   property string status:"LAN neconfirmat";property string uartStatus:"TCP neconectat";property string preview:"";property int received:0
   property var interfaces:[{ethernet:true,name:"eth0",ip:"192.168.0.10",mask:"255.255.255.0",link:true}]
+  function saveConfiguration(){return true}
   function verify(){root.verifyCalls++}
   function connectUart(){root.listenCalls++;uartConnected=true;uartStatus="TCP conectat, UART neconfirmat"}
   function stopUart(){root.stopCalls++;uartConnected=false}
@@ -48,6 +50,14 @@ with tempfile.TemporaryDirectory() as folder:
  panel=item('panel');assert panel.property('height')<180
  click('lanExpand');assert panel.property('expanded')
  assert item('lanTargetHost').property('text')=='192.168.0.7'
+ # Saving drafts must not require a network test or open a UART client.
+ def save():return QMetaObject.invokeMethod(panel,'saveConfiguration',Q_RETURN_ARG('QVariant'))
+ item('lanTargetHost').setProperty('text','192.168.144.17')
+ item('lanWebPort').setProperty('text','8080');item('lanUartPort').setProperty('text','2323')
+ assert save() and w.property('listenCalls')==0 and w.property('verifyCalls')==0
+ for value in ['', '0','65536','8080']:
+  item('lanUartPort').setProperty('text',value);assert not save()
+ item('lanUartPort').setProperty('text','23')
  click('lanVerify');assert w.property('verifyCalls')==1
  item('lanUartPort').setProperty('text','70000');click('lanUartConnect');assert w.property('listenCalls')==0
  item('lanUartPort').setProperty('text','23');click('lanUartConnect');assert w.property('listenCalls')==1
@@ -61,5 +71,6 @@ with tempfile.TemporaryDirectory() as folder:
   w.setWidth(width);QTest.qWait(30)
   for name in ['lanTargetHost','lanWebPort','lanUartPort','lanVerify','lanUartConnect']:
    control=item(name);assert control.property('width')>20
+  assert w.grabWindow().save(f'/tmp/navo-lan-theme-{width}.png')
  assert not errors,errors
  print('PASS production LAN/UART panel: compact/expanded, settings, invalid ports, passive listen controls, RX/HEX, close release, replay and 320/480/800 widths')

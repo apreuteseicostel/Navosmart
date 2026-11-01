@@ -53,6 +53,14 @@ Rectangle {
             status("Port invalid: folosește valori între 1 și 65535")
             return false
         }
+        if(!lanPanel.validConfiguration()) {
+            status("LAN/UART: completează adresa și două porturi diferite, între 1 și 65535")
+            return false
+        }
+        if(!lanPanel.saveConfiguration()) {
+            status("LAN/UART: salvarea a eșuat")
+            return false
+        }
         cfg.sonarHost = sonarHost.text.trim()
         cfg.sonarPort = parseInt(sonarPort.text) || 0
         cfg.sonarUdp = sonarUdp.checked
@@ -63,8 +71,9 @@ Rectangle {
         cfg.cameraProtocol = protocol.currentValue
         root.cameraStreamUrl = cfg.cameraStreamUrl
         root.cameraProtocol = cfg.cameraProtocol
+        cfg.sync()
         loadEndpoints()
-        status("Setări Ethernet, Kogger și cameră salvate")
+        status("Setări LAN/UART, Kogger și cameră salvate")
         return true
     }
     Component.onCompleted: {
@@ -234,7 +243,7 @@ Rectangle {
         id: body
         anchors.fill: parent
         spacing: 8
-        NavoLanDiagnosticPanel { Layout.fillWidth:true;backend:root.lanDiagnostics }
+        NavoLanDiagnosticPanel { id:lanPanel;Layout.fillWidth:true;backend:root.lanDiagnostics }
         GridLayout {
             id: panels
             Layout.fillWidth: true

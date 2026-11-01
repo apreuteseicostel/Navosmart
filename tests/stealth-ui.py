@@ -4,7 +4,8 @@ os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
 os.environ.setdefault('QT_QUICK_BACKEND','software')
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from PySide6.QtCore import QObject,QUrl,QMetaObject,Q_ARG,Q_RETURN_ARG
+import subprocess,PySide6
+from PySide6.QtCore import QObject,QUrl,QMetaObject,Q_ARG,Q_RETURN_ARG,QResource
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine,QQmlComponent
 from PySide6.QtTest import QTest
@@ -13,6 +14,10 @@ app=QGuiApplication([]);app.setOrganizationName('NavoTest');app.setApplicationNa
 repo=Path(__file__).resolve().parent.parent;engine=QQmlApplicationEngine();errors=[]
 engine.warnings.connect(lambda ws:errors.extend(str(w) for w in ws))
 with TemporaryDirectory() as directory:
+ qrc=Path(directory)/'icons.qrc';resource=Path(directory)/'icons.rcc'
+ qrc.write_text('<RCC><qresource prefix="/qml/NavoSmart/icons">'+''.join(f'<file alias="{p.name}">{p}</file>' for p in (repo/'custom/icons').glob('*.svg'))+'</qresource></RCC>')
+ subprocess.run([str(Path(PySide6.__file__).parent/'Qt/libexec/rcc'),'--binary',str(qrc),'-o',str(resource)],check=True)
+ assert QResource.registerResource(str(resource))
  p=Path(directory)/'Test.qml'
  p.write_text('''import QtQuick
 import QtQuick.Controls
@@ -28,7 +33,10 @@ ApplicationWindow {
   onLightRequested:function(target,value){window.lights=window.lights.concat([{target:target,value:value}])}
   onSpeedRequested:function(speed){window.speeds=window.speeds.concat([speed])}
  }
- Navo.NavoStealthPanel {objectName:"panel";width:parent.width;controller:profile}
+ Navo.NavoStealthPanel {id:settingsPanel;objectName:"panel";width:parent.width;controller:profile}
+ Navo.NavoBaitingController {id:bait}
+ Navo.NavoRoutePlan {id:route}
+ Navo.NavoBaitingPanel {id:baitPanel;objectName:"baitPanel";width:parent.width;visible:false;controller:bait;routePlan:route;hopperBridge:null;waypoint:null;stealth:profile}
  function activate(){return profile.activate()}
  function observe(){profile.observe()}
  function off(){profile.deactivate(true)}
@@ -74,6 +82,22 @@ ApplicationWindow {
   w.setWidth(width);QTest.qWait(40);assert panel.width()==width
   button=w.findChild(QObject,'stealthToggle');assert button and button.property('text')=='Activează Stealth'
   assert panel.property('implicitHeight')>0
+ # The production baiting button shares the same profile as Settings; no second state.
+ toggle=w.findChild(QObject,'baitingStealthToggle');assert toggle
+ assert 'OFF' in toggle.property('text')
+ c.setProperty('linkReady',False);QTest.qWait(20);assert not toggle.property('enabled')
+ c.setProperty('linkReady',True);QTest.qWait(20)
+ QMetaObject.invokeMethod(toggle,'clicked');QTest.qWait(20)
+ assert c.property('active') and 'ON' in toggle.property('text')
+ assert w.findChild(QObject,'stealthToggle').property('text')=='Dezactivează Stealth'
+ QMetaObject.invokeMethod(w.findChild(QObject,'stealthToggle'),'clicked');QTest.qWait(20)
+ assert not c.property('active') and 'OFF' in toggle.property('text')
+ QMetaObject.invokeMethod(toggle,'clicked');c.setProperty('linkReady',False);QTest.qWait(20)
+ assert not c.property('active') and 'OFF' in toggle.property('text')
+ c.setProperty('linkReady',True)
+ for width in [236,320,480]:
+  w.setWidth(width);QTest.qWait(30)
+  assert 0<toggle.property('width')<=width
  # Audio policy: silence routine only, even with ordinary audio disabled.
  alertComponent=QQmlComponent(engine,QUrl.fromLocalFile(str(repo/'custom/qml/NavoAlerts.qml')));a=alertComponent.create();assert a,alertComponent.errors()
  q=QQmlComponent(engine);q.setData(b'''import QtQuick

@@ -6,9 +6,12 @@
 NavoLanDiagnostics::NavoLanDiagnostics(QObject* parent):QObject(parent) {
     QSettings config;
     config.beginGroup("NavoLanDiagnostics");
-    _host=config.value("host").toString();
+    _host=config.value("host",QStringLiteral("192.168.144.7")).toString().trimmed();
+    if(_host.isEmpty())_host=QStringLiteral("192.168.144.7");
     _monitorPort=config.value("monitorPort",80).toInt();
-    _uartPort=config.value("uartPort",0).toInt();
+    _uartPort=config.value("uartPort",23).toInt();
+    if(_monitorPort<1 || _monitorPort>65535)_monitorPort=80;
+    if(_uartPort<1 || _uartPort>65535)_uartPort=23;
     _monitoring=config.value("monitoring",false).toBool();
     _serial.setAutoReconnect(false);
     _timer.setInterval(5000);
@@ -31,6 +34,15 @@ NavoLanDiagnostics::NavoLanDiagnostics(QObject* parent):QObject(parent) {
         emit changed();
     });
     QTimer::singleShot(0,this,&NavoLanDiagnostics::refresh);
+}
+bool NavoLanDiagnostics::saveConfiguration() {
+    QSettings config;
+    config.setValue("NavoLanDiagnostics/host",_host);
+    config.setValue("NavoLanDiagnostics/monitorPort",_monitorPort);
+    config.setValue("NavoLanDiagnostics/uartPort",_uartPort);
+    config.setValue("NavoLanDiagnostics/monitoring",_monitoring);
+    config.sync();
+    return config.status()==QSettings::NoError;
 }
 bool NavoLanDiagnostics::localTarget() const {
     QHostAddress a(_host);

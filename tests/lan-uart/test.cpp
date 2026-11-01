@@ -17,6 +17,27 @@ int main(int argc,char** argv){
     QCoreApplication app(argc,argv);QTemporaryDir folder;
     QCoreApplication::setOrganizationName("NavoLanTest");QCoreApplication::setApplicationName("PassiveUart");
     QSettings::setDefaultFormat(QSettings::IniFormat);QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,folder.path());
+    // Fresh installs and the former empty/zero configuration get editable ED2 defaults.
+    {
+        NavoLanDiagnostics initial;
+        assert(initial.host()=="192.168.144.7" && initial.monitorPort()==80 && initial.uartPort()==23);
+        assert(!initial.monitoring() && !initial.uartConnected());
+        initial.setHost("192.168.144.17");initial.setMonitorPort(8080);initial.setUartPort(2323);
+        assert(initial.saveConfiguration());
+    }
+    {
+        NavoLanDiagnostics restarted;
+        assert(restarted.host()=="192.168.144.17" && restarted.monitorPort()==8080 && restarted.uartPort()==2323);
+        assert(!restarted.online() && !restarted.uartConnected() && restarted.received()==0);
+    }
+    QSettings().setValue("NavoLanDiagnostics/host","");
+    QSettings().setValue("NavoLanDiagnostics/uartPort",0);
+    QSettings().setValue("NavoLanDiagnostics/monitorPort",70000);
+    {
+        NavoLanDiagnostics migrated;
+        assert(migrated.host()=="192.168.144.7" && migrated.monitorPort()==80 && migrated.uartPort()==23);
+    }
+    QSettings().clear();
     QTcpServer web,uart;
     assert(web.listen(QHostAddress::LocalHost));assert(uart.listen(QHostAddress::LocalHost));
     QPointer<QTcpSocket> source;int clients=0;

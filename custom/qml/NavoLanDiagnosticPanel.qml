@@ -19,13 +19,31 @@ Rectangle {
     }
     Component.onCompleted: load()
     onBackendChanged: Qt.callLater(load)
+    function validConfiguration() {
+        return !backend || (address.text.trim().length>0 && webPort.acceptableInput && webPort.text.length>0 && uartPort.acceptableInput && uartPort.text.length>0 && Number(webPort.text)!==Number(uartPort.text))
+    }
+    function saveConfiguration() {
+        if(!backend)return true
+        return apply(true) && backend.saveConfiguration()
+    }
     function apply(requireUart) {
-        if(!backend || !address.text.trim().length || !webPort.acceptableInput || !webPort.text.length || (requireUart && (!uartPort.acceptableInput || !uartPort.text.length)))return false
+        if(!backend || !validConfiguration())return false
         backend.host=address.text.trim();backend.monitorPort=Number(webPort.text);backend.uartPort=uartPort.text.length ? Number(uartPort.text) : 0
         return true
     }
     component Info: Label { Layout.fillWidth:true;wrapMode:Text.WrapAnywhere;color:"#bfd6e5";font.pixelSize:11 }
-    component Action: Button { Layout.fillWidth:true;implicitHeight:36;font.pixelSize:11 }
+    component Action: Button {
+        id:action
+        Layout.fillWidth:true;Layout.minimumWidth:0;implicitHeight:38;padding:7;font.pixelSize:12
+        background:Rectangle {radius:9;color:action.down ? "#174c60" : action.hovered ? "#103d50" : "#08273a";border.color:action.enabled ? "#20d9ed" : "#537b91";border.width:1.3}
+        contentItem:Label {text:action.text;color:action.enabled ? "#eff9ff" : "#9aaebd";font.pixelSize:action.font.pixelSize;font.bold:true;wrapMode:Text.WordWrap;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter}
+    }
+    component Field: TextField {
+        id:field
+        Layout.fillWidth:true;Layout.minimumWidth:0;implicitHeight:36;padding:8;font.pixelSize:12
+        color:"#eff9ff";placeholderTextColor:"#9ebacf";selectionColor:"#167998";selectedTextColor:"#ffffff";selectByMouse:true
+        background:Rectangle {radius:7;color:"#092439";border.width:field.activeFocus ? 2 : 1;border.color:field.activeFocus ? "#20d9ed" : "#537b91"}
+    }
     ColumnLayout {
         id:body;anchors.left:parent.left;anchors.right:parent.right;anchors.top:parent.top;anchors.margins:10;spacing:6
         Info { text:"LAN / TEST CONVERTOR UART";font.bold:true;color:"#eff9ff";font.pixelSize:12 }
@@ -41,12 +59,14 @@ Rectangle {
                 text:(modelData.ethernet ? "Ethernet local" : "Wi-Fi local")+": "+modelData.name+" • "+modelData.ip+" / "+modelData.mask+" • link "+(modelData.link ? "ON" : "neconfirmat")
             }
         }
-        TextField { id:address;objectName:"lanTargetHost";Layout.fillWidth:true;placeholderText:"IP LAN al convertorului ED2";selectByMouse:true }
+        Info { text:"Adresă IP convertor ED2" }
+        Field { id:address;objectName:"lanTargetHost";placeholderText:"192.168.144.7" }
+        Info { text:"Port web / Port TCP UART" }
         RowLayout {
             Layout.fillWidth:true
-            TextField { id:webPort;objectName:"lanWebPort";Layout.fillWidth:true;Layout.minimumWidth:0;placeholderText:"Port web (de obicei 80)";validator:IntValidator { bottom:1;top:65535 }
+            Field { id:webPort;objectName:"lanWebPort";Layout.fillWidth:true;Layout.minimumWidth:0;placeholderText:"Port web (de obicei 80)";validator:IntValidator { bottom:1;top:65535 }
                 inputMethodHints:Qt.ImhDigitsOnly }
-            TextField { id:uartPort;objectName:"lanUartPort";Layout.fillWidth:true;Layout.minimumWidth:0;placeholderText:"Port TCP UART";validator:IntValidator { bottom:1;top:65535 }
+            Field { id:uartPort;objectName:"lanUartPort";Layout.fillWidth:true;Layout.minimumWidth:0;placeholderText:"Port TCP UART";validator:IntValidator { bottom:1;top:65535 }
                 inputMethodHints:Qt.ImhDigitsOnly }
         }
         Info { text:"ED2 trebuie configurat TCP Server. Portul web și portul UART sunt diferite. Oprește alte aplicații/conexiuni la UART înainte de test; unele convertoare acceptă un singur client." }
