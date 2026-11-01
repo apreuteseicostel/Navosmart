@@ -99,7 +99,7 @@ Item {
     property alias stealthController: stealth
     NavoStealth {
         id: stealth
-        gpsReady: !!root.vehicle && !!root.vehicle.gps && Number(root.vehicle.gps.lock.rawValue)>=3
+        gpsReady: !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid && !!root.vehicle.gps && Number(root.vehicle.gps.lock.rawValue)>=3
         vehicle: root.vehicle
         linkReady: root.linkAlive
         replayMode: sonar.replayMode
