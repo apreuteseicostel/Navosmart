@@ -96,8 +96,29 @@ Item {
         property int temperatureLimit: 45
     }
     NavoPersistence { id: persistence }
-    NavoAlertAudio { id:alertAudio;volume:alerts.volume }
+    property alias stealthController: stealth
+    NavoStealth {
+        id: stealth
+        gpsReady: !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid && !!root.vehicle.gps && Number(root.vehicle.gps.lock.rawValue)>=3
+        vehicle: root.vehicle
+        linkReady: root.linkAlive
+        replayMode: sonar.replayMode
+        navigationActive: root.directGotoActive || scanCoordinator.state==="SCANNING" || baitingController.enabled
+        flightMode: root.flightMode
+        nominalSpeedMps: baitingController.enabled ? baitingController.targetSpeedMps : scanCoordinator.state==="SCANNING" ? root.scanEstimateSpeedMps : baitingController.normalSpeedMps
+        lightsReady: h743Telemetry.connected && !!(h743Telemetry.capabilities & 1) && h743Telemetry.lightsValid && !hopperBridge.commandPending
+        headlightOn: h743Telemetry.headlightOn
+        positionLightsOn: h743Telemetry.positionLightsOn
+        onLightRequested: function(target,value) { root.commandH743Light(target,value,"Stealth",true) }
+        onSpeedRequested: function(speed) {
+            if(root.linkAlive && stealth.gpsReady && !sonar.replayMode && root.vehicle && root.vehicle.guidedModeChangeGroundSpeedMetersSecond &&
+               ["AUTO","GUIDED"].indexOf(root.flightMode.toUpperCase())>=0 && isFinite(speed) && speed>0)
+                root.vehicle.guidedModeChangeGroundSpeedMetersSecond(speed)
+        }
+    }
+    NavoAlertAudio { id:alertAudio;volume:(stealth.active || (alerts.forcedCriticalPlayback && alertAudio.criticalPlaying)) ? Math.max(0.5,alerts.volume) : alerts.volume }
     NavoAlerts {
+        stealthQuiet:stealth.active
         id:alerts;output:alertAudio;vehicle:root.vehicle;replayMode:sonar.replayMode
         telemetryConnected:h743Telemetry.connected
         environmentValid:h743Telemetry.interiorValid && root.linkAlive
@@ -286,8 +307,11 @@ Item {
         releaseComplete: hopperBridge.onboardCycleComplete && h743Telemetry.hopperStateValid && h743Telemetry.hopperMask===0
         onGotoRequested: function(coordinate, reason) { if(root.vehicle && root.vehicle.guidedModeGotoLocation) root.vehicle.guidedModeGotoLocation(coordinate) }
         onSpeedRequested: function(metersPerSecond) {
+            // Stealth never changes speed in pilot modes, HOLD or return-home.
+            if(stealth.active && (!root.linkAlive || !stealth.gpsReady || sonar.replayMode || root.flightMode.toUpperCase()!=="GUIDED"))return
+            var requested=stealth.active ? stealth.capSpeed(metersPerSecond) : metersPerSecond
             if(root.vehicle && root.vehicle.guidedModeChangeGroundSpeedMetersSecond)
-                root.vehicle.guidedModeChangeGroundSpeedMetersSecond(metersPerSecond)
+                root.vehicle.guidedModeChangeGroundSpeedMetersSecond(requested)
         }
         onStopRequested: function(reason) { root.holdMission(true); root.lastNavigationStatus="Nădire: "+reason }
         onHopperReleaseRequested: function(hopper) {
@@ -553,7 +577,7 @@ Item {
     readonly property bool boatActive: !!vehicle && ((vehicle.groundSpeed && Number(vehicle.groundSpeed.rawValue)>0.25) || scanCoordinator.state==="SCANNING" || baitingController.enabled || root.awaitingMissionStart)
     property bool lastAutoPositionState: false
     onBoatActiveChanged: {
-        if(lightSettings.positionMode==="AUTO" && lastAutoPositionState!==boatActive) {
+        if(!stealth.active && lightSettings.positionMode==="AUTO" && lastAutoPositionState!==boatActive) {
             lastAutoPositionState=boatActive
             commandH743Light(2,boatActive?1:0,"Poziții AUTO")
         }
@@ -824,7 +848,7 @@ Item {
         hopperSettings.requestSequence=current+1
         return hopperSettings.requestSequence
     }
-    function commandH743Light(target, mode, label) {
+    function commandH743Light(target, mode, label, fromStealth) {
         if(!root.linkAlive || !vehicle || !vehicle.sendCommand || root.sonarController.replayMode) {
             root.lastNavigationStatus=label+" indisponibil: H743 deconectat sau replay"
             return false
@@ -839,6 +863,7 @@ Item {
         var request=root.nextHardwareRequest()
         if(!request)return false
         vehicle.sendCommand(1,31001,true,target,desired,request,0,0,0,0)
+        if(!fromStealth && root.stealthController)root.stealthController.manualLightOverride()
         root.lastNavigationStatus=label+" • solicitat H743; fără confirmare fizică"
         return true
     }
@@ -2957,6 +2982,7 @@ Item {
             steering: steeringAssist
             g20: g20Controller
             energy: energySettings
+            stealth: root.stealthController
             onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
             onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
             onStatus: function(message) { root.lastNavigationStatus = message }

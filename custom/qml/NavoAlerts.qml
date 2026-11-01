@@ -5,6 +5,7 @@ QtObject {
     id:root
     property var output:null
     property bool replayMode:false
+    property bool stealthQuiet:false
     property var vehicle:null
     property bool telemetryConnected:false
     property bool waterValid:telemetryConnected
@@ -26,6 +27,8 @@ QtObject {
     property var trackedVehicle:null
     property var audioQueue:[]
     property double lastAudioAt:0
+    property bool playingCritical:false
+    property bool forcedCriticalPlayback:false
     property Settings preferences:Settings {
         category:"NavoAlerts"
         property bool soundEnabled:false
@@ -39,7 +42,7 @@ QtObject {
     function configure(sound,voice,value) {
         preferences.soundEnabled=sound;preferences.voiceEnabled=voice
         preferences.volume=Math.max(0,Math.min(1,value))
-        if(!sound && !voice){audioQueue=[];if(output)output.stop()}
+        if(!sound && !voice && !stealthQuiet){audioQueue=[];if(output)output.stop()}
     }
     function notify(key,text,critical) {
         if(replayMode)return false
@@ -47,7 +50,7 @@ QtObject {
         if(lastTimes[key]!==undefined && now-Number(lastTimes[key])<10000)return false
         var times=Object.assign({},lastTimes);times[key]=now;lastTimes=times
         latest=text;raised(key,text,critical)
-        if(output && (soundEnabled || voiceEnabled)) {
+        if(output && (!stealthQuiet || critical) && (soundEnabled || voiceEnabled || (stealthQuiet && critical))) {
             var queue=audioQueue.filter(function(item){return item.key!==key})
             var priorities={water:5,temperature:4,link:3,gps:2,battery:1}
             queue.push({key:key,text:text,critical:critical,at:now,priority:priorities[key]||0})
@@ -83,16 +86,22 @@ QtObject {
         edge("temperature",temperatureValid && isFinite(batteryTempC) ? batteryTempC>=55 : null,"Temperatura bateriei este critică",true)
     }
     function dispatch() {
-        if(replayMode || !output || (!soundEnabled && !voiceEnabled))return
-        var now=Date.now(),queue=audioQueue.filter(function(item){return now-item.at<20000})
+        if(replayMode || !output || (!soundEnabled && !voiceEnabled && !stealthQuiet))return
+        var now=Date.now(),queue=audioQueue.filter(function(item){return now-item.at<20000 && (!root.stealthQuiet || item.critical)})
         audioQueue=queue
         if(!queue.length || now-lastAudioAt<2500 || (voiceEnabled && output.busy))return
         var item=queue[0];audioQueue=queue.slice(1);lastAudioAt=now
-        output.play(soundEnabled,voiceEnabled,item.text,item.critical)
+        forcedCriticalPlayback=stealthQuiet && item.critical
+        playingCritical=item.critical
+        output.play(soundEnabled || (stealthQuiet && item.critical),voiceEnabled,item.text,item.critical)
     }
     function test() {
         latest="Test alerte NAVO SMART"
         if(output)output.play(soundEnabled,voiceEnabled,latest,false)
+    }
+    onStealthQuietChanged: {
+        if(output && !playingCritical)output.stop()
+        if(stealthQuiet)audioQueue=audioQueue.filter(function(item){return item.critical})
     }
     onReplayModeChanged: { previous=({});lastTimes=({});audioQueue=[];if(output)output.stop() }
     property Timer dispatcher:Timer { interval:250;repeat:true;running:true;onTriggered:root.dispatch() }
