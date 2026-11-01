@@ -47,6 +47,7 @@ public:
     Q_INVOKABLE void connectUart();
     Q_INVOKABLE void stopUart();
     Q_INVOKABLE void clearPreview();
+    Q_INVOKABLE bool saveConfiguration();
 signals:
     void endpointChanged();
     void changed();

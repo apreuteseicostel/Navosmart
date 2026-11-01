@@ -44,10 +44,10 @@ Rectangle {
         // Energy preferences are persisted by QtCore.Settings when edited.
         // Camera/Kogger endpoint edits are committed only by saveEndpoints().
         if (!ethernetSettings.saveEndpoints()) {
-            statusText = "Verifică porturile: valorile nu au fost salvate."
+            statusText = "Verifică adresa și porturile LAN/UART, sonar și cameră; salvare neconfirmată."
             return false
         }
-        statusText = "Setări salvate • rețea, cameră și preferințe NAVO"
+        statusText = "Setări salvate • LAN/UART, cameră și preferințe NAVO"
         status(statusText)
         return true
     }
@@ -203,7 +203,7 @@ Rectangle {
                     columnSpacing: 6;rowSpacing: 6
                     NavTab { objectName:"settingsGeneralTab";text:"General";tabIcon:"qrc:/qml/NavoSmart/icons/settings.svg";tabIndex:0 }
                     NavTab { objectName:"settingsAdvancedTab";text:"Avansat";tabIcon:"qrc:/qml/NavoSmart/icons/palette.svg";tabIndex:1 }
-                    NavTab { objectName:"settingsIntegrationTab";text:"Integrare";tabIcon:"qrc:/qml/NavoSmart/icons/lan.svg";tabIndex:2 }
+                    NavTab { objectName:"settingsIntegrationTab";text:"Conexiuni";tabIcon:"qrc:/qml/NavoSmart/icons/lan.svg";tabIndex:2 }
                     NavTab { objectName:"settingsQgcTab";text:"QGroundControl";tabIcon:"qrc:/qml/NavoSmart/icons/target.svg";tabIndex:3 }
                 }
             }
@@ -213,7 +213,6 @@ Rectangle {
                 objectName:"settingsGeneralPanel"
                 Layout.fillWidth: true
                 spacing: 9
-                ActionButton { objectName:"settingsConnectivity";text:"Conectivitate • porturi și stare conexiuni";Layout.fillWidth:true;onClicked:root.selectedTab=4 }
 
                 GridLayout {
                     Layout.fillWidth: true
@@ -334,6 +333,7 @@ Rectangle {
                 objectName:"settingsIntegrationPanel"
                 Layout.fillWidth: true
                 spacing: 9
+                ActionButton { objectName:"settingsConnectivity";text:"Conectivitate • porturi și stare conexiuni";Layout.fillWidth:true;onClicked:root.selectedTab=4 }
                 NavoEthernetSettings {
                     id: ethernetSettings
                     lanDiagnostics: root.lanDiagnostics
@@ -391,7 +391,7 @@ Rectangle {
                 sonar:root.sonar
                 camera:root.camera
                 videoLive:root.cameraLive
-                onBackRequested:root.selectedTab=0
+                onBackRequested:root.selectedTab=2
             }
 
             Label {

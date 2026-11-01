@@ -2813,6 +2813,7 @@ Item {
                     Layout.fillHeight: true
                     radius: 8; color: root.panel; border.color: root.line
                     NavoBaitingPanel {
+                        stealth: root.stealthController
                         anchors.fill: parent
                         anchors.margins: 8
                         controller: baitingController

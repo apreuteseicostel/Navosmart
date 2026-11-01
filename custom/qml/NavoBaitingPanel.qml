@@ -5,6 +5,7 @@ import QtCore
 
 Rectangle {
     id: root
+    property var stealth: null
     property var controller
     property var routePlan
     property var routeEstimate: ({valid:false})
@@ -97,6 +98,21 @@ Rectangle {
                 HoverHandler { id:targetHover }
                 ToolTip.visible:truncated && targetHover.hovered; ToolTip.text:text
             }
+        }
+        Button {
+            id:stealthToggle
+            objectName:"baitingStealthToggle"
+            Layout.fillWidth:true;Layout.preferredHeight:38;padding:6
+            text:"STEALTH • "+(root.stealth && root.stealth.active ? "ON · Dezactivează" : "OFF · Activează")
+            enabled:!!root.stealth && (root.stealth.active || root.stealth.canActivate)
+            Accessible.name:text
+            onClicked:if(root.stealth){if(root.stealth.active)root.stealth.deactivate(true);else root.stealth.activate()}
+            background:Rectangle {radius:9;color:stealthToggle.down ? "#174c60" : "#08273a";border.color:root.stealth && root.stealth.active ? "#31d6a5" : "#20d9ed";border.width:root.stealth && root.stealth.active ? 2 : 1}
+            contentItem:Label {text:stealthToggle.text;color:stealthToggle.enabled ? "#eff9ff" : "#9aaebd";font.pixelSize:12;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter}
+        }
+        Label {
+            Layout.fillWidth:true;wrapMode:Text.WordWrap;font.pixelSize:10;color:"#c1d7e6"
+            text:!root.stealth || !root.stealth.canActivate ? "Stealth indisponibil fără conexiune / în replay" : root.stealth.active ? root.stealth.message : "Viteză, lumini și sunete discrete la nădire • alertele critice rămân active"
         }
         ComboBox {
             Layout.fillWidth: true
