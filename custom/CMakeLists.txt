@@ -47,6 +47,8 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoSonarCard.qml
         qml/NavoSonarPro.qml
         qml/NavoAlertAudio.qml
+        qml/NavoStealth.qml
+        qml/NavoStealthPanel.qml
         qml/NavoAlerts.qml
         qml/NavoAlertSettings.qml
         qml/NavoOfflineMaps.qml
@@ -67,6 +69,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoSonarEthernet.qml
         qml/NavoCameraEthernet.qml
         qml/NavoEthernetSettings.qml
+        qml/NavoLanDiagnosticPanel.qml
         qml/NavoEthernetIndicator.qml
         qml/NavoVideoPlayer.qml
         qml/NavoCameraFullScreen.qml
@@ -97,6 +100,7 @@ qt_add_qml_module(NavoSmartModule
         # Imported by relative URL only. Exporting this script in qmldir makes
         # Qt 6.8.3's implicit + explicit NavoSmart imports ambiguous at startup.
         qml/NavoBottomAnalysis.js
+        qml/NavoVisualPosition.js
         icons/layers.svg
         icons/route.svg
         icons/map.svg
@@ -156,6 +160,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/navo_mosaic_provider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/NavoKoggerService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/KoggerApp/src/mosaic_index_provider.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoSkydroidLink.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoSkydroidLink.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoConnectivity.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoConnectivity.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoConnectionPolicy.h
@@ -179,6 +185,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoPersistence.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoLanDiagnostics.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoLanDiagnostics.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoLanDiscovery.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoLanDiscovery.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoH743Telemetry.cc
@@ -212,3 +220,4 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/processors.cmake)
 set(CUSTOM_SOURCES ${CUSTOM_SOURCES} ${NAVO_KOGGER_PROCESSOR_SOURCES} CACHE INTERNAL "" FORCE)
 set(CUSTOM_INCLUDE_DIRECTORIES ${CUSTOM_INCLUDE_DIRECTORIES} ${NAVO_KOGGER_PROCESSOR_INCLUDES} CACHE INTERNAL "" FORCE)
 set(CUSTOM_LIBRARIES ${CUSTOM_LIBRARIES} Qt6::Concurrent Qt6::Sql CACHE INTERNAL "" FORCE)
+

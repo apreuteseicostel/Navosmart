@@ -6,6 +6,7 @@ import QtQuick.Layouts
 // All control actions are backed by existing NAVO modules; QGC handles its own parameters.
 Rectangle {
     id: root
+    property var lanDiagnostics: null
     property var connectivity: null
     property bool cameraLive: false
     property bool vehicleConnected: false
@@ -16,6 +17,7 @@ Rectangle {
     property var steering: null
     property var g20: null
     property var energy: null
+    property var stealth: null
     property string cameraStreamUrl: ""
     property string cameraProtocol: "auto"
     property int selectedTab: 0
@@ -232,6 +234,7 @@ Rectangle {
                         onEnableRequested: root.enableSteeringRequested()
                     }
                 }
+                NavoStealthPanel { Layout.fillWidth:true; controller:root.stealth }
                 Rectangle {
                     id: energyCard
                     Layout.fillWidth: true
@@ -333,6 +336,7 @@ Rectangle {
                 spacing: 9
                 NavoEthernetSettings {
                     id: ethernetSettings
+                    lanDiagnostics: root.lanDiagnostics
                     objectName:"settingsEthernetForms"
                     Layout.fillWidth: true
                     Layout.preferredHeight: implicitHeight
@@ -438,4 +442,5 @@ Rectangle {
         }
     }
 }
+
 

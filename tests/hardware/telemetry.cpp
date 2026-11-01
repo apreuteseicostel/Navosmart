@@ -32,6 +32,24 @@ private slots:
   send(v,"NV3TEMP",-1000);QVERIFY(!t.temperatureValid());
   t.setVehicle(nullptr);QVERIFY(!t.connected());QVERIFY(!t.waterValid());
  }
+ void interiorSensor(){
+  Vehicle v;NavoH743Telemetry t;t.setVehicle(&v);send(v,"NV3VER",1);
+  send(v,"NV3ITMP",25,2);send(v,"NV3HUM",50);send(v,"NV3ENV",2);
+  QVERIFY(!t.interiorValid()); // wrong system cannot provide temperature
+  send(v,"NV3ITMP",25);QVERIFY(t.interiorValid());QCOMPARE(t.interiorTempC(),25.0);QCOMPARE(t.humidityRh(),50.0);
+  QVERIFY(!t.temperatureValid()); // interior never replaces battery NTC
+  send(v,"NV3ENV",3);QVERIFY(!t.interiorValid());QVERIFY(std::isnan(t.humidityRh()));
+  send(v,"NV3ENV",2);QVERIFY(!t.interiorValid()); // status alone cannot revive old readings
+  send(v,"NV3ITMP",25);send(v,"NV3HUM",101);QVERIFY(!t.interiorValid());
+  send(v,"NV3HUM",50);QVERIFY(t.interiorValid());
+  send(v,"NV3ITMP",NAN);QVERIFY(!t.interiorValid());
+  send(v,"NV3ITMP",25);send(v,"NV3ENV",4);QCOMPARE(t.interiorStatus(),4);QVERIFY(!t.interiorValid());
+  send(v,"NV3ITMP",25);send(v,"NV3HUM",50);send(v,"NV3ENV",2);
+  QTest::qWait(2600);send(v,"NV3VER",1);QVERIFY(!t.interiorValid()); // status expires independently
+  send(v,"NV3ENV",2);QVERIFY(t.interiorValid()); // 5s acquisition cadence is accepted
+  QTest::qWait(9500);send(v,"NV3VER",1);send(v,"NV3ENV",2);QVERIFY(!t.interiorValid());
+  t.setVehicle(nullptr);QCOMPARE(t.interiorAgeMs(),qint64(-1));
+ }
  void partialUpdatesExpire(){
   Vehicle v;NavoH743Telemetry t;t.setVehicle(&v);
   send(v,"NV3VER",1);send(v,"NV3TEMP",60);send(v,"NV3WATER",1);send(v,"NV3WFAULT",0);
@@ -45,3 +63,4 @@ private slots:
 };
 QTEST_GUILESS_MAIN(TelemetryTest)
 #include "telemetry.moc"
+

@@ -36,6 +36,8 @@ import QtQuick.Layouts
 import "'''+QUrl.fromLocalFile(str(repo/'custom/qml')).toString()+'''"
 ApplicationWindow {
  id:root;visible:true;width:800;height:650;color:"#051521"
+ property var lanService:null
+ property int settingsStartTab:0
  property bool cameraConnected:false
  QtObject {id:connectivityController;property var connections:[];property bool autoConnect:false;property bool busy:false;property string status:"Test";property int serialBaud:115200}
  property bool linkAlive:false
@@ -58,6 +60,7 @@ ApplicationWindow {
  property var steeringAssist:null
  property var g20Controller:null
  property var energySettings:null
+ property var stealthController:null
  property string cameraStreamUrl:""
  property string cameraProtocol:"auto"
  property string lastNavigationStatus:""
@@ -136,3 +139,4 @@ with tempfile.TemporaryDirectory() as directory:
  QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete);app.processEvents()
  assert not errors,errors
  print('PASS Settings tabs/forms/save; native parameter/vehicle/application routing, connection and view-switch guards; buttons contained at 320/480/800')
+

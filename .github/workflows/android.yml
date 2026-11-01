@@ -6,6 +6,8 @@ on:
     branches: [main]
     paths:
       - 'custom/**'
+      - 'tools/prepare-skydroid-android.py'
+      - 'tests/skydroid/**'
       - 'third_party/**'
       - 'tests/android/**'
       - 'tests/audit-regressions.mjs'
@@ -16,6 +18,8 @@ on:
     branches: [main]
     paths:
       - 'custom/**'
+      - 'tools/prepare-skydroid-android.py'
+      - 'tests/skydroid/**'
       - 'third_party/**'
       - 'tests/android/**'
       - 'tests/audit-regressions.mjs'
@@ -53,6 +57,7 @@ jobs:
           rm -rf qgc/custom
           cp -a custom qgc/custom
           cp -a third_party qgc/third_party
+          python3 tools/prepare-skydroid-android.py qgc
           sed -i '/import NavoSmart.Backend 1.0/i import NavoSmart 1.0' qgc/custom/qml/NavoDashboard.qml
           sed -i 's/QGroundControl\.FlyView/QGroundControl.FlightDisplay/g' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
           sed -i '/QGroundControl\.PlanView/d' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
