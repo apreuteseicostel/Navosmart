@@ -11,6 +11,15 @@ Popup {
     property bool linkAlive: false
     property bool temperatureFresh: false
     property real temperatureC: NaN
+    property bool interiorValid: false
+    property int interiorStatus: 0
+    property real interiorTempC: NaN
+    property real humidityRh: NaN
+    property double interiorAgeMs: -1
+    property bool environmentAlertsEnabled: false
+    property int humidityLimit: 80
+    property int interiorTempLimit: 45
+    signal environmentConfigured(bool enabled, int humidityLimit, int temperatureLimit)
     property string temperatureSource: "NTC / H743"
     property int viewportWidth: 1280
     property int viewportHeight: 720
@@ -292,6 +301,39 @@ Popup {
                         font.pixelSize: 12
                     }
                 }
+                Rectangle { Layout.fillWidth: true; height: 1; color: details.line }
+                Label { text: "INTERIOR COCĂ • SHT31"; color: details.cyan; font.bold: true; font.pixelSize: 13 }
+                DetailRow { caption: "Temperatură aer"; amount: details.interiorValid ? details.format(details.interiorTempC, 1, " °C") : "--" }
+                DetailRow { caption: "Umiditate relativă"; amount: details.interiorValid ? details.format(details.humidityRh, 1, " %RH") : "--" }
+                Label {
+                    objectName: "interiorSensorStatus"
+                    Layout.fillWidth: true; wrapMode: Text.WordWrap; font.pixelSize: 11
+                    color: details.interiorValid ? details.mint : "#ffd166"
+                    text: details.interiorValid ? "LIVE • citire acum " + Math.floor(details.interiorAgeMs / 1000) + " s"
+                          : details.interiorStatus===4 ? "Configurație / firmware I²C incompatibil"
+                          : details.interiorStatus===3 ? "Citire eșuată / senzor absent / CRC invalid"
+                          : details.interiorStatus===1 ? "Se așteaptă prima măsurătoare"
+                          : details.interiorStatus===2 ? "Date expirate • verifică senzorul"
+                          : "Fără telemetrie SHT31 • dezactivat, deconectat sau date expirate"
+                }
+                CheckBox {
+                    text: "Avertizări interior"; checked: details.environmentAlertsEnabled
+                    onToggled: details.environmentConfigured(checked, details.humidityLimit, details.interiorTempLimit)
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    Label { Layout.fillWidth: true; text: "Prag umiditate %RH"; color: details.muted; font.pixelSize: 11 }
+                    SpinBox { from: 1; to: 100; value: details.humidityLimit
+                        onValueModified: details.environmentConfigured(details.environmentAlertsEnabled, value, details.interiorTempLimit) }
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    Label { Layout.fillWidth: true; text: "Prag temperatură °C"; color: details.muted; font.pixelSize: 11 }
+                    SpinBox { from: 0; to: 100; value: details.interiorTempLimit
+                        onValueModified: details.environmentConfigured(details.environmentAlertsEnabled, details.humidityLimit, value) }
+                }
+                Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; font.pixelSize: 11; color: details.muted
+                    text: "Praguri orientative, configurabile. Umiditatea nu confirmă infiltrații. SHT31 nu comandă motorul, RTL, cuvele sau ventilatorul." }
                 Label {
                     text: "Istoric doar cât aplicația este deschisă. Nu folosim valori simulate sau citiri expirate."
                     color: details.muted; font.pixelSize: 11; Layout.fillWidth: true; wrapMode: Text.WordWrap
@@ -302,5 +344,6 @@ Popup {
         }
     }
 }
+
 
 

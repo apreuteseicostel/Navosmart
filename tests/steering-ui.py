@@ -42,7 +42,8 @@ with tempfile.TemporaryDirectory() as folder:
  window=engine.rootObjects()[0]
  enable=window.findChild(QObject,'steeringEnable');stop=window.findChild(QObject,'steeringStop');dialog=window.findChild(QObject,'steeringConfirmation')
  cancel=window.findChild(QObject,'steeringCancel');confirm=window.findChild(QObject,'steeringConfirmEnable')
- assert enable and stop and dialog and enable.property('enabled') and not stop.property('enabled')
+ assert enable and stop and dialog and enable.property('enabled') and stop.property('enabled')
+ assert enable.property('text')=='Activează' and stop.property('text')=='Activează HOLD'
  assert cancel and confirm and cancel.property('text')=='Anulează' and confirm.property('text')=='Activează'
  def call(name):return QMetaObject.invokeMethod(window,name,Q_RETURN_ARG('QVariant'))
  def click(item):
@@ -69,9 +70,17 @@ with tempfile.TemporaryDirectory() as folder:
  click(confirm);assert dialog.property('visible') and call('mode')=='IDLE'
  click(cancel);assert call('reconnect')
  QMetaObject.invokeMethod(enable,'clicked');QTest.qWait(50);click(confirm);QTest.qWait(300)
- assert call('mode')=='ACTIVE' and stop.property('enabled') and not enable.property('enabled')
+ assert call('mode')=='ACTIVE' and stop.property('enabled') and enable.property('enabled')
+ assert enable.property('text')=='Dezactivează' and enable.property('highlighted')
+ QMetaObject.invokeMethod(enable,'clicked');QTest.qWait(300);assert call('mode')=='IDLE'
+ assert stop.property('text')=='Dezactivează HOLD' and stop.property('highlighted')
  QMetaObject.invokeMethod(stop,'clicked');QTest.qWait(300);assert call('mode')=='IDLE'
- assert call('manual')=='IDLE';assert not call('disconnect');QTest.qWait(30);assert not enable.property('enabled')
+ assert stop.property('text')=='Activează HOLD' and not stop.property('highlighted')
+ assert window.findChild(QObject,'steeringMode').property('text')=='MANUAL'
+ QMetaObject.invokeMethod(stop,'clicked');QTest.qWait(300)
+ assert stop.property('text')=='Dezactivează HOLD' and stop.property('highlighted')
+ assert call('manual')=='IDLE';assert not call('disconnect');QTest.qWait(30);assert not enable.property('enabled') and not stop.property('enabled')
+ assert window.findChild(QObject,'holdState').property('text')=='HOLD: NECONFIRMAT'
  assert not errors,errors
  print('PASS production STEERING dialog at 236/320/480/900/1024, short-screen scrolling, NAVO theme, real cancel/confirm clicks, stale-link gating, activation and HOLD')
 

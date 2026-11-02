@@ -36,6 +36,16 @@ import QtQuick.Layouts
 import "'''+QUrl.fromLocalFile(str(repo/'custom/qml')).toString()+'''"
 ApplicationWindow {
  id:root;visible:true;width:800;height:650;color:"#051521"
+ property var lanService:diagnostics
+ property int lanSaves:0
+ QtObject {id:diagnostics
+  property string host:"192.168.144.7";property int monitorPort:80;property int uartPort:23
+  property bool suspended:false;property bool monitoring:false;property bool online:false;property bool uartConnected:false
+  property string status:"LAN neconfirmat";property string uartStatus:"";property string preview:"";property int received:0;property var interfaces:[]
+  function stopUart(){} function clearPreview(){} function verify(){} function connectUart(){}
+  function saveConfiguration(){root.lanSaves++;return true}
+ }
+ property int settingsStartTab:0
  property bool cameraConnected:false
  QtObject {id:connectivityController;property var connections:[];property bool autoConnect:false;property bool busy:false;property string status:"Test";property int serialBaud:115200}
  property bool linkAlive:false
@@ -58,6 +68,7 @@ ApplicationWindow {
  property var steeringAssist:null
  property var g20Controller:null
  property var energySettings:null
+ property var stealthController:null
  property string cameraStreamUrl:""
  property string cameraProtocol:"auto"
  property string lastNavigationStatus:""
@@ -99,11 +110,24 @@ with tempfile.TemporaryDirectory() as directory:
   page.setProperty('selectedTab',2);QTest.qWait(20)
   assert forms==window.findChild(QObject,'settingsEthernetForms')
   assert window.findChild(QObject,'settingsSonarPort').property('text')=='23'
- page.setProperty('selectedTab',0);QTest.qWait(20)
+ page.setProperty('selectedTab',2);QTest.qWait(20)
+ assert window.findChild(QObject,'settingsIntegrationTab').property('text')=='Conexiuni'
+ assert window.findChild(QObject,'settingsConnectivity').property('visible')
  QMetaObject.invokeMethod(window.findChild(QObject,'settingsConnectivity'),'clicked');QTest.qWait(20)
  assert page.property('selectedTab')==4 and window.findChild(QObject,'settingsConnectivityPanel').property('visible')
- QMetaObject.invokeMethod(window.findChild(QObject,'connectivityBack'),'clicked');QTest.qWait(20);assert page.property('selectedTab')==0
+ QMetaObject.invokeMethod(window.findChild(QObject,'connectivityBack'),'clicked');QTest.qWait(20);assert page.property('selectedTab')==2
+ # The global Save includes collapsed LAN/UART drafts, without invoking network tests.
+ window.findChild(QObject,'lanTargetHost').setProperty('text','192.168.144.77')
+ window.findChild(QObject,'lanWebPort').setProperty('text','8080')
+ window.findChild(QObject,'lanUartPort').setProperty('text','2323')
  assert QMetaObject.invokeMethod(page,'saveAll',Q_RETURN_ARG('QVariant'))
+ service=page.property('lanDiagnostics')
+ assert service.property('host')=='192.168.144.77' and service.property('monitorPort')==8080 and service.property('uartPort')==2323
+ assert window.property('lanSaves')==1
+ window.findChild(QObject,'lanUartPort').setProperty('text','0')
+ assert not QMetaObject.invokeMethod(page,'saveAll',Q_RETURN_ARG('QVariant'))
+ assert window.property('lanSaves')==1 and service.property('uartPort')==2323
+ window.findChild(QObject,'lanUartPort').setProperty('text','2323')
  window.findChild(QObject,'settingsCameraPort').setProperty('text','70000')
  assert not QMetaObject.invokeMethod(page,'saveAll',Q_RETURN_ARG('QVariant'))
  # Invoke the actual Dashboard handlers through the Settings controls. Only QGC's native window is doubled.
@@ -136,3 +160,4 @@ with tempfile.TemporaryDirectory() as directory:
  QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete);app.processEvents()
  assert not errors,errors
  print('PASS Settings tabs/forms/save; native parameter/vehicle/application routing, connection and view-switch guards; buttons contained at 320/480/800')
+

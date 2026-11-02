@@ -13,6 +13,11 @@ class NavoH743Telemetry : public QObject {
  Q_PROPERTY(int hopperMask READ hopperMask NOTIFY telemetryChanged)
  Q_PROPERTY(int lastRequest READ lastRequest NOTIFY telemetryChanged)
  Q_PROPERTY(bool v3Profile READ v3Profile WRITE setV3Profile NOTIFY telemetryChanged)
+ Q_PROPERTY(bool interiorValid READ interiorValid NOTIFY telemetryChanged)
+ Q_PROPERTY(int interiorStatus READ interiorStatus NOTIFY telemetryChanged)
+ Q_PROPERTY(double interiorTempC READ interiorTempC NOTIFY telemetryChanged)
+ Q_PROPERTY(double humidityRh READ humidityRh NOTIFY telemetryChanged)
+ Q_PROPERTY(qint64 interiorAgeMs READ interiorAgeMs NOTIFY telemetryChanged)
  Q_PROPERTY(bool temperatureValid READ temperatureValid NOTIFY telemetryChanged)
  Q_PROPERTY(bool waterValid READ waterValid NOTIFY telemetryChanged)
  Q_PROPERTY(bool connected READ connected NOTIFY telemetryChanged)
@@ -36,6 +41,11 @@ public:
  int lastRequest() const { return _request; }
  bool v3Profile() const { return _v3; }
  void setV3Profile(bool value);
+ bool interiorValid() const;
+ int interiorStatus() const;
+ double interiorTempC() const { return interiorValid() ? _interiorTemp : qQNaN(); }
+ double humidityRh() const { return interiorValid() ? _humidity : qQNaN(); }
+ qint64 interiorAgeMs() const;
  bool temperatureValid() const;
  bool waterValid() const;
  qint64 lastUpdateMs()const{return _lastMs;}
@@ -49,6 +59,9 @@ private:
  void _reset();
  bool _fresh(qint64 timestamp) const;
  QElapsedTimer _clock;
+ double _interiorTemp=qQNaN(),_humidity=qQNaN();
+ qint64 _interiorTempMs=-1,_humidityMs=-1,_environmentMs=-1;
+ int _environmentStatus=0;
  bool _v3=true; // NAVO V3 only; legacy Nano mode unsupported
  int _caps=0,_hopperMask=0,_request=0;
  qint64 _capMs=-1,_headMs=-1,_posMs=-1,_hopMs=-1,_requestMs=-1;
@@ -56,3 +69,4 @@ private:
  void _set(const char*,float);
  QPointer<Vehicle> _vehicle; qint64 _lastMs=0; double _batteryV=0,_tempC=qQNaN(); bool _water=false,_waterFault=false,_head=false,_pos=false; int _hl=0,_hr=0,_rud=0,_alarm=0;
 };
+

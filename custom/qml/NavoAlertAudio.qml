@@ -5,6 +5,8 @@ import QtTextToSpeech
 Item {
     id:root
     property real volume:0.7
+    property bool lastPlaybackCritical:false
+    readonly property bool criticalPlaying:lastPlaybackCritical && (tone.playing || speech.state===TextToSpeech.Speaking)
     readonly property bool busy:speech.state===TextToSpeech.Speaking
     readonly property bool voiceAvailable: speech.engine.length>0 && speech.state!==TextToSpeech.Error
     readonly property bool soundAvailable: tone.status===SoundEffect.Ready
@@ -13,6 +15,7 @@ Item {
     property string soundError:""
     property string lastPlaybackStatus:""
     function play(sound,voice,text,critical) {
+        lastPlaybackCritical=critical
         lastPlaybackStatus=""
         if(sound) {
             if(soundAvailable) {
@@ -36,3 +39,4 @@ Item {
         onErrorOccurred:function(error,errorString){root.voiceError=errorString}
     }
 }
+
