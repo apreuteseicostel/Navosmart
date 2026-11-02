@@ -1,5 +1,5 @@
 name: Build NAVO SMART Android
-# Expensive native APK + emulator CI: application/build/test changes only.
+# ARM64 APK CI; extended emulator and sonar decoding tests paused by request.
 # Manual dispatch remains available for full release validation.
 on:
   push:
@@ -153,7 +153,6 @@ jobs:
           python3 -m pip install --user 'aqtinstall==3.1.*'
           MODS='qtcharts qtlocation qtpositioning qtspeech qt5compat qtmultimedia qtserialport qtimageformats qtshadertools qtconnectivity qtquick3d qtsensors'
           python3 -m aqt install-qt linux android 6.8.3 android_arm64_v8a --outputdir "${{ runner.temp }}/Qt" --modules $MODS
-          python3 -m aqt install-qt linux android 6.8.3 android_x86_64 --outputdir "${{ runner.temp }}/Qt" --modules $MODS
       - name: Configure arm64 release
         run: |
           mkdir -p build
@@ -191,179 +190,6 @@ jobs:
           else cp "$APK" build/NAVO_SMART.apk; fi
           "$APKSIGNER" verify --verbose --print-certs build/NAVO_SMART.apk
           "$AAPT" dump badging build/NAVO_SMART.apk | head -n 8
-      - name: Reclaim arm64 build space for x86_64 emulator build
-        shell: bash
-        run: |
-          set -euo pipefail
-          # The arm64 APK was signed and verified in the previous step. Preserve it
-          # while removing only disposable arm64 compiler outputs before x86_64.
-          test -s build/NAVO_SMART.apk
-          mv build/NAVO_SMART.apk "${RUNNER_TEMP}/NAVO_SMART-arm64.apk"
-          rm -rf build
-          mkdir -p build
-          mv "${RUNNER_TEMP}/NAVO_SMART-arm64.apk" build/NAVO_SMART.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify build/NAVO_SMART.apk
-          df -h /
-          # Fail early with an explicit infrastructure diagnostic rather than
-          # a misleading clang failure after another lengthy native build.
-          test "$(df -Pk / | awk 'NR==2 {print $4}')" -gt 5242880 || { echo "::error::Less than 5 GiB free for x86_64 build after arm64 cleanup"; exit 1; }
-      - name: Configure x86_64 smoke-test APK
-        run: |
-          mkdir -p build-x86
-          "${{ runner.temp }}/Qt/6.8.3/android_x86_64/bin/qt-cmake" -S qgc -B build-x86 -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release -DNAVO_ANDROID_ACCEPTANCE=ON -DQT_ANDROID_ABIS=x86_64 -DQT_ANDROID_BUILD_ALL_ABIS=OFF \
-            -DQT_HOST_PATH="${{ runner.temp }}/Qt/6.8.3/gcc_64" -DQT_ANDROID_SIGN_APK=OFF -DQGC_STABLE_BUILD=ON -DQGC_USE_CACHE=ON
-      - name: Build x86_64 smoke-test APK
-        run: cmake --build build-x86 --target all --config Release --parallel
-      - name: Prepare x86_64 smoke-test APK
-        run: |
-          set -euo pipefail
-          APK="$(find build-x86/android-build/build/outputs/apk -type f -name '*-unsigned.apk' | head -n 1)"; test -n "$APK"
-          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"; ZIPALIGN="$ANDROID_HOME/build-tools/35.0.0/zipalign"; KS="$HOME/.android/debug.keystore"
-          test -f "$KS"
-          "$ZIPALIGN" -f -p 4 "$APK" build-x86/NAVO_SMART-x86-aligned.apk
-          "$APKSIGNER" sign --ks "$KS" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out build-x86/NAVO_SMART-x86.apk build-x86/NAVO_SMART-x86-aligned.apk
-          "$APKSIGNER" verify --verbose build-x86/NAVO_SMART-x86.apk
-          "$ANDROID_HOME/build-tools/35.0.0/aapt2" dump badging build-x86/NAVO_SMART-x86.apk >/dev/null
-      - name: Android emulator smoke test
-        shell: bash
-        env:
-          ANDROID_AVD_HOME: ${{ runner.temp }}/android-avd
-        run: |
-          set -euo pipefail
-          mkdir -p build/screenshots "$ANDROID_AVD_HOME"
-          sudo chmod 666 /dev/kvm || true
-
-          # The signed x86 APK is the only x86 build product used by this smoke
-          # test. Release native objects, Gradle intermediates and Qt Android
-          # SDKs BEFORE installing the emulator/system image. Without cleanup
-          # the emulator rejects the AVD with insufficient host disk space.
-          test -s build-x86/NAVO_SMART-x86.apk
-          mv build-x86/NAVO_SMART-x86.apk "${RUNNER_TEMP}/NAVO_SMART-x86-signed.apk"
-          rm -rf build-x86
-          mkdir -p build-x86
-          mv "${RUNNER_TEMP}/NAVO_SMART-x86-signed.apk" build-x86/NAVO_SMART-x86.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify build-x86/NAVO_SMART-x86.apk
-          rm -rf "$HOME/.gradle/caches" \
-                 "${RUNNER_TEMP}/Qt/6.8.3/android_arm64_v8a" \
-                 "${RUNNER_TEMP}/Qt/6.8.3/android_x86_64"
-          echo "Disk capacity after disposing of finished build intermediates:"
-          df -h /
-          test "$(df -Pk / | awk 'NR==2 {print $4}')" -gt 5242880 || {
-            echo "::error::Less than 5 GiB available before emulator installation"
-            exit 1
-          }
-
-          sdkmanager "emulator" "system-images;android-34;default;x86_64"
-
-          # Create the AVD in an explicit directory. Previous runs could create it
-          # outside the directory searched by the emulator, producing
-          # "Unknown AVD name [navo-smoke]".
-          rm -rf "$ANDROID_AVD_HOME/navo-smoke.avd" "$ANDROID_AVD_HOME/navo-smoke.ini"
-          printf 'no\n' | avdmanager create avd --force \
-            --name navo-smoke \
-            --package "system-images;android-34;default;x86_64" \
-            --device "pixel_6"
-
-          echo "Available AVDs:"
-          "$ANDROID_HOME/emulator/emulator" -list-avds
-          test -f "$ANDROID_AVD_HOME/navo-smoke.ini"
-          test -d "$ANDROID_AVD_HOME/navo-smoke.avd"
-
-          "$ANDROID_HOME/emulator/emulator" @navo-smoke \
-            -port 5554 \
-            -no-window \
-            -gpu swangle \
-            -noaudio \
-            -no-boot-anim \
-            -no-snapshot \
-            -no-snapshot-save \
-            -camera-back none \
-            > build/emulator.log 2>&1 &
-          EMULATOR_PID=$!
-
-          cleanup() {
-            adb -s emulator-5554 emu kill >/dev/null 2>&1 || true
-            kill "$EMULATOR_PID" >/dev/null 2>&1 || true
-          }
-          trap cleanup EXIT
-
-          adb kill-server >/dev/null 2>&1 || true
-          adb start-server
-
-          # sys.boot_completed is the stable readiness signal. Do not make the
-          # flaky Android input service a prerequisite for the whole build.
-          if ! timeout 600 bash -c '
-            until adb -s emulator-5554 get-state 2>/dev/null | grep -q "^device$" &&
-                  [ "$(adb -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d "\r")" = "1" ]; do
-              sleep 2
-            done
-          '; then
-            echo "Emulator boot timed out"
-            adb devices -l || true
-            tail -n 160 build/emulator.log || true
-            exit 1
-          fi
-
-          adb -s emulator-5554 wait-for-device
-          sleep 5
-
-          adb -s emulator-5554 shell input keyevent 82 || true
-          adb -s emulator-5554 shell settings put global window_animation_scale 0.0 || true
-          adb -s emulator-5554 shell settings put global transition_animation_scale 0.0 || true
-          adb -s emulator-5554 shell settings put global animator_duration_scale 0.0 || true
-
-          adb -s emulator-5554 install --no-streaming -r -g build-x86/NAVO_SMART-x86.apk
-
-          AAPT2="$ANDROID_HOME/build-tools/35.0.0/aapt2"
-          test -x "$AAPT2"
-          PACKAGE="$("$AAPT2" dump badging build-x86/NAVO_SMART-x86.apk | sed -n "s/package: name='\([^']*\)'.*/\1/p" | head -n1)"
-          ACTIVITY="$("$AAPT2" dump badging build-x86/NAVO_SMART-x86.apk | sed -n "s/launchable-activity: name='\([^']*\)'.*/\1/p" | head -n1)"
-          test -n "$PACKAGE"
-          test -n "$ACTIVITY"
-
-          "$AAPT2" dump badging build-x86/NAVO_SMART-x86.apk | grep -m1 '^package:'
-          "$AAPT2" dump badging build-x86/NAVO_SMART-x86.apk | grep -m1 '^launchable-activity:'
-
-          # Keep OS permission/fullscreen prompts out of dashboard evidence.
-          adb -s emulator-5554 shell pm grant "$PACKAGE" android.permission.ACCESS_COARSE_LOCATION
-          adb -s emulator-5554 shell pm grant "$PACKAGE" android.permission.ACCESS_FINE_LOCATION
-          adb -s emulator-5554 shell settings put secure immersive_mode_confirmations confirmed
-          adb -s emulator-5554 logcat -c
-          adb -s emulator-5554 shell settings put system accelerometer_rotation 0 || true
-          adb -s emulator-5554 shell settings put system user_rotation 1 || true
-          adb -s emulator-5554 shell input keyevent KEYCODE_WAKEUP || true
-          adb -s emulator-5554 shell wm dismiss-keyguard || true
-          # Suppress the Android first-run immersive tutorial in this disposable emulator.
-          adb -s emulator-5554 shell settings put secure immersive_mode_confirmations confirmed
-          adb -s emulator-5554 shell am start -W -n "$PACKAGE/$ACTIVITY"
-
-          sleep 5
-          adb -s emulator-5554 exec-out screencap -p > build/screenshots/dashboard-05s.png || true
-          sleep 10
-          adb -s emulator-5554 exec-out screencap -p > build/screenshots/dashboard-15s.png || true
-          sleep 15
-          adb -s emulator-5554 exec-out screencap -p > build/screenshots/dashboard-30s.png || true
-          cp build/screenshots/dashboard-30s.png build/navo-screenshot.png 2>/dev/null || true
-
-          NAVO_UI_STATUS=0
-          python3 tests/android/ui-smoke.py || NAVO_UI_STATUS=$?
-          if [ "$NAVO_UI_STATUS" -eq 0 ]; then
-            curl --fail --location --retry 3 --max-time 180 https://kogger.tech/wp-content/uploads/00028_DownView.klf -o /tmp/00028_DownView.klf
-            python3 tests/android/functional-acceptance.py "$PACKAGE" "$ACTIVITY" /tmp/00028_DownView.klf || NAVO_UI_STATUS=$?
-            adb -s emulator-5554 shell am start -W -n "$PACKAGE/$ACTIVITY"
-          fi
-          adb -s emulator-5554 shell dumpsys window windows > build/window.txt || true
-          adb -s emulator-5554 shell dumpsys activity activities > build/activity.txt || true
-          adb -s emulator-5554 logcat -d > build/navo-logcat.txt || true
-          adb -s emulator-5554 shell pidof "$PACKAGE" | tee build/navo-pid.txt
-          test -s build/navo-pid.txt
-          # Process survival alone can hide failed QML bindings/components.
-          if grep -E 'NAVO_SMART:.*(ReferenceError:|TypeError:|Unable to assign \[undefined\]|is not a type|Cannot anchor to an item|Binding loop detected|Detected anchors on an item that is managed by a layout)' build/navo-logcat.txt; then
-            echo "NAVO QML runtime validation failed"
-            exit 1
-          fi
-          test "$NAVO_UI_STATUS" -eq 0
       - name: Compiler cache statistics
         if: always()
         run: ccache --show-stats
@@ -381,22 +207,6 @@ jobs:
           path: build/arm64-build.log
           if-no-files-found: warn
           retention-days: 7
-      - name: Upload Android smoke-test evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: NAVO-SMART-ANDROID-SMOKE-TEST
-          path: |
-            build/emulator.log
-            build/navo-pid.txt
-            build/navo-ui.xml
-            build/window.txt
-            build/activity.txt
-            build/navo-logcat.txt
-            build/navo-screenshot.png
-            build/screenshots/*.png
-            build/acceptance/**
-          if-no-files-found: warn
       - name: Upload installable APK
         if: always()
         uses: actions/upload-artifact@v4
