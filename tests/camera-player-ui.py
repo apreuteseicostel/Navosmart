@@ -15,7 +15,7 @@ with tempfile.TemporaryDirectory() as directory:
  d=Path(directory)
  for name in ['NavoVideoPlayer.qml','NavoCameraPip.qml','NavoCameraFullScreen.qml']:shutil.copy(repo/'custom/qml'/name,d/name)
  (d/'NavoQtVideoPlayer.qml').write_text('''import QtQuick
-Item {property string streamUrl:"";property string protocol:"auto";property string decoder:"hardware";property string rtspTransport:"tcp";property bool autoReconnect:true;property bool playing:false;property bool live:playing;property string status:playing?"LIVE":"STOPPED";function start(){playing=true}function stop(){playing=false}}
+Item {objectName:"decoderDouble";property string streamUrl:"";property string protocol:"auto";property string decoder:"hardware";property string rtspTransport:"tcp";property bool autoReconnect:true;property bool playing:false;property bool live:playing;property string status:playing?"LIVE":"STOPPED";function start(){playing=true}function stop(){playing=false}}
 ''')
  (d/'Test.qml').write_text('''import QtQuick
 import QtQuick.Controls
@@ -32,6 +32,8 @@ ApplicationWindow {id:root;width:320;height:260;visible:true
  def click(name):QMetaObject.invokeMethod(item(name),'clicked');QTest.qWait(40)
  QTest.qWait(60)
  p=item('cameraPipPlayer');assert p.property('desiredPlaying') and p.property('live')
+ item('pip').setProperty('protocol','rtsp');item('pip').setProperty('streamUrl','  camera-host/stream  ');QTest.qWait(20)
+ assert item('decoderDouble').property('streamUrl')=='rtsp://camera-host/stream'
  click('cameraPipClose');assert not w.property('showPip') and not p.property('desiredPlaying') and not p.property('live')
  QTest.qWait(200);assert not p.property('desiredPlaying') # no delayed reopen after close
  w.setProperty('showPip',True);QTest.qWait(40);assert p.property('live')

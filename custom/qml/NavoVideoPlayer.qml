@@ -12,12 +12,20 @@ Item {
     readonly property bool playing:!!backend.item && backend.item.playing
     readonly property bool live:!!backend.item && backend.item.live
     readonly property string status:backend.item ? backend.item.status : "STOPPED"
-    readonly property bool nativeVideo:Qt.platform.os==="android" && (protocol==="rtsp" || streamUrl.trim().toLowerCase().indexOf("rtsp://")===0)
+    readonly property bool nativeVideo:Qt.platform.os==="android" && normalizedUrl().toLowerCase().indexOf("rtsp://")===0
     signal videoError(string message)
     signal tapped()
+    function normalizedUrl() {
+        var url=streamUrl.trim()
+        if(url.length && url.indexOf("://")<0) {
+            if(protocol==="rtsp")return "rtsp://"+url
+            if(protocol==="mjpeg")return "http://"+url
+        }
+        return url
+    }
     function configure() {
         if(!backend.item)return
-        backend.item.streamUrl=root.streamUrl
+        backend.item.streamUrl=root.normalizedUrl()
         backend.item.protocol=root.protocol
         backend.item.autoReconnect=root.autoReconnect
         backend.item.decoder=root.decoder
