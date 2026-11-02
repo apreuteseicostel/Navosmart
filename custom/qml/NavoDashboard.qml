@@ -2148,17 +2148,17 @@ Item {
                             Accessible.name: caption
                             Accessible.description: hint
                             HoverHandler { id:scanHover;acceptedDevices:PointerDevice.Mouse | PointerDevice.TouchPad }
-                            Timer { id:helpTimer;interval:4000;repeat:false }
+                            Timer { id:helpTimer;interval:1400;repeat:false }
                             onPressed:helpTimer.restart()
                             ToolTip {
                                 id:scanHelpTip;objectName:"scanToolTip"
                                 visible:(scanHover.hovered || scanButton.down || helpTimer.running) && !clearAreaConfirm.opened
                                 delay:scanHover.hovered && !helpTimer.running ? 300 : 0
                                 timeout:-1
-                                width:Math.min(280,root.width-24);padding:8;margins:8
+                                width:Math.min(220,scanHelpLabel.implicitWidth+16);padding:8;margins:6
                                 x:(scanButton.width-width)/2;y:-height-6
                                 text:scanButton.caption===scanButton.hint ? scanButton.hint : scanButton.caption+" • "+scanButton.hint
-                                contentItem:Label { text:scanHelpTip.text;color:"#eff9ff";font.pixelSize:12;wrapMode:Text.WordWrap }
+                                contentItem:Label { id:scanHelpLabel;text:scanHelpTip.text;color:"#eff9ff";font.pixelSize:12;wrapMode:Text.WordWrap }
                                 background:Rectangle { radius:7;color:"#102536";border.color:"#38badb" }
                             }
                             background: Rectangle { radius: 8; color: parent.down ? "#18354a" : "#101b25"; border.color: parent.enabled ? "#31506a" : "#26313a" }

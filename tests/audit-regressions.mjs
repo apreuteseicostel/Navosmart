@@ -773,7 +773,7 @@ test('RTL cancellation remains reachable and Area Scan controls explain hover an
  assert.match(dash,/visible:root\.actionActive \|\| root\.activePage===2/);assert.match(dash,/cancelText:root\.rtlActive \? "ANULEAZĂ RTL"/);
  assert.match(strip,/onClicked:root\.cancelRequested\(\)/);assert.match(strip,/enabled:root\.cancelAvailable/);
  assert.match(dash,/onPressed:helpTimer\.restart\(\)/);assert.match(dash,/scanHover\.hovered \|\| scanButton\.down \|\| helpTimer\.running/);
- assert.match(map,/onPressed: root\.showToolHelp\(ToolTip\.text\)/);assert.match(map,/interval:4000/);
+ assert.doesNotMatch(map,/showToolHelp|toolHelpText/);assert.match(map,/component HelpTool: Button/);assert.match(map,/y:-height-6/);assert.match(map,/interval:1400/);
  assert.match(dash,/if\(areaScanMap && root\.pendingAreaDrawMode==="rectangle"\)/);
 });
 function editableSpot() {
