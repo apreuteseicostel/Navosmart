@@ -21,7 +21,7 @@ ApplicationWindow {
  property int listenCalls:0;property int verifyCalls:0;property int stopCalls:0
  QtObject {id:service
   property string host:"192.168.0.7"
-  property int monitorPort:80;property int uartPort:23
+  property int monitorPort:80;property int uartPort:23;property string scanAddress:"192.168.144.1";property string subnetMask:"255.255.255.0";property bool scanning:false;property var devices:[]
   property bool suspended:false;property bool monitoring:false;property bool online:false;property bool uartConnected:false
   property string status:"LAN neconfirmat";property string uartStatus:"TCP neconectat";property string preview:"";property int received:0
   property var interfaces:[{ethernet:true,name:"eth0",ip:"192.168.0.10",mask:"255.255.255.0",link:true}]

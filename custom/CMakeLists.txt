@@ -72,6 +72,8 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoLanDiagnosticPanel.qml
         qml/NavoEthernetIndicator.qml
         qml/NavoVideoPlayer.qml
+        qml/NavoQtVideoPlayer.qml
+        qml/NavoAndroidFpvPlayer.qml
         qml/NavoCameraFullScreen.qml
         qml/NavoBathymetryModel.qml
         qml/NavoBathymetry3D.qml
@@ -160,6 +162,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/navo_mosaic_provider.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/NavoKoggerService.h
     ${CMAKE_CURRENT_SOURCE_DIR}/../third_party/KoggerApp/src/mosaic_index_provider.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoFpvItem.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoFpvItem.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoSkydroidLink.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoSkydroidLink.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoConnectivity.cc

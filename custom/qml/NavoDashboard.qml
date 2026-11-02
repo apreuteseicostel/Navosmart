@@ -190,6 +190,8 @@ Item {
         property bool connectOnStartup: true
         property string cameraStreamUrl: ""
         property string cameraProtocol: "auto"
+        property string cameraDecoder: "hardware"
+        property string cameraRtspTransport: "tcp"
     }
     Settings {
         id: lightSettings
@@ -210,7 +212,7 @@ Item {
     }
     Component.onCompleted: {
         sonar.host=endpointSettings.sonarHost; sonar.port=endpointSettings.sonarPort; sonar.udp=endpointSettings.sonarUdp
-        root.cameraStreamUrl=endpointSettings.cameraStreamUrl; root.cameraProtocol=endpointSettings.cameraProtocol
+        root.cameraStreamUrl=endpointSettings.cameraStreamUrl; root.cameraProtocol=endpointSettings.cameraProtocol;root.cameraDecoder=endpointSettings.cameraDecoder;root.cameraRtspTransport=endpointSettings.cameraRtspTransport
         if(persistence) root.pendingBaitJournalEvents=persistence.pendingBaitJournalEvents()
         if(endpointSettings.connectOnStartup && sonar.host.length && sonar.port>0) sonar.connectSonar()
         for(var i=0;i<persistence.lakes.length;i++) {
@@ -569,6 +571,8 @@ Item {
     property alias fishDetections: fishStore.detections
     property string cameraStreamUrl: ""
     property string cameraProtocol: "auto"
+    property string cameraDecoder: "hardware"
+    property string cameraRtspTransport: "tcp"
     property string lastNavigationStatus: ""
     property bool silentModeActive: false
     property bool cameraConnected: false
@@ -1663,10 +1667,12 @@ Item {
         anchors.rightMargin: root.activePage===0 ? 88 : 16
         anchors.topMargin: root.activePage===0 ? 20 : 12
         width: root.activePage===0 ? Math.max(170,Math.min(210,root.width*0.15)) : Math.max(190,Math.min(260,root.width*0.19))
-        height: Math.round(width*0.58)
+        height: Math.round(width*0.5625)+40
         connected: root.cameraStreamUrl.length>0
         streamUrl: root.cameraStreamUrl
         protocol: root.cameraProtocol
+        decoder: root.cameraDecoder
+        rtspTransport: root.cameraRtspTransport
         onLiveChanged: root.cameraConnected=live
         onFullscreenRequested: root.cameraFullscreen=true
         onCloseRequested: root.cameraPipEnabled=false
@@ -2956,10 +2962,13 @@ Item {
                     Label { text: root.cameraConnected ? "VIDEO LIVE" : "VIDEO NECONFIRMAT"; color: root.cameraConnected ? root.ok : root.muted; font.bold: true; font.pixelSize: 10 }
                 }
                 NavoCameraPip {
+                    visible:!root.cameraFullscreen
                     Layout.fillWidth: true; Layout.fillHeight: true
                     connected: root.cameraStreamUrl.length > 0
                     streamUrl: root.cameraStreamUrl
                     protocol: root.cameraProtocol
+        decoder: root.cameraDecoder
+        rtspTransport: root.cameraRtspTransport
                     onLiveChanged: root.cameraConnected = live
                     Component.onDestruction: root.cameraConnected = false
                     onFullscreenRequested: root.cameraFullscreen = true
@@ -2988,6 +2997,8 @@ Item {
             stealth: root.stealthController
             onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
             onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
+            onCameraDecoderChanged: root.cameraDecoder = cameraDecoder
+            onCameraRtspTransportChanged: root.cameraRtspTransport = cameraRtspTransport
             onStatus: function(message) { root.lastNavigationStatus = message }
             onEnableSteeringRequested: steeringAssist.enable()
             onParametersToolRequested: {
@@ -3020,7 +3031,9 @@ Item {
             NavoCameraFullScreen {
                 streamUrl: root.cameraStreamUrl
                 protocol: root.cameraProtocol
-                onClosed: root.cameraFullscreen = false
+        decoder: root.cameraDecoder
+        rtspTransport: root.cameraRtspTransport
+                onClosed: {root.cameraFullscreen=false;root.cameraPipEnabled=false;if(root.activePage===5)root.activePage=0}
             }
         }
     }

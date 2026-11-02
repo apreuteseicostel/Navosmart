@@ -20,6 +20,8 @@ Rectangle {
     property var stealth: null
     property string cameraStreamUrl: ""
     property string cameraProtocol: "auto"
+    property string cameraDecoder: "hardware"
+    property string cameraRtspTransport: "tcp"
     property int selectedTab: 0
     property bool showEnergyHelp: false
     property string statusText: ""
@@ -344,6 +346,8 @@ Rectangle {
                     camera: root.camera
                     onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
                     onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
+                    onCameraDecoderChanged: root.cameraDecoder = cameraDecoder
+                    onCameraRtspTransportChanged: root.cameraRtspTransport = cameraRtspTransport
                     onStatus: function(message) { root.statusText = message; root.status(message) }
                 }
             }

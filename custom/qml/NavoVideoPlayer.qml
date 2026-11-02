@@ -1,102 +1,44 @@
 import QtQuick
-import QtMultimedia
 
+// Android RTSP uses the official FPV SDK; desktop/MJPEG retain Qt Multimedia.
 Item {
-    id: root
-
-    property string streamUrl: ""
-    property string protocol: "auto" // auto, rtsp, mjpeg
-    readonly property bool playing: player.playbackState === MediaPlayer.PlayingState
-    property double lastFrameMs: 0
-    property double clockMs: 0
-    readonly property bool live: playing && lastFrameMs>0 && clockMs-lastFrameMs<3000
-    Timer {
-        interval: 500; repeat: true; running: root.desiredPlaying
-        onTriggered: { root.clockMs=Date.now(); if(root.lastFrameMs>0 && root.clockMs-root.lastFrameMs>6000) root.scheduleReconnect() }
-    }
-    Connections {
-        target: video.videoSink
-        function onVideoFrameChanged(frame) { if(root.playing && video.videoSink.videoSize.width>0) { root.lastFrameMs=Date.now(); root.clockMs=root.lastFrameMs } }
-    }
-    readonly property string status: retryTimer.running
-        ? "RECONNECT"
-        : (player.error === MediaPlayer.NoError
-            ? (live ? "LIVE" : (playing ? "WAITING VIDEO" : (streamUrl.length ? "READY" : "NO URL")))
-            : player.errorString)
-    property bool autoReconnect: true
-    property bool desiredPlaying: false
-    property int reconnectMs: 3000
-
+    id:root
+    property string streamUrl:""
+    property string protocol:"auto"
+    property string decoder:"hardware"
+    property string rtspTransport:"tcp"
+    property bool autoReconnect:true
+    property bool desiredPlaying:false
+    readonly property bool playing:!!backend.item && backend.item.playing
+    readonly property bool live:!!backend.item && backend.item.live
+    readonly property string status:backend.item ? backend.item.status : "STOPPED"
+    readonly property bool nativeVideo:Qt.platform.os==="android" && (protocol==="rtsp" || streamUrl.trim().toLowerCase().indexOf("rtsp://")===0)
     signal videoError(string message)
-
-    function normalizedUrl() {
-        var u = streamUrl.trim()
-        if (!u.length)
-            return ""
-        if (protocol === "rtsp" && u.indexOf("://") < 0)
-            return "rtsp://" + u
-        if (protocol === "mjpeg" && u.indexOf("://") < 0)
-            return "http://" + u
-        return u
+    signal tapped()
+    function configure() {
+        if(!backend.item)return
+        backend.item.streamUrl=root.streamUrl
+        backend.item.protocol=root.protocol
+        backend.item.autoReconnect=root.autoReconnect
+        backend.item.decoder=root.decoder
+        backend.item.rtspTransport=root.rtspTransport
+        if(root.desiredPlaying && root.visible)backend.item.start()
     }
-
-    function start() {
-        retryTimer.stop()
-        lastFrameMs=0
-        desiredPlaying = true
-        var u = normalizedUrl()
-        if (!u.length)
-            return
-        player.source = u
-        player.play()
+    function start(){desiredPlaying=true;configure()}
+    function stop(){desiredPlaying=false;if(backend.item)backend.item.stop()}
+    onStreamUrlChanged:configure()
+    onProtocolChanged:configure()
+    onDecoderChanged:configure()
+    onRtspTransportChanged:configure()
+    onVisibleChanged:if(!visible)stop()
+    Component.onDestruction:stop()
+    Loader {
+        id:backend;anchors.fill:parent
+        source:root.nativeVideo ? "NavoAndroidFpvPlayer.qml" : "NavoQtVideoPlayer.qml"
+        onLoaded:root.configure()
     }
-    onStreamUrlChanged: { if(desiredPlaying) { player.stop(); start() } }
-    onProtocolChanged: { if(desiredPlaying) { player.stop(); start() } }
-    Component.onDestruction: stop()
-
-    function stop() {
-        lastFrameMs=0
-        desiredPlaying = false
-        retryTimer.stop()
-        player.stop()
-    }
-
-    function scheduleReconnect() {
-        if (desiredPlaying && autoReconnect && streamUrl.length && !retryTimer.running)
-            retryTimer.start()
-    }
-
-    Timer {
-        id: retryTimer
-        interval: root.reconnectMs
-        repeat: false
-        onTriggered: root.start()
-    }
-
-    AudioOutput {
-        id: mutedAudio
-        muted: true
-    }
-
-    MediaPlayer {
-        id: player
-        videoOutput: video
-        audioOutput: mutedAudio
-
-        onErrorOccurred: function(error, errorString) {
-            root.videoError(errorString)
-            root.scheduleReconnect()
-        }
-
-        onPlaybackStateChanged: {
-            if (playbackState === MediaPlayer.StoppedState && root.desiredPlaying && root.streamUrl.length)
-                root.scheduleReconnect()
-        }
-    }
-
-    VideoOutput {
-        id: video
-        anchors.fill: parent
-        fillMode: VideoOutput.PreserveAspectCrop
+    Connections {target:backend.item;ignoreUnknownSignals:true
+        function onVideoError(message){root.videoError(message)}
+        function onTapped(){root.tapped()}
     }
 }

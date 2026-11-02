@@ -38,6 +38,8 @@ QtObject {
 Item {
  property string streamUrl: ""
  property string protocol: "auto"
+ property string decoder:"hardware"
+ property string rtspTransport:"tcp"
  property string status: "NO URL"
  property bool live: false
  signal videoError(string message)

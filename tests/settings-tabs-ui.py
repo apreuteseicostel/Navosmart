@@ -26,7 +26,7 @@ source=(repo/'custom/qml/NavoDashboard.qml').read_text()
 a=source.index('    Component {\n        id: settingsPage');b=source.index('\n    Loader {',a)
 page=source[a:b]
 assert 'alerts: root.settingsAlertsController' in page
-app=QGuiApplication([]);app.setOrganizationName('NAVO tests');app.setApplicationName('Settings tabs')
+app=QGuiApplication([]);app.setOrganizationName('NAVO tests');app.setApplicationName('Settings tabs '+str(os.getpid()))
 qmlRegisterType(Discovery,'NavoSmart.Backend',1,0,'NavoLanDiscovery')
 engine=QQmlApplicationEngine();engine.addImportPath(str(repo/'custom/qml'));errors=[]
 engine.warnings.connect(lambda ws:errors.extend(str(w) for w in ws))
@@ -39,7 +39,7 @@ ApplicationWindow {
  property var lanService:diagnostics
  property int lanSaves:0
  QtObject {id:diagnostics
-  property string host:"192.168.144.7";property int monitorPort:80;property int uartPort:23
+  property string host:"192.168.144.7";property int monitorPort:80;property int uartPort:23;property string scanAddress:"192.168.144.1";property string subnetMask:"255.255.255.0";property bool scanning:false;property var devices:[]
   property bool suspended:false;property bool monitoring:false;property bool online:false;property bool uartConnected:false
   property string status:"LAN neconfirmat";property string uartStatus:"";property string preview:"";property int received:0;property var interfaces:[]
   function stopUart(){} function clearPreview(){} function verify(){} function connectUart(){}
@@ -71,6 +71,8 @@ ApplicationWindow {
  property var stealthController:null
  property string cameraStreamUrl:""
  property string cameraProtocol:"auto"
+ property string cameraDecoder:"hardware"
+ property string cameraRtspTransport:"tcp"
  property string lastNavigationStatus:""
  property alias page:settingsLoader.item
  QtObject {id:alerts;objectName:"alertsBackend";property bool soundEnabled:true;property bool voiceEnabled:false;property real volume:.7;property string latest:"";function configure(s,v,n){soundEnabled=s;voiceEnabled=v;volume=n}function test(){}}
@@ -117,12 +119,17 @@ with tempfile.TemporaryDirectory() as directory:
  assert page.property('selectedTab')==4 and window.findChild(QObject,'settingsConnectivityPanel').property('visible')
  QMetaObject.invokeMethod(window.findChild(QObject,'connectivityBack'),'clicked');QTest.qWait(20);assert page.property('selectedTab')==2
  # The global Save includes collapsed LAN/UART drafts, without invoking network tests.
+ window.findChild(QObject,'settingsVideoDecoder').setProperty('currentIndex',1)
+ window.findChild(QObject,'settingsVideoRtspTransport').setProperty('currentIndex',1)
  window.findChild(QObject,'lanTargetHost').setProperty('text','192.168.144.77')
  window.findChild(QObject,'lanWebPort').setProperty('text','8080')
  window.findChild(QObject,'lanUartPort').setProperty('text','2323')
  assert QMetaObject.invokeMethod(page,'saveAll',Q_RETURN_ARG('QVariant'))
  service=page.property('lanDiagnostics')
  assert service.property('host')=='192.168.144.77' and service.property('monitorPort')==8080 and service.property('uartPort')==2323
+ assert page.property('cameraDecoder')=='software' and page.property('cameraRtspTransport')=='udp'
+ from PySide6.QtCore import QSettings
+ persisted=QSettings();assert persisted.value('NavoEthernet/cameraDecoder')=='software' and persisted.value('NavoEthernet/cameraRtspTransport')=='udp'
  assert window.property('lanSaves')==1
  window.findChild(QObject,'lanUartPort').setProperty('text','0')
  assert not QMetaObject.invokeMethod(page,'saveAll',Q_RETURN_ARG('QVariant'))
