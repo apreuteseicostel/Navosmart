@@ -16,6 +16,8 @@ Rectangle {
         address.text=backend.host
         webPort.text=String(backend.monitorPort)
         uartPort.text=backend.uartPort>0 ? String(backend.uartPort) : ""
+        scanIp.text=backend.scanAddress || "192.168.144.1"
+        mask.text=backend.subnetMask || "255.255.255.0"
     }
     Component.onCompleted: load()
     onBackendChanged: Qt.callLater(load)
@@ -29,6 +31,7 @@ Rectangle {
     function apply(requireUart) {
         if(!backend || !validConfiguration())return false
         backend.host=address.text.trim();backend.monitorPort=Number(webPort.text);backend.uartPort=uartPort.text.length ? Number(uartPort.text) : 0
+        backend.scanAddress=scanIp.text.trim();backend.subnetMask=mask.text.trim()
         return true
     }
     component Info: Label { Layout.fillWidth:true;wrapMode:Text.WrapAnywhere;color:"#bfd6e5";font.pixelSize:11 }
@@ -60,6 +63,24 @@ Rectangle {
             }
         }
         Info { text:"Adresă IP convertor ED2" }
+        Info { text:"DISCOVERY REȚEA • IP din subrețea / Subnet mask";font.bold:true }
+        Field { id:scanIp;objectName:"lanScanIp";placeholderText:"192.168.144.1" }
+        Field { id:mask;objectName:"lanSubnetMask";placeholderText:"255.255.255.0" }
+        Info { text:"Masca definește căutarea, nu configurează IP-ul Android. Căutăm porturile 80, 443 și 554; unele dispozitive nu vor răspunde. Camera din altă subrețea necesită configurare separată." }
+        RowLayout {
+            Layout.fillWidth:true
+            Action { text:"Caută dispozitive";enabled:!!root.backend && !root.backend.suspended && !root.backend.discovering;onClicked:{root.backend.scanAddress=scanIp.text.trim();root.backend.subnetMask=mask.text.trim();root.backend.saveConfiguration();root.backend.discover()} }
+            Action { text:"Oprește";enabled:!!root.backend && !!root.backend.discovering;onClicked:root.backend.stopDiscovery() }
+        }
+        Info { text:root.backend ? (root.backend.discoveryStatus || "") : "" }
+        Repeater {
+            model:root.backend ? (root.backend.devices || []) : []
+            delegate:Action {
+                required property var modelData
+                text:modelData.ip+":"+modelData.port+" • "+modelData.service
+                onClicked:{address.text=modelData.ip;webPort.text=String(modelData.port)}
+            }
+        }
         Field { id:address;objectName:"lanTargetHost";placeholderText:"192.168.144.7" }
         Info { text:"Port web / Port TCP UART" }
         RowLayout {

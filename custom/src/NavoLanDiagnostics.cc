@@ -6,6 +6,8 @@
 NavoLanDiagnostics::NavoLanDiagnostics(QObject* parent):QObject(parent) {
     QSettings config;
     config.beginGroup("NavoLanDiagnostics");
+    _scanAddress=config.value("scanAddress","192.168.144.1").toString();
+    _subnetMask=config.value("subnetMask","255.255.255.0").toString();
     _host=config.value("host",QStringLiteral("192.168.144.7")).toString().trimmed();
     if(_host.isEmpty())_host=QStringLiteral("192.168.144.7");
     _monitorPort=config.value("monitorPort",80).toInt();
@@ -38,6 +40,8 @@ NavoLanDiagnostics::NavoLanDiagnostics(QObject* parent):QObject(parent) {
 bool NavoLanDiagnostics::saveConfiguration() {
     QSettings config;
     config.setValue("NavoLanDiagnostics/host",_host);
+    config.setValue("NavoLanDiagnostics/scanAddress",_scanAddress);
+    config.setValue("NavoLanDiagnostics/subnetMask",_subnetMask);
     config.setValue("NavoLanDiagnostics/monitorPort",_monitorPort);
     config.setValue("NavoLanDiagnostics/uartPort",_uartPort);
     config.setValue("NavoLanDiagnostics/monitoring",_monitoring);
@@ -59,7 +63,7 @@ void NavoLanDiagnostics::setHost(const QString& s){if(_host==s.trimmed())return;
 void NavoLanDiagnostics::setMonitorPort(int p){if(p==_monitorPort)return;invalidate();_monitorPort=p;QSettings().setValue("NavoLanDiagnostics/monitorPort",p);emit endpointChanged();emit changed();}
 void NavoLanDiagnostics::setUartPort(int p){if(p==_uartPort)return;invalidate();_uartPort=p;QSettings().setValue("NavoLanDiagnostics/uartPort",p);emit endpointChanged();emit changed();}
 void NavoLanDiagnostics::setMonitoring(bool on){if(on==_monitoring)return;_monitoring=on;QSettings().setValue("NavoLanDiagnostics/monitoring",on);_timeout.stop();_probe.abort();_witness.invalidate();if(on)verify();emit changed();}
-void NavoLanDiagnostics::setSuspended(bool s){if(s==_suspended)return;_suspended=s;if(s)invalidate();else if(_monitoring)verify();emit changed();}
+void NavoLanDiagnostics::setSuspended(bool s){if(s==_suspended)return;_suspended=s;if(s){stopDiscovery();invalidate();}else if(_monitoring)verify();emit changed();}
 bool NavoLanDiagnostics::online() const {return !_suspended && (_serial.connected() || (_monitoring && _witness.isValid() && _witness.elapsed()<12000));}
 QString NavoLanDiagnostics::status() const {
     if(_suspended)return "Redare activă: verificările LAN și testul UART sunt oprite.";
@@ -92,6 +96,49 @@ void NavoLanDiagnostics::connectUart(){
 }
 void NavoLanDiagnostics::stopUart(){_serial.disconnectEndpoint();_uartError.clear();emit changed();}
 void NavoLanDiagnostics::clearPreview(){_received=0;_preview.clear();emit changed();}
+void NavoLanDiagnostics::stopDiscovery(){
+    ++_scanGeneration;_discovering=false;
+    const auto sockets=_scanSockets;_scanSockets.clear();
+    for(auto* socket:sockets){socket->disconnect(this);socket->abort();socket->deleteLater();}
+    _discoveryStatus="Căutare oprită; rezultatele existente sunt păstrate.";emit changed();
+}
+void NavoLanDiagnostics::discover(){
+    stopDiscovery();_devices.clear();
+    QHostAddress address(_scanAddress), mask(_subnetMask);
+    const quint32 ip=address.toIPv4Address(), m=mask.toIPv4Address(), inverse=~m;
+    if(_suspended || address.protocol()!=QAbstractSocket::IPv4Protocol || mask.protocol()!=QAbstractSocket::IPv4Protocol ||
+       inverse<3 || inverse>255 || (inverse&(inverse+1))!=0 ||
+       !((ip>>24)==10 || (ip>>20)==0xac1 || (ip>>16)==0xc0a8 || (ip>>16)==0xa9fe)){
+        _discoveryStatus="IP privat și mască /24–/30 necesare (maximum 254 adrese). Replay blochează scanarea.";emit changed();return;
+    }
+    _scanNetwork=ip&m;_scanTotal=int(inverse-1)*3;_scanNext=0;_discovering=true;
+    _discoveryStatus="Căutare TCP 80/443/554; fără răspuns nu înseamnă dispozitiv absent.";
+    pumpDiscovery();emit changed();
+}
+void NavoLanDiagnostics::pumpDiscovery(){
+    static const int ports[]={80,443,554};
+    while(_discovering && _scanSockets.size()<16 && _scanNext<_scanTotal){
+        const int job=_scanNext++, port=ports[job%3];
+        const QString host=QHostAddress(_scanNetwork+quint32(job/3+1)).toString();
+        bool blocked=false;for(const auto& v:_busyEndpoints){const auto e=v.toMap();if(e.value("host").toString()==host && e.value("port").toInt()==port)blocked=true;}
+        if(blocked || (host==_host && ((_serial.connected() && port==_uartPort) || (_probe.state()!=QAbstractSocket::UnconnectedState && port==_monitorPort))))continue;
+        auto* socket=new QTcpSocket(this);_scanSockets.append(socket);
+        const auto generation=_scanGeneration;
+        auto finish=[this,socket,generation,host,port](bool found){
+            if(generation!=_scanGeneration || !_scanSockets.removeOne(socket))return;
+            socket->disconnect(this);socket->abort();socket->deleteLater();
+            if(found){_devices.append(QVariantMap{{"ip",host},{"port",port},{"service",port==554?"RTSP posibil":port==443?"HTTPS":"HTTP"}});}
+            emit changed();QTimer::singleShot(0,this,&NavoLanDiagnostics::pumpDiscovery);
+        };
+        connect(socket,&QTcpSocket::connected,this,[finish]{finish(true);});
+        connect(socket,&QTcpSocket::errorOccurred,this,[finish](QAbstractSocket::SocketError){finish(false);});
+        QTimer::singleShot(700,socket,[finish]{finish(false);});
+        socket->connectToHost(host,quint16(port));
+    }
+    if(_discovering && _scanNext>=_scanTotal && _scanSockets.isEmpty()){
+        _discovering=false;_discoveryStatus="Căutare terminată: "+QString::number(_devices.size())+" servicii TCP accesibile. IP-ul camerei poate fi în altă subrețea; masca nu schimbă rețeaua Android.";emit changed();
+    }
+}
 void NavoLanDiagnostics::refresh(){
     QVariantList list;
     for(const auto& iface:QNetworkInterface::allInterfaces()){

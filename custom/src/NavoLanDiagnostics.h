@@ -22,6 +22,11 @@ class NavoLanDiagnostics : public QObject {
     Q_PROPERTY(qulonglong received READ received NOTIFY changed)
     Q_PROPERTY(QVariantList interfaces READ interfaces NOTIFY changed)
     Q_PROPERTY(QVariantList busyEndpoints READ blocked WRITE setBlocked NOTIFY changed)
+    Q_PROPERTY(QString scanAddress MEMBER _scanAddress NOTIFY changed)
+    Q_PROPERTY(QString subnetMask MEMBER _subnetMask NOTIFY changed)
+    Q_PROPERTY(bool discovering READ discovering NOTIFY changed)
+    Q_PROPERTY(QVariantList devices READ devices NOTIFY changed)
+    Q_PROPERTY(QString discoveryStatus READ discoveryStatus NOTIFY changed)
 public:
     explicit NavoLanDiagnostics(QObject* parent=nullptr);
     QString host() const { return _host; }
@@ -48,10 +53,23 @@ public:
     Q_INVOKABLE void stopUart();
     Q_INVOKABLE void clearPreview();
     Q_INVOKABLE bool saveConfiguration();
+    Q_INVOKABLE void discover();
+    Q_INVOKABLE void stopDiscovery();
+    bool discovering() const { return _discovering; }
+    QVariantList devices() const { return _devices; }
+    QString discoveryStatus() const { return _discoveryStatus; }
 signals:
     void endpointChanged();
     void changed();
 private:
+    void pumpDiscovery();
+    QString _scanAddress="192.168.144.1", _subnetMask="255.255.255.0", _discoveryStatus;
+    bool _discovering=false;
+    quint64 _scanGeneration=0;
+    int _scanNext=0, _scanTotal=0;
+    quint32 _scanNetwork=0;
+    QVariantList _devices;
+    QList<QTcpSocket*> _scanSockets;
     bool localTarget() const;
     bool busy(int port) const;
     void invalidate();

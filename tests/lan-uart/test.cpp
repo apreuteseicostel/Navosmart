@@ -19,6 +19,20 @@ int main(int argc,char** argv){
     QSettings::setDefaultFormat(QSettings::IniFormat);QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,folder.path());
     // Fresh installs and the former empty/zero configuration get editable ED2 defaults.
     {
+        NavoLanDiagnostics scan;
+        scan.setProperty("scanAddress","192.168.144.1");
+        scan.setProperty("subnetMask","255.255.0.0");
+        scan.discover();assert(!scan.discovering());assert(scan.devices().isEmpty());
+        scan.setProperty("subnetMask","255.0.255.0");scan.discover();assert(!scan.discovering());
+        scan.setProperty("subnetMask","255.255.255.252");
+        scan.setProperty("scanAddress","8.8.8.8");scan.discover();assert(!scan.discovering());
+        scan.setProperty("scanAddress","192.168.144.1");scan.setSuspended(true);scan.discover();assert(!scan.discovering());
+        scan.setSuspended(false);scan.discover();assert(scan.discovering());scan.stopDiscovery();assert(!scan.discovering());
+        assert(scan.saveConfiguration());NavoLanDiagnostics restored;
+        assert(restored.property("subnetMask").toString()=="255.255.255.252");
+        assert(restored.property("scanAddress").toString()=="192.168.144.1");
+    }
+    {
         NavoLanDiagnostics initial;
         assert(initial.host()=="192.168.144.7" && initial.monitorPort()==80 && initial.uartPort()==23);
         assert(!initial.monitoring() && !initial.uartConnected());
