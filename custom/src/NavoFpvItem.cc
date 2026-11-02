@@ -69,7 +69,8 @@ void NavoFpvItem::poll(){
             const auto age=s.value("age").toInteger(-1);
             _live=age>=0 && age<3000;
             const QString error=s.value("error").toString();
-            _status=!error.isEmpty()?error:_live?QString("LIVE • FPV • %1 cerut • %2×%3 • %4 cadre").arg(_hardware?"HW":"SW").arg(s.value("width").toInt()).arg(s.value("height").toInt()).arg(s.value("frames").toInteger())
+            const QString dimensions=s.value("width").toInt()>0 ? QString("%1×%2").arg(s.value("width").toInt()).arg(s.value("height").toInt()) : QStringLiteral("rezoluție neconfirmată");
+            _status=!error.isEmpty()?error:_live?QString("LIVE • FPV • %1 cerut • %2 • %3 cadre").arg(_hardware?"HW":"SW").arg(dimensions).arg(s.value("frames").toInteger())
                 :_connected?"FPV conectat • cadre decodate neconfirmate":"FPV • conectare / reconectare";
             const int taps=s.value("taps").toInt();if(taps!=_taps){_taps=taps;emit tapped();}
         }

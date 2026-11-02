@@ -10,7 +10,7 @@ Android ARM RTSP uses FPVWidget with ONLY_SKY, matching the official Java demo. 
 
 The Android TextureView lives only inside the QML video rectangle. Qt supplies screen coordinates scaled by device pixel ratio and ancestor clipping. PiP/fullscreen close controls occupy a separate header outside the native view. SDK and view operations run on the Android main looper. Close immediately invalidates the session, fences pending starts/late callbacks, stops the SDK and removes its view. Hidden pages, fullscreen handoff and app suspension release the surface. Returning to a visible explicitly requested view may start a new session; X clears the request, including PiP when fullscreen is closed. No second SDK reconnect loop is added.
 
-Only a recent decoded-YUV callback marks video LIVE. An RTSP connection or encoded-frame callback alone does not. The status includes requested decoder, dimensions and decoded-frame count. Frame freshness is not end-to-end latency. Credentials/URLs are not logged by the NAVO adapter.
+Only a recent decoded-YUV callback or TextureView buffer presentation marks video LIVE. The SDK surface listener is forwarded unchanged; MediaCodec direct-to-surface playback does not require a YUV readback. An RTSP connection or encoded-frame callback alone does not. The status includes requested decoder, dimensions and decoded-frame count. Frame freshness is not end-to-end latency. Credentials/URLs are not logged by the NAVO adapter.
 
 ## Verification
 - Java adapter lifecycle regression: pending start cancelled before UI dispatch, old callbacks ignored, HW/SW and transport forwarded, connection/encoded input cannot assert decoded freshness, native view removed on stop.

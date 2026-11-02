@@ -3,12 +3,14 @@ package org.navosmart.video;
 import android.app.Activity;
 import android.content.Context;
 import android.graphics.Rect;
+import android.graphics.SurfaceTexture;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.TextureView;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import com.skydroid.fpvplayer.FPVWidget;
@@ -29,7 +31,7 @@ public final class SkydroidVideoBridge {
     private static final class Session {
         long id;
         volatile boolean running = true, connected;
-        volatile long decodedAt, frames;
+        volatile long decodedAt, frames, rendered;
         volatile int width, height, taps;
         volatile String error = "";
         FPVWidget player;
@@ -80,10 +82,38 @@ public final class SkydroidVideoBridge {
                 });
                 s.container.addView(touch, new FrameLayout.LayoutParams(-1, -1));
                 s.parent.addView(s.container, new FrameLayout.LayoutParams(1, 1));
-                if (current(s)) s.player.start(); else dispose(s);
+                if (current(s)) { s.player.start(); watchTextures(s, s.player); } else dispose(s);
             } catch (Throwable e) { s.error = "FPV: " + e.getClass().getSimpleName(); dispose(s); }
         });
         return s.id;
+    }
+    // MediaCodec can render directly to a TextureView without a YUV callback.
+    // Forward the SDK listener unchanged while observing actual presented buffers.
+    private static void watchTextures(Session s, View view) {
+        if (view instanceof TextureView) {
+            TextureView texture = (TextureView) view;
+            TextureView.SurfaceTextureListener sdk = texture.getSurfaceTextureListener();
+            texture.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
+                public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+                    if (sdk != null) sdk.onSurfaceTextureAvailable(surface, width, height);
+                }
+                public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+                    if (sdk != null) sdk.onSurfaceTextureSizeChanged(surface, width, height);
+                }
+                public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+                    if (current(s)) s.decodedAt = 0;
+                    return sdk == null || sdk.onSurfaceTextureDestroyed(surface);
+                }
+                public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+                    if (sdk != null) sdk.onSurfaceTextureUpdated(surface);
+                    if (current(s) && s.connected) { s.rendered++; s.decodedAt = SystemClock.elapsedRealtime(); }
+                }
+            });
+        }
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i=0; i<group.getChildCount(); i++) watchTextures(s, group.getChildAt(i));
+        }
     }
     /** Physical screen pixels, not dp. Qt supplies the clipped video rectangle only. */
     public static void rect(long id, int x, int y, int width, int height, int left, int top, int right, int bottom) {
@@ -119,7 +149,7 @@ public final class SkydroidVideoBridge {
         try {
             JSONObject out = new JSONObject();
             if (s == null || !current(s)) return out.toString();
-            out.put("connected", s.connected); out.put("frames", s.frames);
+            out.put("connected", s.connected); out.put("frames", Math.max(s.frames,s.rendered));
             out.put("width", s.width); out.put("height", s.height);
             out.put("age", s.decodedAt>0 ? SystemClock.elapsedRealtime()-s.decodedAt : -1);
             out.put("taps", s.taps); out.put("error", s.error);
