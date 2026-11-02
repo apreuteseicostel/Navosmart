@@ -8,10 +8,13 @@ import NavoSmart.Backend 1.0
 // Real, editable endpoints and real connection actions; no demo values.
 Rectangle {
     id: root
+    property var lanDiagnostics: null
     property var sonar
     property var camera
     property string cameraStreamUrl: ""
     property string cameraProtocol: "auto"
+    property string cameraDecoder: "hardware"
+    property string cameraRtspTransport: "tcp"
     readonly property bool compact: width < 750
     readonly property color accent: "#20d9ed"
     readonly property color bright: "#eff9ff"
@@ -35,6 +38,8 @@ Rectangle {
         property bool cameraUdp: false
         property string cameraStreamUrl: ""
         property string cameraProtocol: "auto"
+        property string cameraDecoder: "hardware"
+        property string cameraRtspTransport: "tcp"
         property bool connectOnStartup: true
     }
     NavoLanDiscovery {
@@ -52,6 +57,14 @@ Rectangle {
             status("Port invalid: folosește valori între 1 și 65535")
             return false
         }
+        if(!lanPanel.validConfiguration()) {
+            status("LAN/UART: completează adresa și două porturi diferite, între 1 și 65535")
+            return false
+        }
+        if(!lanPanel.saveConfiguration()) {
+            status("LAN/UART: salvarea a eșuat")
+            return false
+        }
         cfg.sonarHost = sonarHost.text.trim()
         cfg.sonarPort = parseInt(sonarPort.text) || 0
         cfg.sonarUdp = sonarUdp.checked
@@ -60,16 +73,31 @@ Rectangle {
         cfg.cameraUdp = cameraUdp.checked
         cfg.cameraStreamUrl = streamUrl.text.trim()
         cfg.cameraProtocol = protocol.currentValue
+        cfg.cameraDecoder = decoderChoice.currentValue
+        cfg.cameraRtspTransport = rtspChoice.currentValue
         root.cameraStreamUrl = cfg.cameraStreamUrl
         root.cameraProtocol = cfg.cameraProtocol
+        root.cameraDecoder = cfg.cameraDecoder
+        root.cameraRtspTransport = cfg.cameraRtspTransport
+        // Qt Settings property notifications can be coalesced. Commit the current
+        // values explicitly before syncing so an immediate process restart is safe.
+        var savedValues={sonarHost:cfg.sonarHost,sonarPort:cfg.sonarPort,sonarUdp:cfg.sonarUdp,
+            cameraHost:cfg.cameraHost,cameraPort:cfg.cameraPort,cameraUdp:cfg.cameraUdp,
+            cameraStreamUrl:cfg.cameraStreamUrl,cameraProtocol:cfg.cameraProtocol,
+            cameraDecoder:cfg.cameraDecoder,cameraRtspTransport:cfg.cameraRtspTransport,connectOnStartup:cfg.connectOnStartup}
+        for(var key in savedValues)cfg.setValue(key,savedValues[key])
+        cfg.sync()
         loadEndpoints()
-        status("Setări Ethernet, Kogger și cameră salvate")
+        status("Setări LAN/UART, Kogger și cameră salvate")
         return true
     }
+    onVisibleChanged:if(!visible)videoTest.stop()
     Component.onCompleted: {
         loadEndpoints()
         root.cameraStreamUrl = cfg.cameraStreamUrl
         root.cameraProtocol = cfg.cameraProtocol
+        root.cameraDecoder = cfg.cameraDecoder
+        root.cameraRtspTransport = cfg.cameraRtspTransport
     }
 
     component NavField: TextField {
@@ -233,6 +261,7 @@ Rectangle {
         id: body
         anchors.fill: parent
         spacing: 8
+        NavoLanDiagnosticPanel { id:lanPanel;Layout.fillWidth:true;backend:root.lanDiagnostics }
         GridLayout {
             id: panels
             Layout.fillWidth: true
@@ -317,6 +346,13 @@ Rectangle {
                                 spacing: 4
                                 Label { text: "Previzualizare video"; color: root.bright; font.pixelSize: 12; font.bold: true }
                                 Label { text: "Stare: " + videoTest.status; color: videoTest.live ? root.mint : (videoTest.status==="NO URL" ? root.subdued : root.danger); font.pixelSize: 11; elide: Text.ElideRight; Layout.fillWidth: true }
+                                Label {Layout.fillWidth:true;wrapMode:Text.WordWrap;text:"Android RTSP • Skydroid FPV Player • cerere de decodare";color:root.subdued;font.pixelSize:10}
+                                RowLayout {
+                                    Layout.fillWidth:true
+                                    NavSelect {id:decoderChoice;objectName:"settingsVideoDecoder";Layout.fillWidth:true;Layout.minimumWidth:0;textRole:"text";valueRole:"value";model:[{text:"Hardware",value:"hardware"},{text:"Software",value:"software"}];currentIndex:cfg.cameraDecoder==="software"?1:0;Accessible.name:"Decodare FPV"}
+                                    NavSelect {id:rtspChoice;objectName:"settingsVideoRtspTransport";Layout.fillWidth:true;Layout.minimumWidth:0;textRole:"text";valueRole:"value";model:[{text:"RTSP TCP",value:"tcp"},{text:"RTSP UDP",value:"udp"}];currentIndex:cfg.cameraRtspTransport==="udp"?1:0;Accessible.name:"Transport RTSP video"}
+                                }
+                                Label {Layout.fillWidth:true;wrapMode:Text.WordWrap;text:"Pentru comparație păstrează același URL și aceleași setări ale camerei. Salvează, apoi pornește testul. LIVE cere cadre decodate recente; întârzierea capăt-la-capăt se verifică pe G20.";color:root.subdued;font.pixelSize:10}
                                 NavoVideoPlayer {
                                     id: videoTest
                                     Layout.fillWidth: true
@@ -325,6 +361,8 @@ Rectangle {
                                     Layout.preferredHeight: 96
                                     streamUrl: streamUrl.text
                                     protocol: protocol.currentValue
+                                    decoder: decoderChoice.currentValue
+                                    rtspTransport: rtspChoice.currentValue
                                     onVideoError: function(message) { root.status("Video: " + message) }
                                 }
                                 RowLayout {

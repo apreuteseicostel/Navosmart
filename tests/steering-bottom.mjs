@@ -15,9 +15,9 @@ function controller() {
  const source=read('NavoSteeringAssist.qml'), commands=[];let mode='Manual',now=10000;
  const vehicle={rover:true,flightModes:['Manual','Steering','Hold'],coordinate:{isValid:true},gps:{lock:{rawValue:3}},heading:{rawValue:359},vehicleLinkManager:{communicationLost:false},pauseVehicle(){commands.push('HOLD')}};
  Object.defineProperty(vehicle,'flightMode',{get:()=>mode,set:value=>commands.push(value)});
- const c=vm.createContext({vehicle,readOnly:false,operationsBusy:false,preLaunchReady:true,state:'IDLE',message:'',requestedAt:0,previousMode:'',Date:{now:()=>now},status(){}});c.root=c;
+ const c=vm.createContext({vehicle,readOnly:false,operationsBusy:false,preLaunchReady:true,preLaunchMessage:'',state:'IDLE',message:'',requestedAt:0,previousMode:'',Date:{now:()=>now},status(){}});c.root=c;
  functions(source,c);
- for(const name of ['busy','steeringMode','canEnable']) {
+ for(const name of ['confirmedMode','active','holdActive','pending','busy','steeringMode','canEnable','canStop','canToggleHold','availabilityMessage','assistLabel','holdLabel']) {
   const line=source.split('\n').find(x=>x.includes('readonly property') && x.includes(' '+name+':'));
   const expr=line.slice(line.indexOf(':')+1);
   Object.defineProperty(c,name,{get:()=>vm.runInContext(expr,c)});
@@ -59,6 +59,33 @@ test('Stop uses HOLD and waits for confirmation; stop after pilot takeover canno
  const {c,commands,setMode}=controller();c.enable();setMode('Steering');c.observe();assert(c.stop());assert.equal(c.state,'STOP_REQUESTED');
  setMode('Hold');c.observe();assert.equal(c.state,'IDLE');assert.deepEqual(commands,['Steering','HOLD']);
  const other=controller();other.c.enable();other.setMode('Steering');other.c.observe();other.setMode('Manual');assert(!other.c.stop());assert.deepEqual(other.commands,['Steering']);
+});
+test('External STEERING and HOLD are displayed from telemetry without local activation',()=>{
+ const {c,commands,setMode}=controller();setMode('Steering');assert(c.active);assert.equal(c.assistLabel,'ACTIVĂ');assert(c.canStop);assert(!c.canEnable);
+ setMode('Hold');assert(c.holdActive);assert.equal(c.holdLabel,'ACTIV');assert(c.canToggleHold);assert.deepEqual(commands,[]);
+});
+test('Explicit HOLD works independently of prelaunch and only leaves for reported MANUAL',()=>{
+ const {c,commands,setMode}=controller();c.preLaunchReady=false;c.vehicle.gps.lock.rawValue=1;
+ assert(!c.canEnable);assert(c.toggleHold());assert.equal(c.state,'STOP_REQUESTED');assert.equal(c.holdLabel,'ACTIVARE…');assert(!c.holdActive);
+ setMode('Hold');c.observe();assert.equal(c.state,'IDLE');assert(c.holdActive);
+ assert(c.toggleHold());assert.equal(c.state,'MANUAL_REQUESTED');assert(c.holdActive);assert.equal(c.holdLabel,'DEZACTIVARE…');
+ setMode('Manual');c.observe();assert(!c.holdActive);assert.deepEqual(commands,['HOLD','Manual']);
+});
+test('Replay, lost links and missing MANUAL prevent HOLD toggles or false state confirmation',()=>{
+ for(const key of ['readOnly','lost']){
+  const {c,commands,setMode}=controller();setMode('Hold');if(key==='readOnly')c.readOnly=true;else c.vehicle.vehicleLinkManager.communicationLost=true;
+  assert(!c.holdActive);assert.equal(c.holdLabel,'NECONFIRMAT');assert(!c.toggleHold());assert.deepEqual(commands,[]);
+ }
+ const {c,commands,setMode}=controller();setMode('Hold');c.vehicle.flightModes=['Hold','Auto'];assert(!c.toggleHold());assert.deepEqual(commands,[]);
+ const mission=controller();mission.c.operationsBusy=true;assert(!mission.c.toggleHold());assert.deepEqual(mission.commands,[]);
+});
+test('Rejected HOLD/MANUAL requests time out without claiming success or replaying commands',()=>{
+ const {c,commands,setMode,setNow}=controller();assert(c.toggleHold());setNow(16001);c.observe();assert.equal(c.state,'IDLE');assert(!c.holdActive);
+ setMode('Hold');assert(c.toggleHold());setNow(22002);c.observe();assert.equal(c.state,'IDLE');assert(c.holdActive);assert.deepEqual(commands,['HOLD','Manual']);
+});
+test('Prelaunch reports its actual blocking reason; stale health never blocks an explicit HOLD stop',()=>{
+ const {c,commands,setMode}=controller();c.preLaunchReady=false;c.preLaunchMessage='Baterie indisponibilă';assert(!c.enable());assert(c.message.includes('Baterie indisponibilă'));
+ setMode('Steering');c.vehicle.heading.rawValue=NaN;assert(c.active);assert(c.stop());assert.deepEqual(commands,['HOLD']);
 });
 const analysis=vm.createContext({});vm.runInContext(read('NavoBottomAnalysis.js').replace(/^\.pragma library\s*/,''),analysis);
 function raw(){const r=Array(200).fill(.05);r[98]=.4;r[99]=.8;r[100]=.8;r[101]=.4;return r}

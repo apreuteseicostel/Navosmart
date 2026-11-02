@@ -1,66 +1,24 @@
 import QtQuick
 import QtQuick.Controls
-
 Rectangle {
-    id: root
-    property string streamUrl: ""
-    property string protocol: "auto"
-    signal closed()
-    color: "#02070c"
-
-    NavoVideoPlayer {
-        id: video
-        anchors.fill: parent
-        streamUrl: root.streamUrl
-        protocol: root.protocol
-        autoReconnect: true
-    }
-
-    Rectangle {
-        anchors.left: parent.left
-        anchors.top: parent.top
-        anchors.margins: 14
-        width: status.implicitWidth + 20
-        height: 32
-        radius: 6
-        color: "#06111fcc"
-        Label {
-            id: status
-            anchors.centerIn: parent
-            text: "CAMERĂ FAȚĂ • " + video.status
-            color: video.playing ? "#31d67b" : "#f2f7fb"
-            font.bold: true
-        }
-    }
-
-    Button {
-        id: closeButton
-        z: 10000
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        anchors.rightMargin: 12
-        anchors.bottomMargin: 12
-        width: 56
-        height: 56
-        padding: 0
-        ToolTip.visible: hovered
-        ToolTip.text: "Închide Camera față"
-        background: Rectangle {
-            radius: 9
-            color: closeButton.hovered ? "#24384a" : "#101923e6"
-            border.color: "#6f8498"
-            border.width: 1
-        }
-        contentItem: Label {
-            text: "×"
-            color: "#f4f7fb"
-            font.pixelSize: 32
-            font.bold: true
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-        }
-        onClicked: root.closed()
-    }
-
-    Component.onCompleted: video.start()
+ id:root
+ property string streamUrl:""
+ property string protocol:"auto"
+ property string decoder:"hardware"
+ property string rtspTransport:"tcp"
+ readonly property bool live:video.live
+ signal closed()
+ color:"#02070c"
+ Label {anchors.left:parent.left;anchors.right:closeButton.left;anchors.top:parent.top;anchors.margins:10;height:34;text:"CAMERĂ • "+video.status;color:video.live?"#31d67b":"#eff9ff";font.pixelSize:12;elide:Text.ElideRight;verticalAlignment:Text.AlignVCenter}
+ Button {
+  id:closeButton;objectName:"cameraFullscreenClose";anchors.right:parent.right;anchors.top:parent.top;anchors.margins:6;width:46;height:40;padding:0
+  Accessible.name:"Închide Camera față"
+  background:Rectangle {color:closeButton.down?"#174c60":"#08273a";border.color:"#20d9ed";radius:8}
+  contentItem:Label {text:"×";color:"#eff9ff";font.pixelSize:28;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter}
+  onClicked:{video.stop();root.closed()}
+ }
+ NavoVideoPlayer {id:video;objectName:"cameraFullscreenPlayer";anchors.left:parent.left;anchors.right:parent.right;anchors.top:parent.top;anchors.topMargin:54;anchors.bottom:parent.bottom
+  streamUrl:root.streamUrl;protocol:root.protocol;decoder:root.decoder;rtspTransport:root.rtspTransport}
+ Component.onCompleted:video.start()
+ Component.onDestruction:video.stop()
 }

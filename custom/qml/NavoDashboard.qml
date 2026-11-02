@@ -15,9 +15,28 @@ import NavoSmart.Backend 1.0
 
 Item {
     id: root
+    NavoLanDiagnostics {
+        id: lanService
+        suspended: root.sonarReplayMode || connectivityController.replaying
+        busyEndpoints: {
+            var endpoints=[]
+            if(sonar.connected)endpoints.push({host:sonar.host,port:sonar.port})
+            if(cameraEthernet.connected)endpoints.push({host:cameraEthernet.host,port:cameraEthernet.port})
+            var links=connectivityController.connections
+            for(var i=0;i<links.length;i++)if(links[i].connected && String(links[i].key).indexOf("tcp:")===0){
+                var key=String(links[i].key), colon=key.lastIndexOf(":")
+                endpoints.push({host:key.substring(4,colon),port:Number(key.substring(colon+1))})
+            }
+            return endpoints
+        }
+    }
+    readonly property bool verifiedLanOnline: lanService.online || root.cameraConnected
+        || (sonar.connected && (!sonar.udp || sonar.dataAlive))
+    property int settingsStartTab: 0
     property bool networkStartupLoaded: false
     property bool sonarStartupEnabled: true
     NavoConnectivity {
+        liveSuspended: root.sonarReplayMode
         id: connectivityController
         onNetworkConnectRequested: function(automatic) { root.connectConfiguredNetworkServices(automatic) }
     }
@@ -69,11 +88,45 @@ Item {
         Component.onCompleted: start()
     }
 
+    Settings {
+        id: environmentSettings
+        category: "NavoEnvironment"
+        property bool alertsEnabled: false
+        property int humidityLimit: 80
+        property int temperatureLimit: 45
+    }
     NavoPersistence { id: persistence }
-    NavoAlertAudio { id:alertAudio;volume:alerts.volume }
+    property alias stealthController: stealth
+    NavoStealth {
+        id: stealth
+        gpsReady: !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid && !!root.vehicle.gps && Number(root.vehicle.gps.lock.rawValue)>=3
+        vehicle: root.vehicle
+        linkReady: root.linkAlive
+        replayMode: sonar.replayMode
+        navigationActive: root.directGotoActive || scanCoordinator.state==="SCANNING" || baitingController.enabled
+        flightMode: root.flightMode
+        nominalSpeedMps: baitingController.enabled ? baitingController.targetSpeedMps : scanCoordinator.state==="SCANNING" ? root.scanEstimateSpeedMps : baitingController.normalSpeedMps
+        lightsReady: h743Telemetry.connected && !!(h743Telemetry.capabilities & 1) && h743Telemetry.lightsValid && !hopperBridge.commandPending
+        headlightOn: h743Telemetry.headlightOn
+        positionLightsOn: h743Telemetry.positionLightsOn
+        onLightRequested: function(target,value) { root.commandH743Light(target,value,"Stealth",true) }
+        onSpeedRequested: function(speed) {
+            if(root.linkAlive && stealth.gpsReady && !sonar.replayMode && root.vehicle && root.vehicle.guidedModeChangeGroundSpeedMetersSecond &&
+               ["AUTO","GUIDED"].indexOf(root.flightMode.toUpperCase())>=0 && isFinite(speed) && speed>0)
+                root.vehicle.guidedModeChangeGroundSpeedMetersSecond(speed)
+        }
+    }
+    NavoAlertAudio { id:alertAudio;volume:(stealth.active || (alerts.forcedCriticalPlayback && alertAudio.criticalPlaying)) ? Math.max(0.5,alerts.volume) : alerts.volume }
     NavoAlerts {
+        stealthQuiet:stealth.active
         id:alerts;output:alertAudio;vehicle:root.vehicle;replayMode:sonar.replayMode
         telemetryConnected:h743Telemetry.connected
+        environmentValid:h743Telemetry.interiorValid && root.linkAlive
+        interiorTempC:h743Telemetry.interiorTempC
+        humidityRh:h743Telemetry.humidityRh
+        environmentAlertsEnabled:environmentSettings.alertsEnabled
+        humidityLimit:environmentSettings.humidityLimit
+        interiorTempLimit:environmentSettings.temperatureLimit
         waterValid:h743Telemetry.waterValid
         temperatureValid:h743Telemetry.temperatureValid
         waterConfirmed:safetyManager.waterConfirmed
@@ -137,6 +190,8 @@ Item {
         property bool connectOnStartup: true
         property string cameraStreamUrl: ""
         property string cameraProtocol: "auto"
+        property string cameraDecoder: "hardware"
+        property string cameraRtspTransport: "tcp"
     }
     Settings {
         id: lightSettings
@@ -157,7 +212,7 @@ Item {
     }
     Component.onCompleted: {
         sonar.host=endpointSettings.sonarHost; sonar.port=endpointSettings.sonarPort; sonar.udp=endpointSettings.sonarUdp
-        root.cameraStreamUrl=endpointSettings.cameraStreamUrl; root.cameraProtocol=endpointSettings.cameraProtocol
+        root.cameraStreamUrl=endpointSettings.cameraStreamUrl; root.cameraProtocol=endpointSettings.cameraProtocol;root.cameraDecoder=endpointSettings.cameraDecoder;root.cameraRtspTransport=endpointSettings.cameraRtspTransport
         if(persistence) root.pendingBaitJournalEvents=persistence.pendingBaitJournalEvents()
         if(endpointSettings.connectOnStartup && sonar.host.length && sonar.port>0) sonar.connectSonar()
         for(var i=0;i<persistence.lakes.length;i++) {
@@ -254,8 +309,11 @@ Item {
         releaseComplete: hopperBridge.onboardCycleComplete && h743Telemetry.hopperStateValid && h743Telemetry.hopperMask===0
         onGotoRequested: function(coordinate, reason) { if(root.vehicle && root.vehicle.guidedModeGotoLocation) root.vehicle.guidedModeGotoLocation(coordinate) }
         onSpeedRequested: function(metersPerSecond) {
+            // Stealth never changes speed in pilot modes, HOLD or return-home.
+            if(stealth.active && (!root.linkAlive || !stealth.gpsReady || sonar.replayMode || root.flightMode.toUpperCase()!=="GUIDED"))return
+            var requested=stealth.active ? stealth.capSpeed(metersPerSecond) : metersPerSecond
             if(root.vehicle && root.vehicle.guidedModeChangeGroundSpeedMetersSecond)
-                root.vehicle.guidedModeChangeGroundSpeedMetersSecond(metersPerSecond)
+                root.vehicle.guidedModeChangeGroundSpeedMetersSecond(requested)
         }
         onStopRequested: function(reason) { root.holdMission(true); root.lastNavigationStatus="Nădire: "+reason }
         onHopperReleaseRequested: function(hopper) {
@@ -338,6 +396,7 @@ Item {
         readOnly:sonar.replayMode
         operationsBusy:root.missionBusy || digitalAnchor.active
         preLaunchReady:preLaunchCheck.navigationReady
+        preLaunchMessage:preLaunchCheck.blockingMessage
         onStatus:function(text){root.lastNavigationStatus=text}
     }
     readonly property bool steeringModeBusy:steeringAssist.busy
@@ -512,6 +571,8 @@ Item {
     property alias fishDetections: fishStore.detections
     property string cameraStreamUrl: ""
     property string cameraProtocol: "auto"
+    property string cameraDecoder: "hardware"
+    property string cameraRtspTransport: "tcp"
     property string lastNavigationStatus: ""
     property bool silentModeActive: false
     property bool cameraConnected: false
@@ -520,7 +581,7 @@ Item {
     readonly property bool boatActive: !!vehicle && ((vehicle.groundSpeed && Number(vehicle.groundSpeed.rawValue)>0.25) || scanCoordinator.state==="SCANNING" || baitingController.enabled || root.awaitingMissionStart)
     property bool lastAutoPositionState: false
     onBoatActiveChanged: {
-        if(lightSettings.positionMode==="AUTO" && lastAutoPositionState!==boatActive) {
+        if(!stealth.active && lightSettings.positionMode==="AUTO" && lastAutoPositionState!==boatActive) {
             lastAutoPositionState=boatActive
             commandH743Light(2,boatActive?1:0,"Poziții AUTO")
         }
@@ -791,7 +852,7 @@ Item {
         hopperSettings.requestSequence=current+1
         return hopperSettings.requestSequence
     }
-    function commandH743Light(target, mode, label) {
+    function commandH743Light(target, mode, label, fromStealth) {
         if(!root.linkAlive || !vehicle || !vehicle.sendCommand || root.sonarController.replayMode) {
             root.lastNavigationStatus=label+" indisponibil: H743 deconectat sau replay"
             return false
@@ -806,6 +867,7 @@ Item {
         var request=root.nextHardwareRequest()
         if(!request)return false
         vehicle.sendCommand(1,31001,true,target,desired,request,0,0,0,0)
+        if(!fromStealth && root.stealthController)root.stealthController.manualLightOverride()
         root.lastNavigationStatus=label+" • solicitat H743; fără confirmare fizică"
         return true
     }
@@ -1495,6 +1557,19 @@ Item {
         temperatureFresh: h743Telemetry.connected && h743Telemetry.temperatureValid && isFinite(h743Telemetry.batteryTempC)
         temperatureC: h743Telemetry.batteryTempC
         temperatureSource: "Temperatură NTC baterie / H743"
+        interiorValid: h743Telemetry.interiorValid && root.linkAlive && !sonar.replayMode
+        interiorStatus: root.linkAlive && !sonar.replayMode ? h743Telemetry.interiorStatus : 0
+        interiorTempC: h743Telemetry.interiorTempC
+        humidityRh: h743Telemetry.humidityRh
+        interiorAgeMs: h743Telemetry.interiorAgeMs
+        environmentAlertsEnabled: environmentSettings.alertsEnabled
+        humidityLimit: environmentSettings.humidityLimit
+        interiorTempLimit: environmentSettings.temperatureLimit
+        onEnvironmentConfigured: function(enabled, humidity, temperature) {
+            environmentSettings.alertsEnabled=enabled
+            environmentSettings.humidityLimit=humidity
+            environmentSettings.temperatureLimit=temperature
+        }
     }
 
     NavoHeadingCompass { id:headingCompassOverlay; visible:root.headingOverlayOpen && root.activePage !== 10; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; headingSource:root.headingSource; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; onToggleRequested:root.headingOverlayOpen=false }
@@ -1586,18 +1661,21 @@ Item {
         id: persistentCameraPip
         parent: root
         z: 900
-        visible: root.cameraPipEnabled && root.cameraStreamUrl.length>0 && !root.cameraFullscreen && root.activePage!==5 && root.activePage!==10
+        visible: root.cameraPipEnabled && root.cameraStreamUrl.length>0 && !root.cameraFullscreen && root.activePage===0
         anchors.right: parent.right
         anchors.top: header.bottom
         anchors.rightMargin: root.activePage===0 ? 88 : 16
         anchors.topMargin: root.activePage===0 ? 20 : 12
         width: root.activePage===0 ? Math.max(170,Math.min(210,root.width*0.15)) : Math.max(190,Math.min(260,root.width*0.19))
-        height: Math.round(width*0.58)
+        height: Math.round(width*0.5625)+40
         connected: root.cameraStreamUrl.length>0
         streamUrl: root.cameraStreamUrl
         protocol: root.cameraProtocol
+        decoder: root.cameraDecoder
+        rtspTransport: root.cameraRtspTransport
         onLiveChanged: root.cameraConnected=live
         onFullscreenRequested: root.cameraFullscreen=true
+        onCloseRequested: root.cameraPipEnabled=false
     }
 
 
@@ -1607,6 +1685,8 @@ Item {
             id: fishingPageRoot
             Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
             NavoMap {
+                positionFresh: gnssHeading.positionFresh
+                positionAccuracyM: gnssHeading.positionAccuracyM
                 headingOverrideEnabled: true
                 areaDrawingGeneration: root.areaDrawingGeneration
                 headingOverrideDeg: root.headingDeg
@@ -1703,7 +1783,7 @@ Item {
                     ToolTip.text: toolTipText
                 }
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/autopilot.svg"; title:"AP"; value:vehicle?"ON":"OFF"; good:!!vehicle }
-                MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/lan.svg"; title:"LAN"; value:sonar.transport&&sonar.transport.connected?"ON":"OFF"; good:sonar.transport&&sonar.transport.connected }
+                MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/lan.svg"; title:"LAN"; value:root.verifiedLanOnline?"ON":"?"; good:root.verifiedLanOnline;clickable:true;toolTipText:lanService.status;onClicked:{root.settingsStartTab=2;root.activePage=6;root.lastNavigationStatus=lanService.status} }
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/sonar.svg"; title:"SONAR"; value:root.sonarConnected?"ON":"OFF"; good:root.sonarConnected }
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/navigate.svg";title:"ANCORĂ";value:digitalAnchor.active?"CERUTĂ":"OFF";good:digitalAnchor.guidedConfirmed;clickable:true;toolTipText:digitalAnchor.active?"Dezactivează ancora GPS și solicită HOLD":"Menține poziția GPS curentă";onClicked:root.toggleDigitalAnchor() }
                 MiniStatus {
@@ -2012,6 +2092,8 @@ Item {
                         Layout.rightMargin:routeEditor.opened && !root.missionScanSelected && parent.width>=700 ? routeEditor.width+8 : 0
                         radius: 8; color: root.bg; border.color: root.line; clip: true
                         NavoMap {
+                positionFresh: gnssHeading.positionFresh
+                positionAccuracyM: gnssHeading.positionAccuracyM
                 headingOverrideEnabled: true
                 areaDrawingGeneration: root.areaDrawingGeneration
                 headingOverrideDeg: root.headingDeg
@@ -2072,46 +2154,55 @@ Item {
                             Accessible.name: caption
                             Accessible.description: hint
                             HoverHandler { id:scanHover;acceptedDevices:PointerDevice.Mouse | PointerDevice.TouchPad }
-                            Timer { id:helpTimer;interval:4000;repeat:false }
+                            Timer { id:helpTimer;interval:1400;repeat:false }
                             onPressed:helpTimer.restart()
                             ToolTip {
                                 id:scanHelpTip;objectName:"scanToolTip"
                                 visible:(scanHover.hovered || scanButton.down || helpTimer.running) && !clearAreaConfirm.opened
                                 delay:scanHover.hovered && !helpTimer.running ? 300 : 0
                                 timeout:-1
-                                width:Math.min(280,root.width-24);padding:8;margins:8
+                                width:Math.min(220,scanHelpLabel.implicitWidth+16);padding:8;margins:6
                                 x:(scanButton.width-width)/2;y:-height-6
                                 text:scanButton.caption===scanButton.hint ? scanButton.hint : scanButton.caption+" • "+scanButton.hint
-                                contentItem:Label { text:scanHelpTip.text;color:"#eff9ff";font.pixelSize:12;wrapMode:Text.WordWrap }
+                                contentItem:Label { id:scanHelpLabel;text:scanHelpTip.text;color:"#eff9ff";font.pixelSize:12;wrapMode:Text.WordWrap }
                                 background:Rectangle { radius:7;color:"#102536";border.color:"#38badb" }
                             }
                             background: Rectangle { radius: 8; color: parent.down ? "#18354a" : "#101b25"; border.color: parent.enabled ? "#31506a" : "#26313a" }
                         }
                         ScanIconButton {
                             objectName:"scanPrepare"
-                            width:scanToolsScroll.availableWidth;height:38
                             text:"PREGĂTEȘTE"
                             caption:text
                             hint: "Pregătește misiunea"
                             enabled: areaScanController.generatedPoints.length>0 && scanCoordinator.state!=="SCANNING" && !missionUploader.uploadInProgress
-                            contentItem:Label { text:parent.text;color:parent.enabled ? "#21b7ff" : "#879ba9";font.pixelSize:12;font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter }
+                            contentItem:Canvas {
+                                anchors.centerIn:parent;width:52;height:46;opacity:parent.enabled ? 1 : 0.45
+                                onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#21b7ff";p.lineWidth=2;p.lineJoin="round";p.lineCap="round";p.beginPath();p.moveTo(12,31);p.lineTo(12,14);p.lineTo(28,14);p.lineTo(28,25);p.stroke();p.beginPath();p.moveTo(23,31);p.lineTo(29,36);p.lineTo(40,23);p.stroke()}
+                            }
                             onClicked: { if(!root.allowLiveAction()) return; missionUploader.invalidate(); var prepared=scanCoordinator.prepareMission(false); if(prepared&&prepared.length)root.lastNavigationStatus="Misiune pregătită • "+prepared.length+" WP • următorul pas: UPLOAD"; else if(!root.lastNavigationStatus.length)root.lastNavigationStatus="Pregătirea misiunii a eșuat" }
                         }
                         ScanIconButton {
                             objectName:"scanUploadStart"
-                            width:scanToolsScroll.availableWidth
-                            height:46
                             text:missionUploader.uploadInProgress ? "SE ÎNCARCĂ…" : missionUploader.uploadVerified ? "START AUTOPILOT" : "ÎNCARCĂ MISIUNEA"
                             caption:text
                             hint:missionUploader.uploadVerified ? "Pornește misiunea încărcată; autopilotul confirmă modul AUTO" : "Încarcă misiunea pe H743; pornirea se confirmă separat"
                             enabled: missionUploader.preparedCount>0 && !missionUploader.uploadInProgress
-                            contentItem:Label {
-                                text:parent.text
-                                color:parent.enabled ? "#31d67b" : "#879ba9"
-                                font.pixelSize:12;font.bold:true
-                                horizontalAlignment:Text.AlignHCenter
-                                verticalAlignment:Text.AlignVCenter
-                                wrapMode:Text.WordWrap
+                            contentItem:Canvas {
+                                anchors.centerIn:parent;width:52;height:46;opacity:parent.enabled ? 1 : 0.45
+                                property bool uploading:missionUploader.uploadInProgress
+                                property bool verified:missionUploader.uploadVerified
+                                onUploadingChanged:requestPaint()
+                                onVerifiedChanged:requestPaint()
+                                onPaint:{
+                                    var p=getContext("2d");p.reset();p.lineWidth=2;p.lineJoin="round";p.lineCap="round"
+                                    if(uploading){
+                                        p.strokeStyle="#ffc857";p.beginPath();p.arc(26,23,12,-1.3,3.8);p.stroke();p.beginPath();p.moveTo(12,25);p.lineTo(16,32);p.lineTo(22,27);p.stroke()
+                                    }else if(verified){
+                                        p.fillStyle="#31d67b";p.beginPath();p.moveTo(19,11);p.lineTo(38,23);p.lineTo(19,35);p.closePath();p.fill()
+                                    }else{
+                                        p.strokeStyle="#31d67b";p.beginPath();p.moveTo(26,29);p.lineTo(26,10);p.moveTo(18,18);p.lineTo(26,10);p.lineTo(34,18);p.moveTo(13,29);p.lineTo(13,36);p.lineTo(39,36);p.lineTo(39,29);p.stroke()
+                                    }
+                                }
                             }
                             onClicked: root.startMission()
                         }
@@ -2173,6 +2264,8 @@ Item {
                     Layout.minimumWidth: 320
                     radius:8; color:root.bg; border.color:root.line; clip:true
                     NavoMap {
+                positionFresh: gnssHeading.positionFresh
+                positionAccuracyM: gnssHeading.positionAccuracyM
                 headingOverrideEnabled: true
                 areaDrawingGeneration: root.areaDrawingGeneration
                 headingOverrideDeg: root.headingDeg
@@ -2673,6 +2766,8 @@ Item {
                     Layout.fillWidth: true; Layout.fillHeight: true
                     radius: 8; color: root.panel; border.color: root.line; clip: true
                     NavoMap {
+                positionFresh: gnssHeading.positionFresh
+                positionAccuracyM: gnssHeading.positionAccuracyM
                 headingOverrideEnabled: true
                 areaDrawingGeneration: root.areaDrawingGeneration
                 headingOverrideDeg: root.headingDeg
@@ -2725,6 +2820,7 @@ Item {
                     Layout.fillHeight: true
                     radius: 8; color: root.panel; border.color: root.line
                     NavoBaitingPanel {
+                        stealth: root.stealthController
                         anchors.fill: parent
                         anchors.margins: 8
                         controller: baitingController
@@ -2863,16 +2959,20 @@ Item {
                 RowLayout { Layout.fillWidth: true
                     Label { text: "CAMERA FAȚĂ • LAN"; color: root.text; font.pixelSize: 18; font.bold: true }
                     Item { Layout.fillWidth: true }
-                    Label { text: cameraEthernet.connected ? (cameraEthernet.dataAlive ? "LAN LIVE" : "LAN CONECTAT") : "LAN OFFLINE"; color: cameraEthernet.dataAlive ? root.ok : (cameraEthernet.connected ? root.warn : root.muted); font.bold: true; font.pixelSize: 10 }
+                    Label { text: root.cameraConnected ? "VIDEO LIVE" : "VIDEO NECONFIRMAT"; color: root.cameraConnected ? root.ok : root.muted; font.bold: true; font.pixelSize: 10 }
                 }
                 NavoCameraPip {
+                    visible:!root.cameraFullscreen
                     Layout.fillWidth: true; Layout.fillHeight: true
                     connected: root.cameraStreamUrl.length > 0
                     streamUrl: root.cameraStreamUrl
                     protocol: root.cameraProtocol
+        decoder: root.cameraDecoder
+        rtspTransport: root.cameraRtspTransport
                     onLiveChanged: root.cameraConnected = live
                     Component.onDestruction: root.cameraConnected = false
                     onFullscreenRequested: root.cameraFullscreen = true
+                    onCloseRequested: {root.cameraPipEnabled=false;root.activePage=0}
                 }
             }
         }
@@ -2884,6 +2984,8 @@ Item {
             anchors.fill: parent
             vehicleConnected:root.linkAlive && !!root.vehicle
             connectivity:connectivityController
+            lanDiagnostics:lanService
+            selectedTab:root.settingsStartTab
             cameraLive:root.cameraConnected
             sonar: root.sonarController
             camera: cameraEthernet
@@ -2892,8 +2994,11 @@ Item {
             steering: steeringAssist
             g20: g20Controller
             energy: energySettings
+            stealth: root.stealthController
             onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
             onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
+            onCameraDecoderChanged: root.cameraDecoder = cameraDecoder
+            onCameraRtspTransportChanged: root.cameraRtspTransport = cameraRtspTransport
             onStatus: function(message) { root.lastNavigationStatus = message }
             onEnableSteeringRequested: steeringAssist.enable()
             onParametersToolRequested: {
@@ -2926,7 +3031,10 @@ Item {
             NavoCameraFullScreen {
                 streamUrl: root.cameraStreamUrl
                 protocol: root.cameraProtocol
-                onClosed: root.cameraFullscreen = false
+        decoder: root.cameraDecoder
+        rtspTransport: root.cameraRtspTransport
+                onLiveChanged: root.cameraConnected=live
+                onClosed: {root.cameraFullscreen=false;root.cameraPipEnabled=false;if(root.activePage===5)root.activePage=0}
             }
         }
     }
@@ -3017,5 +3125,6 @@ Item {
         Label { text: parent.value; color: parent.valueColor; font.bold: true }
     }
 }
+
 
 

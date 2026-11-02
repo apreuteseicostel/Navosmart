@@ -5,14 +5,32 @@ Rectangle {
  property bool connected:false
  property string streamUrl:""
  property string protocol:"auto"
- readonly property bool live: player.live
- property string statusText: player.live?"FAȚĂ • LIVE":(connected?"CAMERA FAȚĂ • READY":"CAMERA FAȚĂ")
+ property string decoder:"hardware"
+ property string rtspTransport:"tcp"
+ readonly property bool live:player.live
+ property string statusText:player.live?"FAȚĂ • LIVE":player.status
  signal fullscreenRequested()
- width:230;height:145;radius:9;color:"#02070cdd";border.color:player.live?"#31d67b":"#1c4262";clip:true
- NavoVideoPlayer{id:player;anchors.fill:parent;streamUrl:root.streamUrl;protocol:root.protocol;onVideoError:function(message){console.warn("NAVO camera:",message)}}
- Rectangle{anchors.fill:parent;color:"#071827";visible:!player.playing}
- Label{anchors.centerIn:parent;visible:!player.playing;text:root.streamUrl.length?"Camera pregătită\natinge pentru pornire":"Configurează URL RTSP/MJPEG";color:"#9db2c5";horizontalAlignment:Text.AlignHCenter;font.bold:true}
- Rectangle{anchors.left:parent.left;anchors.top:parent.top;anchors.margins:7;width:camLabel.implicitWidth+12;height:25;radius:5;color:"#06111fcc"
-  Label{id:camLabel;anchors.centerIn:parent;text:root.statusText;color:player.live?"#31d67b":"#9db2c5";font.pixelSize:10;font.bold:true}}
- MouseArea{anchors.fill:parent;onClicked:{if(!player.playing&&root.streamUrl.length)player.start();else root.fullscreenRequested()}}
+ signal closeRequested()
+ function syncPlayback(){if(visible && connected && streamUrl.length)player.start();else player.stop()}
+ onVisibleChanged:syncPlayback()
+ onConnectedChanged:syncPlayback()
+ onStreamUrlChanged:syncPlayback()
+ Component.onCompleted:syncPlayback()
+ width:230;height:160;radius:9;color:"#02070c";border.color:player.live?"#31d67b":"#1c4262";clip:true
+ // Header is outside the native surface so X always remains reachable on Android.
+ Label {anchors.left:parent.left;anchors.right:closeButton.left;anchors.top:parent.top;anchors.margins:7;height:25;text:root.statusText;color:player.live?"#31d67b":"#c1d7e6";font.pixelSize:10;font.bold:true;elide:Text.ElideRight;verticalAlignment:Text.AlignVCenter}
+ Button {
+  id:closeButton;objectName:"cameraPipClose";anchors.right:parent.right;anchors.top:parent.top;anchors.margins:3
+  width:34;height:30;padding:0;Accessible.name:"Închide previzualizarea camerei"
+  background:Rectangle {color:closeButton.down?"#174c60":"#08273a";border.color:"#20d9ed";radius:7}
+  contentItem:Label {text:"×";color:"#eff9ff";font.pixelSize:24;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter}
+  onClicked:{player.stop();root.closeRequested()}
+ }
+ NavoVideoPlayer {
+  id:player;objectName:"cameraPipPlayer";anchors.left:parent.left;anchors.right:parent.right;anchors.top:parent.top;anchors.topMargin:37;anchors.bottom:parent.bottom;anchors.margins:3
+  streamUrl:root.streamUrl;protocol:root.protocol;decoder:root.decoder;rtspTransport:root.rtspTransport
+  onTapped:root.fullscreenRequested()
+ }
+ Label {anchors.centerIn:player;width:player.width-12;wrapMode:Text.WordWrap;visible:!player.playing;text:root.streamUrl.length?player.status:"Configurează URL RTSP/MJPEG";color:"#c1d7e6";horizontalAlignment:Text.AlignHCenter;font.pixelSize:11}
+ MouseArea {anchors.fill:player;onClicked:root.fullscreenRequested()}
 }

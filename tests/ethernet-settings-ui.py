@@ -21,6 +21,7 @@ with tempfile.TemporaryDirectory() as folder:
     temp = pathlib.Path(folder)
     os.environ["XDG_CONFIG_HOME"] = str(temp / "config")
     shutil.copy(source, temp / source.name)
+    shutil.copy(source.with_name("NavoLanDiagnosticPanel.qml"), temp / "NavoLanDiagnosticPanel.qml")
     backend = temp / "NavoSmart/Backend"
     backend.mkdir(parents=True)
     (backend / "qmldir").write_text("module NavoSmart.Backend\nNavoLanDiscovery 1.0 NavoLanDiscovery.qml\n")
@@ -37,6 +38,8 @@ QtObject {
 Item {
  property string streamUrl: ""
  property string protocol: "auto"
+ property string decoder:"hardware"
+ property string rtspTransport:"tcp"
  property string status: "NO URL"
  property bool live: false
  signal videoError(string message)

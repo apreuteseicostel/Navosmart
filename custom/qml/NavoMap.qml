@@ -4,6 +4,7 @@ import QtLocation
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtCore
+import "NavoVisualPosition.js" as VisualPosition
 
 import QGroundControl
 import QGroundControl.Controllers
@@ -14,12 +15,45 @@ Item {
     objectName:"navoMap"
 
     property var vehicle: QGroundControl.multiVehicleManager.activeVehicle
+    // Only the marker uses these coordinates; every controller keeps vehicle.coordinate.
+    property bool positionFresh: false
+    property real positionAccuracyM: NaN
+    property var visualPosition: VisualPosition.reset()
+    property real displayLatitude: NaN
+    property real displayLongitude: NaN
+    readonly property var displayCoordinate: QtPositioning.coordinate(displayLatitude, displayLongitude)
+    property bool visualAnimationEnabled: false
+    Behavior on displayLatitude { enabled: root.visualAnimationEnabled && root.positionFresh; NumberAnimation { duration: 250 } }
+    Behavior on displayLongitude { enabled: root.visualAnimationEnabled && root.positionFresh; NumberAnimation { duration: 250 } }
+    function updateVisualPosition() {
+        if (recordedReplay || replayPreview || !positionFresh || !vehicle || !vehicle.coordinate || !vehicle.coordinate.isValid) return
+        var c=vehicle.coordinate, now=Date.now()
+        var snap=!isFinite(visualPosition.lat) || now-visualPosition.at>3000
+        var speed=vehicle.groundSpeed ? Number(vehicle.groundSpeed.rawValue) : NaN
+        visualPosition=VisualPosition.update(visualPosition,c.latitude,c.longitude,speed,positionAccuracyM,now)
+        visualAnimationEnabled=!snap && Math.abs(visualPosition.lon-displayLongitude)<180
+        displayLatitude=visualPosition.lat; displayLongitude=visualPosition.lon
+    }
+    function resetVisualPosition() {
+        visualAnimationEnabled=false
+        visualPosition=VisualPosition.reset()
+        displayLatitude=NaN; displayLongitude=NaN
+        updateVisualPosition()
+    }
+    onPositionFreshChanged: {
+        if (positionFresh) { visualPosition=VisualPosition.reset(); updateVisualPosition() }
+        else { visualAnimationEnabled=false; visualPosition=VisualPosition.reset() }
+    }
+    Connections {
+        target: root.vehicle
+        function onCoordinateChanged() { root.updateVisualPosition() }
+    }
     property var planController
     signal waypointNameChanged(int sequence, string name)
     property var waypointNames: ({})
     property var fishModel
     property bool recordedReplay: false
-    onRecordedReplayChanged: if(recordedReplay) { cancelAreaDrawing(); baitPointPickMode=false; fishingSaveDialog.close(); renameDialog.close() }
+    onRecordedReplayChanged: { resetVisualPosition(); if(recordedReplay) { cancelAreaDrawing(); baitPointPickMode=false; fishingSaveDialog.close(); renameDialog.close() } }
     property var fishingSpotsModel
     property var bathymetryCells: []
     property var nativeSurfaceMesh: ({})
@@ -45,7 +79,7 @@ Item {
         }
     }
     onReplayTrackChanged: followReplay()
-    onReplayPreviewChanged: { initialCenterApplied=false; if(replayPreview) followReplay(); else centerOnBoatOnce() }
+    onReplayPreviewChanged: { resetVisualPosition(); initialCenterApplied=false; if(replayPreview) followReplay(); else centerOnBoatOnce() }
     property bool bathymetryHDEnabled: false
     property var baitingController
     property var areaScanController
@@ -311,7 +345,7 @@ Item {
         id: operatorBoatLine
         parent: liveMap
         visible: operatorMarker.visible && navoBoatMarker.visible
-        path: visible ? [root.operatorCoordinate, root.vehicle.coordinate] : []
+        path: visible ? [root.operatorCoordinate, root.displayCoordinate] : []
         line.width: 2
         line.color: "#26c6da"
         Component.onCompleted: liveMap.addMapItem(this)
@@ -329,19 +363,40 @@ Item {
         Component.onCompleted: liveMap.addMapItem(this)
         Component.onDestruction: liveMap.removeMapItem(this)
     }
+    MapCircle {
+        id: gpsPrecisionCircle
+        parent: liveMap
+        visible: !root.recordedReplay && !root.replayPreview && root.positionFresh
+                 && root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid
+                 && isFinite(root.positionAccuracyM) && root.positionAccuracyM>0
+        // Centred on raw GPS, not a smoothed point: this is reported GPS1 accuracy.
+        center: visible ? root.vehicle.coordinate : QtPositioning.coordinate()
+        radius: visible ? root.positionAccuracyM : 0
+        color: "#1226c6da"
+        border.color: "#6026c6da"; border.width: 1
+        z: 90
+        Component.onCompleted: liveMap.addMapItem(this)
+        Component.onDestruction: liveMap.removeMapItem(this)
+    }
     MapQuickItem {
         id: navoBoatMarker
         parent: liveMap
-        visible: !root.replayPreview && !!root.vehicle && !!root.vehicle.coordinate && root.vehicle.coordinate.isValid
-        coordinate: visible ? root.vehicle.coordinate : QtPositioning.coordinate()
+        visible: !root.recordedReplay && !root.replayPreview && root.displayCoordinate.isValid
+        coordinate: root.displayCoordinate
         anchorPoint.x: 24; anchorPoint.y: 42
         z: 100
         sourceItem: Item {
             width:48; height:84
             rotation: isFinite(root.boatHeadingDeg) ? root.boatHeadingDeg - liveMap.bearing : 0
-            opacity: isFinite(root.boatHeadingDeg) ? 1 : 0.45
+            opacity: root.positionFresh && isFinite(root.boatHeadingDeg) ? 1 : 0.45
             Behavior on rotation { RotationAnimation { duration:240; direction:RotationAnimation.Shortest } }
             NavoBoatVisual { anchors.fill: parent }
+            Label {
+                anchors.top: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter
+                visible: !root.positionFresh
+                text: "GPS vechi"; color: "#ffd166"; font.pixelSize: 10
+                rotation: -parent.rotation
+            }
         }
         Component.onCompleted: liveMap.addMapItem(this)
         Component.onDestruction: liveMap.removeMapItem(this)
@@ -623,26 +678,36 @@ Item {
         onAccepted: if(root.pendingFishingCoordinate && root.pendingFishingCoordinate.isValid) root.saveNamedPointRequested(root.pendingFishingCoordinate,fishingName.text.trim(),root.pendingFishingColor)
     }
 
-    property string toolHelpText: ""
-    function showToolHelp(message) { toolHelpText=String(message||"");toolHelpTimer.restart() }
-    Timer { id:toolHelpTimer;interval:4000;onTriggered:root.toolHelpText="" }
-    Rectangle {
-        anchors.horizontalCenter:parent.horizontalCenter;anchors.bottom:parent.bottom;anchors.bottomMargin:86
-        width:Math.min(330,Math.max(120,parent.width-110));height:toolHelpLabel.implicitHeight+18
-        visible:root.toolHelpText.length>0;z:3100;radius:8;color:"#ee071827";border.color:"#26c6da"
-        Label { id:toolHelpLabel;anchors.fill:parent;anchors.margins:9;text:root.toolHelpText;color:"white";font.pixelSize:12;wrapMode:Text.WordWrap }
+    // Each control owns its compact popup; no map-wide help banner.
+    property var activeHelpButton: null
+    Timer { id:toolHelpTimer;interval:1400;onTriggered:root.activeHelpButton=null }
+    component HelpTool: Button {
+        id: helpButton
+        hoverEnabled:true
+        onPressed: { root.activeHelpButton=helpButton;toolHelpTimer.restart() }
+        ToolTip {
+            id: localHelp
+            parent: helpButton
+            visible: helpButton.visible && helpButton.enabled && helpButton.ToolTip.text.length>0
+                     && (helpButton.hovered || root.activeHelpButton===helpButton)
+            text: helpButton.ToolTip.text
+            width: Math.min(220,helpLabel.implicitWidth+16)
+            padding:8;margins:6
+            x:(helpButton.width-width)/2;y:-height-6
+            contentItem:Label { id:helpLabel;text:localHelp.text;color:"#eff9ff";font.pixelSize:11;wrapMode:Text.WordWrap }
+            background:Rectangle { radius:6;color:"#102536";border.color:"#38badb" }
+        }
     }
     Flow {
         width:parent.width-28
         anchors.left: parent.left; anchors.bottom: parent.bottom; anchors.leftMargin:14; anchors.bottomMargin:14; spacing:8
         visible: root.areaDrawMode!=="none"
         z: 3000
-        component DrawingTool: Button {
+        component DrawingTool: HelpTool {
             property string caption: ""
             width:44;height:44
             hoverEnabled:true
             Accessible.name:caption + " • " + ToolTip.text
-            onPressed:root.showToolHelp(ToolTip.text)
             background: Rectangle {
                 radius:8
                 color:parent.down ? "#e0164963" : "#d9071827"
@@ -650,10 +715,10 @@ Item {
                 border.width:1
             }
         }
-        DrawingTool { caption:root.areaDrawMode==="rectangle" ? "Dreptunghi" : "Poligon";padding:2;enabled:false;ToolTip.visible:hovered || down;ToolTip.text:(root.areaDrawMode==="rectangle"?"Dreptunghi ":"Poligon ")+root.areaDraftPoints.length+(root.areaDrawMode==="rectangle"?"/2":"");contentItem:Item { Image { anchors.centerIn:parent;width:24;height:24;opacity:parent.parent.enabled ? 1 : 0.45;source:root.areaDrawMode==="rectangle"?"qrc:/qml/NavoSmart/icons/rectangle.svg":"qrc:/qml/NavoSmart/icons/polygon.svg";fillMode:Image.PreserveAspectFit } } }
-        DrawingTool { caption:"GATA";visible:root.areaDrawMode==="polygon" || root.areaDrawMode==="rectangle";padding:2;enabled:root.areaDrawMode==="rectangle"?root.areaDraftPoints.length===2:root.areaDraftPoints.length>=3;ToolTip.visible:hovered || down;ToolTip.text:root.areaDrawMode==="rectangle"?"GATA • generează culoarele":"Finalizează poligonul";contentItem:Item { Image { anchors.centerIn:parent;width:24;height:24;opacity:parent.parent.enabled ? 1 : 0.45;source:"qrc:/qml/NavoSmart/icons/done.svg";fillMode:Image.PreserveAspectFit } }onClicked:root.finishAreaDrawing() }
-        DrawingTool { caption:"Înapoi";padding:2;enabled:root.areaDraftPoints.length>0;ToolTip.visible:hovered || down;ToolTip.text:"Șterge ultimul punct / segment";contentItem:Item { Image { anchors.centerIn:parent;width:24;height:24;opacity:parent.parent.enabled ? 1 : 0.45;source:"qrc:/qml/NavoSmart/icons/undo.svg";fillMode:Image.PreserveAspectFit } }onClicked:root.undoAreaPoint() }
-        DrawingTool { caption:"Anulează desen";padding:2;ToolTip.visible:hovered || down;ToolTip.text:"Șterge desenul Area Scan";contentItem:Item { Image { anchors.centerIn:parent;width:24;height:24;opacity:parent.parent.enabled ? 1 : 0.45;source:"qrc:/qml/NavoSmart/icons/delete.svg";fillMode:Image.PreserveAspectFit } }onClicked:root.clearAreaDrawing() }
+        DrawingTool { caption:root.areaDrawMode==="rectangle" ? "Dreptunghi" : "Poligon";padding:2;enabled:false;ToolTip.text:(root.areaDrawMode==="rectangle"?"Dreptunghi ":"Poligon ")+root.areaDraftPoints.length+(root.areaDrawMode==="rectangle"?"/2":"");contentItem:Item { Image { anchors.centerIn:parent;width:24;height:24;opacity:parent.parent.enabled ? 1 : 0.45;source:root.areaDrawMode==="rectangle"?"qrc:/qml/NavoSmart/icons/rectangle.svg":"qrc:/qml/NavoSmart/icons/polygon.svg";fillMode:Image.PreserveAspectFit } } }
+        DrawingTool { caption:"GATA";visible:root.areaDrawMode==="polygon" || root.areaDrawMode==="rectangle";padding:2;enabled:root.areaDrawMode==="rectangle"?root.areaDraftPoints.length===2:root.areaDraftPoints.length>=3;ToolTip.text:root.areaDrawMode==="rectangle"?"GATA • generează culoarele":"Finalizează poligonul";contentItem:Item { Image { anchors.centerIn:parent;width:24;height:24;opacity:parent.parent.enabled ? 1 : 0.45;source:"qrc:/qml/NavoSmart/icons/done.svg";fillMode:Image.PreserveAspectFit } }onClicked:root.finishAreaDrawing() }
+        DrawingTool { caption:"Înapoi";padding:2;enabled:root.areaDraftPoints.length>0;ToolTip.text:"Șterge ultimul punct / segment";contentItem:Item { Image { anchors.centerIn:parent;width:24;height:24;opacity:parent.parent.enabled ? 1 : 0.45;source:"qrc:/qml/NavoSmart/icons/undo.svg";fillMode:Image.PreserveAspectFit } }onClicked:root.undoAreaPoint() }
+        DrawingTool { caption:"Anulează desen";padding:2;ToolTip.text:"Șterge desenul Area Scan";contentItem:Item { Image { anchors.centerIn:parent;width:24;height:24;opacity:parent.parent.enabled ? 1 : 0.45;source:"qrc:/qml/NavoSmart/icons/delete.svg";fillMode:Image.PreserveAspectFit } }onClicked:root.clearAreaDrawing() }
         Rectangle {
             visible: root.areaDrawMode==="rectangle" && root.areaDraftPoints.length===2
             width:112;height:48;radius:8;color:"#d9071827";border.color:"#21b7ff"
@@ -665,40 +730,38 @@ Item {
         anchors.left:parent.left; anchors.top:parent.top; anchors.margins:10
         spacing:5; z:200
         property int controlSize:44
-        component MapTool: Button {
+        component MapTool: HelpTool {
             Accessible.name: ToolTip.text
-            onPressed: root.showToolHelp(ToolTip.text)
             property url iconSource: ""
             width:44;height:44;padding:0
             font.pixelSize:22;font.bold:true
             background:Rectangle { radius:8;color:parent.checked||parent.down?"#b0164963":"#800d1722";border.color:parent.checked?"#21b7ff":"#8027394b";border.width:1 }
             contentItem:Image { anchors.centerIn:parent;width:23;height:23;source:parent.iconSource;fillMode:Image.PreserveAspectFit }
         }
-        MapTool { objectName:"mapCenterOperator"; text:"TEL"; iconSource:"qrc:/qml/NavoSmart/icons/boat.svg"; Accessible.name:"Centrează pe GPS-ul telefonului"; ToolTip.visible:hovered || down; ToolTip.text:root.operatorLocationValid ? "Centrează harta pe poziția telefonului" : "GPS telefon indisponibil • verifică permisiunea de localizare"; enabled:!root.recordedReplay && root.operatorLocationValid; onClicked:root.centerOnOperator() }
-        MapTool { text:"+"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-in.svg";ToolTip.visible:hovered || down;ToolTip.text:"Mărește harta";onClicked:{root.autoFollowBoat=false;liveMap.zoomLevel=liveMap.zoomLevel+1} }
-        MapTool { text:"-"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-out.svg";ToolTip.visible:hovered || down;ToolTip.text:"Micșorează harta";onClicked:{root.autoFollowBoat=false;liveMap.zoomLevel=liveMap.zoomLevel-1} }
-        MapTool { checkable:true;checked:layersPopup.visible;Accessible.name:"Straturi hartă"; iconSource:"qrc:/qml/NavoSmart/icons/layers.svg"; ToolTip.visible:hovered||down; ToolTip.text:"Straturi hartă"; onClicked:layersPopup.open() }
-        MapTool { objectName:"mapFitMission";text:"CTR"; iconSource:root.canFitMission ? "qrc:/qml/NavoSmart/icons/route.svg" : "qrc:/qml/NavoSmart/icons/center.svg";font.pixelSize:10;Accessible.name:root.canFitMission ? "Încadrează întregul traseu" : "Resetează vederea hărții";ToolTip.visible:hovered || down;ToolTip.text:Accessible.name;onClicked:root.canFitMission ? root.fitMission() : root.resetView() }
+        MapTool { objectName:"mapCenterOperator"; text:"TEL"; iconSource:"qrc:/qml/NavoSmart/icons/boat.svg"; Accessible.name:"Centrează pe GPS-ul telefonului";  ToolTip.text:root.operatorLocationValid ? "Centrează harta pe poziția telefonului" : "GPS telefon indisponibil • verifică permisiunea de localizare"; enabled:!root.recordedReplay && root.operatorLocationValid; onClicked:root.centerOnOperator() }
+        MapTool { text:"+"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-in.svg";ToolTip.text:"Mărește harta";onClicked:{root.autoFollowBoat=false;liveMap.zoomLevel=liveMap.zoomLevel+1} }
+        MapTool { text:"-"; iconSource:"qrc:/qml/NavoSmart/icons/zoom-out.svg";ToolTip.text:"Micșorează harta";onClicked:{root.autoFollowBoat=false;liveMap.zoomLevel=liveMap.zoomLevel-1} }
+        MapTool { checkable:true;checked:layersPopup.visible;Accessible.name:"Straturi hartă"; iconSource:"qrc:/qml/NavoSmart/icons/layers.svg";  ToolTip.text:"Straturi hartă"; onClicked:layersPopup.open() }
+        MapTool { objectName:"mapFitMission";text:"CTR"; iconSource:root.canFitMission ? "qrc:/qml/NavoSmart/icons/route.svg" : "qrc:/qml/NavoSmart/icons/center.svg";font.pixelSize:10;Accessible.name:root.canFitMission ? "Încadrează întregul traseu" : "Resetează vederea hărții";ToolTip.text:Accessible.name;onClicked:root.canFitMission ? root.fitMission() : root.resetView() }
     }
     Column {
         anchors.right:parent.right; anchors.top:parent.top; anchors.rightMargin:10; anchors.topMargin:10; spacing:5; z:200
         property int controlSize:44
-        component RightTool: Button {
+        component RightTool: HelpTool {
             Accessible.name: ToolTip.text
-            onPressed: root.showToolHelp(ToolTip.text)
             property url iconSource: ""
             width:44;height:44;padding:0;font.pixelSize:18;font.bold:true
             background:Rectangle { radius:8;color:"#800d1722";border.color:"#8027394b" }
             contentItem:Image { anchors.centerIn:parent;width:23;height:23;source:parent.iconSource;fillMode:Image.PreserveAspectFit }
         }
-        RightTool { text:"MAP"; iconSource:"qrc:/qml/NavoSmart/icons/map.svg";font.pixelSize:11;checkable:true;checked:root.bathymetryHDEnabled;ToolTip.visible:hovered || down;ToolTip.text:root.bathymetryHDEnabled?"Ascunde batimetria HD":"Afișează batimetria HD";onClicked:root.toggleMapLayer() }
+        RightTool { text:"MAP"; iconSource:"qrc:/qml/NavoSmart/icons/map.svg";font.pixelSize:11;checkable:true;checked:root.bathymetryHDEnabled;ToolTip.text:root.bathymetryHDEnabled?"Ascunde batimetria HD":"Afișează batimetria HD";onClicked:root.toggleMapLayer() }
         RightTool {
             objectName: "mapNorthHeading"
             text: "N"
             iconSource: "qrc:/qml/NavoSmart/icons/north.svg"
             checkable: true
             checked: root.headingUp
-            ToolTip.visible: hovered || down
+
             ToolTip.text: root.headingUp ? "Direcția bărcii sus • apasă pentru Nord sus" : "Nord sus • apasă pentru direcția bărcii sus"
             onClicked: root.headingUp = !root.headingUp
             contentItem: Image {
@@ -709,8 +772,8 @@ Item {
                 fillMode: Image.PreserveAspectFit
             }
         }
-        RightTool { text:"RUL"; iconSource:"qrc:/qml/NavoSmart/icons/ruler.svg";font.pixelSize:11;checkable:true;checked:root.rulerMode;ToolTip.visible:hovered || down;ToolTip.text:root.rulerMode?root.rulerDistanceText():"Măsoară distanța între două puncte";onClicked:root.toggleRuler() }
-        RightTool { text:root.maximized?"MIN":"MAX"; iconSource:"qrc:/qml/NavoSmart/icons/fullscreen.svg";font.pixelSize:10;ToolTip.visible:hovered || down;ToolTip.text:root.maximized?"Revino la dashboard":"Hartă pe tot ecranul";onClicked:root.maximizeRequested() }
+        RightTool { text:"RUL"; iconSource:"qrc:/qml/NavoSmart/icons/ruler.svg";font.pixelSize:11;checkable:true;checked:root.rulerMode;ToolTip.text:root.rulerMode?root.rulerDistanceText():"Măsoară distanța între două puncte";onClicked:root.toggleRuler() }
+        RightTool { text:root.maximized?"MIN":"MAX"; iconSource:"qrc:/qml/NavoSmart/icons/fullscreen.svg";font.pixelSize:10;ToolTip.text:root.maximized?"Revino la dashboard":"Hartă pe tot ecranul";onClicked:root.maximizeRequested() }
     }
     Popup {
         id:layersPopup; parent:Overlay.overlay; anchors.centerIn:parent
@@ -778,9 +841,9 @@ Item {
         initialCenterApplied=true
     }
     onOperatorCoordinateChanged: Qt.callLater(centerOnOperatorOnce)
-    Component.onCompleted: { centerOnBoatOnce(); Qt.callLater(centerOnOperatorOnce) }
+    Component.onCompleted: { updateVisualPosition(); centerOnBoatOnce(); Qt.callLater(centerOnOperatorOnce) }
     onOperatorLocationValidChanged: if(operatorLocationValid)centerOnOperatorOnce()
-    onVehicleChanged: { initialCenterApplied=false; centerOnBoatOnce() }
+    onVehicleChanged: { resetVisualPosition(); initialCenterApplied=false; centerOnBoatOnce() }
 
     Connections {
         target: root.vehicle
