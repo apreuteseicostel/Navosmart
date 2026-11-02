@@ -1657,7 +1657,7 @@ Item {
         id: persistentCameraPip
         parent: root
         z: 900
-        visible: root.cameraPipEnabled && root.cameraStreamUrl.length>0 && !root.cameraFullscreen && root.activePage!==5 && root.activePage!==10
+        visible: root.cameraPipEnabled && root.cameraStreamUrl.length>0 && !root.cameraFullscreen && root.activePage===0
         anchors.right: parent.right
         anchors.top: header.bottom
         anchors.rightMargin: root.activePage===0 ? 88 : 16
@@ -1669,6 +1669,7 @@ Item {
         protocol: root.cameraProtocol
         onLiveChanged: root.cameraConnected=live
         onFullscreenRequested: root.cameraFullscreen=true
+        onCloseRequested: root.cameraPipEnabled=false
     }
 
 
@@ -2952,7 +2953,7 @@ Item {
                 RowLayout { Layout.fillWidth: true
                     Label { text: "CAMERA FAȚĂ • LAN"; color: root.text; font.pixelSize: 18; font.bold: true }
                     Item { Layout.fillWidth: true }
-                    Label { text: cameraEthernet.connected ? (cameraEthernet.dataAlive ? "LAN LIVE" : "LAN CONECTAT") : "LAN OFFLINE"; color: cameraEthernet.dataAlive ? root.ok : (cameraEthernet.connected ? root.warn : root.muted); font.bold: true; font.pixelSize: 10 }
+                    Label { text: root.cameraConnected ? "VIDEO LIVE" : "VIDEO NECONFIRMAT"; color: root.cameraConnected ? root.ok : root.muted; font.bold: true; font.pixelSize: 10 }
                 }
                 NavoCameraPip {
                     Layout.fillWidth: true; Layout.fillHeight: true
@@ -2962,6 +2963,7 @@ Item {
                     onLiveChanged: root.cameraConnected = live
                     Component.onDestruction: root.cameraConnected = false
                     onFullscreenRequested: root.cameraFullscreen = true
+                    onCloseRequested: {root.cameraPipEnabled=false;root.activePage=0}
                 }
             }
         }
