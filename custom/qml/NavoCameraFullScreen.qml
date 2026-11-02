@@ -6,6 +6,7 @@ Rectangle {
  property string protocol:"auto"
  property string decoder:"hardware"
  property string rtspTransport:"tcp"
+ readonly property bool live:video.live
  signal closed()
  color:"#02070c"
  Label {anchors.left:parent.left;anchors.right:closeButton.left;anchors.top:parent.top;anchors.margins:10;height:34;text:"CAMERĂ • "+video.status;color:video.live?"#31d67b":"#eff9ff";font.pixelSize:12;elide:Text.ElideRight;verticalAlignment:Text.AlignVCenter}

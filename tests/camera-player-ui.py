@@ -22,7 +22,7 @@ import QtQuick.Controls
 ApplicationWindow {id:root;width:320;height:260;visible:true
  property bool full:false;property bool showPip:true
  NavoCameraPip {id:pip;objectName:"pip";anchors.fill:parent;visible:root.showPip && !root.full;connected:true;streamUrl:"rtsp://test/stream";onCloseRequested:root.showPip=false;onFullscreenRequested:root.full=true}
- Loader {id:large;anchors.fill:parent;active:root.full;sourceComponent:Component{NavoCameraFullScreen {streamUrl:pip.streamUrl;onClosed:{root.full=false;root.showPip=false}}}}
+ Loader {id:large;anchors.fill:parent;active:root.full;sourceComponent:Component{NavoCameraFullScreen {objectName:"fullscreen";streamUrl:pip.streamUrl;onClosed:{root.full=false;root.showPip=false}}}}
  function fullscreen(){pip.fullscreenRequested()}
 }''')
  engine.load(QUrl.fromLocalFile(str(d/'Test.qml')));assert engine.rootObjects(),errors
@@ -38,7 +38,7 @@ ApplicationWindow {id:root;width:320;height:260;visible:true
  QTest.qWait(200);assert not p.property('desiredPlaying') # no delayed reopen after close
  w.setProperty('showPip',True);QTest.qWait(40);assert p.property('live')
  QMetaObject.invokeMethod(w,'fullscreen');QTest.qWait(50)
- assert not p.property('live') and item('cameraFullscreenPlayer').property('live')
+ assert not p.property('live') and item('cameraFullscreenPlayer').property('live') and item('fullscreen').property('live')
  click('cameraFullscreenClose');assert not w.property('full') and not w.property('showPip') and not p.property('live')
  for width in [236,320,480,900]:
   w.setWidth(width);w.setProperty('showPip',True);QTest.qWait(30)

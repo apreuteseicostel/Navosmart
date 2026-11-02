@@ -3033,6 +3033,7 @@ Item {
                 protocol: root.cameraProtocol
         decoder: root.cameraDecoder
         rtspTransport: root.cameraRtspTransport
+                onLiveChanged: root.cameraConnected=live
                 onClosed: {root.cameraFullscreen=false;root.cameraPipEnabled=false;if(root.activePage===5)root.activePage=0}
             }
         }
