@@ -59,6 +59,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoSafetyCard.qml
         qml/NavoFailsafeController.qml
         qml/NavoFailsafePanel.qml
+        qml/NavoHopperSettings.qml
         qml/NavoDigitalAnchor.qml
         qml/NavoSteeringAssist.qml
         qml/NavoSteeringPanel.qml

@@ -2886,60 +2886,14 @@ Item {
                 Rectangle {
                     Layout.fillWidth:true; Layout.fillHeight:true; Layout.preferredWidth:1
                     radius:8; color:root.bg; border.color:root.line
-                    ColumnLayout {
-                        anchors.fill:parent; anchors.margins:root.compactUi ? 7 : 9; spacing:root.compactUi ? 4 : 6
-                        Label { text:"CUVE & SIGURANȚĂ HARDWARE"; color:"#f4f7fb"; font.pixelSize:15; font.bold:true }
-                        GridLayout {
-                            columns:3; Layout.fillWidth:true; columnSpacing:root.compactUi ? 5 : 7; rowSpacing:root.compactUi ? 3 : 5
-                            Label { text:"Cuva"; color:root.text } Label { text:"Stânga"; color:root.text } Label { text:"Dreapta"; color:root.text }
-                            Label { text:"Ieșire"; color:"#dbe5ee"; font.bold:true }
-                            SpinBox { Layout.fillWidth:true; Layout.minimumWidth:86; from:1;to:16;value:hopperSettings.leftOutput;onValueModified:{hopperSettings.confirmed=false;hopperSettings.leftOutput=value} }
-                            SpinBox { Layout.fillWidth:true; Layout.minimumWidth:86; from:1;to:16;value:hopperSettings.rightOutput;onValueModified:{hopperSettings.confirmed=false;hopperSettings.rightOutput=value} }
-                            Label { text:"Închis µs"; color:"#dbe5ee"; font.bold:true }
-                            SpinBox { Layout.fillWidth:true; Layout.minimumWidth:86; from:900;to:2100;value:hopperSettings.leftClosed;onValueModified:{hopperSettings.confirmed=false;hopperSettings.leftClosed=value} }
-                            SpinBox { Layout.fillWidth:true; Layout.minimumWidth:86; from:900;to:2100;value:hopperSettings.rightClosed;onValueModified:{hopperSettings.confirmed=false;hopperSettings.rightClosed=value} }
-                            Label { text:"Deschis µs"; color:"#dbe5ee"; font.bold:true }
-                            SpinBox { Layout.fillWidth:true; Layout.minimumWidth:86; from:900;to:2100;value:hopperSettings.leftOpen;onValueModified:{hopperSettings.confirmed=false;hopperSettings.leftOpen=value} }
-                            SpinBox { Layout.fillWidth:true; Layout.minimumWidth:86; from:900;to:2100;value:hopperSettings.rightOpen;onValueModified:{hopperSettings.confirmed=false;hopperSettings.rightOpen=value} }
-                        }
-                        CheckBox {
-                            Layout.fillWidth:true
-                            text:"Am verificat mecanic calibrarea cuvelor"
-                            palette.text:"#f4f7fb"
-                            contentItem: Label {
-                                leftPadding: parent.indicator.width + parent.spacing
-                                text: parent.text
-                                color: "#f4f7fb"
-                                verticalAlignment: Text.AlignVCenter
-                                elide: Text.ElideRight
-                            }
-                            checked:hopperSettings.confirmed
-                            enabled: true
-                            ToolTip.visible: hovered
-                            ToolTip.text: "Confirmarea mecanică nu necesită telemetrie, dar comenzile V3 cer serviciul H743 validat"
-                            onToggled:hopperSettings.confirmed=checked
-                        }
-                        Rectangle {
-                            Layout.fillWidth:true; Layout.preferredHeight:root.compactUi ? 58 : 64; radius:7
-                            color:root.panel; border.color:safetyManager.state==="CRITICAL"?root.danger:root.line
-                            RowLayout {
-                                anchors.fill:parent; anchors.margins:9
-                                ColumnLayout {
-                                    Label { text:"SENZORI"; color:root.muted; font.pixelSize:10 }
-                                    Label { text:h743Telemetry.connected?"H743 ONLINE":"H743 OFFLINE"; color:h743Telemetry.connected?root.ok:root.warn; font.bold:true }
-                                }
-                                Item { Layout.fillWidth:true }
-                                ColumnLayout {
-                                    Label { text:"TEMP BATERIE"; color:root.muted; font.pixelSize:10 }
-                                    Label { text:h743Telemetry.connected&&!isNaN(h743Telemetry.batteryTempC)?Number(h743Telemetry.batteryTempC).toFixed(1)+" °C":"--"; color:root.text; font.bold:true }
-                                }
-                                ColumnLayout {
-                                    Label { text:"APĂ"; color:root.muted; font.pixelSize:10 }
-                                    Label { text:h743Telemetry.waterDetected?"DETECTATĂ":"OK"; color:h743Telemetry.waterDetected?root.danger:(h743Telemetry.connected?root.ok:root.muted); font.bold:true }
-                                }
-                            }
-                        }
-                        Item { Layout.fillHeight:true }
+                    NavoHopperSettings {
+                        anchors.fill: parent
+                        anchors.margins: root.compactUi ? 7 : 9
+                        settings: hopperSettings
+                        telemetry: h743Telemetry
+                        linkAlive: root.linkAlive
+                        busy: root.actionActive || hopperBridge.commandPending || hopperBridge.leftOpen || hopperBridge.rightOpen
+                        critical: safetyManager.state === "CRITICAL"
                     }
                 }
             }
