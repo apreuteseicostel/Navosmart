@@ -578,6 +578,13 @@ Item {
     property bool cameraConnected: false
     property bool cameraFullscreen: false
     property bool cameraPipEnabled: true
+    function closeFullscreenCamera() {
+        cameraPipEnabled = false
+        cameraFullscreen = false
+        cameraConnected = false
+        if (activePage === 5)
+            activePage = 0
+    }
     readonly property bool boatActive: !!vehicle && ((vehicle.groundSpeed && Number(vehicle.groundSpeed.rawValue)>0.25) || scanCoordinator.state==="SCANNING" || baitingController.enabled || root.awaitingMissionStart)
     property bool lastAutoPositionState: false
     onBoatActiveChanged: {
@@ -1369,7 +1376,12 @@ Item {
             }
             StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/satellite.svg"; title: "SATELIȚI"; value: vehicle && vehicle.gps ? String(vehicle.gps.count.rawValue) : "--"; good: root.linkAlive && vehicle.gps && Number(vehicle.gps.lock.rawValue)>=3 && isFinite(Number(vehicle.gps.count.rawValue)) && Number(vehicle.gps.count.rawValue)>=0 && Number(vehicle.gps.count.rawValue)<255; interactive:true; onClicked:gnssDiagnostic.open() }
             StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/home.svg"; title: "HOME"; value: Number(root.distanceToHome).toFixed(0) + " m"; good: root.linkAlive && vehicle.homePosition && vehicle.homePosition.isValid && vehicle.coordinate && vehicle.coordinate.isValid && vehicle.distanceToHome && isFinite(Number(vehicle.distanceToHome.rawValue)); interactive:true
-                onClicked: { root.activePage=0; Qt.callLater(function(){ if(root.mapController && root.mapController.centerHome && !root.mapController.centerHome()) root.lastNavigationStatus="HOME indisponibil" }) }
+                onClicked: {
+                    if (root.cameraFullscreen)
+                        root.closeFullscreenCamera()
+                    root.activePage = 0
+                    Qt.callLater(function(){ if(root.mapController && root.mapController.centerHome && !root.mapController.centerHome()) root.lastNavigationStatus="HOME indisponibil" })
+                }
                 onPressAndHold: { if(!root.vehicle || !root.vehicle.homePosition || !root.vehicle.homePosition.isValid || !root.vehicle.coordinate || !root.vehicle.coordinate.isValid || !root.vehicle.gps || root.vehicle.gps.lock.rawValue<3) root.lastNavigationStatus="RTL blocat: HOME/GPS invalid"; else homeRtlConfirm.open() }
             }
             StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/speed.svg"; title: "VITEZĂ"; value: vehicle && vehicle.groundSpeed ? Number(vehicle.groundSpeed.rawValue * 3.6).toFixed(1) + " km/h" : "--"; good: root.linkAlive && vehicle.groundSpeed && isFinite(Number(vehicle.groundSpeed.rawValue)) }
@@ -3024,17 +3036,21 @@ Item {
     }
 
     Loader {
-        anchors.fill: parent
+        id: fullscreenCameraLoader
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: header.visible ? header.bottom : parent.top
+        anchors.bottom: parent.bottom
         z: 1000
         active: root.cameraFullscreen
         sourceComponent: Component {
             NavoCameraFullScreen {
                 streamUrl: root.cameraStreamUrl
                 protocol: root.cameraProtocol
-        decoder: root.cameraDecoder
-        rtspTransport: root.cameraRtspTransport
-                onLiveChanged: root.cameraConnected=live
-                onClosed: {root.cameraFullscreen=false;root.cameraPipEnabled=false;if(root.activePage===5)root.activePage=0}
+                decoder: root.cameraDecoder
+                rtspTransport: root.cameraRtspTransport
+                onLiveChanged: root.cameraConnected = live
+                onClosed: root.closeFullscreenCamera()
             }
         }
     }
