@@ -6,7 +6,7 @@ import tempfile
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("QT_QUICK_BACKEND", "software")
-from PySide6.QtCore import QPoint, QUrl, Qt
+from PySide6.QtCore import QPoint, QSettings, QUrl, Qt
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem, QQuickWindow
@@ -99,7 +99,15 @@ ApplicationWindow {
     host, port = find("settingsSonarHost"), find("settingsSonarPort")
     selector = find("settingsSonarTransport")
     label = find("settingsSonarStatus")
-    assert not connect.isEnabled()
+    assert host.property("text") == "192.168.144.7" and port.property("text") == "23"
+    assert not selector.property("checked") and connect.isEnabled()
+    assert state.property("connects") == 0 and not state.property("host")
+    assert find("settingsCameraHost").property("text") == "192.168.144.64"
+    assert find("settingsCameraPort").property("text") == "554"
+    assert find("settingsStreamUrl").property("text") == "192.168.144.64/stream1"
+    assert find("settingsCameraProtocol").property("currentValue") == "rtsp"
+    assert not find("settingsCameraTransport").property("checked")
+    assert find("settingsVideoRtspTransport").property("currentValue") == "tcp"
     host.setProperty("text", "192.168.1.10")
     port.setProperty("text", "8899")
     settle()
@@ -129,6 +137,11 @@ ApplicationWindow {
     assert udp.property("selected") and not tcp.property("selected"), "Clicking selected segment must keep one selected"
     click(connect)
     assert state.property("udp") and state.property("connects") == 1
+    saved = QSettings()
+    assert saved.value("NavoEthernet/cameraHost") == "192.168.144.64"
+    assert saved.value("NavoEthernet/cameraPort", type=int) == 554
+    assert saved.value("NavoEthernet/cameraStreamUrl") == "192.168.144.64/stream1"
+    assert saved.value("NavoEthernet/cameraProtocol") == "rtsp"
     assert "UDP LISTENING" in label.property("text") and "LIVE" not in label.property("text")
     state.setProperty("connected", True); state.setProperty("status", "RX DATA"); settle()
     assert "fără ecogramă validă" in label.property("text")
@@ -152,6 +165,8 @@ ApplicationWindow {
     cameraTcp, cameraUdp = choices(camera)
     click(cameraUdp)
     assert cameraUdp.property("selected") and not cameraTcp.property("selected")
+    find("settingsCameraHost").setProperty("text", "192.168.1.30")
+    find("settingsStreamUrl").setProperty("text", "192.168.1.30/live")
     assert selector.property("checked"), "Camera and sonar selections are independent"
     state.setProperty("replayMode", True); settle()
     assert "REDARE" in label.property("text") and "LIVE" not in label.property("text")
@@ -167,6 +182,10 @@ ApplicationWindow {
     restoredWindow = second.rootObjects()[0]
     restored = restoredWindow.findChild(QObject, "settingsSonarTransport")
     assert restored.property("checked"), "Saved UDP selection must survive restart"
+    assert restoredWindow.findChild(QObject, "settingsSonarHost").property("text") == ""
+    assert restoredWindow.findChild(QObject, "settingsSonarPort").property("text") == "8899"
+    assert restoredWindow.findChild(QObject, "settingsCameraHost").property("text") == "192.168.1.30"
+    assert restoredWindow.findChild(QObject, "settingsStreamUrl").property("text") == "192.168.1.30/live"
     second.deleteLater()
     engine.deleteLater()
-print("PASS production settings: 8 widths, exclusive TCP/UDP, actual vs pending state, live/replay/errors, connect/stop, port validation")
+print("PASS production settings: camera/sonar presets, custom values after restart, 8 widths, TCP/UDP, live/replay/errors, connect/stop, port validation")

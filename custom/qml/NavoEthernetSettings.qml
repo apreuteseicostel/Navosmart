@@ -15,6 +15,9 @@ Rectangle {
     property string cameraProtocol: "auto"
     property string cameraDecoder: "hardware"
     property string cameraRtspTransport: "tcp"
+    readonly property bool sonarUnconfigured: !cfg.sonarHost.length && !cfg.sonarPort && !cfg.sonarUdp
+    readonly property bool cameraUnconfigured: !cfg.cameraHost.length && !cfg.cameraPort &&
+        !cfg.cameraStreamUrl.length && !cfg.cameraUdp && cfg.cameraProtocol === "auto"
     readonly property bool compact: width < 750
     readonly property color accent: "#20d9ed"
     readonly property color bright: "#eff9ff"
@@ -65,28 +68,30 @@ Rectangle {
             status("LAN/UART: salvarea a eșuat")
             return false
         }
-        cfg.sonarHost = sonarHost.text.trim()
-        cfg.sonarPort = parseInt(sonarPort.text) || 0
-        cfg.sonarUdp = sonarUdp.checked
-        cfg.cameraHost = cameraHost.text.trim()
-        cfg.cameraPort = parseInt(cameraPort.text) || 0
-        cfg.cameraUdp = cameraUdp.checked
-        cfg.cameraStreamUrl = streamUrl.text.trim()
-        cfg.cameraProtocol = protocol.currentValue
-        cfg.cameraDecoder = decoderChoice.currentValue
-        cfg.cameraRtspTransport = rtspChoice.currentValue
+        // Read the whole form before the first saved field replaces the preset.
+        const savedValues = {
+            sonarHost: sonarHost.text.trim(),
+            sonarPort: parseInt(sonarPort.text) || 0,
+            sonarUdp: sonarUdp.checked,
+            cameraHost: cameraHost.text.trim(),
+            cameraPort: parseInt(cameraPort.text) || 0,
+            cameraUdp: cameraUdp.checked,
+            cameraStreamUrl: streamUrl.text.trim(),
+            cameraProtocol: protocol.currentValue,
+            cameraDecoder: decoderChoice.currentValue,
+            cameraRtspTransport: rtspChoice.currentValue
+        }
+        // Commit explicitly so an immediate process restart sees the saved form.
+        for (const key in savedValues) {
+            cfg[key] = savedValues[key]
+            cfg.setValue(key, savedValues[key])
+        }
+        cfg.setValue("connectOnStartup", cfg.connectOnStartup)
+        cfg.sync()
         root.cameraStreamUrl = cfg.cameraStreamUrl
         root.cameraProtocol = cfg.cameraProtocol
         root.cameraDecoder = cfg.cameraDecoder
         root.cameraRtspTransport = cfg.cameraRtspTransport
-        // Qt Settings property notifications can be coalesced. Commit the current
-        // values explicitly before syncing so an immediate process restart is safe.
-        var savedValues={sonarHost:cfg.sonarHost,sonarPort:cfg.sonarPort,sonarUdp:cfg.sonarUdp,
-            cameraHost:cfg.cameraHost,cameraPort:cfg.cameraPort,cameraUdp:cfg.cameraUdp,
-            cameraStreamUrl:cfg.cameraStreamUrl,cameraProtocol:cfg.cameraProtocol,
-            cameraDecoder:cfg.cameraDecoder,cameraRtspTransport:cfg.cameraRtspTransport,connectOnStartup:cfg.connectOnStartup}
-        for(var key in savedValues)cfg.setValue(key,savedValues[key])
-        cfg.sync()
         loadEndpoints()
         status("Setări LAN/UART, Kogger și cameră salvate")
         return true
@@ -311,20 +316,24 @@ Rectangle {
                                 columnSpacing: 7
                                 rowSpacing: 5
                                 Label { text: "IP / Host"; color: root.bright; font.pixelSize: 12 }
-                                NavField { id: cameraHost; objectName: "settingsCameraHost"; Layout.fillWidth: true; text: cfg.cameraHost; placeholderText: "192.168.x.x"; Accessible.name: "Adresă IP cameră" }
+                                NavField { id: cameraHost; objectName: "settingsCameraHost"; Layout.fillWidth: true; text: root.cameraUnconfigured ? "192.168.144.64" : cfg.cameraHost; placeholderText: "192.168.x.x"; Accessible.name: "Adresă IP cameră" }
                                 Label { text: "Port"; color: root.bright; font.pixelSize: 12 }
-                                NavField { id: cameraPort; objectName: "settingsCameraPort"; Layout.fillWidth: true; text: cfg.cameraPort > 0 ? String(cfg.cameraPort) : ""; validator: IntValidator { bottom: 1; top: 65535 } inputMethodHints: Qt.ImhDigitsOnly; placeholderText: "554"; Accessible.name: "Port rețea cameră" }
+                                NavField { id: cameraPort; objectName: "settingsCameraPort"; Layout.fillWidth: true; text: root.cameraUnconfigured ? "554" : (cfg.cameraPort > 0 ? String(cfg.cameraPort) : ""); validator: IntValidator { bottom: 1; top: 65535 } inputMethodHints: Qt.ImhDigitsOnly; placeholderText: "554"; Accessible.name: "Port rețea cameră" }
                                 Label { text: "Transport"; color: root.bright; font.pixelSize: 12 }
                                 TransportSelector { id: cameraUdp; objectName: "settingsCameraTransport"; checked: cfg.cameraUdp }
                                 Label { text: "URL video"; color: root.bright; font.pixelSize: 12 }
-                                NavField { id: streamUrl; objectName: "settingsStreamUrl"; Layout.fillWidth: true; text: cfg.cameraStreamUrl; placeholderText: "rtsp://... sau http://..."; Accessible.name: "URL video cameră" }
+                                NavField { id: streamUrl; objectName: "settingsStreamUrl"; Layout.fillWidth: true; text: root.cameraUnconfigured ? "192.168.144.64/stream1" : cfg.cameraStreamUrl; placeholderText: "rtsp://... sau http://..."; Accessible.name: "URL video cameră" }
                                 Label { text: "Protocol"; color: root.bright; font.pixelSize: 12 }
                                 NavSelect {
                                     id: protocol
+                                    objectName: "settingsCameraProtocol"
                                     Layout.fillWidth: true
                                     textRole: "text"; valueRole: "value"
                                     model: [{text:"AUTO",value:"auto"}, {text:"RTSP",value:"rtsp"}, {text:"MJPEG/HTTP",value:"mjpeg"}]
-                                    Component.onCompleted: { var i = indexOfValue(cfg.cameraProtocol); if (i >= 0) currentIndex = i }
+                                    Component.onCompleted: {
+                                        const initialIndex = indexOfValue(root.cameraUnconfigured ? "rtsp" : cfg.cameraProtocol)
+                                        if (initialIndex >= 0) currentIndex = initialIndex
+                                    }
                                 }
                             }
                         }
@@ -417,9 +426,9 @@ Rectangle {
                         Layout.fillWidth: true
                         columns: 2; columnSpacing: 8; rowSpacing: 7
                         Label { text: "IP / Host"; color: root.bright; font.pixelSize: 12 }
-                        NavField { id: sonarHost; objectName: "settingsSonarHost"; Layout.fillWidth: true; text: cfg.sonarHost; placeholderText: "192.168.x.x"; Accessible.name: "IP Kogger" }
+                        NavField { id: sonarHost; objectName: "settingsSonarHost"; Layout.fillWidth: true; text: root.sonarUnconfigured ? "192.168.144.7" : cfg.sonarHost; placeholderText: "192.168.x.x"; Accessible.name: "IP Kogger" }
                         Label { text: "Port"; color: root.bright; font.pixelSize: 12 }
-                        NavField { id: sonarPort; objectName: "settingsSonarPort"; Layout.fillWidth: true; text: cfg.sonarPort > 0 ? String(cfg.sonarPort) : ""; validator: IntValidator { bottom: 1; top: 65535 } inputMethodHints: Qt.ImhDigitsOnly; placeholderText: "8899"; Accessible.name: "Port Kogger" }
+                        NavField { id: sonarPort; objectName: "settingsSonarPort"; Layout.fillWidth: true; text: root.sonarUnconfigured ? "23" : (cfg.sonarPort > 0 ? String(cfg.sonarPort) : ""); validator: IntValidator { bottom: 1; top: 65535 } inputMethodHints: Qt.ImhDigitsOnly; placeholderText: "23"; Accessible.name: "Port Kogger" }
                         Label { text: "Transport"; color: root.bright; font.pixelSize: 12 }
                         TransportSelector { id: sonarUdp; objectName: "settingsSonarTransport"; checked: cfg.sonarUdp }
                     }
