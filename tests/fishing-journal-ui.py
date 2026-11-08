@@ -92,11 +92,16 @@ assert root.property('exportTripId')=='trip'
 assert QMetaObject.invokeMethod(exportDialog,'reject')
 assert root.property('exportTripId')=='' and store.property('exportId')==''
 assert QMetaObject.invokeMethod(exportButton,'clicked')
+assert root.property('exportTripId')=='trip'
 root.setProperty('selectedId','missing')
 url=QUrl.fromLocalFile('/tmp/navo-journal-export-test.json')
 assert exportDialog.setProperty('selectedFile',url)
-assert QMetaObject.invokeMethod(exportDialog,'accept')
+# Inject the platform picker's final selection at its accepted signal.
+# Calling accept() would reread the real helper's selection over the test URL.
+assert exportDialog.property('selectedFile')==url
+assert QMetaObject.invokeMethod(exportDialog,'accepted')
 assert store.property('exportId')=='trip' and store.property('exportUrl')==url
+assert QMetaObject.invokeMethod(exportDialog,'close')
 assert not exportButton.property('enabled')
 assert not errors,errors
 print('PASS journal UI: structured fields, summary/filter, frozen context, guards, failed saves and explicit export at compact width')
