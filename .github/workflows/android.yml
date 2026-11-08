@@ -70,18 +70,6 @@ jobs:
           rm -rf qgc/custom
           cp -a custom qgc/custom
           cp -a third_party qgc/third_party
-          python3 - <<'PY'
-          import os
-          from pathlib import Path
-
-          cmake = Path("qgc/CMakeLists.txt")
-          source = cmake.read_text()
-          legacy = 'set(ANDROID_VERSION_CODE "${ANDROID_BITNESS_CODE}${CMAKE_PROJECT_VERSION_MAJOR}${CMAKE_PROJECT_VERSION_MINOR}${ANDROID_PATCH_VERSION}000")'
-          if source.count(legacy) != 1:
-              raise SystemExit("NAVO: could not locate the versionCode in pinned QGroundControl")
-          version = os.environ["NAVO_ANDROID_VERSION_CODE"]
-          cmake.write_text(source.replace(legacy, f'set(ANDROID_VERSION_CODE "{version}")', 1))
-          PY
           sed -i '/import NavoSmart.Backend 1.0/i import NavoSmart 1.0' qgc/custom/qml/NavoDashboard.qml
           sed -i 's/QGroundControl\.FlyView/QGroundControl.FlightDisplay/g' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
           sed -i '/QGroundControl\.PlanView/d' qgc/custom/CMakeLists.txt qgc/custom/qml/NavoDashboard.qml
@@ -176,6 +164,18 @@ jobs:
           python3 -m aqt install-qt linux android 6.8.3 android_arm64_v8a --outputdir "${{ runner.temp }}/Qt" --modules $MODS
       - name: Configure arm64 release
         run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          cmake = Path("qgc/CMakeLists.txt")
+          source = cmake.read_text()
+          legacy = 'set(ANDROID_VERSION_CODE "${ANDROID_BITNESS_CODE}${CMAKE_PROJECT_VERSION_MAJOR}${CMAKE_PROJECT_VERSION_MINOR}${ANDROID_PATCH_VERSION}000")'
+          if source.count(legacy) != 1:
+              raise SystemExit("NAVO: could not locate the versionCode in pinned QGroundControl")
+          version = os.environ["NAVO_ANDROID_VERSION_CODE"]
+          cmake.write_text(source.replace(legacy, f'set(ANDROID_VERSION_CODE "{version}")', 1))
+          PY
           mkdir -p build
           "${{ runner.temp }}/Qt/6.8.3/android_arm64_v8a/bin/qt-cmake" -S qgc -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release -DQT_ANDROID_ABIS=arm64-v8a -DQT_ANDROID_BUILD_ALL_ABIS=OFF \
@@ -241,7 +241,7 @@ jobs:
         if: env.NAVO_DISTRIBUTION_BUILD != 'true'
         run: |
           set -euo pipefail
-          APK="$(find build -type f -name '*.apk' | head -n 1)"
+          APK="$(find build -type f -name '*.apk' -print -quit)"
           test -n "$APK"
           APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"; ZIPALIGN="$ANDROID_HOME/build-tools/35.0.0/zipalign"; AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
           if ! "$APKSIGNER" verify "$APK"; then
