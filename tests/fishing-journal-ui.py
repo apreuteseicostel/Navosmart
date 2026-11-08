@@ -19,7 +19,10 @@ QtObject {
  property string journalError:""
  property var lastSaved:null
  property bool failSave:false
+ property string exportId:""
+ property url exportUrl
  function saveFishingEntry(id,data){if(failSave){journalError="Write failed";return ""}lastSaved=data;return "entry"}
+ function exportFishingTrip(id,url){exportId=id;exportUrl=url;return true}
 }''',QUrl())
 store=component.create();root.setProperty('persistence',store);root.setProperty('lakeId','lake');root.setProperty('selectedId','trip');root.setProperty('depthM',2.5)
 view.show()
@@ -75,5 +78,25 @@ assert begin();store.setProperty('failSave',True);text.setProperty('text','retry
 assert not QMetaObject.invokeMethod(root,'saveEntry',Q_RETURN_ARG('QVariant'));assert editor.property('visible')
 root.setProperty('replayMode',True);QTest.qWait(10);assert not editor.property('visible') and not begin()
 root.setProperty('replayMode',False);root.setProperty('lakeId','other');assert not begin()
+# A cancelled picker does not export. Accepting exports the trip captured at open.
+root.setProperty('journalTab',0)
+view.resize(236,600);QTest.qWait(30)
+exportButton=root.findChild(QObject,'journalExportTrip')
+exportDialog=root.findChild(QObject,'journalExportDialog')
+assert exportButton.property('enabled')
+corner=exportButton.mapToScene(QPointF(0,0))
+assert 0<=corner.x() and corner.x()+exportButton.property('width')<=236
+assert QMetaObject.invokeMethod(exportButton,'clicked')
+QTest.qWait(30)
+assert root.property('exportTripId')=='trip'
+assert QMetaObject.invokeMethod(exportDialog,'reject')
+assert root.property('exportTripId')=='' and store.property('exportId')==''
+assert QMetaObject.invokeMethod(exportButton,'clicked')
+root.setProperty('selectedId','missing')
+url=QUrl.fromLocalFile('/tmp/navo-journal-export-test.json')
+assert exportDialog.setProperty('selectedFile',url)
+assert QMetaObject.invokeMethod(exportDialog,'accept')
+assert store.property('exportId')=='trip' and store.property('exportUrl')==url
+assert not exportButton.property('enabled')
 assert not errors,errors
-print('PASS journal UI: structured catch fields, decimal/unknown/invalid weights, summary/filter, frozen context, replay/lake/trip gates, failed saves and 236/320/900px')
+print('PASS journal UI: structured fields, summary/filter, frozen context, guards, failed saves and explicit export at compact width')

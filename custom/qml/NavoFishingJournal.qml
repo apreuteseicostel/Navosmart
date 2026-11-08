@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Dialogs
 
 Item {
     id: root
@@ -19,6 +20,8 @@ Item {
     property string editingId: ""
     property string pendingDeleteId: ""
     property string pendingEntryId: ""
+    property string exportTripId: ""
+    property string exportedTripId: ""
     property string baitPrefix: ""
     property double clockMs:Date.now()
     property string entryTripId:""
@@ -85,7 +88,25 @@ Item {
     Component.onCompleted: { if(activeTrip)selectedId=activeTrip.id;else if(trips.length)selectedId=trips[0].id }
     onLakeIdChanged: entryDialog.close()
     onReplayModeChanged: entryDialog.close()
-    onSelectedIdChanged: entryDialog.close()
+    onSelectedIdChanged: {
+        entryDialog.close()
+        exportedTripId = ""
+    }
+    FileDialog {
+        id: tripExportDialog
+        objectName: "journalExportDialog"
+        title: "Salvează partida ca fișier JSON"
+        fileMode: FileDialog.SaveFile
+        nameFilters: ["Fișiere JSON (*.json)"]
+        defaultSuffix: Qt.platform.os === "android" ? "" : "json"
+        onAccepted: {
+            const tripId = root.exportTripId
+            root.exportTripId = ""
+            if (tripId && root.persistence && root.persistence.exportFishingTrip(tripId, selectedFile))
+                root.exportedTripId = tripId
+        }
+        onRejected: root.exportTripId = ""
+    }
     Timer {interval:60000;repeat:true;running:!!root.selected && !root.selected.endedAt;onTriggered:root.clockMs=Date.now()}
     readonly property color navoCyan: "#20d9ed"
     readonly property color navoText: "#eff9ff"
@@ -286,12 +307,30 @@ Item {
                             onClicked: finishDialog.open()
                         }
                         JournalButton {
+                            objectName: "journalExportTrip"
+                            text: "Exportă JSON"
+                            Accessible.name: "Exportă partida în format JSON"
+                            enabled: !!root.selected
+                            onClicked: {
+                                root.exportedTripId = ""
+                                root.exportTripId = root.selectedId
+                                tripExportDialog.open()
+                            }
+                        }
+                        JournalButton {
                             text: "Șterge"
                             tint: "#ff8793"
                             Accessible.name: "Șterge partida"
                             enabled: !!root.selected
                             onClicked: { root.pendingDeleteId = root.selectedId; deleteDialog.open() }
                         }
+                    }
+                    Label {
+                        visible: root.exportedTripId !== "" && root.exportedTripId === root.selectedId
+                        Layout.fillWidth: true
+                        text: "Partida a fost exportată."
+                        color: "#37e9a2"
+                        wrapMode: Text.WordWrap
                     }
                 }
             }

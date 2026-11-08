@@ -1,6 +1,7 @@
 #include "../../custom/src/NavoPersistence.h"
 #include <QCoreApplication>
 #include <QDataStream>
+#include <QFile>
 #include <QSettings>
 #include <QTemporaryDir>
 #include <QSignalSpy>
@@ -16,6 +17,41 @@ static bool writeSettings(QIODevice& device,const QSettings::SettingsMap& map){i
 class PersistenceTests:public QObject {
  Q_OBJECT
 private slots:
+ void exportSelectedFishingTrip() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  QSettings::setDefaultFormat(QSettings::IniFormat);
+  QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,directory.path());
+  NavoPersistence store;
+  const auto lake=store.saveLake({{"name",QStringLiteral("Baltă")}});
+  const auto selected=store.startFishingTrip(lake,QStringLiteral("Dimineață"));
+  QVERIFY(!selected.isEmpty());
+  QVERIFY(!store.saveFishingEntry(selected,{{"type","catch"},{"text",QStringLiteral("Eliberat în apă")},
+   {"species","Crap"},{"weightKg",2.375},{"bait","Porumb"},{"positionValid",true},
+   {"lat",52.0},{"lon",0.0},{"depth",2.0},{"temperature",0.0}}).isEmpty());
+  QVERIFY(store.finishFishingTrip(selected));
+  QVERIFY(!store.startFishingTrip(lake,"Other trip").isEmpty());
+  const auto before=store.fishingTrips();
+
+  const auto path=directory.filePath("Partidă.json");
+  const auto destination=QUrl::fromLocalFile(path);
+  QVERIFY(!store.exportFishingTrip("missing",destination));
+  QVERIFY(!QFile::exists(path));
+  QVERIFY(!store.exportFishingTrip(selected,QUrl("https://example.com/export.json")));
+  QVERIFY(!store.exportFishingTrip(selected,QUrl::fromLocalFile(directory.filePath("missing/export.json"))));
+  QVERIFY(!store.journalError().isEmpty());
+  QVERIFY(store.exportFishingTrip(selected,destination));
+  QVERIFY(store.journalError().isEmpty());
+  QFile exported(path);
+  QVERIFY(exported.open(QIODevice::ReadOnly));
+  const auto document=QJsonDocument::fromJson(exported.readAll());
+  QVERIFY(document.isObject());
+  QCOMPARE(document.object().value("format").toString(),QString("navo-fishing-trip"));
+  QCOMPARE(document.object().value("version").toInt(),1);
+  QCOMPARE(document.object().value("trip").toObject(),QJsonObject::fromVariantMap(before.at(1).toMap()));
+  QCOMPARE(store.fishingTrips(),before);
+  {NavoPersistence restarted;QCOMPARE(restarted.fishingTrips(),before);}
+ }
  void structuredFishingEntries() {
   QTemporaryDir directory;QVERIFY(directory.isValid());
   const auto format=QSettings::registerFormat("structuredjournal",readSettings,writeSettings);
