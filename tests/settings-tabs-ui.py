@@ -46,6 +46,16 @@ ApplicationWindow {
   function saveConfiguration(){root.lanSaves++;return true}
  }
  property int settingsStartTab:0
+ property bool actionActive:false
+ property var sonar:sonarMock
+ QtObject {
+  id:persistence;objectName:"backupBackend"
+  property url exportedTo
+  property url importedFrom
+  function exportBackup(url){exportedTo=url;return ""}
+  function stageBackupRestore(url){importedFrom=url;return ""}
+  function backupRestorePending(){return String(importedFrom).length>0}
+ }
  property bool cameraConnected:false
  QtObject {id:connectivityController;property var connections:[];property bool autoConnect:false;property bool busy:false;property string status:"Test";property int serialBaud:115200}
  property bool linkAlive:false
@@ -76,7 +86,7 @@ ApplicationWindow {
  property string lastNavigationStatus:""
  property alias page:settingsLoader.item
  QtObject {id:alerts;objectName:"alertsBackend";property bool soundEnabled:true;property bool voiceEnabled:false;property real volume:.7;property string latest:"";function configure(s,v,n){soundEnabled=s;voiceEnabled=v;volume=n}function test(){}}
- QtObject {id:sonarMock;property string host:"";property int port:0;property bool udp:false;property bool connected:false;property bool dataAlive:false;property string status:"OFFLINE";function connectSonar(){} function disconnectSonar(){}}
+ QtObject {id:sonarMock;property string host:"";property int port:0;property bool udp:false;property bool connected:false;property bool dataAlive:false;property bool recording:false;property string status:"OFFLINE";function connectSonar(){} function disconnectSonar(){}}
  QtObject {id:cameraEthernet;property string host:"";property int port:0;property bool udp:false;property bool connected:false;property bool dataAlive:false;property string status:"OFFLINE"}
  Loader {id:settingsLoader;anchors.fill:parent;sourceComponent:settingsPage}
 }'''
@@ -163,6 +173,30 @@ with tempfile.TemporaryDirectory() as directory:
  page.settingsToolRequested.connect(lambda:calls.append(True))
  QMetaObject.invokeMethod(window.findChild(QObject,'settingsOpenQgc'),'clicked')
  assert len(calls)==1
+ page.setProperty('selectedTab',0)
+ export_button=window.findChild(QObject,'navoBackupExport')
+ import_button=window.findChild(QObject,'navoBackupImport')
+ assert export_button.property('enabled') and import_button.property('enabled')
+ window.setProperty('actionActive',True)
+ assert not export_button.property('enabled') and not import_button.property('enabled')
+ window.setProperty('actionActive',False)
+ backend=window.findChild(QObject,'backupBackend')
+ selected=folder/'navo-backup.json';selected.write_text('{}')
+ url=QUrl.fromLocalFile(str(selected))
+ export_picker=window.findChild(QObject,'navoBackupExportPicker')
+ assert export_picker.setProperty('selectedFile',url)
+ assert QMetaObject.invokeMethod(export_picker,'accepted')
+ assert backend.property('exportedTo')==url
+ import_picker=window.findChild(QObject,'navoBackupImportPicker')
+ confirm=window.findChild(QObject,'navoBackupRestoreConfirmation')
+ assert import_picker.setProperty('selectedFile',url)
+ assert QMetaObject.invokeMethod(import_picker,'accepted')
+ assert confirm.property('visible') and backend.property('importedFrom').isEmpty()
+ assert QMetaObject.invokeMethod(confirm,'reject')
+ assert backend.property('importedFrom').isEmpty()
+ assert QMetaObject.invokeMethod(import_picker,'accepted')
+ assert QMetaObject.invokeMethod(confirm,'accept')
+ assert backend.property('importedFrom')==url
  window.close();window.deleteLater()
  QCoreApplication.sendPostedEvents(None,QEvent.DeferredDelete);app.processEvents()
  assert not errors,errors

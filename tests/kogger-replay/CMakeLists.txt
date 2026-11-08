@@ -8,6 +8,7 @@ target_sources(navo-kogger-replay PRIVATE
     ../../custom/src/NavoKoggerRecorder.cc
     ../../custom/src/NavoKoggerRecorder.h
     ../../custom/src/NavoPersistence.cc
+    ../../custom/src/NavoBackup.cc
     ../../custom/src/NavoPersistence.h
     ../../custom/src/NavoEthernetTransport.cc
     ../../custom/src/NavoEthernetTransport.h

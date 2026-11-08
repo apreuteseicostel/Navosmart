@@ -2948,6 +2948,9 @@ Item {
         id: settingsPage
         NavoSettingsV3 {
             anchors.fill: parent
+            backupStore: persistence
+            backupAllowed: !root.actionActive && !(root.vehicle && root.vehicle.armed) && !sonar.recording
+            backupStartupStatus: typeof navoBackupStartupStatus === "undefined" ? "" : navoBackupStartupStatus
             vehicleConnected:root.linkAlive && !!root.vehicle
             connectivity:connectivityController
             lanDiagnostics:lanService

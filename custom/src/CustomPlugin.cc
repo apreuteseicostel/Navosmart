@@ -7,6 +7,7 @@
 #include "NavoKoggerChartBridge.h"
 #include "NavoKoggerTcpClient.h"
 #include "NavoPersistence.h"
+#include "NavoBackup.h"
 #include "NavoMissionBridge.h"
 #include "NavoEthernetTransport.h"
 #include "NavoLanDiscovery.h"
@@ -73,7 +74,9 @@ bool CustomPlugin::adjustSettingMetaData(const QString& settingsGroup, FactMetaD
  return visible;
 }
 QQmlApplicationEngine* CustomPlugin::createQmlApplicationEngine(QObject* parent){
+ const auto backupStatus=NavoBackup::applyPending();
  _engine=QGCCorePlugin::createQmlApplicationEngine(parent);
+ _engine->rootContext()->setContextProperty("navoBackupStartupStatus",backupStatus);
 #ifdef NAVO_ANDROID_ACCEPTANCE
  _engine->rootContext()->setContextProperty("navoAcceptance",new NavoAndroidAcceptance(_engine));
 #else

@@ -188,6 +188,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoMissionBridge.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoPersistence.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoPersistence.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoBackup.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoBackup.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoEthernetTransport.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoLanDiagnostics.cc
