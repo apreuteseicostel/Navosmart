@@ -105,6 +105,15 @@ ApplicationWindow {
  for width in [236,320,480]:
   w.setWidth(width);QTest.qWait(30)
   assert 0<toggle.property('width')<=width
+ # Native Relay1/Relay2: no NV3 telemetry, no misleading confirmed state,
+ # physical G20 buttons can override without software re-assertion.
+ c.setProperty('relayMode',True)
+ count=len(lights())
+ assert call('activate') and c.property('lightState')=='RELAY_UNVERIFIED'
+ assert lights()[count:]==[{'target':2,'value':1},{'target':1,'value':0}]
+ run('observe');assert len(lights())==count+2
+ run('off');assert len(lights())==count+2 # no restore: old Relay state unknown
+ c.setProperty('relayMode',False)
  # Audio policy: silence routine only, even with ordinary audio disabled.
  alertComponent=QQmlComponent(engine,QUrl.fromLocalFile(str(repo/'custom/qml/NavoAlerts.qml')));a=alertComponent.create();assert a,alertComponent.errors()
  q=QQmlComponent(engine);q.setData(b'''import QtQuick
