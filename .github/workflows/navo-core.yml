@@ -60,6 +60,8 @@ jobs:
         run: lua5.3 tests/firmware/v3-service.lua
       - name: SHT31 environment CRC and telemetry service
         run: lua5.3 tests/firmware/sht31.lua
+      - name: NAVO independent water probe ADC and diagnostic service
+        run: lua5.3 tests/firmware/water-only.lua
       - name: Hardware profiles and independent sensor expiry
         run: cmake -S tests/hardware -B /tmp/navo-hardware && cmake --build /tmp/navo-hardware -j2 && /tmp/navo-hardware/navo-hardware-test
       - name: Skydroid SDK bridge lifecycle and duplex regressions

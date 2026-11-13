@@ -14,6 +14,9 @@ QtObject {
     property real criticalTempC: 55
     property int waterConfirmMs: 4000
     property bool waterConfirmed: false
+    // Stand-alone water monitoring is diagnostic only until hardware commissioning.
+    property bool waterAutoActionEnabled: true
+    property bool criticalActionLatched: false
     property bool criticalLatched: false
     property string state: "UNKNOWN"
     property string reason: ""
@@ -43,11 +46,20 @@ QtObject {
             setState("CRITICAL", r)
             if (!criticalLatched) {
                 criticalLatched=true
+                if (waterConfirmed && !hot && !waterAutoActionEnabled)
+                    warning(r + " • numai avertizare: RTL/HOLD automat neactivat pentru sonda nouă")
+            }
+            const automaticAction = hot || (waterConfirmed && waterAutoActionEnabled)
+            if (automaticAction && !criticalActionLatched) {
+                criticalActionLatched=true
                 if (gpsValid() && homeValid()) rtlRequested(r)
                 else holdRequested(r + " • GPS/HOME invalid")
+            } else if (!automaticAction) {
+                criticalActionLatched=false
             }
         } else if (warm) {
             criticalLatched=false
+            criticalActionLatched=false
             setState("WARNING","Temperatură ridicată")
             warning(reason)
         } else if (!temperatureValid || !waterValid) {
@@ -55,6 +67,7 @@ QtObject {
             warning(reason)
         } else {
             criticalLatched=false
+            criticalActionLatched=false
             setState("NORMAL","Senzori în limite")
         }
     }
@@ -74,6 +87,7 @@ QtObject {
         waterTimer.stop()
         waterConfirmed=false
         criticalLatched=false
+        criticalActionLatched=false
         setState("UNKNOWN", "Aștept datele senzorilor")
     }
     onVehicleChanged: resetVehicle()

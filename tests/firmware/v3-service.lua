@@ -39,6 +39,8 @@ mavlink={init=function()end,register_rx_msgid=function()end,block_command=functi
  send_chan=function(_,_,ack)acks[#acks+1]=ack end}
 package.preload['MAVLink/mavlink_msgs']=function()return{get_msgid=function()return 76 end,decode=function(p)return p end,encode=function(_,p)return p end}end
 local update=dofile('ardupilot/scripts/navo_v3_service.lua');assert(pub.NV3CAP==9)
+assert(pub.NV3WATER==nil and pub.NV3WFAULT==nil,
+       "V3 must not overwrite a separate water-service stream while water=nil")
 local function release(request)
  return{command=31001,target_system=1,target_component=1,sysid=255,compid=190,param1=3,param2=3,param3=request,
  param4=9+32*10,param5=1500+4096*1900,param6=1500+4096*1900,param7=900}

@@ -51,6 +51,32 @@ private slots:
   QTest::qWait(9500);send(v,"NV3VER",1);send(v,"NV3ENV",2);QVERIFY(!t.interiorValid());
   t.setVehicle(nullptr);QCOMPARE(t.interiorAgeMs(),qint64(-1));
  }
+ void standaloneWater(){
+  Vehicle v;NavoH743Telemetry t;t.setVehicle(&v);
+  send(v,"NV3WATER",0);send(v,"NV3WFAULT",0);
+  QVERIFY(!t.waterValid()); // Legacy water data requires V3 heartbeat
+  send(v,"NV3WSTAT",5);QCOMPARE(t.waterMonitorStatus(),5);QVERIFY(!t.waterValid());
+  send(v,"NV3WADC",1.234f);QVERIFY(std::fabs(t.waterAdcVoltage()-1.234)<0.001);
+  send(v,"NV3WSTAT",2,2);QCOMPARE(t.waterMonitorStatus(),5); // wrong system cannot advance status
+  send(v,"NV3WDET",1);send(v,"NV3WFLT",0);
+  send(v,"NV3WSTAT",2);
+  QVERIFY(t.waterValid());QVERIFY(t.waterDetected());QVERIFY(!t.connected());
+  // The concurrently installed V3 service in real TLOG publishes fake dry/fault=1.
+  // It must not overwrite the new standalone probe stream.
+  send(v,"NV3VER",1);send(v,"NV3WATER",0);send(v,"NV3WFAULT",1);
+  QVERIFY(t.waterValid());QVERIFY(t.waterDetected());QVERIFY(!t.waterSensorFault());
+  send(v,"NV3WSTAT",3);
+  QVERIFY(!t.waterValid());QVERIFY(t.waterSensorFault());
+  send(v,"NV3WSTAT",2);QVERIFY(!t.waterValid()); // status cannot revive invalid measurements
+  send(v,"NV3WDET",0);send(v,"NV3WFLT",0);
+  QVERIFY(t.waterValid());QVERIFY(!t.waterDetected());
+  send(v,"NV3WSTAT",4);QVERIFY(!t.waterValid());
+  QTest::qWait(2600); // Expired standalone heartbeat must NEVER fall back to old fake dry.
+  send(v,"NV3VER",1);send(v,"NV3WATER",0);send(v,"NV3WFAULT",0);
+  QVERIFY(!t.waterValid());QCOMPARE(t.waterMonitorStatus(),0);
+  t.setVehicle(nullptr);QVERIFY(!t.waterValid());
+  QCOMPARE(t.waterMonitorStatus(),0);
+ }
  void partialUpdatesExpire(){
   Vehicle v;NavoH743Telemetry t;t.setVehicle(&v);
   send(v,"NV3VER",1);send(v,"NV3TEMP",60);send(v,"NV3WATER",1);send(v,"NV3WFAULT",0);
