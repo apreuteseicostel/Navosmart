@@ -503,6 +503,20 @@ test('ArduPilot Relay is the sole light owner; RC7/RC16 work without Lua NV3CAP'
  c.sonarController.replayMode=true;assert.equal(c.commandH743Light(1,1,'Far'),false);assert.equal(sent.length,4);
  c.sonarController.replayMode=false;assert.equal(c.commandH743Light(1,3,'Far'),false);assert.equal(sent.length,4);
 });
+test('Stealth sequences relay position and headlight by Vehicle MAVLink ACK, no duplicate 181 burst',()=>{
+ const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+ const stealth=fs.readFileSync(path.join(dir,'NavoStealth.qml'),'utf8');
+ const panel=fs.readFileSync(path.join(dir,'NavoStealthPanel.qml'),'utf8');
+ assert.match(dash,/function onMavCommandResult\(vehicleId,targetComponent,command,ackResult,failureCode\)/);
+ assert.match(dash,/targetComponent===1 && command===181/);
+ assert.match(dash,/stealth\.relayCommandResult\(ackResult,failureCode\)/);
+ assert.match(dash,/sendCommand\(1,181,!fromStealth,/);
+ assert.match(stealth,/lightState="RELAY_POS_PENDING"/);
+ assert.match(stealth,/lightState="RELAY_HEAD_PENDING"/);
+ assert.match(stealth,/function relayCommandResult\(ackResult,failureCode\)/);
+ assert.match(stealth,/if\(!sendLight\(1,0\)\)/);
+ assert.match(panel,/RELAY_HEAD_PENDING/);
+});
 test('Physical G20 L2/R2 are not re-dispatched from NAVO and RC remains the default',()=>{
  const sent=[];
  const c=context('NavoDashboard.qml',{lastNavigationStatus:'',vehicle:{sendCommand:(...args)=>sent.push(args)},linkAlive:true,sonarController:{replayMode:false}});
