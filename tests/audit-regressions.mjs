@@ -492,14 +492,42 @@ test('V3 request sequence persists, follows onboard acknowledgement and refuses 
  assert.equal(c.nextHardwareRequest(),9);assert.equal(settings.requestSequence,9);
  assert.equal(c.nextHardwareRequest(),10);telemetry.lastRequest=16777215;assert.equal(c.nextHardwareRequest(),0);
 });
-test('V3 lights require live capability and use explicit state with shared request IDs',()=>{
- const sent=[];const telemetry={connected:false,capabilities:1,lightsValid:true,headlightOn:true,positionLightsOn:false,lastRequest:0};
- const c=context('NavoDashboard.qml',{linkAlive:true,vehicle:{sendCommand:(...args)=>sent.push(args)},sonarController:{replayMode:false},hopperBridge:{commandPending:false},h743Telemetry:telemetry,hopperSettings:{requestSequence:0}});
+test('ArduPilot Relay is the sole light owner; RC7/RC16 work without Lua NV3CAP',()=>{
+ const sent=[];const c=context('NavoDashboard.qml',{linkAlive:false,vehicle:{sendCommand:(...args)=>sent.push(args)},sonarController:{replayMode:false},hopperBridge:{commandPending:true},h743Telemetry:{connected:false,capabilities:0,lightsValid:false}});
  assert.equal(c.commandH743Light(1,2,'Far'),false);assert.equal(sent.length,0);
- telemetry.connected=true;assert(c.commandH743Light(1,2,'Far'));assert.deepEqual(sent[0].slice(0,6),[1,31001,true,1,0,1]);
- assert(c.commandH743Light(2,2,'Poziții'));assert.deepEqual(sent[1].slice(3,6),[2,1,2]);
- c.sonarController.replayMode=true;assert.equal(c.commandH743Light(1,1,'Far'),false);assert.equal(sent.length,2);
- c.sonarController.replayMode=false;telemetry.capabilities=0;assert.equal(c.commandH743Light(1,1,'Far'),false);
+ c.linkAlive=true;
+ assert(c.commandH743Light(1,2,'Far'));assert.deepEqual(sent[0].slice(0,6),[1,181,true,0,2,0]); // Relay1 toggle
+ assert(c.commandH743Light(2,2,'Poziții'));assert.deepEqual(sent[1].slice(0,6),[1,181,true,1,2,0]); // Relay2 toggle
+ assert(c.commandH743Light(2,1,'Stealth',true));assert.deepEqual(sent[2].slice(0,6),[1,181,false,1,1,0]); // positions ON
+ assert(c.commandH743Light(1,0,'Stealth',true));assert.deepEqual(sent[3].slice(0,6),[1,181,false,0,0,0]); // head OFF
+ c.sonarController.replayMode=true;assert.equal(c.commandH743Light(1,1,'Far'),false);assert.equal(sent.length,4);
+ c.sonarController.replayMode=false;assert.equal(c.commandH743Light(1,3,'Far'),false);assert.equal(sent.length,4);
+});
+test('Stealth sequences relay position and headlight by Vehicle MAVLink ACK, no duplicate 181 burst',()=>{
+ const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+ const stealth=fs.readFileSync(path.join(dir,'NavoStealth.qml'),'utf8');
+ const panel=fs.readFileSync(path.join(dir,'NavoStealthPanel.qml'),'utf8');
+ assert.match(dash,/function onMavCommandResult\(vehicleId,targetComponent,command,ackResult,failureCode\)/);
+ assert.match(dash,/targetComponent===1 && command===181/);
+ assert.match(dash,/stealth\.relayCommandResult\(ackResult,failureCode\)/);
+ assert.match(dash,/sendCommand\(1,181,!fromStealth,/);
+ assert.match(stealth,/lightState="RELAY_POS_PENDING"/);
+ assert.match(stealth,/lightState="RELAY_HEAD_PENDING"/);
+ assert.match(stealth,/function relayCommandResult\(ackResult,failureCode\)/);
+ assert.match(stealth,/if\(!sendLight\(1,0\)\)/);
+ assert.match(panel,/RELAY_HEAD_PENDING/);
+});
+test('Physical G20 L2/R2 are not re-dispatched from NAVO and RC remains the default',()=>{
+ const sent=[];
+ const c=context('NavoDashboard.qml',{lastNavigationStatus:'',vehicle:{sendCommand:(...args)=>sent.push(args)},linkAlive:true,sonarController:{replayMode:false}});
+ c.dispatchG20Action('L2','FAR');
+ c.dispatchG20Action('R2','POZITII');
+ c.dispatchG20Action('R2','SONAR');
+ assert.equal(sent.length,0);
+ assert.match(c.lastNavigationStatus,/Relay/);
+ const qml=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+ assert.match(qml,/property string positionMode: "RC"/);
+ assert.match(qml,/autoPositionExplicitThisSession && lightSettings.positionMode==="AUTO"/);
 });
 test('V3 close can supersede a pending release but cannot bypass stale telemetry',()=>{
  const sent=[];const c=context('NavoHopperBridge.qml',{vehicle:{vehicleLinkManager:{communicationLost:false},sendCommand:(...a)=>sent.push(a)},hardwareTelemetry:{connected:true,capabilities:8,hopperStateValid:true,hopperMask:3},commandPending:true,nextRequest:()=>2,onboardWatchdog:{restart:noop},mavCompAutopilot1:1,leftServoOutput:9,rightServoOutput:10,leftClosedPwm:1500,leftOpenPwm:1900,rightClosedPwm:1500,rightOpenPwm:1900,releaseHoldMs:900,commandSent:noop,commandRejected:noop});

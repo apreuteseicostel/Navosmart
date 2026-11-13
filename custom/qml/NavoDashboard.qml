@@ -106,14 +106,30 @@ Item {
         navigationActive: root.directGotoActive || scanCoordinator.state==="SCANNING" || baitingController.enabled
         flightMode: root.flightMode
         nominalSpeedMps: baitingController.enabled ? baitingController.targetSpeedMps : scanCoordinator.state==="SCANNING" ? root.scanEstimateSpeedMps : baitingController.normalSpeedMps
-        lightsReady: h743Telemetry.connected && !!(h743Telemetry.capabilities & 1) && h743Telemetry.lightsValid && !hopperBridge.commandPending
-        headlightOn: h743Telemetry.headlightOn
-        positionLightsOn: h743Telemetry.positionLightsOn
-        onLightRequested: function(target,value) { root.commandH743Light(target,value,"Stealth",true) }
+        // Physical L2/CH7 and R2/CH16 already own Relay1/2 on the H743.
+        // Native ArduPilot Relay is the ONLY actuator authority for S6/GPIO55,
+        // S7/GPIO56; the Lua V3 light outputs must remain unconfigured.
+        relayMode: true
+        lightsReady: root.linkAlive && !!root.vehicle && !!root.vehicle.sendCommand && !sonar.replayMode
+        lightCommandBusy: false
+        lightUnavailableReason: !root.linkAlive ? "Legătura MAVLink H743 lipsește"
+            : sonar.replayMode ? "Comenzile luminilor sunt dezactivate în replay"
+            : "Nu pot trimite comanda către ArduPilot Relay"
+        // No NV3CAP / NV3HEAD / NV3POS required; no actual feedback claimed.
+        dispatchLight: function(target,value) { return root.commandH743Light(target,value,"Stealth",true) }
         onSpeedRequested: function(speed) {
             if(root.linkAlive && stealth.gpsReady && !sonar.replayMode && root.vehicle && root.vehicle.guidedModeChangeGroundSpeedMetersSecond &&
                ["AUTO","GUIDED"].indexOf(root.flightMode.toUpperCase())>=0 && isFinite(speed) && speed>0)
                 root.vehicle.guidedModeChangeGroundSpeedMetersSecond(speed)
+        }
+    }
+    // Native QGC Vehicle emits a result only for a completed MAVLink command
+    // (or transport/duplicate failure). Filter exact autopilot command/vehicle.
+    Connections {
+        target: root.vehicle
+        function onMavCommandResult(vehicleId,targetComponent,command,ackResult,failureCode) {
+            if(targetComponent===1 && command===181 && root.vehicle && vehicleId===root.vehicle.id)
+                stealth.relayCommandResult(ackResult,failureCode)
         }
     }
     NavoAlertAudio { id:alertAudio;volume:(stealth.active || (alerts.forcedCriticalPlayback && alertAudio.criticalPlaying)) ? Math.max(0.5,alerts.volume) : alerts.volume }
@@ -196,7 +212,7 @@ Item {
     Settings {
         id: lightSettings
         category: "NavoLights"
-        property string positionMode: "AUTO"
+        property string positionMode: "RC" // Physical G20 R2/CH16 is default authority.
     }
     Settings {
         id: hopperSettings
@@ -587,14 +603,18 @@ Item {
     }
     readonly property bool boatActive: !!vehicle && ((vehicle.groundSpeed && Number(vehicle.groundSpeed.rawValue)>0.25) || scanCoordinator.state==="SCANNING" || baitingController.enabled || root.awaitingMissionStart)
     property bool lastAutoPositionState: false
+    property bool autoPositionExplicitThisSession: false // Do not override RC with a restored old AUTO preference.
     onBoatActiveChanged: {
-        if(!stealth.active && lightSettings.positionMode==="AUTO" && lastAutoPositionState!==boatActive) {
+        if(!stealth.active && autoPositionExplicitThisSession && lightSettings.positionMode==="AUTO" && lastAutoPositionState!==boatActive) {
             lastAutoPositionState=boatActive
             commandH743Light(2,boatActive?1:0,"Poziții AUTO")
         }
     }
     function setPositionLightMode(mode) {
+        if(["RC","AUTO","ON","OFF"].indexOf(mode)<0)return
         lightSettings.positionMode=mode
+        autoPositionExplicitThisSession=(mode==="AUTO")
+        if(mode==="RC")return // Never issue an OFF just for selecting physical RC control.
         if(mode==="AUTO") { lastAutoPositionState=boatActive; commandH743Light(2,boatActive?1:0,"Poziții AUTO") }
         else commandH743Light(2,mode==="ON"?1:0,"Poziții")
     }
@@ -844,6 +864,13 @@ Item {
     }
 
     function dispatchG20Action(control, action) {
+        // L2/CH7 and R2/CH16 are already handled onboard by RCx_OPTION=28/34.
+        // The optional Android RC listener must not issue a SECOND relay toggle
+        // or open SONAR when the same physical light button was pressed.
+        if(control==="L2" || control==="R2") {
+            root.lastNavigationStatus="G20 "+control+" • lumini controlate direct prin ArduPilot Relay"
+            return
+        }
         if(action==="NONE") return
         if(action==="CUVA_STANGA") { openHopper("stanga"); return }
         if(action==="CUVA_DREAPTA") { openHopper("dreapta"); return }
@@ -867,18 +894,22 @@ Item {
             root.lastNavigationStatus=label+" indisponibil: H743 deconectat sau replay"
             return false
         }
-        if(hopperBridge.commandPending || !h743Telemetry.connected || !(h743Telemetry.capabilities & 1) || !h743Telemetry.lightsValid) {
-            root.lastNavigationStatus=label+" indisponibil: serviciul H743/V3 nu este pregătit"
+        // RC7_OPTION=28 -> Relay1/S6, RC16_OPTION=34 -> Relay2/S7.
+        // ArduPilot relay instance is zero-based (Relay1=0, Relay2=1).
+        if(target!==1 && target!==2)return false
+        // Only manual app/G20 UI calls may toggle. Stealth uses explicit ON/OFF.
+        if(mode!==0 && mode!==1 && mode!==2)return false
+        if(!fromStealth && root.stealthController && root.stealthController.relayAckPending) {
+            // Cancel next Stealth step, keep physical G20 buttons unaffected.
+            root.stealthController.manualLightOverride()
+            root.lastNavigationStatus=label+" • așteaptă finalizarea comenzii Relay anterioare; reîncearcă"
             return false
         }
-        if(target!==1 && target!==2)return false
-        var desired=mode===2 ? ((target===1 ? h743Telemetry.headlightOn : h743Telemetry.positionLightsOn) ? 0 : 1) : mode
-        if(desired!==0 && desired!==1)return false
-        var request=root.nextHardwareRequest()
-        if(!request)return false
-        vehicle.sendCommand(1,31001,true,target,desired,request,0,0,0,0)
+        var relayIndex=target-1
+        // Stealth errors are shown in its own panel, not as an intrusive QGC popup.
+        vehicle.sendCommand(1,181,!fromStealth,relayIndex,mode,0,0,0,0,0)
         if(!fromStealth && root.stealthController)root.stealthController.manualLightOverride()
-        root.lastNavigationStatus=label+" • solicitat H743; fără confirmare fizică"
+        root.lastNavigationStatus=label+" • comandă ArduPilot Relay "+target+" solicitată; fără confirmare fizică"
         return true
     }
 

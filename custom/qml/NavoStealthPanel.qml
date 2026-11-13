@@ -38,7 +38,7 @@ Rectangle {
         }
         Label {
             Layout.fillWidth:true;wrapMode:Text.WordWrap;color:"#c1d7e6";font.pixelSize:11
-            text:"Far oprit • poziții aprinse • sunete informative oprite. Alertele critice păstrează tonul; RGB și buzzerul H743 rămân neschimbate."
+            text:"Stealth solicită far OFF și poziții ON prin Relay 1/2. Butoanele G20 L2/R2 rămân funcționale; starea fizică a luminilor nu este măsurată. Alertele critice rămân sonore."
         }
         ProfileButton {
             objectName:"stealthToggle";Layout.fillWidth:true
@@ -51,16 +51,21 @@ Rectangle {
         Label { objectName:"stealthLightStatus";Layout.fillWidth:true;wrapMode:Text.WordWrap;font.pixelSize:11;color:"#ffd166"
             text:!root.controller || !root.controller.active ? "Lumini: control normal"
                 : root.controller.lightState==="CONFIRMED" ? "Lumini: stare raportată H743 — far OFF / poziții ON"
-                : root.controller.lightState==="UNAVAILABLE" ? "Stealth parțial: serviciul de lumini indisponibil"
+                : root.controller.lightState==="UNAVAILABLE" ? "Stealth parțial: "+(root.controller.lightUnavailableReason || "serviciul de lumini indisponibil")
+                : root.controller.lightState==="RELAY_POS_PENDING" ? "Relay 2: poziții ON solicitate; aștept răspunsul ArduPilot înainte de comanda farului"
+                : root.controller.lightState==="RELAY_HEAD_PENDING" ? "Relay 2 acceptat; Relay 1: far OFF solicitat, aștept răspunsul ArduPilot"
+                : root.controller.lightState==="RELAY_UNVERIFIED" ? "Ambele comenzi Relay acceptate; starea fizică a becurilor nu este măsurată"
+                : root.controller.lightState==="BUSY" ? "Lumini: comandă hardware în curs; reîncearcă după finalizare"
+                : root.controller.lightState==="FAILED" ? "Lumini: comanda Relay a eșuat / a fost refuzată; verifică legătura și reîncearcă"
                 : root.controller.lightState==="PILOT" ? "Lumini: comandă manuală prioritară"
-                : root.controller.lightState==="TIMEOUT" ? "Lumini: fără confirmare H743 în 5 s"
+                : root.controller.lightState==="TIMEOUT" ? (root.controller.relayMode ? "Lumini: fără răspuns la comanda Relay în 12 s" : "Lumini: fără confirmare H743 în 5 s")
                 : root.controller.lightState==="CHANGED" ? "Lumini: starea H743 s-a schimbat"
                 : "Lumini: comandă solicitată, aștept telemetria H743"
         }
-        ProfileButton { Layout.fillWidth:true;text:"Reaplică profilul de lumini";visible:!!root.controller && root.controller.active && ["UNAVAILABLE","PILOT","TIMEOUT","CHANGED"].indexOf(root.controller.lightState)>=0
-            enabled:!!root.controller && root.controller.lightsReady;onClicked:root.controller.applyLights() }
+        ProfileButton { Layout.fillWidth:true;text:"Reaplică profilul de lumini";visible:!!root.controller && root.controller.active && ["UNAVAILABLE","BUSY","FAILED","PILOT","TIMEOUT","CHANGED","RELAY_UNVERIFIED"].indexOf(root.controller.lightState)>=0
+            enabled:!!root.controller && root.controller.lightsReady && !root.controller.lightCommandBusy && !root.controller.relayAckPending;onClicked:root.controller.applyLights() }
         Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;font.pixelSize:11;color:"#c1d7e6";text:root.controller ? root.controller.speedState : "" }
         Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;font.pixelSize:10;color:"#9aaebd"
-            text:"Viteza este solicitată doar în navigația NAVO AUTO/GUIDED; pilotajul manual și RTL nu sunt limitate. La dezactivare, farul anterior aprins este solicitat din nou; pozițiile rămân aprinse. Nu este confirmare mecanică sau măsurare a zgomotului." }
+            text:"Viteza este solicitată doar în navigația NAVO AUTO/GUIDED; pilotajul manual și RTL nu sunt limitate. Cu Relay nativ, dezactivarea nu restaurează farul (starea anterioară nu este măsurată). Comenzile nu confirmă becurile fizic și nu influențează modul MANUAL sau RTL." }
     }
 }

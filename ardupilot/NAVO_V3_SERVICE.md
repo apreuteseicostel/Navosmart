@@ -1,6 +1,6 @@
 # NAVO V3 onboard service — integration candidate, not commissioned hardware
 
-This service replaces the Nano transport for lights and sensors, and runs hopper cycles on H743. It is **disabled by default**. No .param export or installed firmware version has been provided; no output assignment is approved by this change.
+This service replaces the Nano transport for separately reviewed sensors and hopper cycles on H743. It has an **optional** Lua light backend, but it must **not** be enabled on the current boat: native ArduPilot Relay1/Relay2 already own the working G20-controlled S6/GPIO55 and S7/GPIO56 outputs. This script is **disabled by default** and does not change the existing Relay configuration.
 
 ## Installation after bench review
 
@@ -9,7 +9,7 @@ Copy `scripts/navo_v3_service.lua` into `APM/scripts/`, and `modules/navo_v3_cor
 Fill the configuration from the actual wiring and calibration. Only then change `enabled` to true. Nil sections do not enable their capability. Review **physical pad ownership**, including aliases between servo outputs and GPIO numbers; the script can detect duplicate logical numbers but cannot infer all board-specific aliases. Protect motor, rudder, radio and GPS assignments. Do not copy historical proposed pins blindly.
 
 - Hoppers: two dedicated output numbers (1-based), open/closed PWM, hold 100–2000 ms. Each output must have `SERVOx_FUNCTION=135` (constant trim), `SERVOx_TRIM=closed`, and MIN/MAX containing both values. The script refuses mismatches. Configuration is read at startup and before releases, not written remotely.
-- Lights: two reviewed digital GPIO outputs, active high into the V3 MOSFET inputs. No PWM brightness or electrical feedback is claimed.
+- Lights: on the current G20 boat, leave `cfg.lights=nil`. Relay1 (RC7/L2) and Relay2 (RC16/R2) retain GPIO55/56. Optional Lua lights for a different hardware profile are allowed only on physically distinct pins with no native Relay ownership; no PWM brightness or electrical feedback is claimed.
 - Temperature: actual ADC pin, divider topology, series resistance, measured reference, nominal NTC resistance and beta. The test uses a synthetic 10k/10k divider; **it is not a statement of Rev F divider values**. Rails/out-of-range are invalid.
 - Water: actual ADC, excitation GPIO, at least 100 ms settling, measured valid range and wet threshold/polarity. Calibrate dry, wet, open and short on the assembled Rev F circuit; arbitrary thresholds must not be enabled.
 - RGB: reviewed serialLED output, one pixel, RGB/GRB order. Verify WS2811 timing, logic levels and channel order with the real module. Magenta means unavailable/fault, red wet/critical temperature, blue hopper cycle, green normal observed values. No buzzer/physical ACK is added.
@@ -49,3 +49,29 @@ API references inspected during implementation (master source; installed version
 - https://github.com/ArduPilot/ardupilot/blob/master/libraries/AP_Scripting/examples/analog_input_and_GPIO.lua
 - https://github.com/ArduPilot/ardupilot/blob/master/libraries/SRV_Channel/SRV_Channels.cpp
 - https://github.com/ArduPilot/ardupilot/blob/master/libraries/SRV_Channel/SRV_Channel_aux.cpp
+
+## Existing lighting owner — G20 L2/R2
+
+This boat already uses ArduPilot native Relay: G20 L2 -> CH7 with
+`RC7_OPTION=28` -> Relay1 -> S6/GPIO55 (far); R2 -> CH16 with
+`RC16_OPTION=34` -> Relay2 -> S7/GPIO56 (positions).
+`SERVO6_FUNCTION=-1` and `SERVO7_FUNCTION=-1` free these outputs
+for relay operation. Keep this setup unchanged.
+
+NAVO app manual lighting and Stealth must use
+`MAV_CMD_DO_SET_RELAY=181`, relay instance 0=headlight, 1=positions.
+The first relay number in MAVLink is zero-based. Manual UI uses relay toggle
+(mode 2); Stealth sends explicit positions ON, then far OFF, only at activation
+or user-requested reapplication. The existing RC buttons work when Android is
+offline and must retain priority. With no verified relay state telemetry, the UI
+must report "requested/unverified" and must not restore a prior lamp state.
+
+The optional `cfg.lights` branch inside this Lua script must remain **nil**
+on this H743: activating it on GPIO55/56 would cause competing GPIO ownership,
+potentially breaking the physical RC buttons. The Lua controller can still
+manage non-lighting features with separately reviewed mappings. Read-only
+SHT31/water telemetry scripts do not control lights.
+
+If native relays were ever replaced by the optional Lua lighting backend,
+that would require an explicit separate migration and bench review;
+it is **not** part of PR #73.

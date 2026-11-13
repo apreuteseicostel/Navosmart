@@ -23,24 +23,37 @@ normal/task target is requested again. Mode transitions and actual response
 must be validated on the installed Rover firmware. This is not a hard physical
 speed limiter; current, wind or H743 rejection can cause different actual speed.
 
-## Lights
+## Lights — existing G20 / H743 relay configuration
 
-Fixed policy: positions ON, headlight OFF; RGB and H743 buzzer untouched.
-Needs fresh V3 capabilities/state and an available command path. First request
-positions ON, wait for reported state, then request headlight OFF. State is
-confirmed only by fresh H743 telemetry; no electrical/optical feedback is claimed.
-Five-second timeout; bounded requests, no repeated enforcement/flooding. Reapply
-requires another explicit click after timeout/unavailable/pilot override/change.
-Without the V3 light service, profile is clearly partial, not falsely confirmed.
+The boat already operates the lights directly through **ArduPilot Relay**, without
+NAVO Android or Lua: G20 L2 -> RC7_OPTION=28 -> Relay1 -> H743 S6/GPIO55
+(headlight); G20 R2 -> RC16_OPTION=34 -> Relay2 -> S7/GPIO56
+(position lights). SERVO6_FUNCTION=-1 and SERVO7_FUNCTION=-1. This
+installation was reported working and must not be reconfigured to use
+Lua GPIO writes on the same pins. CH5 remains the mode switch.
 
-Existing AUTO position-light switching is suspended during the profile. Manual
-G20/app lighting commands have priority and mark the lighting portion overridden.
-Profile never commands position lights OFF. Explicit profile deactivation can
-request the previously ON headlight again, only on the same live session with
-fresh service and no pilot override; H743's thermal guards still apply. Positions
-remain ON on exit. Lost link/replay/vehicle change cancels the profile without
-restoring lights or replaying requests after reconnect. No hardware mapping or
-service commissioning is performed by activating this UI profile.
+Stealth uses the native MAVLink `MAV_CMD_DO_SET_RELAY` (181), relay
+instances **0** for headlight and **1** for positions, with explicit ON/OFF
+values. On explicit activation or manual "Reapply", request positions ON
+then headlight OFF, once. RC remains functional without the app; no automatic
+re-assertion over physical button changes. Manual UI commands use ArduPilot's
+relay toggle value (2). On disconnection/replay, neither Stealth nor the app
+may send light commands.
+
+No reliable relay state feedback is currently available in this integration:
+transport acceptance is not light confirmation. The UI displays "requested,
+unverified" instead of falsely showing "confirmed" or timing out because
+NV3HEAD/NV3POS are absent. On deactivation the app does not attempt to
+restore headlight state from an unknown snapshot. Automatic position-light control is **not** enabled from a restored old AUTO
+preference: the default is physical RC, and AUTO requires an explicit selection
+in the current session. This prevents movement from unexpectedly overriding R2.
+The optional Android RC listener does not redispatch L2 or R2 (and does not
+open SONAR from R2); native ArduPilot handles those physical buttons.
+
+The V3 Lua config must keep `lights=nil` for this boat. The V3 service can
+continue handling separately verified hoppers and sensors; SHT31 and
+water modules are independent read-only telemetry. Never run two
+hardware control authorities on the same GPIO outputs.
 
 ## Sounds
 
@@ -65,3 +78,35 @@ alerts, environment and controller regressions remain required in CI.
 Still required: Android build and G20 installed UI/audio, H743 command acceptance,
 real light wiring/thermal protection, speed/ramp and pilot takeover, loss/reconnect,
 RTL/failsafe and loaded boat trials. No merge or hardware activation is claimed.
+
+## 13 November 2026 correction
+
+The first version of PR #73 assumed lights needed a live NV3CAP bit 1.
+The verified G20/Relay configuration makes that assumption incorrect.
+Use the already commissioned native ArduPilot relay interface;
+do **not** activate `cfg.lights` or issue MAVLink 31001 for Relay1/2.
+Physical tests must confirm accepted commands, manual override and
+Stealth order with the installed Rover firmware.
+
+## 13 November 2026 — QGC MAVLink relay command ACK serialization
+
+G20 bench screenshot exposed QGroundControl's "Waiting on previous response to
+same command" popup when two MAV_CMD_DO_SET_RELAY (181) commands were issued
+synchronously. In QGC v5.0.7, Vehicle rejects a duplicate in-flight MAV_CMD
+until its COMMAND_ACK result or terminal failure; changing relay numbers does
+not change the MAV_CMD ID. The physical positions light switched while the
+headlight remained on, matching that failure mechanism.
+
+Fix in PR #73: Stealth sends **Relay2 positions ON** only, waits for
+`Vehicle.mavCommandResult` (target autopilot component 1, command 181,
+`ackResult=0`, `failureCode=0`), then sends **Relay1 headlight OFF**. It
+waits independently for the second terminal ACK. Failure/no-response never
+triggers the second command and never claims success. A 12-second watchdog per
+step stops the sequence without automatic retries; the user may explicitly
+reapply after investigating the hardware link. QGC popups are suppressed only
+for these Stealth requests; the panel shows their status and distinguishes
+an accepted MAVLink command from actual bulb illumination. Disconnect,
+deactivate and manual override cancel any pending second step.
+
+G20 L2/CH7 and R2/CH16 remain direct ArduPilot RC/Relay hardware controls
+without Lua ownership; no change to H743 parameters, relay pins or modes.
