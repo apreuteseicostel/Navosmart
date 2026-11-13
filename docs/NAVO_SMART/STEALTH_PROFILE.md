@@ -23,24 +23,34 @@ normal/task target is requested again. Mode transitions and actual response
 must be validated on the installed Rover firmware. This is not a hard physical
 speed limiter; current, wind or H743 rejection can cause different actual speed.
 
-## Lights
+## Lights — existing G20 / H743 relay configuration
 
-Fixed policy: positions ON, headlight OFF; RGB and H743 buzzer untouched.
-Needs fresh V3 capabilities/state and an available command path. First request
-positions ON, wait for reported state, then request headlight OFF. State is
-confirmed only by fresh H743 telemetry; no electrical/optical feedback is claimed.
-Five-second timeout; bounded requests, no repeated enforcement/flooding. Reapply
-requires another explicit click after timeout/unavailable/pilot override/change.
-Without the V3 light service, profile is clearly partial, not falsely confirmed.
+The boat already operates the lights directly through **ArduPilot Relay**, without
+NAVO Android or Lua: G20 L2 -> RC7_OPTION=28 -> Relay1 -> H743 S6/GPIO55
+(headlight); G20 R2 -> RC16_OPTION=34 -> Relay2 -> S7/GPIO56
+(position lights). SERVO6_FUNCTION=-1 and SERVO7_FUNCTION=-1. This
+installation was reported working and must not be reconfigured to use
+Lua GPIO writes on the same pins. CH5 remains the mode switch.
 
-Existing AUTO position-light switching is suspended during the profile. Manual
-G20/app lighting commands have priority and mark the lighting portion overridden.
-Profile never commands position lights OFF. Explicit profile deactivation can
-request the previously ON headlight again, only on the same live session with
-fresh service and no pilot override; H743's thermal guards still apply. Positions
-remain ON on exit. Lost link/replay/vehicle change cancels the profile without
-restoring lights or replaying requests after reconnect. No hardware mapping or
-service commissioning is performed by activating this UI profile.
+Stealth uses the native MAVLink `MAV_CMD_DO_SET_RELAY` (181), relay
+instances **0** for headlight and **1** for positions, with explicit ON/OFF
+values. On explicit activation or manual "Reapply", request positions ON
+then headlight OFF, once. RC remains functional without the app; no automatic
+re-assertion over physical button changes. Manual UI commands use ArduPilot's
+relay toggle value (2). On disconnection/replay, neither Stealth nor the app
+may send light commands.
+
+No reliable relay state feedback is currently available in this integration:
+transport acceptance is not light confirmation. The UI displays "requested,
+unverified" instead of falsely showing "confirmed" or timing out because
+NV3HEAD/NV3POS are absent. On deactivation the app does not attempt to
+restore headlight state from an unknown snapshot. No automatic light
+control outside a user-requested Stealth session is added here.
+
+The V3 Lua config must keep `lights=nil` for this boat. The V3 service can
+continue handling separately verified hoppers and sensors; SHT31 and
+water modules are independent read-only telemetry. Never run two
+hardware control authorities on the same GPIO outputs.
 
 ## Sounds
 
@@ -66,30 +76,11 @@ Still required: Android build and G20 installed UI/audio, H743 command acceptanc
 real light wiring/thermal protection, speed/ramp and pilot takeover, loss/reconnect,
 RTL/failsafe and loaded boat trials. No merge or hardware activation is claimed.
 
-## One canonical light authority (13 November 2026)
+## 13 November 2026 correction
 
-The G20 Stealth panel, manual FAR/POZITII controls and automatic position lights
-must all dispatch through `NavoDashboard.commandH743Light()` to **one** H743
-owner: `ardupilot/scripts/navo_v3_service.lua`, `COMMAND_LONG 31001`.
-That same service publishes `NV3VER`, `NV3CAP` bit 1, `NV3HEAD` and `NV3POS`.
-Do **not** install a second Lua light handler or reactivate the historical
-`navo_nano_bridge.lua` / Arduino Nano light path for V3.
-The separate SHT31 / water monitoring scripts are read-only and not lighting
-controllers; keep them separate until individually commissioned.
-
-Important: the repository ships `navo_v3_config.lua` with `enabled=false`
-and `lights=nil`. No app change can safely invent the required physical H743
-GPIO mapping. For an independently reviewed *lights-only* bench configuration,
-set only `lights={head_gpio=<verified>,position_gpio=<verified>}` and `enabled=true`;
-leave `hoppers=nil`, `temperature=nil`, `water=nil`, `rgb=nil` unless
-separately verified. Confirm the output functions, pin aliases, active-high
-MOSFET logic, the PCB J7 5 V gate-driver supply, and installed ArduPilot Lua
-support **before** powering the circuit. Never use an unverified pin number.
-
-The dashboard now displays the precise missing prerequisite (no NV3VER,
-no NV3CAP lighting capability, or stale NV3HEAD/NV3POS) rather than implying
-there are two different services to combine. A pending hopper command is
-transiently busy, not an offline lighting service. The Stealth controller accepts
-light state transitions only after the shared command dispatcher returns true;
-rejected commands are shown as failed and are not counted as pending ACK.
-Actual illumination and thermal cut-off still require physical verification.
+The first version of PR #73 assumed lights needed a live NV3CAP bit 1.
+The verified G20/Relay configuration makes that assumption incorrect.
+Use the already commissioned native ArduPilot relay interface;
+do **not** activate `cfg.lights` or issue MAVLink 31001 for Relay1/2.
+Physical tests must confirm accepted commands, manual override and
+Stealth order with the installed Rover firmware.
