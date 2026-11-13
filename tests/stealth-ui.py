@@ -50,6 +50,10 @@ ApplicationWindow {
  function retry(){return profile.applyLights()}
  function timeout(){profile.requestedAt=Date.now()-6000;profile.observe()}
  function swap(){profile.vehicle=otherBoat}
+ function relayAckAccepted(){return profile.relayCommandResult(0,0)}
+ function relayAckDenied(){return profile.relayCommandResult(4,0)}
+ function relayAckDuplicate(){return profile.relayCommandResult(4,2)}
+ function relayTimeout(){return profile.relayAckTimeout()}
 }''')
  engine.load(QUrl.fromLocalFile(str(p)));assert engine.rootObjects(),errors
  w=engine.rootObjects()[0];c=w.findChild(QObject,'profile');panel=w.findChild(QQuickItem,'panel')
@@ -109,10 +113,33 @@ ApplicationWindow {
  # physical G20 buttons can override without software re-assertion.
  c.setProperty('relayMode',True)
  count=len(lights())
- assert call('activate') and c.property('lightState')=='RELAY_UNVERIFIED'
+ assert call('activate') and c.property('lightState')=='RELAY_POS_PENDING'
+ assert lights()[count:]==[{'target':2,'value':1}]
+ assert not call('retry') # cannot send a second MAV_CMD 181 until first ACK.
+ run('observe');assert len(lights())==count+1
+ assert call('relayAckAccepted') and c.property('lightState')=='RELAY_HEAD_PENDING'
  assert lights()[count:]==[{'target':2,'value':1},{'target':1,'value':0}]
- run('observe');assert len(lights())==count+2
- run('off');assert len(lights())==count+2 # no restore: old Relay state unknown
+ assert call('relayAckAccepted') and c.property('lightState')=='RELAY_UNVERIFIED'
+ assert not call('relayAckAccepted')
+ run('off');assert len(lights())==count+2 # no restore: original state unknown
+ # Refused first command must not extinguish far.
+ count=len(lights());assert call('activate')
+ assert lights()[count:]==[{'target':2,'value':1}]
+ assert call('relayAckDenied') and c.property('lightState')=='FAILED'
+ assert len(lights())==count+1
+ # A duplicate failure from QGC must not trigger a second command.
+ assert call('retry') and c.property('lightState')=='RELAY_POS_PENDING'
+ assert call('relayAckDuplicate') and c.property('lightState')=='FAILED'
+ assert len(lights())==count+2
+ assert call('retry') and call('relayTimeout') and c.property('lightState')=='TIMEOUT'
+ assert not call('relayAckAccepted') # never complete after timeout
+ run('off')
+ # Loss of link / deactivation cancels the pending far-off step.
+ count=len(lights());assert call('activate')
+ c.setProperty('linkReady',False)
+ assert not c.property('active') and len(lights())==count+1
+ assert not call('relayAckAccepted')
+ c.setProperty('linkReady',True)
  c.setProperty('relayMode',False)
  # Audio policy: silence routine only, even with ordinary audio disabled.
  alertComponent=QQmlComponent(engine,QUrl.fromLocalFile(str(repo/'custom/qml/NavoAlerts.qml')));a=alertComponent.create();assert a,alertComponent.errors()
