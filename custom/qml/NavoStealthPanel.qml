@@ -51,14 +51,16 @@ Rectangle {
         Label { objectName:"stealthLightStatus";Layout.fillWidth:true;wrapMode:Text.WordWrap;font.pixelSize:11;color:"#ffd166"
             text:!root.controller || !root.controller.active ? "Lumini: control normal"
                 : root.controller.lightState==="CONFIRMED" ? "Lumini: stare raportată H743 — far OFF / poziții ON"
-                : root.controller.lightState==="UNAVAILABLE" ? "Stealth parțial: serviciul de lumini indisponibil"
+                : root.controller.lightState==="UNAVAILABLE" ? "Stealth parțial: "+(root.controller.lightUnavailableReason || "serviciul de lumini indisponibil")
+                : root.controller.lightState==="BUSY" ? "Lumini: comandă hardware în curs; reîncearcă după finalizare"
+                : root.controller.lightState==="FAILED" ? "Lumini: comanda V3 nu a fost transmisă; reîncearcă"
                 : root.controller.lightState==="PILOT" ? "Lumini: comandă manuală prioritară"
                 : root.controller.lightState==="TIMEOUT" ? "Lumini: fără confirmare H743 în 5 s"
                 : root.controller.lightState==="CHANGED" ? "Lumini: starea H743 s-a schimbat"
                 : "Lumini: comandă solicitată, aștept telemetria H743"
         }
-        ProfileButton { Layout.fillWidth:true;text:"Reaplică profilul de lumini";visible:!!root.controller && root.controller.active && ["UNAVAILABLE","PILOT","TIMEOUT","CHANGED"].indexOf(root.controller.lightState)>=0
-            enabled:!!root.controller && root.controller.lightsReady;onClicked:root.controller.applyLights() }
+        ProfileButton { Layout.fillWidth:true;text:"Reaplică profilul de lumini";visible:!!root.controller && root.controller.active && ["UNAVAILABLE","BUSY","FAILED","PILOT","TIMEOUT","CHANGED"].indexOf(root.controller.lightState)>=0
+            enabled:!!root.controller && root.controller.lightsReady && !root.controller.lightCommandBusy;onClicked:root.controller.applyLights() }
         Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;font.pixelSize:11;color:"#c1d7e6";text:root.controller ? root.controller.speedState : "" }
         Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;font.pixelSize:10;color:"#9aaebd"
             text:"Viteza este solicitată doar în navigația NAVO AUTO/GUIDED; pilotajul manual și RTL nu sunt limitate. La dezactivare, farul anterior aprins este solicitat din nou; pozițiile rămân aprinse. Nu este confirmare mecanică sau măsurare a zgomotului." }
