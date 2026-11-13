@@ -87,3 +87,26 @@ Use the already commissioned native ArduPilot relay interface;
 do **not** activate `cfg.lights` or issue MAVLink 31001 for Relay1/2.
 Physical tests must confirm accepted commands, manual override and
 Stealth order with the installed Rover firmware.
+
+## 13 November 2026 — QGC MAVLink relay command ACK serialization
+
+G20 bench screenshot exposed QGroundControl's "Waiting on previous response to
+same command" popup when two MAV_CMD_DO_SET_RELAY (181) commands were issued
+synchronously. In QGC v5.0.7, Vehicle rejects a duplicate in-flight MAV_CMD
+until its COMMAND_ACK result or terminal failure; changing relay numbers does
+not change the MAV_CMD ID. The physical positions light switched while the
+headlight remained on, matching that failure mechanism.
+
+Fix in PR #73: Stealth sends **Relay2 positions ON** only, waits for
+`Vehicle.mavCommandResult` (target autopilot component 1, command 181,
+`ackResult=0`, `failureCode=0`), then sends **Relay1 headlight OFF**. It
+waits independently for the second terminal ACK. Failure/no-response never
+triggers the second command and never claims success. A 12-second watchdog per
+step stops the sequence without automatic retries; the user may explicitly
+reapply after investigating the hardware link. QGC popups are suppressed only
+for these Stealth requests; the panel shows their status and distinguishes
+an accepted MAVLink command from actual bulb illumination. Disconnect,
+deactivate and manual override cancel any pending second step.
+
+G20 L2/CH7 and R2/CH16 remain direct ArduPilot RC/Relay hardware controls
+without Lua ownership; no change to H743 parameters, relay pins or modes.
