@@ -49,3 +49,24 @@ API references inspected during implementation (master source; installed version
 - https://github.com/ArduPilot/ardupilot/blob/master/libraries/AP_Scripting/examples/analog_input_and_GPIO.lua
 - https://github.com/ArduPilot/ardupilot/blob/master/libraries/SRV_Channel/SRV_Channels.cpp
 - https://github.com/ArduPilot/ardupilot/blob/master/libraries/SRV_Channel/SRV_Channel_aux.cpp
+
+## Single lighting owner / lights-only commissioning
+
+Lighting is **not** a separate Lua daemon. The only V3 light command receiver is
+`navo_v3_service.lua` (action 1/2 of MAVLink 31001) and the same owner publishes
+`NV3CAP` bit 1, `NV3HEAD`, `NV3POS`. Stealth/manual/AUTO lighting all use the
+single dashboard dispatcher. Do not install a duplicate handler or the old Nano
+bridge on the V3 boat.
+
+For **lights-only bench commissioning** of the existing service, leave
+unreviewed `hoppers`, `temperature`, `water` and `rgb` as `nil`; do not
+make them prerequisites for lighting. Activate `cfg.enabled` and configure
+`cfg.lights` only after reviewing physical GPIO/pad use, SERVO output ownership,
+3.3 V level compatibility, MOSFET active-high behavior and 5 V driver power.
+If `NV3VER` is absent, Lua is not running/reachable; if `NV3CAP` omits bit 1,
+lights are not configured; if `NV3HEAD/NV3POS` are stale, do not claim light
+confirmation. `NV3HEAD/NV3POS` report software output state, not lamp feedback.
+
+Other scripts such as the read-only SHT31 and water diagnostics remain independent
+and cannot substitute for the V3 lighting owner. Do not enable hardware from the
+Android UI and do not auto-merge this change before bench tests.
