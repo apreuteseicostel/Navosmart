@@ -16,7 +16,7 @@ Item {
     property var projected: []
     property var projectedView: ({})
     function currentMapView() {
-        return { center:root.map.center, zoomLevel:root.map.zoomLevel,
+        return { center:QtPositioning.coordinate(root.map.center.latitude,root.map.center.longitude), zoomLevel:root.map.zoomLevel,
                  bearing:root.map.bearing, tilt:root.map.tilt,
                  width:root.map.width, height:root.map.height }
     }
