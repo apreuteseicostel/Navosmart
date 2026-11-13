@@ -104,6 +104,7 @@ qt_add_qml_module(NavoSmartModule
         # Qt 6.8.3's implicit + explicit NavoSmart imports ambiguous at startup.
         qml/NavoBottomAnalysis.js
         qml/NavoVisualPosition.js
+        qml/NavoMapProjection.js
         icons/layers.svg
         icons/route.svg
         icons/map.svg

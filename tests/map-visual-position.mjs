@@ -45,4 +45,104 @@ test('Raw input unchanged and visual binding isolated from controllers',()=>{
  assert.match(map,/center: visible \? root.vehicle.coordinate : QtPositioning.coordinate\(\)/);
  assert.match(map,/text: "GPS vechi"/);
 });
+
+// Keep native mesh geometry reusable when only map.center moves. Zoom,
+// rotation, tilt, large jumps and a not-ready map must reproject accurately.
+const mapPan=vm.createContext({});
+vm.runInContext(fs.readFileSync('custom/qml/NavoMapProjection.js','utf8').replace('.pragma library',''),mapPan);
+function mockMap(center) {
+ return {mapReady:true,width:400,height:300,center,zoomLevel:17,bearing:0,tilt:0,
+   fromCoordinate(p){return {x:200+(p.longitude-this.center.longitude)*10000,
+                              y:150-(p.latitude-this.center.latitude)*10000};}};
+}
+function snapshot(map) {
+ return {center:{...map.center},width:map.width,height:map.height,zoomLevel:map.zoomLevel,bearing:map.bearing,tilt:map.tilt};
+}
+test('Native surface pan reuses projected vertices with the same screen coordinates',()=>{
+ const old={latitude:52,longitude:-1,isValid:true}, map=mockMap(old), view=snapshot(map);
+ const points=[{latitude:52.001,longitude:-1.002},{latitude:52.002,longitude:-1.001}];
+ const projected=points.map(p=>map.fromCoordinate(p));
+ map.center={latitude:52.001,longitude:-1.01,isValid:true};
+ const expected=points.map(p=>map.fromCoordinate(p));
+ const offset=mapPan.panOffset(map,view);
+ assert(offset); assert(Math.abs(offset.x-100)<1e-8); assert(Math.abs(offset.y-10)<1e-8);
+ const result=mapPan.translateProjected(projected,offset);
+ for(let i=0;i<points.length;i++){
+   assert(Math.abs(result[i].x-expected[i].x)<1e-8);
+   assert(Math.abs(result[i].y-expected[i].y)<1e-8);
+ }
+});
+test('Native surface pan preserves invalid vertices and zero movement',()=>{
+ const map=mockMap({latitude:52,longitude:-1,isValid:true}),view=snapshot(map);
+ assert.equal(mapPan.panOffset(map,view).x,0);
+ const points=[null,{x:2,y:3}];
+ assert.equal(mapPan.translateProjected(points,{x:4,y:-1}),points);
+ assert.equal(points[0],null);assert.equal(points[1].x,6);assert.equal(points[1].y,2);
+});
+test('Native pan cache safely falls back on zoom, rotation, tilt, resize, large jumps and invalid map',()=>{
+ const original={latitude:52,longitude:-1,isValid:true},map=mockMap(original),view=snapshot(map);
+ for(const [field,value] of [['zoomLevel',18],['bearing',10],['tilt',10],['width',500],['height',200],['mapReady',false]]){
+   const other={...map,[field]:value};assert.equal(mapPan.panOffset(other,view),null,field);
+ }
+ assert.equal(mapPan.panOffset({...map,center:{latitude:52,longitude:1,isValid:true}},view),null);
+ assert.equal(mapPan.panOffset({...map,center:{latitude:52,longitude:0,isValid:false}},view),null);
+});
+test('Map source uses pan reuse and actual track incremental Qt path updates',()=>{
+ const source=fs.readFileSync('custom/qml/NavoNativeBathymetryOverlay.qml','utf8');
+ const track=fs.readFileSync('custom/qml/NavoActualTrack.qml','utf8');
+ const cmake=fs.readFileSync('custom/CMakeLists.txt','utf8');
+ assert.match(source,/import "NavoMapProjection\.js" as MapPan/);
+ assert.match(source,/onCenterChanged\(\)\{root\.invalidateProjection\(true,true\)\}/);
+ assert.match(source,/MapPan\.translateProjected\(root\.projected,offset\)/);
+ assert.match(source,/root\.projectedView=root\.currentMapView\(\)/);
+ assert.match(track,/actualTrack\.addCoordinate\(c\)/);
+ assert.match(track,/function appendTrackCoordinate\(c\)/);
+ assert.match(track,/trackCoordinates\.push\(c\)/);
+ assert.match(track,/trackPointCount\s*=\s*trackCoordinates\.length/);
+ assert.match(track,/lastTrackCoordinate\s*=\s*c/);
+ assert.match(track,/path:\s*root\.trackPointCount\s*>\s*0/);
+ const map=fs.readFileSync('custom/qml/NavoMap.qml','utf8');
+ assert.match(map,/actualTrack\.trackPointCount/);
+ assert.doesNotMatch(map,/actualTrack\.trackCoordinates\.length/);
+ assert.match(source,/if \(centerOnly\) viewportTimer\.restart\(\)/);
+ const trackItem=track.slice(track.indexOf('id: actualTrack'),track.indexOf('id: homeLeg'));
+ assert.doesNotMatch(trackItem,/path:\s*root\.trackCoordinates/);
+ assert.match(cmake,/qml\/NavoMapProjection\.js/);
+});
+
+test('GPS history appends without array copying and keeps the HOME leg reactive',()=>{
+ const source=fs.readFileSync('custom/qml/NavoActualTrack.qml','utf8');
+ const extract=(name)=>{
+   const re=new RegExp('function '+name+'\\([^)]*\\) \\{[\\s\\S]*?\\n    \\}');
+   const match=source.match(re);
+   assert(match,'missing '+name+' function');return match[0];
+ };
+ const added=[], ctx=vm.createContext({
+   trackCoordinates:[], trackPointCount:0, lastTrackCoordinate:null,
+   trackMapItemReady:true,
+   actualTrack:{_path:[],
+     set path(points){this._path=[...points]},
+     get path(){return this._path},
+     addCoordinate(p){added.push(p);this._path.push(p)}},
+   QtPositioning:{coordinate(){return {isValid:false}}},
+ });
+ vm.runInContext(extract('replaceTrack')+'\n'+extract('appendTrackCoordinate'),ctx);
+ const home={latitude:52,longitude:-1};
+ ctx.replaceTrack([home]);
+ assert.equal(ctx.trackPointCount,1);
+ assert.equal(ctx.lastTrackCoordinate,home);
+ assert.equal(ctx.actualTrack.path.length,1);
+ const originalArray=ctx.trackCoordinates;
+ for(let n=0;n<250;n++)ctx.appendTrackCoordinate({latitude:52,longitude:-1+n/10000});
+ assert.equal(ctx.trackCoordinates,originalArray,'history should be appended in place');
+ assert.equal(ctx.trackPointCount,251);
+ assert.equal(added.length,250);
+ assert.equal(ctx.lastTrackCoordinate.longitude,-1+249/10000);
+ assert.equal(ctx.actualTrack.path.length,251,'the map item must receive every point');
+ ctx.replaceTrack([]);
+ assert.equal(ctx.trackPointCount,0);
+ assert.equal(ctx.trackCoordinates.length,0);
+ assert.equal(ctx.actualTrack.path.length,0);
+});
+
 console.log(`${count} map visual stability scenarios passed`);

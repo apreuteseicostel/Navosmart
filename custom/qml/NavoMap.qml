@@ -802,7 +802,7 @@ Item {
                   root.areaDrawMode === "polygon" ? "Atinge punctele, apoi TERMINĂ" :
                   (root.rulerMode ? "RUL • "+root.rulerDistanceText() :
                    (root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ?
-                    "Traseu: " + actualTrack.trackCoordinates.length + " • " +
+                    "Traseu: " + actualTrack.trackPointCount + " • " +
                     (root.areaScanController ? root.areaScanController.laneCount() : 0) + " culoare" :
                     (root.operatorLocationValid ? "GPS TELEFON: OK • BARCA: AȘTEPTARE" : "GPS TELEFON: AȘTEPTARE • verifică permisiunea de locație")))
             color: "white"; font.pixelSize: 11; elide: Text.ElideRight

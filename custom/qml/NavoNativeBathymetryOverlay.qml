@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtPositioning
+import "NavoMapProjection.js" as MapPan
 
 Item {
     id: root
@@ -13,15 +14,29 @@ Item {
         surface.indices.length<=49152
     property var nativeBridge: null
     property var projected: []
+    property var projectedView: ({})
+    function currentMapView() {
+        return { center:QtPositioning.coordinate(root.map.center.latitude,root.map.center.longitude), zoomLevel:root.map.zoomLevel,
+                 bearing:root.map.bearing, tilt:root.map.tilt,
+                 width:root.map.width, height:root.map.height }
+    }
     property int renderedTriangles: 0
     property real lastPaintMs: 0
     anchors.fill: parent
     visible: active && ready
 
-    function invalidateProjection(requestTiles) {
-        projected=[]
-        if(!paintTimer.running)paintTimer.start()
-        if(requestTiles && active && !viewportTimer.running)viewportTimer.start()
+    function invalidateProjection(requestTiles, centerOnly) {
+        // Preserve cached points on pure map pans; a cheap translation is
+        // sufficient while zoom, bearing, tilt and viewport size stay stable.
+        if (!centerOnly) { projected=[]; projectedView=({}) }
+        if (!active || !ready) { paintTimer.stop(); viewportTimer.stop(); return }
+        if (!paintTimer.running) paintTimer.start()
+        // While dragging, delay costly native viewport queries until the
+        // viewport settles. Existing mesh pixels still track the pan.
+        if (requestTiles) {
+            if (centerOnly) viewportTimer.restart()
+            else if (!viewportTimer.running) viewportTimer.start()
+        }
     }
     onSurfaceChanged: invalidateProjection(false)
     onActiveChanged: invalidateProjection(true)
@@ -54,7 +69,7 @@ Item {
     Connections {
         target:root.map
         ignoreUnknownSignals:true
-        function onCenterChanged(){root.invalidateProjection(true)}
+        function onCenterChanged(){root.invalidateProjection(true,true)}
         function onZoomLevelChanged(){root.invalidateProjection(true)}
         function onBearingChanged(){root.invalidateProjection(true)}
         function onTiltChanged(){root.invalidateProjection(true)}
@@ -73,6 +88,14 @@ Item {
             root.renderedTriangles=0
             if(!root.active || !root.ready || !root.map)return
             var vertices=root.surface.vertices,indices=root.surface.indices
+            if (root.projected.length) {
+                var offset=MapPan.panOffset(root.map,root.projectedView)
+                if (!offset) root.projected=[]
+                else if (offset.x !== 0 || offset.y !== 0) {
+                    MapPan.translateProjected(root.projected,offset)
+                    root.projectedView=root.currentMapView()
+                }
+            }
             if(!root.projected.length) {
                 var out=[]
                 for(var v=0;v<vertices.length;v++) {
@@ -81,9 +104,10 @@ Item {
                         !isFinite(p[2]) || p[2]<=0 || Math.abs(p[0])>90 ||
                         Math.abs(p[1])>180 || p[3]<1 || p[3]>3) {out.push(null);continue}
                     var screen=root.map.fromCoordinate(QtPositioning.coordinate(p[0],p[1]),false)
-                    out.push(screen && isFinite(screen.x) && isFinite(screen.y)?screen:null)
+                    out.push(screen && isFinite(screen.x) && isFinite(screen.y)?{x:screen.x,y:screen.y}:null)
                 }
                 root.projected=out
+                root.projectedView=root.currentMapView()
             }
             var count=0
             for(var i=0;i+2<indices.length;i+=3) {
