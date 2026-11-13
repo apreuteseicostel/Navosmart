@@ -10,7 +10,7 @@ ColumnLayout {
     property bool busy: false
     property bool critical: false
     readonly property bool serviceLive: linkAlive && telemetry.connected
-    readonly property bool waterValid: serviceLive && telemetry.waterValid
+    readonly property bool waterValid: linkAlive && telemetry.waterValid
     readonly property bool valid: leftOutput.valid && rightOutput.valid && leftOutput.number !== rightOutput.number &&
         leftClosed.valid && rightClosed.valid && leftOpen.valid && rightOpen.valid
     readonly property bool edited: leftOutput.number !== settings.leftOutput || rightOutput.number !== settings.rightOutput ||
@@ -158,6 +158,18 @@ ColumnLayout {
                 text: "Temp. baterie  " + (form.serviceLive && form.telemetry.temperatureValid
                     ? Number(form.telemetry.batteryTempC).toFixed(1) + " °C" : "—")
                 color: "#eaf2f8"
+            }
+            Label {
+                objectName: "hopperWaterDiagnostic"
+                Layout.fillWidth: true; wrapMode: Text.WordWrap; font.pixelSize: 11
+                text: !form.linkAlive ? "Sonda apă: H743 deconectat"
+                    : form.telemetry.waterMonitorStatus === 5 ? "Sonda apă: necesită calibrare (doar ADC)"
+                    : form.telemetry.waterMonitorStatus === 4 ? "Sonda apă: conflict pini / configurație Lua"
+                    : form.telemetry.waterMonitorStatus === 3 ? "Sonda apă: citire eronată"
+                    : form.telemetry.waterMonitorStatus === 1 ? "Sonda apă: confirmare măsurători"
+                    : form.telemetry.waterMonitorStatus === 2 ? "Sonda apă: telemetrie LIVE"
+                    : "Sonda apă: fără date recente"
+                color: form.waterValid ? "#37e9a2" : "#ffd166"
             }
             Label {
                 objectName: "hopperWaterStatus"
