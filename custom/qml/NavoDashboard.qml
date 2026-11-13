@@ -1691,6 +1691,74 @@ Item {
         }
     }
 
+    // Critical boat flood alarm above all normal pages, including fullscreen Sonar.
+    // The banner stays latched until live readings indicate DRY and user confirms.
+    Rectangle {
+        id: waterEmergencyBanner
+        objectName: "waterEmergencyBanner"
+        parent: root
+        z: 9600
+        visible: safetyManager.waterAlarmLatched && !sonar.replayMode
+        anchors.top: header.bottom
+        anchors.topMargin: 8
+        anchors.horizontalCenter: parent.horizontalCenter
+        width: Math.min(Math.max(0,root.width-16),690)
+        height: Math.min(Math.max(0,root.height-header.height-16),waterEmergencyContent.implicitHeight+20)
+        radius: 11
+        color: "#770a0d"
+        border.width: 3
+        border.color: "#ff3939"
+        ColumnLayout {
+            id: waterEmergencyContent
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: 10
+            spacing: 7
+            Label {
+                Layout.fillWidth: true
+                font.pixelSize: root.width<600 ? 20 : 26
+                font.bold: true
+                color: "#ffffff"
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                text: "⚠ PERICOL — APĂ ÎN COCĂ!"
+            }
+            Label {
+                objectName: "waterEmergencyRtlStatus"
+                Layout.fillWidth: true
+                font.pixelSize: root.width<600 ? 12 : 14
+                font.bold: true
+                color: "#ffffff"
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.WordWrap
+                text: root.linkAlive && root.flightMode.toUpperCase()==="RTL"
+                    ? "RTL ACTIV RAPORTAT DE H743 — monitorizează revenirea"
+                    : root.waterEmergencyRtlStatus.length
+                        ? root.waterEmergencyRtlStatus
+                        : "ALARMĂ CRITICĂ • verifică GPS/HOME și barca"
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                Button {
+                    objectName: "waterEmergencyMute"
+                    Layout.fillWidth: true
+                    text: safetyManager.waterAlarmMuted ? "Sunet oprit" : "Oprește sunetul"
+                    enabled: !safetyManager.waterAlarmMuted
+                    onClicked: safetyManager.waterAlarmMuted=true
+                }
+                Button {
+                    objectName: "waterEmergencyClear"
+                    Layout.fillWidth: true
+                    text: "Confirmă după uscare"
+                    enabled: safetyManager.waterValid && !safetyManager.waterDetected && !safetyManager.waterConfirmed
+                    onClicked: if(safetyManager.acknowledgeWaterAlarm())root.waterEmergencyRtlStatus=""
+                }
+            }
+        }
+    }
+
     NavoCameraPip {
         id: persistentCameraPip
         parent: root
