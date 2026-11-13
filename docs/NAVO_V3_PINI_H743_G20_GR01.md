@@ -112,3 +112,21 @@ Documentul arhivat de bază V2 consemnează PWM0–PWM2 asociate CH9–CH11. Ace
 - [Document H743 anterior, cu referințe V2](NAVO_SMART/H743_ARDUPILOT_UM982_GR01.md)
 
 Vom actualiza acest registru după fiecare decizie. Un candidat devine „confirmat” doar când sunt notate sursa verificării, configurația firmware și rezultatul testului.
+
+## Confirmare 13 noiembrie 2026 — Relay nativ testat pe barcă
+
+Datele mai vechi din inventar sunt **istorice**. Configurația actuală, raportată
+ca funcțională de utilizator, este: G20 L2 → CH7 → `RC7_OPTION=28` →
+Relay1 → S6/GPIO55 → far; G20 R2 → CH16 → `RC16_OPTION=34` →
+Relay2 → S7/GPIO56 → poziții. `SERVO6_FUNCTION=-1` și
+`SERVO7_FUNCTION=-1`; `RELAY1_FUNCTION=1`, `RELAY2_FUNCTION=1`.
+CH5 rămâne comutatorul de moduri. Luminile sunt deja comutate direct prin
+ArduPilot, independent de NAVO Android și fără script Lua pe GPIO55/56.
+Nu modifica această configurație. 
+
+Stealth trimite doar două comenzi `MAV_CMD_DO_SET_RELAY` pe același
+controler ArduPilot: relay index 1 -> poziții ON, apoi relay index 0 ->
+far OFF. Nu există în prezent feedback validat despre starea reală a becurilor;
+Android raportează numai comanda cerută. Ascultătorul opțional de acțiuni G20
+ignoră L2/R2 ca să nu dubleze releele fizice. Opțiunea AUTO pentru poziții
+necesită selectare expresă în sesiune; implicit rămâne RC.
