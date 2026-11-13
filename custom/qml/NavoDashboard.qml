@@ -817,6 +817,7 @@ Item {
     NavoSafetyManager {
         id: safetyManager
         vehicle: root.vehicle
+        replayMode: sonar.replayMode
         telemetryLive: h743Telemetry.connected
         temperatureValid: h743Telemetry.temperatureValid
         waterValid: h743Telemetry.waterValid
