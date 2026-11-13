@@ -1331,7 +1331,7 @@ Item {
         readonly property real brandWidth: root.width < 1000 ? 136 : 164
         readonly property real compassWidth: root.activePage===2 ? 40 : 46
         readonly property real telemetryScale: Math.max(0.76, Math.min(1,
-            (width - 2*sideMargin - brandWidth - compassWidth - 8*itemGap - 8) / 551))
+            (width - 2*sideMargin - brandWidth - compassWidth - 8*itemGap - 8) / 570))
         visible: root.activePage !== 10 && !(root.activePage===2 && root.mapMaximized)
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
         height: root.activePage===2 ? (root.mapMaximized ? 0 : 48) : 64
@@ -1387,7 +1387,14 @@ Item {
             StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/speed.svg"; title: "VITEZĂ"; value: vehicle && vehicle.groundSpeed ? Number(vehicle.groundSpeed.rawValue * 3.6).toFixed(1) + " km/h" : "--"; good: root.linkAlive && vehicle.groundSpeed && isFinite(Number(vehicle.groundSpeed.rawValue)) }
             StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/target.svg"; title: "ȚINTĂ"; value: root.distanceToTarget > 0 ? Number(root.distanceToTarget).toFixed(0) + " m" : "--"; good: root.linkAlive && isFinite(root.distanceToTarget) && root.distanceToTarget > 0 }
             StatusPill { pillWidth:82; iconSource:"qrc:/qml/NavoSmart/icons/battery.svg"; title: "BATERIE"; value: root.linkAlive && battery && battery.percentRemaining && isFinite(Number(battery.percentRemaining.rawValue)) && Number(battery.percentRemaining.rawValue)>=0 ? Number(battery.percentRemaining.rawValue).toFixed(0) + "%" : "--"; good: root.linkAlive && battery && battery.percentRemaining && Number(battery.percentRemaining.rawValue)>20; interactive:true; onClicked:dashboardDetails.showSection("battery") }
-            StatusPill { pillWidth:77; iconSource:"qrc:/qml/NavoSmart/icons/temp.svg"; title: "TEMP"; value: h743Telemetry.connected && h743Telemetry.temperatureValid && isFinite(h743Telemetry.batteryTempC) ? Number(h743Telemetry.batteryTempC).toFixed(1) + "°" : "--"; good: h743Telemetry.connected && h743Telemetry.temperatureValid && safetyManager.state !== "CRITICAL"; interactive:true; onClicked:dashboardDetails.showSection("temperature") }
+            TemperaturePill {
+                pillWidth: 96
+                batteryValid: root.linkAlive && h743Telemetry.connected && h743Telemetry.temperatureValid && isFinite(h743Telemetry.batteryTempC)
+                interiorValid: root.linkAlive && !sonar.replayMode && h743Telemetry.interiorValid && isFinite(h743Telemetry.interiorTempC)
+                batteryValue: batteryValid ? Number(h743Telemetry.batteryTempC).toFixed(1) + "°" : "--"
+                interiorValue: interiorValid ? Number(h743Telemetry.interiorTempC).toFixed(1) + "°" : "--"
+                onClicked: dashboardDetails.showSection("temperature")
+            }
             StatusPill { pillWidth:88; iconSource:"qrc:/qml/NavoSmart/icons/mode.svg"; title: "MOD"; value: root.linkAlive && root.flightMode.length ? root.flightMode.toUpperCase() : "--"; good: root.linkAlive; interactive:false }
             NavoHeadingCompass {
                 id: headingCompass
@@ -3012,6 +3019,82 @@ Item {
         }
     }
 
+
+    // Compact dual readout: B=battery NTC, hull=interior SHT31. No fabricated fallback values.
+    component TemperaturePill: Rectangle {
+        id: dualTemperaturePill
+        property real pillWidth: 96
+        property bool batteryValid: false
+        property bool interiorValid: false
+        property string batteryValue: "--"
+        property string interiorValue: "--"
+        signal clicked()
+        objectName: "dualTemperaturePill"
+        Layout.preferredWidth: pillWidth * header.telemetryScale
+        Layout.preferredHeight: root.compactUi ? 36 : 42
+        radius: 9
+        color: dualTemperatureMouse.containsMouse ? "#143747" : "#0a2332"
+        border.color: batteryValid && interiorValid && safetyManager.state !== "CRITICAL" ? root.ok
+                      : (dualTemperatureMouse.containsMouse ? "#20d9ed" : "#167a93")
+        border.width: batteryValid && interiorValid ? 2 : 1
+        Accessible.role: Accessible.Button
+        Accessible.name: "Temperatura bateriei " + batteryValue + "; temperatura din cocă " + interiorValue
+        ToolTip.visible: dualTemperatureMouse.containsMouse
+        ToolTip.text: "Baterie " + batteryValue + " • Interior cocă " + interiorValue
+        ToolTip.delay: 500
+        MouseArea {
+            id: dualTemperatureMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: dualTemperaturePill.clicked()
+        }
+        Column {
+            width: parent.width - 10
+            anchors.centerIn: parent
+            spacing: 0
+            Row {
+                width: parent.width
+                height: root.compactUi ? 15 : 17
+                spacing: 4
+                Image {
+                    width: 13; height: 13
+                    anchors.verticalCenter: parent.verticalCenter
+                    source: "qrc:/qml/NavoSmart/icons/battery.svg"
+                    fillMode: Image.PreserveAspectFit
+                }
+                Label {
+                    width: parent.width - 17
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: dualTemperaturePill.batteryValue
+                    color: dualTemperaturePill.batteryValid ? root.ok : root.muted
+                    font.pixelSize: 11; font.bold: true
+                    horizontalAlignment: Text.AlignLeft
+                    elide: Text.ElideRight
+                }
+            }
+            Row {
+                width: parent.width
+                height: root.compactUi ? 15 : 17
+                spacing: 4
+                Image {
+                    width: 13; height: 13
+                    anchors.verticalCenter: parent.verticalCenter
+                    source: "qrc:/qml/NavoSmart/icons/boat.svg"
+                    fillMode: Image.PreserveAspectFit
+                }
+                Label {
+                    width: parent.width - 17
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: dualTemperaturePill.interiorValue
+                    color: dualTemperaturePill.interiorValid ? root.ok : root.muted
+                    font.pixelSize: 11; font.bold: true
+                    horizontalAlignment: Text.AlignLeft
+                    elide: Text.ElideRight
+                }
+            }
+        }
+    }
 
     component StatusPill: Rectangle {
         property url iconSource: ""
