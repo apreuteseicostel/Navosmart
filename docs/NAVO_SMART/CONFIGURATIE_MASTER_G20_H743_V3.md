@@ -171,12 +171,58 @@ valabil pentru scriptul Lua pe GPIO55/56.
 21:04 UTC. **Stare:** remediere software în PR #73; testele GitHub și acceptanța
 finală pe G20 trebuie urmărite pe commitul final, nu pe un APK anterior.
 
-## 10. Jurnal de actualizări
+## 10. Observație din testul G20 — necesită două apăsări după Stealth (13 nov. 2026, 21:40 UTC)
+
+**Simptom raportat:** după activarea Stealth și schimbarea luminilor prin MAVLink,
+utilizatorul trebuie uneori să apese **de două ori** L2/R2 pentru a obține
+o nouă schimbare vizibilă a farului/pozițiilor.
+
+**Cauză probabilă susținută de codul ArduPilot:** `RC7_OPTION=28` și
+`RC16_OPTION=34` sunt **Relay1 On/Off** și **Relay2 On/Off**,
+nu „toggle la fiecare apăsare”. În `RC_Channel.cpp`,
+`do_aux_function_relay(0, ch_flag==HIGH)` și
+`do_aux_function_relay(1, ch_flag==HIGH)` transferă poziția
+HIGH/LOW la ieșire. Stealth modifică direct starea releelor cu
+`MAV_CMD_DO_SET_RELAY=181`, dar **nu poate modifica poziția mecanică/logică
+a comutatorului din telecomandă**. Dacă sunt în dezacord, prima schimbare
+RC poate seta valoarea deja aplicată de Stealth, fără efect vizibil;
+a doua schimbare RC comută în cealaltă stare.
+
+**De reținut:** corecția de ACK din PR #73 (Relay2 apoi Relay1,
+niciodată simultan) rezolvă doar coliziunea comenzii 181, **nu**
+desincronizarea dintre poziția comutatoarelor și starea releelor.
+Nu declara acceptanță „o apăsare” până nu este rezolvată și testată.
+
+**Opțiuni de arhitectură pentru o singură apăsare după Stealth:**
+1. **Păstrare nativă**, zero modificări hardware/parametri: două apăsări
+   pot fi necesare pentru a reintra în acord cu poziția RC; cea mai mică
+   dependență de scripturi.
+2. **Alternare pe muchie RC la H743**: după testare, un handler Lua local
+   ar detecta schimbările de stare CH7/CH16 cu debounce și ar invoca
+   **același `relay:toggle(0/1)` ArduPilot**; NAVO/Stealth rămân pe
+   `MAV_CMD_DO_SET_RELAY`. Pentru a evita dublarea comenzilor se vor
+   dezactiva **doar după aprobarea migrării** opțiunile native
+   `RC7_OPTION=28` / `RC16_OPTION=34` și se va configura un singur
+   owner al evenimentelor RC. Releele fizice, GPIO55/56, S6/S7,
+   RELAY1/2_PIN nu se remapează. Dacă Lua încetează să ruleze,
+   controlul RC al luminilor poate fi pierdut; este necesar test de
+   failsafe, restart și pierdere conexiune.
+3. Fără script local, interpretarea apăsărilor în Android ar crea o
+   dependență nedorită de aplicație/G20 și **nu este recomandată**.
+
+**Status:** diagnostic al comportamentului nativ (nu măsurare PWM
+CH7/CH16 din fotografia utilizatorului). Înainte de orice schimbare,
+verifică în RC Monitor dacă L2/R2 schimbă stabil LOW/HIGH la fiecare apăsare,
+și ce se întâmplă când NAVO este închis. Nu modifica parametri live
+doar pe baza acestui document.
+
+## 11. Jurnal de actualizări
 
 - **2026-10-15:** registrul original H743/G20/GR01 și schema R1; mapări proiectate.
 - **2026-10-28:** în discuții s-a confirmat folosirea CH5 pentru comutatorul MANUAL/AUTO/GUIDED.
 - **2026-11-13:** utilizatorul a reconfirmat două butoane / două canale de iluminare; corecție de arhitectură Stealth spre releele ArduPilot existente; PR #73 în review. Valorile numerice sunt **de reconfirmat prin exportul real H743**, nu se inventează o fotografie de parametri.
 - **2026-11-13, 21:04 UTC:** fotografie G20: poziții ON, far rămas ON, eroare QGC din cauza a două comenzi MAV_CMD 181 simultane. Corecție secvențiere ACK în PR #73, verificare în curs.
+- **2026-11-13, 21:40 UTC:** utilizatorul raportează două apăsări L2/R2 după Stealth. Cauză probabilă: RC7/RC16 sunt On/Off pe poziție, nu toggle pe eveniment. Alegerea unei migrări la evenimente RC locale Lua este încă deschisă.
 
 ---
 **Regulă de întreținere:** actualizează întâi acest document la fiecare schimbare de cablaj, RC, GPIO, Lua, MAVLink ori subnet; păstrează legături către commit/PR și rezultatul testului. Nu modifica simultan două surse hardware pentru aceeași ieșire.
