@@ -8,10 +8,16 @@ import NavoSmart.Backend 1.0
 // Real, editable endpoints and real connection actions; no demo values.
 Rectangle {
     id: root
+    property var lanDiagnostics: null
     property var sonar
     property var camera
     property string cameraStreamUrl: ""
     property string cameraProtocol: "auto"
+    property string cameraDecoder: "hardware"
+    property string cameraRtspTransport: "tcp"
+    readonly property bool sonarUnconfigured: !cfg.sonarHost.length && !cfg.sonarPort && !cfg.sonarUdp
+    readonly property bool cameraUnconfigured: !cfg.cameraHost.length && !cfg.cameraPort &&
+        !cfg.cameraStreamUrl.length && !cfg.cameraUdp && cfg.cameraProtocol === "auto"
     readonly property bool compact: width < 750
     readonly property color accent: "#20d9ed"
     readonly property color bright: "#eff9ff"
@@ -35,6 +41,8 @@ Rectangle {
         property bool cameraUdp: false
         property string cameraStreamUrl: ""
         property string cameraProtocol: "auto"
+        property string cameraDecoder: "hardware"
+        property string cameraRtspTransport: "tcp"
         property bool connectOnStartup: true
     }
     NavoLanDiscovery {
@@ -52,24 +60,49 @@ Rectangle {
             status("Port invalid: folosește valori între 1 și 65535")
             return false
         }
-        cfg.sonarHost = sonarHost.text.trim()
-        cfg.sonarPort = parseInt(sonarPort.text) || 0
-        cfg.sonarUdp = sonarUdp.checked
-        cfg.cameraHost = cameraHost.text.trim()
-        cfg.cameraPort = parseInt(cameraPort.text) || 0
-        cfg.cameraUdp = cameraUdp.checked
-        cfg.cameraStreamUrl = streamUrl.text.trim()
-        cfg.cameraProtocol = protocol.currentValue
+        if(!lanPanel.validConfiguration()) {
+            status("LAN/UART: completează adresa și două porturi diferite, între 1 și 65535")
+            return false
+        }
+        if(!lanPanel.saveConfiguration()) {
+            status("LAN/UART: salvarea a eșuat")
+            return false
+        }
+        // Read the whole form before the first saved field replaces the preset.
+        const savedValues = {
+            sonarHost: sonarHost.text.trim(),
+            sonarPort: parseInt(sonarPort.text) || 0,
+            sonarUdp: sonarUdp.checked,
+            cameraHost: cameraHost.text.trim(),
+            cameraPort: parseInt(cameraPort.text) || 0,
+            cameraUdp: cameraUdp.checked,
+            cameraStreamUrl: streamUrl.text.trim(),
+            cameraProtocol: protocol.currentValue,
+            cameraDecoder: decoderChoice.currentValue,
+            cameraRtspTransport: rtspChoice.currentValue
+        }
+        // Commit explicitly so an immediate process restart sees the saved form.
+        for (const key in savedValues) {
+            cfg[key] = savedValues[key]
+            cfg.setValue(key, savedValues[key])
+        }
+        cfg.setValue("connectOnStartup", cfg.connectOnStartup)
+        cfg.sync()
         root.cameraStreamUrl = cfg.cameraStreamUrl
         root.cameraProtocol = cfg.cameraProtocol
+        root.cameraDecoder = cfg.cameraDecoder
+        root.cameraRtspTransport = cfg.cameraRtspTransport
         loadEndpoints()
-        status("Setări Ethernet, Kogger și cameră salvate")
+        status("Setări LAN/UART, Kogger și cameră salvate")
         return true
     }
+    onVisibleChanged:if(!visible)videoTest.stop()
     Component.onCompleted: {
         loadEndpoints()
         root.cameraStreamUrl = cfg.cameraStreamUrl
         root.cameraProtocol = cfg.cameraProtocol
+        root.cameraDecoder = cfg.cameraDecoder
+        root.cameraRtspTransport = cfg.cameraRtspTransport
     }
 
     component NavField: TextField {
@@ -233,6 +266,7 @@ Rectangle {
         id: body
         anchors.fill: parent
         spacing: 8
+        NavoLanDiagnosticPanel { id:lanPanel;Layout.fillWidth:true;backend:root.lanDiagnostics }
         GridLayout {
             id: panels
             Layout.fillWidth: true
@@ -282,20 +316,24 @@ Rectangle {
                                 columnSpacing: 7
                                 rowSpacing: 5
                                 Label { text: "IP / Host"; color: root.bright; font.pixelSize: 12 }
-                                NavField { id: cameraHost; objectName: "settingsCameraHost"; Layout.fillWidth: true; text: cfg.cameraHost; placeholderText: "192.168.x.x"; Accessible.name: "Adresă IP cameră" }
+                                NavField { id: cameraHost; objectName: "settingsCameraHost"; Layout.fillWidth: true; text: root.cameraUnconfigured ? "192.168.144.64" : cfg.cameraHost; placeholderText: "192.168.x.x"; Accessible.name: "Adresă IP cameră" }
                                 Label { text: "Port"; color: root.bright; font.pixelSize: 12 }
-                                NavField { id: cameraPort; objectName: "settingsCameraPort"; Layout.fillWidth: true; text: cfg.cameraPort > 0 ? String(cfg.cameraPort) : ""; validator: IntValidator { bottom: 1; top: 65535 } inputMethodHints: Qt.ImhDigitsOnly; placeholderText: "554"; Accessible.name: "Port rețea cameră" }
+                                NavField { id: cameraPort; objectName: "settingsCameraPort"; Layout.fillWidth: true; text: root.cameraUnconfigured ? "554" : (cfg.cameraPort > 0 ? String(cfg.cameraPort) : ""); validator: IntValidator { bottom: 1; top: 65535 } inputMethodHints: Qt.ImhDigitsOnly; placeholderText: "554"; Accessible.name: "Port rețea cameră" }
                                 Label { text: "Transport"; color: root.bright; font.pixelSize: 12 }
                                 TransportSelector { id: cameraUdp; objectName: "settingsCameraTransport"; checked: cfg.cameraUdp }
                                 Label { text: "URL video"; color: root.bright; font.pixelSize: 12 }
-                                NavField { id: streamUrl; objectName: "settingsStreamUrl"; Layout.fillWidth: true; text: cfg.cameraStreamUrl; placeholderText: "rtsp://... sau http://..."; Accessible.name: "URL video cameră" }
+                                NavField { id: streamUrl; objectName: "settingsStreamUrl"; Layout.fillWidth: true; text: root.cameraUnconfigured ? "192.168.144.64/stream1" : cfg.cameraStreamUrl; placeholderText: "rtsp://... sau http://..."; Accessible.name: "URL video cameră" }
                                 Label { text: "Protocol"; color: root.bright; font.pixelSize: 12 }
                                 NavSelect {
                                     id: protocol
+                                    objectName: "settingsCameraProtocol"
                                     Layout.fillWidth: true
                                     textRole: "text"; valueRole: "value"
                                     model: [{text:"AUTO",value:"auto"}, {text:"RTSP",value:"rtsp"}, {text:"MJPEG/HTTP",value:"mjpeg"}]
-                                    Component.onCompleted: { var i = indexOfValue(cfg.cameraProtocol); if (i >= 0) currentIndex = i }
+                                    Component.onCompleted: {
+                                        const initialIndex = indexOfValue(root.cameraUnconfigured ? "rtsp" : cfg.cameraProtocol)
+                                        if (initialIndex >= 0) currentIndex = initialIndex
+                                    }
                                 }
                             }
                         }
@@ -317,6 +355,13 @@ Rectangle {
                                 spacing: 4
                                 Label { text: "Previzualizare video"; color: root.bright; font.pixelSize: 12; font.bold: true }
                                 Label { text: "Stare: " + videoTest.status; color: videoTest.live ? root.mint : (videoTest.status==="NO URL" ? root.subdued : root.danger); font.pixelSize: 11; elide: Text.ElideRight; Layout.fillWidth: true }
+                                Label {Layout.fillWidth:true;wrapMode:Text.WordWrap;text:"Android RTSP • Skydroid FPV Player • cerere de decodare";color:root.subdued;font.pixelSize:10}
+                                RowLayout {
+                                    Layout.fillWidth:true
+                                    NavSelect {id:decoderChoice;objectName:"settingsVideoDecoder";Layout.fillWidth:true;Layout.minimumWidth:0;textRole:"text";valueRole:"value";model:[{text:"Hardware",value:"hardware"},{text:"Software",value:"software"}];currentIndex:cfg.cameraDecoder==="software"?1:0;Accessible.name:"Decodare FPV"}
+                                    NavSelect {id:rtspChoice;objectName:"settingsVideoRtspTransport";Layout.fillWidth:true;Layout.minimumWidth:0;textRole:"text";valueRole:"value";model:[{text:"RTSP TCP",value:"tcp"},{text:"RTSP UDP",value:"udp"}];currentIndex:cfg.cameraRtspTransport==="udp"?1:0;Accessible.name:"Transport RTSP video"}
+                                }
+                                Label {Layout.fillWidth:true;wrapMode:Text.WordWrap;text:"Pentru comparație păstrează același URL și aceleași setări ale camerei. Salvează, apoi pornește testul. LIVE cere cadre decodate recente; întârzierea capăt-la-capăt se verifică pe G20.";color:root.subdued;font.pixelSize:10}
                                 NavoVideoPlayer {
                                     id: videoTest
                                     Layout.fillWidth: true
@@ -325,6 +370,8 @@ Rectangle {
                                     Layout.preferredHeight: 96
                                     streamUrl: streamUrl.text
                                     protocol: protocol.currentValue
+                                    decoder: decoderChoice.currentValue
+                                    rtspTransport: rtspChoice.currentValue
                                     onVideoError: function(message) { root.status("Video: " + message) }
                                 }
                                 RowLayout {
@@ -379,9 +426,9 @@ Rectangle {
                         Layout.fillWidth: true
                         columns: 2; columnSpacing: 8; rowSpacing: 7
                         Label { text: "IP / Host"; color: root.bright; font.pixelSize: 12 }
-                        NavField { id: sonarHost; objectName: "settingsSonarHost"; Layout.fillWidth: true; text: cfg.sonarHost; placeholderText: "192.168.x.x"; Accessible.name: "IP Kogger" }
+                        NavField { id: sonarHost; objectName: "settingsSonarHost"; Layout.fillWidth: true; text: root.sonarUnconfigured ? "192.168.144.7" : cfg.sonarHost; placeholderText: "192.168.x.x"; Accessible.name: "IP Kogger" }
                         Label { text: "Port"; color: root.bright; font.pixelSize: 12 }
-                        NavField { id: sonarPort; objectName: "settingsSonarPort"; Layout.fillWidth: true; text: cfg.sonarPort > 0 ? String(cfg.sonarPort) : ""; validator: IntValidator { bottom: 1; top: 65535 } inputMethodHints: Qt.ImhDigitsOnly; placeholderText: "8899"; Accessible.name: "Port Kogger" }
+                        NavField { id: sonarPort; objectName: "settingsSonarPort"; Layout.fillWidth: true; text: root.sonarUnconfigured ? "23" : (cfg.sonarPort > 0 ? String(cfg.sonarPort) : ""); validator: IntValidator { bottom: 1; top: 65535 } inputMethodHints: Qt.ImhDigitsOnly; placeholderText: "23"; Accessible.name: "Port Kogger" }
                         Label { text: "Transport"; color: root.bright; font.pixelSize: 12 }
                         TransportSelector { id: sonarUdp; objectName: "settingsSonarTransport"; checked: cfg.sonarUdp }
                     }

@@ -9,6 +9,10 @@ on:
       - 'firmware/**'
       - 'custom/qml/**'
       - 'custom/src/**'
+      - 'custom/android/**'
+      - 'tools/prepare-skydroid-android.py'
+      - 'tests/skydroid/**'
+      - 'tests/fpv/**'
       - 'custom/icons/**'
       - 'custom/CMakeLists.txt'
       - 'tests/firmware/**'
@@ -25,6 +29,10 @@ on:
       - 'firmware/**'
       - 'custom/qml/**'
       - 'custom/src/**'
+      - 'custom/android/**'
+      - 'tools/prepare-skydroid-android.py'
+      - 'tests/skydroid/**'
+      - 'tests/fpv/**'
       - 'custom/icons/**'
       - 'custom/CMakeLists.txt'
       - 'tests/firmware/**'
@@ -56,8 +64,16 @@ jobs:
         run: cmake -S tests/persistence -B /tmp/navo-persistence && cmake --build /tmp/navo-persistence -j2 && /tmp/navo-persistence/navo-persistence-test
       - name: Test V3 onboard service and bounded hopper cycles
         run: lua5.3 tests/firmware/v3-service.lua
+      - name: SHT31 environment CRC and telemetry service
+        run: lua5.3 tests/firmware/sht31.lua
       - name: Hardware profiles and independent sensor expiry
         run: cmake -S tests/hardware -B /tmp/navo-hardware && cmake --build /tmp/navo-hardware -j2 && /tmp/navo-hardware/navo-hardware-test
+      - name: Skydroid SDK bridge lifecycle and duplex regressions
+        run: python3 tests/skydroid/bridge-test.py
+      - name: FPV SDK adapter lifecycle and decoder policy
+        run: python3 tests/fpv/bridge-test.py
+      - name: LAN witness and passive UART diagnostics
+        run: cmake -S tests/lan-uart -B /tmp/navo-lan-uart && cmake --build /tmp/navo-lan-uart -j2 && /tmp/navo-lan-uart/navo-lan-uart-test
       - name: G20 physical RC input regressions
         run: node tests/g20-input.mjs
       - name: Connectivity retry and heartbeat policy
@@ -69,12 +85,15 @@ jobs:
           node tests/route-plan.mjs
           node tests/installed-spots-driver.mjs
           node tests/steering-bottom.mjs
+          node tests/map-visual-position.mjs
       - name: Render production Missions UI with Qt 6.8.3
         run: |
           python3 -m venv /tmp/navo-ui-env
           /tmp/navo-ui-env/bin/pip install PySide6-Essentials==6.8.3 PySide6-Addons==6.8.3
           /tmp/navo-ui-env/bin/python tests/qml-module-import.py
           /tmp/navo-ui-env/bin/python tests/ethernet-settings-ui.py
+          /tmp/navo-ui-env/bin/python tests/camera-player-ui.py
+          /tmp/navo-ui-env/bin/python tests/lan-diagnostics-ui.py
           /tmp/navo-ui-env/bin/python tests/missions-ui.py
           /tmp/navo-ui-env/bin/python tests/map-framing-ui.py
           /tmp/navo-ui-env/bin/python tests/saved-spots-ui.py
@@ -90,11 +109,14 @@ jobs:
           /tmp/navo-ui-env/bin/python tests/offline-maps-ui.py
           /tmp/navo-ui-env/bin/python tests/alerts-ui.py
           /tmp/navo-ui-env/bin/python tests/hardware-safety-ui.py
+          /tmp/navo-ui-env/bin/python tests/environment-ui.py
+          /tmp/navo-ui-env/bin/python tests/stealth-ui.py
       - uses: actions/upload-artifact@v4
         with:
           name: NAVO-NANO-FIRMWARE
           path: |
             build/firmware-nano/NAVO_NANO.hex
             build/firmware-nano/NAVO_NANO.elf
+
 
 

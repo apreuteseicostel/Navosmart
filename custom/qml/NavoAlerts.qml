@@ -5,11 +5,18 @@ QtObject {
     id:root
     property var output:null
     property bool replayMode:false
+    property bool stealthQuiet:false
     property var vehicle:null
     property bool telemetryConnected:false
     property bool waterValid:telemetryConnected
     property bool temperatureValid:telemetryConnected
     property bool waterConfirmed:false
+    property bool environmentValid:false
+    property bool environmentAlertsEnabled:false
+    property real interiorTempC:NaN
+    property real humidityRh:NaN
+    property int humidityLimit:80
+    property int interiorTempLimit:45
     property real batteryTempC:NaN
     property real batteryPercent:NaN
     property bool gpsHealthy:false
@@ -20,6 +27,8 @@ QtObject {
     property var trackedVehicle:null
     property var audioQueue:[]
     property double lastAudioAt:0
+    property bool playingCritical:false
+    property bool forcedCriticalPlayback:false
     property Settings preferences:Settings {
         category:"NavoAlerts"
         property bool soundEnabled:false
@@ -33,7 +42,7 @@ QtObject {
     function configure(sound,voice,value) {
         preferences.soundEnabled=sound;preferences.voiceEnabled=voice
         preferences.volume=Math.max(0,Math.min(1,value))
-        if(!sound && !voice){audioQueue=[];if(output)output.stop()}
+        if(!sound && !voice && !stealthQuiet){audioQueue=[];if(output)output.stop()}
     }
     function notify(key,text,critical) {
         if(replayMode)return false
@@ -41,7 +50,7 @@ QtObject {
         if(lastTimes[key]!==undefined && now-Number(lastTimes[key])<10000)return false
         var times=Object.assign({},lastTimes);times[key]=now;lastTimes=times
         latest=text;raised(key,text,critical)
-        if(output && (soundEnabled || voiceEnabled)) {
+        if(output && (!stealthQuiet || critical) && (soundEnabled || voiceEnabled || (stealthQuiet && critical))) {
             var queue=audioQueue.filter(function(item){return item.key!==key})
             var priorities={water:5,temperature:4,link:3,gps:2,battery:1}
             queue.push({key:key,text:text,critical:critical,at:now,priority:priorities[key]||0})
@@ -67,21 +76,35 @@ QtObject {
         edge("gps",linkHealthy ? !gpsHealthy : null,"Poziția GPS este pierdută",true)
         edge("battery",linkHealthy && isFinite(batteryPercent) && batteryPercent>=0 ? batteryPercent<=20 : null,"Bateria bărcii este scăzută",true)
         edge("water",waterValid ? waterConfirmed : null,"Apă confirmată în barcă",true)
+        if(!environmentAlertsEnabled) {
+            audioQueue=audioQueue.filter(function(item){return item.key!=="humidity" && item.key!=="interior-temperature"})
+            var reset=Object.assign({},previous);delete reset.humidity;delete reset["interior-temperature"];previous=reset
+        } else {
+            edge("humidity",environmentValid && isFinite(humidityRh) ? humidityRh>=humidityLimit : null,"Umiditatea din barcă depășește pragul configurat",false)
+            edge("interior-temperature",environmentValid && isFinite(interiorTempC) ? interiorTempC>=interiorTempLimit : null,"Temperatura interioară depășește pragul configurat",false)
+        }
         edge("temperature",temperatureValid && isFinite(batteryTempC) ? batteryTempC>=55 : null,"Temperatura bateriei este critică",true)
     }
     function dispatch() {
-        if(replayMode || !output || (!soundEnabled && !voiceEnabled))return
-        var now=Date.now(),queue=audioQueue.filter(function(item){return now-item.at<20000})
+        if(replayMode || !output || (!soundEnabled && !voiceEnabled && !stealthQuiet))return
+        var now=Date.now(),queue=audioQueue.filter(function(item){return now-item.at<20000 && (!root.stealthQuiet || item.critical)})
         audioQueue=queue
         if(!queue.length || now-lastAudioAt<2500 || (voiceEnabled && output.busy))return
         var item=queue[0];audioQueue=queue.slice(1);lastAudioAt=now
-        output.play(soundEnabled,voiceEnabled,item.text,item.critical)
+        forcedCriticalPlayback=stealthQuiet && item.critical
+        playingCritical=item.critical
+        output.play(soundEnabled || (stealthQuiet && item.critical),voiceEnabled,item.text,item.critical)
     }
     function test() {
         latest="Test alerte NAVO SMART"
         if(output)output.play(soundEnabled,voiceEnabled,latest,false)
     }
+    onStealthQuietChanged: {
+        if(output && !playingCritical)output.stop()
+        if(stealthQuiet)audioQueue=audioQueue.filter(function(item){return item.critical})
+    }
     onReplayModeChanged: { previous=({});lastTimes=({});audioQueue=[];if(output)output.stop() }
     property Timer dispatcher:Timer { interval:250;repeat:true;running:true;onTriggered:root.dispatch() }
     property Timer monitor:Timer { interval:500;repeat:true;running:true;onTriggered:root.tick() }
 }
+

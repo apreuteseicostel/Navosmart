@@ -6,6 +6,7 @@ import QtQuick.Layouts
 // All control actions are backed by existing NAVO modules; QGC handles its own parameters.
 Rectangle {
     id: root
+    property var lanDiagnostics: null
     property var connectivity: null
     property bool cameraLive: false
     property bool vehicleConnected: false
@@ -16,8 +17,11 @@ Rectangle {
     property var steering: null
     property var g20: null
     property var energy: null
+    property var stealth: null
     property string cameraStreamUrl: ""
     property string cameraProtocol: "auto"
+    property string cameraDecoder: "hardware"
+    property string cameraRtspTransport: "tcp"
     property int selectedTab: 0
     property bool showEnergyHelp: false
     property string statusText: ""
@@ -42,10 +46,10 @@ Rectangle {
         // Energy preferences are persisted by QtCore.Settings when edited.
         // Camera/Kogger endpoint edits are committed only by saveEndpoints().
         if (!ethernetSettings.saveEndpoints()) {
-            statusText = "Verifică porturile: valorile nu au fost salvate."
+            statusText = "Verifică adresa și porturile LAN/UART, sonar și cameră; salvare neconfirmată."
             return false
         }
-        statusText = "Setări salvate • rețea, cameră și preferințe NAVO"
+        statusText = "Setări salvate • LAN/UART, cameră și preferințe NAVO"
         status(statusText)
         return true
     }
@@ -201,7 +205,7 @@ Rectangle {
                     columnSpacing: 6;rowSpacing: 6
                     NavTab { objectName:"settingsGeneralTab";text:"General";tabIcon:"qrc:/qml/NavoSmart/icons/settings.svg";tabIndex:0 }
                     NavTab { objectName:"settingsAdvancedTab";text:"Avansat";tabIcon:"qrc:/qml/NavoSmart/icons/palette.svg";tabIndex:1 }
-                    NavTab { objectName:"settingsIntegrationTab";text:"Integrare";tabIcon:"qrc:/qml/NavoSmart/icons/lan.svg";tabIndex:2 }
+                    NavTab { objectName:"settingsIntegrationTab";text:"Conexiuni";tabIcon:"qrc:/qml/NavoSmart/icons/lan.svg";tabIndex:2 }
                     NavTab { objectName:"settingsQgcTab";text:"QGroundControl";tabIcon:"qrc:/qml/NavoSmart/icons/target.svg";tabIndex:3 }
                 }
             }
@@ -211,7 +215,6 @@ Rectangle {
                 objectName:"settingsGeneralPanel"
                 Layout.fillWidth: true
                 spacing: 9
-                ActionButton { objectName:"settingsConnectivity";text:"Conectivitate • porturi și stare conexiuni";Layout.fillWidth:true;onClicked:root.selectedTab=4 }
 
                 GridLayout {
                     Layout.fillWidth: true
@@ -232,6 +235,7 @@ Rectangle {
                         onEnableRequested: root.enableSteeringRequested()
                     }
                 }
+                NavoStealthPanel { Layout.fillWidth:true; controller:root.stealth }
                 Rectangle {
                     id: energyCard
                     Layout.fillWidth: true
@@ -331,8 +335,10 @@ Rectangle {
                 objectName:"settingsIntegrationPanel"
                 Layout.fillWidth: true
                 spacing: 9
+                ActionButton { objectName:"settingsConnectivity";text:"Conectivitate • porturi și stare conexiuni";Layout.fillWidth:true;onClicked:root.selectedTab=4 }
                 NavoEthernetSettings {
                     id: ethernetSettings
+                    lanDiagnostics: root.lanDiagnostics
                     objectName:"settingsEthernetForms"
                     Layout.fillWidth: true
                     Layout.preferredHeight: implicitHeight
@@ -340,6 +346,8 @@ Rectangle {
                     camera: root.camera
                     onCameraStreamUrlChanged: root.cameraStreamUrl = cameraStreamUrl
                     onCameraProtocolChanged: root.cameraProtocol = cameraProtocol
+                    onCameraDecoderChanged: root.cameraDecoder = cameraDecoder
+                    onCameraRtspTransportChanged: root.cameraRtspTransport = cameraRtspTransport
                     onStatus: function(message) { root.statusText = message; root.status(message) }
                 }
             }
@@ -387,7 +395,7 @@ Rectangle {
                 sonar:root.sonar
                 camera:root.camera
                 videoLive:root.cameraLive
-                onBackRequested:root.selectedTab=0
+                onBackRequested:root.selectedTab=2
             }
 
             Label {
@@ -438,4 +446,5 @@ Rectangle {
         }
     }
 }
+
 

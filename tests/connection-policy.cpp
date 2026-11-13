@@ -1,5 +1,7 @@
 #include "../custom/src/NavoConnectionPolicy.h"
 #include <cassert>
+#include <cstring>
+#include "../custom/src/NavoConnectivityDiagnosis.h"
 #include <iostream>
 int main() {
     using namespace NavoConnectionPolicy;
@@ -16,5 +18,21 @@ int main() {
     assert(!heartbeatFresh(true, 11000, 10000));
     assert(heartbeatFresh(true, 9000, 10000));
     assert(!heartbeatFresh(true, 4000, 10000));
+    using NavoConnectivityDiagnosis::Input;
+    using NavoConnectivityDiagnosis::explain;
+    auto code=[](Input s,const char* expected){assert(std::strcmp(explain(s).code,expected)==0);};
+    Input d;
+    code(d,"idle"); d.platform=false;code(d,"platform");d.platform=true;
+    d.replay=true;d.stopped=true;code(d,"replay");d.replay=false;code(d,"stopped");d.stopped=false;
+    d.selected=false;code(d,"model");d.selected=true;
+    d.attempts=5;code(d,"retries");d.attempts=0;
+    d.sdkError=true;code(d,"sdk_error");d.sdkError=false;
+    d.link=true;code(d,"controller");d.rc=true;code(d,"channel");
+    d.receiver=0;code(d,"receiver");d.receiver=-1;code(d,"channel");
+    d.channel=true;code(d,"no_rx");d.bytes=42;code(d,"no_heartbeat");
+    d.heartbeatSeen=true;code(d,"heartbeat_lost");
+    d.live=true;d.receiver=0;d.sdkError=true;code(d,"live"); // heartbeat wins contradictory metadata
+    d.stopped=true;code(d,"stopped");d.stopped=false;d.replay=true;code(d,"replay");
+    std::cout << "PASS 14 explanatory diagnosis states, unknown receiver, contradictory metadata, replay/manual precedence and RX versus HEARTBEAT evidence\n";
     std::cout << "PASS connectivity retry budget, backoff, no active-link replacement and heartbeat expiry\n";
 }
