@@ -896,9 +896,9 @@ Item {
         if(target!==1 && target!==2)return false
         // Only manual app/G20 UI calls may toggle. Stealth uses explicit ON/OFF.
         if(mode!==0 && mode!==1 && mode!==2)return false
-        if(!fromStealth && stealth.relayAckPending) {
+        if(!fromStealth && root.stealthController && root.stealthController.relayAckPending) {
             // Cancel next Stealth step, keep physical G20 buttons unaffected.
-            stealth.manualLightOverride()
+            root.stealthController.manualLightOverride()
             root.lastNavigationStatus=label+" • așteaptă finalizarea comenzii Relay anterioare; reîncearcă"
             return false
         }
