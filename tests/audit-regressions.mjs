@@ -516,6 +516,17 @@ test('Dashboard keeps battery/temperature diagnostics and displays only the conf
     assert(dash.includes('dashboardDetails.showSection("'+section+'")'));
   assert.match(dash,/NavoStatusDetails\s*\{/);
   assert.match(panel,/temperatureSamples/);
+  assert.match(dash,/component TemperaturePill: Rectangle/);
+  assert.match(dash,/objectName: "dualTemperaturePill"/);
+  assert.match(dash,/source: "qrc:\/qml\/NavoSmart\/icons\/boat.svg"/);
+  assert.match(dash,/batteryValue: batteryValid \?/);
+  assert.match(dash,/interiorValue: interiorValid \?/);
+  assert.doesNotMatch(dash,/title: "TEMP"/);
+  assert.match(panel,/objectName: "batteryTemperatureSummary"/);
+  assert.match(panel,/objectName: "interiorTemperatureSummary"/);
+  assert.match(panel,/objectName: "temperatureStats"/);
+  assert.match(panel,/scrollBody.contentY = 0/);
+
   assert.match(panel,/date/i); // Date.now-based genuine time series, not demo points.
   assert.match(panel,/FĂRĂ TELEMETRIE/);
   assert.match(panel,/BMS \/ echilibrare celule/);

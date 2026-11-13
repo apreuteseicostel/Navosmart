@@ -36,6 +36,22 @@ ApplicationWindow { visible:true; width:800; height:480
   QMetaObject.invokeMethod(panel,'open');QTest.qWait(50)
   assert panel.property('x')+panel.property('width')<=width
   assert panel.property('y')+panel.property('height')<=height
+  summaries=window.findChild(QObject,'temperatureSummaries')
+  battery_card=window.findChild(QObject,'batteryTemperatureSummary')
+  interior_card=window.findChild(QObject,'interiorTemperatureSummary')
+  stats=window.findChild(QObject,'temperatureStats')
+  assert summaries and battery_card and interior_card and stats
+  assert summaries.property('y') < stats.property('y') # first block before min/max
+  assert battery_card.property('y') < interior_card.property('y') # stacked, not side by side
+  panel.setProperty('temperatureFresh',True);panel.setProperty('temperatureC',20.8)
+  panel.setProperty('interiorValid',True);panel.setProperty('interiorTempC',23.7)
+  QTest.qWait(5)
+  assert battery_card.property('amount') == '20.8 °C'
+  assert interior_card.property('amount') == '23.7 °C'
+  panel.setProperty('temperatureFresh',False);panel.setProperty('interiorValid',False)
+  QTest.qWait(5)
+  assert battery_card.property('amount') == '--'
+  assert interior_card.property('amount') == '--'
   status=window.findChild(QObject,'interiorSensorStatus');assert status
   for code,word in [(0,'Fără'),(1,'așteaptă'),(3,'eșuată'),(4,'incompatibil')]:
    panel.setProperty('interiorStatus',code);QTest.qWait(5);assert word in status.property('text')

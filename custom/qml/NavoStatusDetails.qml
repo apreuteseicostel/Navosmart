@@ -59,6 +59,7 @@ Popup {
     function showSection(which) {
         if(which!=="battery" && which!=="temperature")return false
         section = which
+        scrollBody.contentY = 0 // always start with the two live temperatures
         open()
         return true
     }
@@ -104,6 +105,46 @@ Popup {
         spacing: 8
         Label { text: parent.caption; color: details.muted; font.pixelSize: 12; Layout.fillWidth: true; elide: Text.ElideRight }
         Label { text: parent.amount; color: parent.amountColor; font.pixelSize: 13; font.bold: true }
+    }
+    // Small stacked readout; both values are genuine H743 telemetry or unavailable.
+    component TemperatureSummary: Rectangle {
+        id: temperatureSummary
+        property string caption: ""
+        property string amount: "--"
+        property bool live: false
+        property url iconSource: ""
+        Layout.fillWidth: true
+        Layout.preferredHeight: 36
+        radius: 7
+        color: "#0c2837"
+        border.color: details.line
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 9
+            anchors.rightMargin: 9
+            spacing: 7
+            Image {
+                source: temperatureSummary.iconSource
+                Layout.preferredWidth: 16
+                Layout.preferredHeight: 16
+                fillMode: Image.PreserveAspectFit
+            }
+            Label {
+                text: temperatureSummary.caption
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                elide: Text.ElideRight
+                color: details.muted
+                font.pixelSize: 11
+            }
+            Label {
+                text: temperatureSummary.amount
+                color: temperatureSummary.live ? details.fg : details.muted
+                font.pixelSize: 13
+                font.bold: true
+                horizontalAlignment: Text.AlignRight
+            }
+        }
     }
     component StatChip: Rectangle {
         property string caption: ""
@@ -227,7 +268,28 @@ Popup {
                 visible: details.section === "temperature"
                 Layout.fillWidth: true
                 spacing: 11
+                ColumnLayout {
+                    id: temperatureSummaries
+                    objectName: "temperatureSummaries"
+                    Layout.fillWidth: true
+                    spacing: 4
+                    TemperatureSummary {
+                        objectName: "batteryTemperatureSummary"
+                        caption: "Temperatură baterie"
+                        iconSource: "qrc:/qml/NavoSmart/icons/battery.svg"
+                        live: details.temperatureFresh
+                        amount: live ? details.format(details.temperatureC, 1, " °C") : "--"
+                    }
+                    TemperatureSummary {
+                        objectName: "interiorTemperatureSummary"
+                        caption: "Temperatură interior cocă"
+                        iconSource: "qrc:/qml/NavoSmart/icons/boat.svg"
+                        live: details.interiorValid
+                        amount: live ? details.format(details.interiorTempC, 1, " °C") : "--"
+                    }
+                }
                 RowLayout {
+                    objectName: "temperatureStats"
                     Layout.fillWidth: true; spacing: 7
                     StatChip { caption: "ACTUAL"; amount: details.temperatureFresh ? details.format(details.temperatureC, 1, " °C") : "--" }
                     StatChip { caption: "MINIM"; amount: details.format(details.sampleStats().min, 1, " °C") }
