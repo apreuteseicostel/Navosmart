@@ -498,8 +498,8 @@ test('ArduPilot Relay is the sole light owner; RC7/RC16 work without Lua NV3CAP'
  c.linkAlive=true;
  assert(c.commandH743Light(1,2,'Far'));assert.deepEqual(sent[0].slice(0,6),[1,181,true,0,2,0]); // Relay1 toggle
  assert(c.commandH743Light(2,2,'Poziții'));assert.deepEqual(sent[1].slice(0,6),[1,181,true,1,2,0]); // Relay2 toggle
- assert(c.commandH743Light(2,1,'Stealth',true));assert.deepEqual(sent[2].slice(0,6),[1,181,true,1,1,0]); // positions ON
- assert(c.commandH743Light(1,0,'Stealth',true));assert.deepEqual(sent[3].slice(0,6),[1,181,true,0,0,0]); // head OFF
+ assert(c.commandH743Light(2,1,'Stealth',true));assert.deepEqual(sent[2].slice(0,6),[1,181,false,1,1,0]); // positions ON
+ assert(c.commandH743Light(1,0,'Stealth',true));assert.deepEqual(sent[3].slice(0,6),[1,181,false,0,0,0]); // head OFF
  c.sonarController.replayMode=true;assert.equal(c.commandH743Light(1,1,'Far'),false);assert.equal(sent.length,4);
  c.sonarController.replayMode=false;assert.equal(c.commandH743Light(1,3,'Far'),false);assert.equal(sent.length,4);
 });
