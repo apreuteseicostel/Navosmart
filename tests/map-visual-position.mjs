@@ -97,9 +97,49 @@ test('Map source uses pan reuse and actual track incremental Qt path updates',()
  assert.match(source,/root\.projectedView=root\.currentMapView\(\)/);
  assert.match(track,/actualTrack\.addCoordinate\(c\)/);
  assert.match(track,/function appendTrackCoordinate\(c\)/);
- assert.match(track,/trackCoordinates\s*=\s*trackCoordinates\.concat\(\[c\]\)/);
+ assert.match(track,/trackCoordinates\.push\(c\)/);
+ assert.match(track,/trackPointCount\s*=\s*trackCoordinates\.length/);
+ assert.match(track,/lastTrackCoordinate\s*=\s*c/);
+ assert.match(track,/path:\s*root\.trackPointCount\s*>\s*0/);
+ const map=fs.readFileSync('custom/qml/NavoMap.qml','utf8');
+ assert.match(map,/actualTrack\.trackPointCount/);
+ assert.doesNotMatch(map,/actualTrack\.trackCoordinates\.length/);
+ assert.match(source,/if \(centerOnly\) viewportTimer\.restart\(\)/);
  const trackItem=track.slice(track.indexOf('id: actualTrack'),track.indexOf('id: homeLeg'));
  assert.doesNotMatch(trackItem,/path:\s*root\.trackCoordinates/);
  assert.match(cmake,/qml\/NavoMapProjection\.js/);
 });
+
+test('GPS history appends without array copying and keeps the HOME leg reactive',()=>{
+ const source=fs.readFileSync('custom/qml/NavoActualTrack.qml','utf8');
+ const extract=(name)=>{
+   const re=new RegExp('function '+name+'\\([^)]*\\) \\{[\\s\\S]*?\\n    \\}');
+   const match=source.match(re);
+   assert(match,'missing '+name+' function');return match[0];
+ };
+ const added=[], ctx=vm.createContext({
+   trackCoordinates:[], trackPointCount:0, lastTrackCoordinate:null,
+   trackMapItemReady:true,
+   actualTrack:{path:null,addCoordinate(p){added.push(p)}},
+   QtPositioning:{coordinate(){return {isValid:false}}},
+ });
+ vm.runInContext(extract('replaceTrack')+'\n'+extract('appendTrackCoordinate'),ctx);
+ const home={latitude:52,longitude:-1};
+ ctx.replaceTrack([home]);
+ assert.equal(ctx.trackPointCount,1);
+ assert.equal(ctx.lastTrackCoordinate,home);
+ assert.equal(ctx.actualTrack.path.length,1);
+ const originalArray=ctx.trackCoordinates;
+ for(let n=0;n<250;n++)ctx.appendTrackCoordinate({latitude:52,longitude:-1+n/10000});
+ assert.equal(ctx.trackCoordinates,originalArray,'history should be appended in place');
+ assert.equal(ctx.trackPointCount,251);
+ assert.equal(added.length,250);
+ assert.equal(ctx.lastTrackCoordinate.longitude,-1+249/10000);
+ assert.equal(ctx.actualTrack.path.length,251,'the map item must receive every point');
+ ctx.replaceTrack([]);
+ assert.equal(ctx.trackPointCount,0);
+ assert.equal(ctx.trackCoordinates.length,0);
+ assert.equal(ctx.actualTrack.path.length,0);
+});
+
 console.log(`${count} map visual stability scenarios passed`);
