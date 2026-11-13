@@ -65,7 +65,7 @@ test('Native surface pan reuses projected vertices with the same screen coordina
  map.center={latitude:52.001,longitude:-1.01,isValid:true};
  const expected=points.map(p=>map.fromCoordinate(p));
  const offset=mapPan.panOffset(map,view);
- assert(offset); assert.equal(offset.x,100); assert.equal(offset.y,10);
+ assert(offset); assert(Math.abs(offset.x-100)<1e-8); assert(Math.abs(offset.y-10)<1e-8);
  const result=mapPan.translateProjected(projected,offset);
  for(let i=0;i<points.length;i++){
    assert(Math.abs(result[i].x-expected[i].x)<1e-8);
@@ -91,14 +91,14 @@ test('Map source uses pan reuse and actual track incremental Qt path updates',()
  const source=fs.readFileSync('custom/qml/NavoNativeBathymetryOverlay.qml','utf8');
  const track=fs.readFileSync('custom/qml/NavoActualTrack.qml','utf8');
  const cmake=fs.readFileSync('custom/CMakeLists.txt','utf8');
- assert.match(source,/import "NavoMapProjection\\.js" as MapPan/);
- assert.match(source,/onCenterChanged\\(\\)\\{root\\.invalidateProjection\\(true,true\\)\\}/);
- assert.match(source,/MapPan\\.translateProjected\\(root\\.projected,offset\\)/);
- assert.match(source,/root\\.projectedView=root\\.currentMapView\\(\\)/);
- assert.match(track,/actualTrack\\.addCoordinate\\(c\\)/);
- assert.match(track,/function appendTrackCoordinate\\(c\\)/);
- assert.match(track,/trackCoordinates\\s*=\\s*trackCoordinates\\.concat\\(\\[c\\]\\)/);
- assert.doesNotMatch(track,/path:\\s*root\\.trackCoordinates/);
- assert.match(cmake,/qml\\/NavoMapProjection\\.js/);
+ assert.match(source,/import "NavoMapProjection\.js" as MapPan/);
+ assert.match(source,/onCenterChanged\(\)\{root\.invalidateProjection\(true,true\)\}/);
+ assert.match(source,/MapPan\.translateProjected\(root\.projected,offset\)/);
+ assert.match(source,/root\.projectedView=root\.currentMapView\(\)/);
+ assert.match(track,/actualTrack\.addCoordinate\(c\)/);
+ assert.match(track,/function appendTrackCoordinate\(c\)/);
+ assert.match(track,/trackCoordinates\s*=\s*trackCoordinates\.concat\(\[c\]\)/);
+ assert.doesNotMatch(track,/path:\s*root\.trackCoordinates/);
+ assert.match(cmake,/qml\/NavoMapProjection\.js/);
 });
 console.log(`${count} map visual stability scenarios passed`);
