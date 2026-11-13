@@ -93,12 +93,19 @@ QtObject {
         var now=Date.now()
         // Confirmed flooding is a critical alert, never gated by routine sound
         // settings or Stealth. Bounded six-second repeat until user silences.
-        if(waterEmergencyActive && !waterAlarmMuted && (!lastWaterAlarmAt || now-lastWaterAlarmAt>=6000)) {
-            lastWaterAlarmAt=now
-            playingCritical=true
-            forcedCriticalPlayback=true
-            output.play(true,false,"PERICOL! Apă în cocă. Întoarcere acasă necesară.",true)
-            return
+        if(waterEmergencyActive) {
+            // The ordinary water edge must not create a second beep after
+            // the mandatory siren or sound again after manual muting.
+            audioQueue=audioQueue.filter(function(item){return item.key!=="water"})
+            if(!waterAlarmMuted) {
+                if(!lastWaterAlarmAt || now-lastWaterAlarmAt>=6000) {
+                    lastWaterAlarmAt=now
+                    playingCritical=true
+                    forcedCriticalPlayback=true
+                    output.play(true,false,"PERICOL! Apă în cocă. Întoarcere acasă necesară.",true)
+                }
+                return // Flooding takes priority over routine alerts.
+            }
         }
         if(!soundEnabled && !voiceEnabled && !stealthQuiet)return
         var queue=audioQueue.filter(function(item){return now-item.at<20000 && (!root.stealthQuiet || item.critical)})
