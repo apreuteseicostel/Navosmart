@@ -19,6 +19,10 @@ QtObject {
     property bool positionLightsOn: false
     property bool active: false // Session only: never auto-enable at startup/reconnect.
     property string lightState: "OFF"
+    // The same MAV_CMD_DO_SET_RELAY(181) cannot be sent twice until QGC
+    // completes the first command with a terminal COMMAND_ACK.
+    readonly property bool relayAckPending: relayMode && active &&
+        (lightState==="RELAY_POS_PENDING" || lightState==="RELAY_HEAD_PENDING")
     property string speedState: "Viteză nemodificată"
     property string message: "Stealth dezactivat"
     property bool previousHead: false
@@ -41,6 +45,40 @@ QtObject {
         lightRequested(target,value) // Kept for isolated QML/component harnesses.
         return true
     }
+    function relayCommandResult(ackResult,failureCode) {
+        if(!relayAckPending)return false
+        // QGC Vehicle::MavCmdResultCommandResultOnly=0 and MAV_RESULT_ACCEPTED=0.
+        if(failureCode!==0 || ackResult!==0) {
+            relayAckWatchdog.stop()
+            lightState="FAILED"
+            return true
+        }
+        if(lightState==="RELAY_POS_PENDING") {
+            if(!canActivate || !lightsReady || lightOverride) {
+                relayAckWatchdog.stop()
+                lightState="UNAVAILABLE"
+                return true
+            }
+            lightState="RELAY_HEAD_PENDING"
+            relayAckWatchdog.restart() // Separate bounded wait for the headlight ACK.
+            if(!sendLight(1,0)) {
+                relayAckWatchdog.stop()
+                lightState="FAILED"
+            }
+            return true
+        }
+        if(lightState==="RELAY_HEAD_PENDING") {
+            relayAckWatchdog.stop()
+            lightState="RELAY_UNVERIFIED" // Both ACKed; still no lamp state feedback.
+            return true
+        }
+        return false
+    }
+    function relayAckTimeout() {
+        if(!relayAckPending)return false
+        lightState="TIMEOUT"
+        return true // Never auto-retry a pending MAVLink 181.
+    }
     function setSpeedLimit(tenths) {
         if(!Number.isInteger(tenths) || tenths<2 || tenths>15)return false
         preferences.speedTenths=tenths
@@ -59,6 +97,7 @@ QtObject {
     }
     function deactivate(restore) {
         var restoreHead=restore && active && !relayMode && capturedLights && !lightOverride && lightsReady && !lightCommandBusy && !headlightOn
+        relayAckWatchdog.stop()
         active=false;lightState="OFF";message="Stealth dezactivat";speedToken=""
         // Explicit user deactivation only; never restore on lost link, replay or vehicle change.
         if(restore && canActivate && gpsReady && navigationActive && navigationMode && isFinite(nominalSpeedMps) && nominalSpeedMps>0) {
@@ -73,14 +112,15 @@ QtObject {
         if(!lightsReady){lightState="UNAVAILABLE";return false}
         if(lightCommandBusy){lightState="BUSY";return false}
         if(relayMode) {
-            // Native RC7/RC16 options own physical S6/S7. Only explicit, one-shot
-            // relay requests: never infer live lamp state from absent NV3* telemetry.
+            // RC7/RC16 still own physical S6/S7. NEVER send both MAV_CMD 181
+            // commands synchronously: QGC rejects a second 181 before first ACK.
+            if(relayAckPending)return false
             lightOverride=false
-            if(!sendLight(2,1)){lightState="FAILED";return false} // Relay2 positions ON
-            if(!sendLight(1,0)){lightState="FAILED";return false} // Relay1 headlight OFF
+            lightState="RELAY_POS_PENDING"
             requestedAt=Date.now()
-            lightState="RELAY_UNVERIFIED" // Delivery is not an ACK or optical feedback.
-            return true
+            relayAckWatchdog.restart()
+            if(!sendLight(2,1)){relayAckWatchdog.stop();lightState="FAILED";return false}
+            return true // Relay1 OFF is sent ONLY by relayCommandResult on accepted ACK.
         }
         if(!capturedLights){previousHead=headlightOn;capturedLights=true}
         lightOverride=false
@@ -96,6 +136,7 @@ QtObject {
     }
     function manualLightOverride() {
         if(!active)return
+        relayAckWatchdog.stop()
         lightOverride=true;lightState="PILOT"
     }
     function observe() {
@@ -125,5 +166,9 @@ QtObject {
     onVehicleChanged: if(active)deactivate(false)
     onLinkReadyChanged: observe()
     onReplayModeChanged: observe()
+    property Timer relayAckWatchdog: Timer {
+        interval:12000;repeat:false;running:false
+        onTriggered:root.relayAckTimeout()
+    }
     property Timer monitor: Timer { interval:250;repeat:true;running:root.active;onTriggered:root.observe() }
 }
