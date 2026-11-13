@@ -11,6 +11,9 @@ QtObject {
     property string flightMode: ""
     property real nominalSpeedMps: 1.5
     property bool lightsReady: false
+    property bool lightCommandBusy: false // Transient hopper request is not an offline V3 light service.
+    property string lightUnavailableReason: ""
+    property var dispatchLight: null // Shared dashboard MAVLink 31001 path; returns bool if accepted for dispatch.
     property bool headlightOn: false
     property bool positionLightsOn: false
     property bool active: false // Session only: never auto-enable at startup/reconnect.
@@ -32,6 +35,11 @@ QtObject {
     signal lightRequested(int target, int value)
     signal speedRequested(real metersPerSecond)
 
+    function sendLight(target,value) {
+        if(typeof dispatchLight==="function")return dispatchLight(target,value)===true
+        lightRequested(target,value) // Kept for isolated QML/component harnesses.
+        return true
+    }
     function setSpeedLimit(tenths) {
         if(!Number.isInteger(tenths) || tenths<2 || tenths>15)return false
         preferences.speedTenths=tenths
@@ -49,24 +57,30 @@ QtObject {
         applyLights();observe();return true
     }
     function deactivate(restore) {
-        var restoreHead=restore && active && capturedLights && !lightOverride && lightsReady && !headlightOn
+        var restoreHead=restore && active && capturedLights && !lightOverride && lightsReady && !lightCommandBusy && !headlightOn
         active=false;lightState="OFF";message="Stealth dezactivat";speedToken=""
         // Explicit user deactivation only; never restore on lost link, replay or vehicle change.
         if(restore && canActivate && gpsReady && navigationActive && navigationMode && isFinite(nominalSpeedMps) && nominalSpeedMps>0) {
             speedRequested(nominalSpeedMps);speedState="Viteză normală solicitată H743"
         } else speedState="Viteză nemodificată"
-        if(restoreHead && canActivate && previousHead)lightRequested(1,1)
+        if(restoreHead && canActivate && previousHead)sendLight(1,1)
         // Never turn position lights off on exit. Pilot can control them separately.
         capturedLights=false
     }
     function applyLights() {
         if(!active || !canActivate)return false
         if(!lightsReady){lightState="UNAVAILABLE";return false}
+        if(lightCommandBusy){lightState="BUSY";return false}
         if(!capturedLights){previousHead=headlightOn;capturedLights=true}
-        lightOverride=false;requestedAt=Date.now()
-        if(!positionLightsOn){lightState="POSITIONS";lightRequested(2,1)}
-        else if(headlightOn){lightState="HEAD";lightRequested(1,0)}
-        else lightState="CONFIRMED"
+        lightOverride=false
+        if(!positionLightsOn) {
+            if(!sendLight(2,1)){lightState="FAILED";return false}
+            lightState="POSITIONS"
+        } else if(headlightOn) {
+            if(!sendLight(1,0)){lightState="FAILED";return false}
+            lightState="HEAD"
+        } else lightState="CONFIRMED"
+        requestedAt=Date.now()
         return true
     }
     function manualLightOverride() {
@@ -86,8 +100,11 @@ QtObject {
         if(lightOverride)return
         if(!lightsReady){lightState="UNAVAILABLE";return}
         if(lightState==="POSITIONS" && positionLightsOn) {
-            if(headlightOn){lightState="HEAD";requestedAt=Date.now();lightRequested(1,0)}
-            else lightState="CONFIRMED"
+            if(headlightOn) {
+                if(lightCommandBusy)return
+                if(sendLight(1,0)){lightState="HEAD";requestedAt=Date.now()}
+                else lightState="FAILED"
+            } else lightState="CONFIRMED"
         }
         if(lightState==="HEAD" && !headlightOn && positionLightsOn)lightState="CONFIRMED"
         if(lightState==="CONFIRMED" && (headlightOn || !positionLightsOn))lightState="CHANGED"
