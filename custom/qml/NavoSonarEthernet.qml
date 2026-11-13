@@ -54,7 +54,7 @@ QtObject {
  readonly property bool echoFresh: !replayMode && connected && decoderObject.chartRawByteCount>0 && lastEchoMs>0 && clockMs-lastEchoMs<1500
  readonly property real bottomEchoStrength: computeBottomEchoStrength(decoderObject.echoSamples)
  function computeBottomEchoStrength(samples){ if(!echoFresh||!samples||!samples.length)return NaN; var n=Math.max(3,Math.floor(samples.length*0.10)),sum=0,cnt=0; for(var i=Math.max(0,samples.length-n);i<samples.length;i++){var v=Number(samples[i]);if(isFinite(v)){sum+=v;cnt++}} return cnt?sum/cnt:NaN }
- property Timer freshness: Timer { interval:500; repeat:true; running:true; onTriggered:root.clockMs=Date.now() }
+ property Timer freshness: Timer { interval:500; repeat:true; running:transportObject.connected && !root.replayMode; onTriggered:root.clockMs=Date.now() }
  property alias depthM: decoderObject.depthM
  property alias waterTempC: decoderObject.waterTempC
  property alias echoSamples: decoderObject.echoSamples
