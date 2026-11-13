@@ -838,5 +838,9 @@ test('QML-creatable backend classes permit the Qt QQmlElement wrapper to derive'
   assert(!new RegExp('class\\s+'+name+'\\s+final\\b').test(headers), name+' cannot be final when registered with qmlRegisterType');
  }
 });
+test('Sonar freshness watchdog only runs on a live transport, not while offline or replaying',()=>{
+  const sonar=fs.readFileSync(path.join(dir,'NavoSonarEthernet.qml'),'utf8');
+  assert.match(sonar,/property Timer freshness:\\s*Timer\\s*\\{[^}]*running:\\s*transportObject\\.connected\\s*&&\\s*!root\\.replayMode/);
+});
 console.log(`${passed} regression scenarios passed`);
 
