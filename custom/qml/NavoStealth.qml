@@ -11,9 +11,10 @@ QtObject {
     property string flightMode: ""
     property real nominalSpeedMps: 1.5
     property bool lightsReady: false
-    property bool lightCommandBusy: false // Transient hopper request is not an offline V3 light service.
+    property bool lightCommandBusy: false // Reserved for optional V3 service, not required by ArduPilot Relay.
     property string lightUnavailableReason: ""
-    property var dispatchLight: null // Shared dashboard MAVLink 31001 path; returns bool if accepted for dispatch.
+    property var dispatchLight: null // Single dashboard dispatcher, native MAV_CMD_DO_SET_RELAY (181).
+    property bool relayMode: false // Use ArduPilot Relay1/Relay2; no independent light telemetry available.
     property bool headlightOn: false
     property bool positionLightsOn: false
     property bool active: false // Session only: never auto-enable at startup/reconnect.
@@ -57,7 +58,7 @@ QtObject {
         applyLights();observe();return true
     }
     function deactivate(restore) {
-        var restoreHead=restore && active && capturedLights && !lightOverride && lightsReady && !lightCommandBusy && !headlightOn
+        var restoreHead=restore && active && !relayMode && capturedLights && !lightOverride && lightsReady && !lightCommandBusy && !headlightOn
         active=false;lightState="OFF";message="Stealth dezactivat";speedToken=""
         // Explicit user deactivation only; never restore on lost link, replay or vehicle change.
         if(restore && canActivate && gpsReady && navigationActive && navigationMode && isFinite(nominalSpeedMps) && nominalSpeedMps>0) {
@@ -71,6 +72,16 @@ QtObject {
         if(!active || !canActivate)return false
         if(!lightsReady){lightState="UNAVAILABLE";return false}
         if(lightCommandBusy){lightState="BUSY";return false}
+        if(relayMode) {
+            // Native RC7/RC16 options own physical S6/S7. Only explicit, one-shot
+            // relay requests: never infer live lamp state from absent NV3* telemetry.
+            lightOverride=false
+            if(!sendLight(2,1)){lightState="FAILED";return false} // Relay2 positions ON
+            if(!sendLight(1,0)){lightState="FAILED";return false} // Relay1 headlight OFF
+            requestedAt=Date.now()
+            lightState="RELAY_UNVERIFIED" // Delivery is not an ACK or optical feedback.
+            return true
+        }
         if(!capturedLights){previousHead=headlightOn;capturedLights=true}
         lightOverride=false
         if(!positionLightsOn) {
@@ -99,6 +110,7 @@ QtObject {
         }
         if(lightOverride)return
         if(!lightsReady){lightState="UNAVAILABLE";return}
+        if(relayMode)return // Never overwrite a later physical G20 button press.
         if(lightState==="POSITIONS" && positionLightsOn) {
             if(headlightOn) {
                 if(lightCommandBusy)return
