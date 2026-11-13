@@ -113,7 +113,13 @@ local function update()
     if now>=publish_at then
         local caps=(cfg.lights and 1 or 0)+(temp_in and 2 or 0)+(water_in and 4 or 0)+(check_hoppers() and 8 or 0)+(cfg.rgb and 16 or 0)
         gcs:send_named_float("NV3VER",1);gcs:send_named_float("NV3CAP",caps)
-        gcs:send_named_float("NV3TEMP",temperature);gcs:send_named_float("NV3WATER",water);gcs:send_named_float("NV3WFAULT",fault)
+        gcs:send_named_float("NV3TEMP",temperature)
+        -- A disabled water input is NOT a dry, valid probe. In particular, do not
+        -- overwrite an independent navo_water_service.lua stream with 0/fault=1.
+        if water_in then
+            gcs:send_named_float("NV3WATER",water)
+            gcs:send_named_float("NV3WFAULT",fault)
+        end
         gcs:send_named_float("NV3HEAD",state.head);gcs:send_named_float("NV3POS",state.pos)
         gcs:send_named_float("NV3HOP",state.hopper);gcs:send_named_float("NV3REQ",state.last_request)
         if cfg.rgb then
