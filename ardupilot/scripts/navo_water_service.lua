@@ -55,10 +55,10 @@ local function update()
             status=state:push(reading)
             -- An uncalibrated probe NEVER claims water present or dry.
             if status==2 then
-                gcs:send_named_float("NV3WATER",state.wet and 1 or 0)
-                gcs:send_named_float("NV3WFAULT",0)
+                gcs:send_named_float("NV3WDET",state.wet and 1 or 0)
+                gcs:send_named_float("NV3WFLT",0)
             elseif status==3 then
-                gcs:send_named_float("NV3WFAULT",1)
+                gcs:send_named_float("NV3WFLT",1)
             end
         end
     end
