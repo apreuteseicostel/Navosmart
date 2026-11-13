@@ -24,13 +24,17 @@ import QtQuick.Controls
 import "'''+(repo/'custom/qml').as_uri()+'''" as Navo
 ApplicationWindow {
  id:window;visible:true;width:480;height:600
- property var lights:[];property var speeds:[]
+ property var lights:[];property var speeds:[];property bool rejectLights:false
  QtObject{id:boat}
  QtObject{id:otherBoat}
  Navo.NavoStealth {
   id:profile;objectName:"profile";vehicle:boat;linkReady:true;gpsReady:true
   lightsReady:true;headlightOn:true;positionLightsOn:false
-  onLightRequested:function(target,value){window.lights=window.lights.concat([{target:target,value:value}])}
+  dispatchLight:function(target,value){
+   if(window.rejectLights)return false
+   window.lights=window.lights.concat([{target:target,value:value}])
+   return true
+  }
   onSpeedRequested:function(speed){window.speeds=window.speeds.concat([speed])}
  }
  Navo.NavoStealthPanel {id:settingsPanel;objectName:"panel";width:parent.width;controller:profile}
@@ -54,6 +58,9 @@ ApplicationWindow {
  def lights():return w.property('lights').toVariant()
  def speeds():return w.property('speeds').toVariant()
  assert not c.property('active') # never re-enable from persisted preference
+ w.setProperty('rejectLights',True)
+ assert call('activate') and c.property('lightState')=='FAILED' and not lights()
+ run('off');w.setProperty('rejectLights',False)
  c.setProperty('linkReady',False);assert not call('activate') and not lights()
  c.setProperty('linkReady',True);assert call('activate')
  assert lights()==[{'target':2,'value':1}] and not speeds()
