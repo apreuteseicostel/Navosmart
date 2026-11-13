@@ -817,8 +817,9 @@ Item {
         telemetryLive: h743Telemetry.connected
         temperatureValid: h743Telemetry.temperatureValid
         waterValid: h743Telemetry.waterValid
-        // Standalone water script is under commissioning: alerts only, no auto RTL/HOLD.
-        waterAutoActionEnabled: h743Telemetry.waterMonitorStatus === 0
+        // Water probe is not hardware-commissioned: display warnings, never auto RTL/HOLD.
+        // Enable only after bench acceptance and explicit navigation-safety review.
+        waterAutoActionEnabled: false
         waterSensorFault: h743Telemetry.waterSensorFault
         waterDetected: h743Telemetry.waterDetected
         batteryTempC: h743Telemetry.batteryTempC
