@@ -38,7 +38,7 @@ Rectangle {
         }
         Label {
             Layout.fillWidth:true;wrapMode:Text.WordWrap;color:"#c1d7e6";font.pixelSize:11
-            text:"Far oprit • poziții aprinse • sunete informative oprite. Alertele critice păstrează tonul; RGB și buzzerul H743 rămân neschimbate."
+            text:"Stealth solicită far OFF și poziții ON prin Relay 1/2. Butoanele G20 L2/R2 rămân funcționale; starea fizică a luminilor nu este măsurată. Alertele critice rămân sonore."
         }
         ProfileButton {
             objectName:"stealthToggle";Layout.fillWidth:true
@@ -52,6 +52,7 @@ Rectangle {
             text:!root.controller || !root.controller.active ? "Lumini: control normal"
                 : root.controller.lightState==="CONFIRMED" ? "Lumini: stare raportată H743 — far OFF / poziții ON"
                 : root.controller.lightState==="UNAVAILABLE" ? "Stealth parțial: "+(root.controller.lightUnavailableReason || "serviciul de lumini indisponibil")
+                : root.controller.lightState==="RELAY_UNVERIFIED" ? "Lumini: poziții ON / far OFF solicitate prin Relay H743; stare fizică neconfirmată"
                 : root.controller.lightState==="BUSY" ? "Lumini: comandă hardware în curs; reîncearcă după finalizare"
                 : root.controller.lightState==="FAILED" ? "Lumini: comanda V3 nu a fost transmisă; reîncearcă"
                 : root.controller.lightState==="PILOT" ? "Lumini: comandă manuală prioritară"
@@ -59,7 +60,7 @@ Rectangle {
                 : root.controller.lightState==="CHANGED" ? "Lumini: starea H743 s-a schimbat"
                 : "Lumini: comandă solicitată, aștept telemetria H743"
         }
-        ProfileButton { Layout.fillWidth:true;text:"Reaplică profilul de lumini";visible:!!root.controller && root.controller.active && ["UNAVAILABLE","BUSY","FAILED","PILOT","TIMEOUT","CHANGED"].indexOf(root.controller.lightState)>=0
+        ProfileButton { Layout.fillWidth:true;text:"Reaplică profilul de lumini";visible:!!root.controller && root.controller.active && ["UNAVAILABLE","BUSY","FAILED","PILOT","TIMEOUT","CHANGED","RELAY_UNVERIFIED"].indexOf(root.controller.lightState)>=0
             enabled:!!root.controller && root.controller.lightsReady && !root.controller.lightCommandBusy;onClicked:root.controller.applyLights() }
         Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;font.pixelSize:11;color:"#c1d7e6";text:root.controller ? root.controller.speedState : "" }
         Label { Layout.fillWidth:true;wrapMode:Text.WordWrap;font.pixelSize:10;color:"#9aaebd"
