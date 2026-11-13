@@ -147,11 +147,36 @@ Teste UM982 în interior: poate exista poziție GPS fără heading valid; `INSUF
 - [Contract / Lua V3](../../ardupilot/NAVO_V3_SERVICE.md); [SHT31](SHT31_INTERIOR.md).
 - [Setările Android G20 din cod](../../custom/qml/NavoG20Controller.qml); [Dashboard](../../custom/qml/NavoDashboard.qml).
 
-## 9. Jurnal de actualizări
+## 9. Diagnostic Stealth — două comenzi Relay consecutive (13 nov. 2026)
+
+**Simptom observat pe G20:** când se activează Stealth, luminile de poziție se
+aprind, dar farul rămâne pornit și QGroundControl afișează
+`Unable to send command: Waiting on previous response to same command.`
+
+**Cauză identificată în cod:** Stealth trimitea Relay 2 ON și Relay 1 OFF aproape
+simultan, ca două `MAV_CMD_DO_SET_RELAY (181)`. QGroundControl v5.0.7
+permite o singură comandă de același tip în așteptarea ACK-ului pentru aceeași
+componentă, indiferent de indexul releului. A doua era refuzată.
+
+**Corecția codului (PR #73):** trimitere secvențială cu
+`Vehicle.mavCommandResult`: se solicită pozițiile ON, se așteaptă
+`COMMAND_ACK` final acceptat (MAV_RESULT_ACCEPTED=0, failureCode=0),
+**abia apoi** se solicită farul OFF. Se așteaptă ACK separat pentru far.
+La refuz/timeout nu se retrimite automat și nu se pretinde iluminare confirmată
+fizic. Timpul-limită este 12 s pe pas; interfața arată progresul.
+Controalele RC fizice CH7/CH16 nu se modifică, iar `lights=nil` rămâne
+valabil pentru scriptul Lua pe GPIO55/56.
+
+**Dovadă:** fotografia G20 trimisă în conversația NAVOMODEL din 13 nov. 2026,
+21:04 UTC. **Stare:** remediere software în PR #73; testele GitHub și acceptanța
+finală pe G20 trebuie urmărite pe commitul final, nu pe un APK anterior.
+
+## 10. Jurnal de actualizări
 
 - **2026-10-15:** registrul original H743/G20/GR01 și schema R1; mapări proiectate.
 - **2026-10-28:** în discuții s-a confirmat folosirea CH5 pentru comutatorul MANUAL/AUTO/GUIDED.
 - **2026-11-13:** utilizatorul a reconfirmat două butoane / două canale de iluminare; corecție de arhitectură Stealth spre releele ArduPilot existente; PR #73 în review. Valorile numerice sunt **de reconfirmat prin exportul real H743**, nu se inventează o fotografie de parametri.
+- **2026-11-13, 21:04 UTC:** fotografie G20: poziții ON, far rămas ON, eroare QGC din cauza a două comenzi MAV_CMD 181 simultane. Corecție secvențiere ACK în PR #73, verificare în curs.
 
 ---
 **Regulă de întreținere:** actualizează întâi acest document la fiecare schimbare de cablaj, RC, GPIO, Lua, MAVLink ori subnet; păstrează legături către commit/PR și rezultatul testului. Nu modifica simultan două surse hardware pentru aceeași ieșire.
