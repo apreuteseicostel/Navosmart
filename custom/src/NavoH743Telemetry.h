@@ -20,6 +20,8 @@ class NavoH743Telemetry : public QObject {
  Q_PROPERTY(qint64 interiorAgeMs READ interiorAgeMs NOTIFY telemetryChanged)
  Q_PROPERTY(bool temperatureValid READ temperatureValid NOTIFY telemetryChanged)
  Q_PROPERTY(bool waterValid READ waterValid NOTIFY telemetryChanged)
+ Q_PROPERTY(int waterMonitorStatus READ waterMonitorStatus NOTIFY telemetryChanged)
+ Q_PROPERTY(double waterAdcVoltage READ waterAdcVoltage NOTIFY telemetryChanged)
  Q_PROPERTY(bool connected READ connected NOTIFY telemetryChanged)
  Q_PROPERTY(qint64 lastUpdateMs READ lastUpdateMs NOTIFY telemetryChanged)
  Q_PROPERTY(double batteryVoltage READ batteryVoltage NOTIFY telemetryChanged)
@@ -48,6 +50,8 @@ public:
  qint64 interiorAgeMs() const;
  bool temperatureValid() const;
  bool waterValid() const;
+ int waterMonitorStatus() const;
+ double waterAdcVoltage() const { return _fresh(_waterAdcMs) ? _waterAdcV : qQNaN(); }
  qint64 lastUpdateMs()const{return _lastMs;}
  QObject* vehicle() const; void setVehicle(QObject*);
  bool connected()const; double batteryVoltage()const{return _batteryV;} double batteryTempC()const{return temperatureValid() ? _tempC : qQNaN();}
@@ -66,6 +70,9 @@ private:
  int _caps=0,_hopperMask=0,_request=0;
  qint64 _capMs=-1,_headMs=-1,_posMs=-1,_hopMs=-1,_requestMs=-1;
  qint64 _tempMs=-1, _waterMs=-1, _faultMs=-1, _heartbeatMs=-1;
+ qint64 _waterStatusMs=-1, _waterAdcMs=-1;
+ int _waterStatus=0;
+ double _waterAdcV=qQNaN();
  void _set(const char*,float);
  QPointer<Vehicle> _vehicle; qint64 _lastMs=0; double _batteryV=0,_tempC=qQNaN(); bool _water=false,_waterFault=false,_head=false,_pos=false; int _hl=0,_hr=0,_rud=0,_alarm=0;
 };
