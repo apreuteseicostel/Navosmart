@@ -106,17 +106,16 @@ Item {
         navigationActive: root.directGotoActive || scanCoordinator.state==="SCANNING" || baitingController.enabled
         flightMode: root.flightMode
         nominalSpeedMps: baitingController.enabled ? baitingController.targetSpeedMps : scanCoordinator.state==="SCANNING" ? root.scanEstimateSpeedMps : baitingController.normalSpeedMps
-        // One light authority: H743 NAVO V3 Lua service via commandH743Light / MAVLink 31001.
-        // Do not treat a transient hopper command as loss of the lighting capability.
-        lightsReady: h743Telemetry.connected && !!(h743Telemetry.capabilities & 1) && h743Telemetry.lightsValid
-        lightCommandBusy: hopperBridge.commandPending
+        // Physical L2/CH7 and R2/CH16 already own Relay1/2 on the H743.
+        // Native ArduPilot Relay is the ONLY actuator authority for S6/GPIO55,
+        // S7/GPIO56; the Lua V3 light outputs must remain unconfigured.
+        relayMode: true
+        lightsReady: root.linkAlive && !!root.vehicle && !!root.vehicle.sendCommand && !sonar.replayMode
+        lightCommandBusy: false
         lightUnavailableReason: !root.linkAlive ? "Legătura MAVLink H743 lipsește"
-            : !h743Telemetry.connected ? "Serviciul Lua NAVO V3 nu transmite NV3VER"
-            : !(h743Telemetry.capabilities & 1) ? "Luminile nu sunt activate în NV3CAP (verifică lights din navo_v3_config.lua)"
-            : !h743Telemetry.lightsValid ? "Lipsesc stările actuale NV3HEAD / NV3POS"
-            : "Comanda a fost refuzată; verifică legătura și serviciul V3"
-        headlightOn: h743Telemetry.headlightOn
-        positionLightsOn: h743Telemetry.positionLightsOn
+            : sonar.replayMode ? "Comenzile luminilor sunt dezactivate în replay"
+            : "Nu pot trimite comanda către ArduPilot Relay"
+        // No NV3CAP / NV3HEAD / NV3POS required; no actual feedback claimed.
         dispatchLight: function(target,value) { return root.commandH743Light(target,value,"Stealth",true) }
         onSpeedRequested: function(speed) {
             if(root.linkAlive && stealth.gpsReady && !sonar.replayMode && root.vehicle && root.vehicle.guidedModeChangeGroundSpeedMetersSecond &&
@@ -872,18 +871,15 @@ Item {
             root.lastNavigationStatus=label+" indisponibil: H743 deconectat sau replay"
             return false
         }
-        if(hopperBridge.commandPending || !h743Telemetry.connected || !(h743Telemetry.capabilities & 1) || !h743Telemetry.lightsValid) {
-            root.lastNavigationStatus=label+" indisponibil: serviciul H743/V3 nu este pregătit"
-            return false
-        }
+        // RC7_OPTION=28 -> Relay1/S6, RC16_OPTION=34 -> Relay2/S7.
+        // ArduPilot relay instance is zero-based (Relay1=0, Relay2=1).
         if(target!==1 && target!==2)return false
-        var desired=mode===2 ? ((target===1 ? h743Telemetry.headlightOn : h743Telemetry.positionLightsOn) ? 0 : 1) : mode
-        if(desired!==0 && desired!==1)return false
-        var request=root.nextHardwareRequest()
-        if(!request)return false
-        vehicle.sendCommand(1,31001,true,target,desired,request,0,0,0,0)
+        // Only manual app/G20 UI calls may toggle. Stealth uses explicit ON/OFF.
+        if(mode!==0 && mode!==1 && mode!==2)return false
+        var relayIndex=target-1
+        vehicle.sendCommand(1,181,true,relayIndex,mode,0,0,0,0,0)
         if(!fromStealth && root.stealthController)root.stealthController.manualLightOverride()
-        root.lastNavigationStatus=label+" • solicitat H743; fără confirmare fizică"
+        root.lastNavigationStatus=label+" • comandă ArduPilot Relay "+target+" solicitată; fără confirmare fizică"
         return true
     }
 
