@@ -58,6 +58,8 @@ ApplicationWindow {
         objectName: "sensors"
         property bool connected: false
         property bool waterValid: false
+        property int waterMonitorStatus: 0
+        property real waterAdcVoltage: NaN
         property bool waterDetected: false
         property bool temperatureValid: false
         property real batteryTempC: 0
