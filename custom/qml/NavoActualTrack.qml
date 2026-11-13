@@ -11,16 +11,24 @@ Item {
     property bool keepCompletedTrack: true
     property real minPointDistanceM: 1.0
     property var trackCoordinates: []
+    // JS history is appended in place (O(1) amortized), not copied on every GPS fix.
+    // Explicit scalar notifications keep the HOME leg and status count reactive.
+    property int trackPointCount: 0
+    property var lastTrackCoordinate: QtPositioning.coordinate()
     // Keep the complete recorded route, but append to the Qt map item in place.
     // Binding the entire path to trackCoordinates reuploads every historical
     // vertex whenever a new GPS point is added.
     property bool trackMapItemReady: false
     function replaceTrack(points) {
         trackCoordinates = points
+        trackPointCount = points.length
+        lastTrackCoordinate = points.length ? points[points.length - 1] : QtPositioning.coordinate()
         if (trackMapItemReady) actualTrack.path = points
     }
     function appendTrackCoordinate(c) {
-        trackCoordinates = trackCoordinates.concat([c])
+        trackCoordinates.push(c)
+        trackPointCount = trackCoordinates.length
+        lastTrackCoordinate = c
         if (trackMapItemReady) actualTrack.addCoordinate(c)
     }
     property var homeCoordinate: QtPositioning.coordinate()
@@ -109,8 +117,8 @@ Item {
         }
         line.width: 2
         line.color: "#31d67b"
-        path: root.trackCoordinates.length > 0 && root.valid(root.homeCoordinate)
-              ? [root.trackCoordinates[root.trackCoordinates.length - 1], root.homeCoordinate] : []
+        path: root.trackPointCount > 0 && root.valid(root.homeCoordinate)
+              ? [root.lastTrackCoordinate, root.homeCoordinate] : []
         opacity: 0.75
         z: 849
     }
