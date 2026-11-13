@@ -25,6 +25,16 @@ root.setProperty('replayMode',True);root.setProperty('linkHealthy',False);root.s
 assert len(output.property('played').toVariant())==1 and output.property('stops')>=1
 QMetaObject.invokeMethod(root,'configure',Q_ARG('QVariant',False),Q_ARG('QVariant',False),Q_ARG('QVariant',0.5))
 root.setProperty('replayMode',False);tick();assert len(output.property('played').toVariant())==1
+# Emergency hull-water tone is mandatory even when routine alerts are disabled.
+root.setProperty('waterEmergencyActive',True)
+root.setProperty('waterAlarmMuted',False)
+QMetaObject.invokeMethod(root,'dispatch')
+played=output.property('played').toVariant()
+assert len(played)==2 and played[-1]['sound'] and played[-1]['critical']
+root.setProperty('waterAlarmMuted',True)
+QMetaObject.invokeMethod(root,'dispatch')
+assert len(output.property('played').toVariant())==2
+root.setProperty('waterEmergencyActive',False)
 assert not errors,errors
 # Parse actual platform audio and settings components; hardware audio is not claimed.
 for name in ['NavoAlertAudio.qml','NavoAlertSettings.qml']:
