@@ -13,6 +13,7 @@ void NavoH743Telemetry::_reset(){
  _lastMs=0; _batteryV=0; _tempC=qQNaN();
  _water=_waterFault=_head=_pos=false; _hl=_hr=_rud=_alarm=0;
  _tempMs=_waterMs=_faultMs=_heartbeatMs=-1;
+ _waterStatusMs=_waterAdcMs=-1;_waterStatus=0;_waterAdcV=qQNaN();
 }
 void NavoH743Telemetry::setV3Profile(bool value){
  // NAVO V3 has no Nano: refuse legacy mode and keep the H743 namespace.
@@ -36,8 +37,14 @@ bool NavoH743Telemetry::interiorValid()const{
 bool NavoH743Telemetry::temperatureValid()const{
  return connected() && _fresh(_tempMs) && std::isfinite(_tempC);
 }
+int NavoH743Telemetry::waterMonitorStatus()const{
+ return _fresh(_waterStatusMs) ? _waterStatus : 0;
+}
 bool NavoH743Telemetry::waterValid()const{
- return connected() && _fresh(_waterMs) && _fresh(_faultMs) && !_waterFault;
+ const int status=waterMonitorStatus();
+ // Standalone status is authoritative when present; V3 legacy heartbeat remains supported.
+ const bool sourceLive=(status==2) || (status==0 && connected());
+ return sourceLive && _fresh(_waterMs) && _fresh(_faultMs) && !_waterFault;
 }
 void NavoH743Telemetry::_timeout(){emit telemetryChanged();}
 void NavoH743Telemetry::_set(const char*n,float v){
@@ -57,6 +64,15 @@ void NavoH743Telemetry::_set(const char*n,float v){
   else if(!strcmp(n,"NV3ITMP")){_interiorTemp=std::isfinite(v)&&v>=-40&&v<=125?v:qQNaN();_interiorTempMs=now;}
   else if(!strcmp(n,"NV3HUM")){_humidity=std::isfinite(v)&&v>=0&&v<=100?v:qQNaN();_humidityMs=now;}
   else if(!strcmp(n,"NV3TEMP")){_tempC=std::isfinite(v)&&v>-1000?v:qQNaN();_tempMs=now;}
+  else if(!strcmp(n,"NV3WSTAT")){
+   _waterStatus=std::isfinite(v)&&v>=1&&v<=5&&std::floor(v)==v?int(v):0;
+   _waterStatusMs=_waterStatus?now:-1;
+   if(_waterStatus!=2){_waterMs=_faultMs=-1;_water=false;_waterFault=true;}
+  }
+  else if(!strcmp(n,"NV3WADC")){
+   _waterAdcV=std::isfinite(v)&&v>=0&&v<=3.3?v:qQNaN();
+   _waterAdcMs=std::isfinite(_waterAdcV)?now:-1;
+  }
   else if(!strcmp(n,"NV3WATER")){_water=v==1.0f;_waterMs=(v==0.0f||v==1.0f)?now:-1;}
   else if(!strcmp(n,"NV3WFAULT")){_waterFault=v!=0.0f;_faultMs=(v==0.0f||v==1.0f)?now:-1;}
   else return;
