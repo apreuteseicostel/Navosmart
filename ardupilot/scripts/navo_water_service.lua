@@ -26,6 +26,7 @@ local setup_ok=pcall(function()
     gpio:write(cfg.exc_gpio,0)
     ready=true
 end)
+status=ready and 1 or 4
 if not setup_ok then
     gcs:send_text(4,"NAVO WATER: config/pin conflict; disabled (check J12, SERVO8, BATT2)")
 end
