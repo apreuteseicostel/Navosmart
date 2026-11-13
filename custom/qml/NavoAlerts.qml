@@ -11,6 +11,9 @@ QtObject {
     property bool waterValid:telemetryConnected
     property bool temperatureValid:telemetryConnected
     property bool waterConfirmed:false
+    property bool waterEmergencyActive:false
+    property bool waterAlarmMuted:false
+    property double lastWaterAlarmAt:0
     property bool environmentValid:false
     property bool environmentAlertsEnabled:false
     property real interiorTempC:NaN
@@ -42,7 +45,7 @@ QtObject {
     function configure(sound,voice,value) {
         preferences.soundEnabled=sound;preferences.voiceEnabled=voice
         preferences.volume=Math.max(0,Math.min(1,value))
-        if(!sound && !voice && !stealthQuiet){audioQueue=[];if(output)output.stop()}
+        if(!sound && !voice && !stealthQuiet){audioQueue=[];if(output && !waterEmergencyActive)output.stop()}
     }
     function notify(key,text,critical) {
         if(replayMode)return false
@@ -86,8 +89,19 @@ QtObject {
         edge("temperature",temperatureValid && isFinite(batteryTempC) ? batteryTempC>=55 : null,"Temperatura bateriei este critică",true)
     }
     function dispatch() {
-        if(replayMode || !output || (!soundEnabled && !voiceEnabled && !stealthQuiet))return
-        var now=Date.now(),queue=audioQueue.filter(function(item){return now-item.at<20000 && (!root.stealthQuiet || item.critical)})
+        if(replayMode || !output)return
+        var now=Date.now()
+        // Confirmed flooding is a critical alert, never gated by routine sound
+        // settings or Stealth. Bounded six-second repeat until user silences.
+        if(waterEmergencyActive && !waterAlarmMuted && (!lastWaterAlarmAt || now-lastWaterAlarmAt>=6000)) {
+            lastWaterAlarmAt=now
+            playingCritical=true
+            forcedCriticalPlayback=true
+            output.play(true,false,"PERICOL! Apă în cocă. Întoarcere acasă necesară.",true)
+            return
+        }
+        if(!soundEnabled && !voiceEnabled && !stealthQuiet)return
+        var queue=audioQueue.filter(function(item){return now-item.at<20000 && (!root.stealthQuiet || item.critical)})
         audioQueue=queue
         if(!queue.length || now-lastAudioAt<2500 || (voiceEnabled && output.busy))return
         var item=queue[0];audioQueue=queue.slice(1);lastAudioAt=now
@@ -98,6 +112,10 @@ QtObject {
     function test() {
         latest="Test alerte NAVO SMART"
         if(output)output.play(soundEnabled,voiceEnabled,latest,false)
+    }
+    onWaterEmergencyActiveChanged: {
+        if(!waterEmergencyActive){lastWaterAlarmAt=0;playingCritical=false;forcedCriticalPlayback=false}
+        else lastWaterAlarmAt=0
     }
     onStealthQuietChanged: {
         if(output && !playingCritical)output.stop()
