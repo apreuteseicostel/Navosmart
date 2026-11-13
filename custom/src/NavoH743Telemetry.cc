@@ -24,7 +24,8 @@ bool NavoH743Telemetry::_fresh(qint64 timestamp)const{
 }
 bool NavoH743Telemetry::connected()const{return _fresh(_heartbeatMs);}
 int NavoH743Telemetry::interiorStatus()const{
- return connected() && _fresh(_environmentMs) ? _environmentStatus : 0;
+ // Environment telemetry is read-only and independent of the V3 actuator-service heartbeat.
+ return _fresh(_environmentMs) ? _environmentStatus : 0;
 }
 qint64 NavoH743Telemetry::interiorAgeMs()const{
  return _interiorTempMs>=0 && _humidityMs>=0 ? _clock.elapsed()-qMin(_interiorTempMs,_humidityMs) : -1;

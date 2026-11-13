@@ -1,5 +1,5 @@
 -- Independent read-only environment service; never controls actuators or modes.
-local cfg=require("navo_v3_config").interior_sht31
+local cfg=require("navo_sht31_config")
 if not cfg or not cfg.enabled then return end
 local sensor,status,last_sample=nil,4,nil
 local ok=pcall(function()

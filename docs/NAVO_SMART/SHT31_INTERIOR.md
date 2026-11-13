@@ -13,21 +13,28 @@ it. The adapter reports NV3ENV=4 if the API/configuration is unsupported, and ne
 falls back to a register read or a timing-sensitive GPIO DHT reader. No firmware
 upgrade or hardware configuration is performed by the Android app.
 
-Copy `ardupilot/modules/navo_sht31.lua` to `APM/scripts/modules/`, and
-`ardupilot/scripts/navo_sht31_service.lua` to `APM/scripts/`. Use the existing
-reviewed V3 configuration module. New defaults:
+Copy `ardupilot/modules/navo_sht31.lua` and `ardupilot/modules/navo_sht31_config.lua`
+to `APM/scripts/modules/`, and `ardupilot/scripts/navo_sht31_service.lua` to
+`APM/scripts/`. This service now has its **own** configuration independent of the
+NAVO V3 actuator service. The default, safe-disabled config is:
 
 ```lua
-interior_sht31={enabled=false,bus=nil,address=0x44},
+return {enabled=false,bus=0,address=0x44}
 ```
+
+For the MatekH743 Rover-4.7.2 firmware, `I2C_ORDER I2C2 I2C1` maps the physical
+CL2/DA2 connector to ArduPilot bus 0. Check the actual sensor address, wiring
+and 3.3V logic before turning on `enabled=true`.
 
 Before enabling: identify actual module voltage/logic, review H743 bus mapping
 against the installed firmware and boat wiring, assign bus, confirm address
 0x44/0x45 and one driver per sensor. Do not enable TEMPn_TYPE=SHT3x for the same
 I2C address while the NAVO script owns it. The script has an independent enable
 flag; it never arms, changes modes, configures GPIO, lights, servos or a fan.
-Existing NV3VER heartbeat from the V3 service is required for Android to accept
-the environment data; do not enable unreviewed outputs to obtain that heartbeat.
+Environment readings are validated independently of the V3 actuator-service
+heartbeat `NV3VER`. The app still requires a live vehicle link and messages from
+the current autopilot system/component. Do not enable V3 actuators to get
+SHT31 readings.
 
 Connection concept only: compatible 3.3V breakout -> suitable supply, common GND,
 SDA/SCL at H743-safe levels. No physical pins or bus number are assumed here.

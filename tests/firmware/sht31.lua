@@ -21,11 +21,11 @@ sensor:tick(5019);assert(count==2)
 fail=true;sensor:tick(5020);assert(sensor.status==3 and sensor.temperature==nil)
 fail=false;sensor:tick(10020);sensor:tick(10040);assert(sensor.status==2)
 -- Execute the shipped adapter, including disabled and unsupported firmware paths.
-local cfg={interior_sht31={enabled=false,bus=0,address=0x44}}
-package.loaded.navo_v3_config=cfg
+local cfg={enabled=false,bus=0,address=0x44}
+package.loaded.navo_sht31_config=cfg
 i2c={get_device=function()error("disabled must not acquire I2C")end}
 assert(dofile("ardupilot/scripts/navo_sht31_service.lua")==nil)
-cfg.interior_sht31.enabled=true
+cfg.enabled=true
 local raw,pub=0,{}
 millis=function()return{tofloat=function()return raw end}end
 gcs={send_text=function()end,send_named_float=function(_,k,v)pub[k]=v end}
