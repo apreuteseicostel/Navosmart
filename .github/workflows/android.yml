@@ -45,8 +45,25 @@ jobs:
       QT_ANDROID_ABIS: arm64-v8a
       CCACHE_DIR: ${{ github.workspace }}/build-cache/ccache
       CCACHE_COMPILERCHECK: content
+      NAVO_DISTRIBUTION_BUILD: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     steps:
       - uses: actions/checkout@v4
+      - name: Set Android package version
+        env:
+          SIGNING_CONFIGURED: ${{ secrets.NAVO_ANDROID_KEYSTORE_BASE64 != '' && secrets.NAVO_ANDROID_KEYSTORE_PASSWORD != '' && vars.NAVO_ANDROID_CERT_SHA256 != '' }}
+        run: |
+          set -euo pipefail
+          # Start above the legacy QGroundControl ARM64 versionCode (665007000).
+          version_code=$((1000000000 + GITHUB_RUN_NUMBER))
+          if (( version_code > 2100000000 )); then
+            echo "::error::Android versionCode exceeds the supported limit."
+            exit 1
+          fi
+          echo "NAVO_ANDROID_VERSION_CODE=$version_code" >> "$GITHUB_ENV"
+          if [[ "$NAVO_DISTRIBUTION_BUILD" == true && "$SIGNING_CONFIGURED" != true ]]; then
+            echo "::error::Configure the NAVO Android keystore secrets and certificate fingerprint before building a distribution APK."
+            exit 1
+          fi
       - name: NAVO controller regression tests
         run: |
           node tests/audit-regressions.mjs
@@ -155,6 +172,18 @@ jobs:
           python3 -m aqt install-qt linux android 6.8.3 android_arm64_v8a --outputdir "${{ runner.temp }}/Qt" --modules $MODS
       - name: Configure arm64 release
         run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          cmake = Path("qgc/CMakeLists.txt")
+          source = cmake.read_text()
+          legacy = 'set(ANDROID_VERSION_CODE "${ANDROID_BITNESS_CODE}${CMAKE_PROJECT_VERSION_MAJOR}${CMAKE_PROJECT_VERSION_MINOR}${ANDROID_PATCH_VERSION}000")'
+          if source.count(legacy) != 1:
+              raise SystemExit("NAVO: could not locate the versionCode in pinned QGroundControl")
+          version = os.environ["NAVO_ANDROID_VERSION_CODE"]
+          cmake.write_text(source.replace(legacy, f'set(ANDROID_VERSION_CODE "{version}")', 1))
+          PY
           mkdir -p build
           "${{ runner.temp }}/Qt/6.8.3/android_arm64_v8a/bin/qt-cmake" -S qgc -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release -DQT_ANDROID_ABIS=arm64-v8a -DQT_ANDROID_BUILD_ALL_ABIS=OFF \
@@ -176,20 +205,61 @@ jobs:
             echo '```' >> "$GITHUB_STEP_SUMMARY"
             exit "$rc"
           fi
-      - name: Prepare installable APK
+      - name: Sign and verify distribution APK
+        if: env.NAVO_DISTRIBUTION_BUILD == 'true'
+        env:
+          NAVO_KEYSTORE_BASE64: ${{ secrets.NAVO_ANDROID_KEYSTORE_BASE64 }}
+          NAVO_KEYSTORE_PASSWORD: ${{ secrets.NAVO_ANDROID_KEYSTORE_PASSWORD }}
+          NAVO_CERT_SHA256: ${{ vars.NAVO_ANDROID_CERT_SHA256 }}
         run: |
           set -euo pipefail
-          APK="$(find build -type f -name '*.apk' | head -n 1)"
+          expected_cert="${NAVO_CERT_SHA256//:/}"
+          if [[ ! "$expected_cert" =~ ^[[:xdigit:]]{64}$ ]]; then
+            echo "::error::NAVO_ANDROID_CERT_SHA256 must contain a SHA-256 certificate fingerprint."
+            exit 1
+          fi
+
+          apk="$(find build -type f -name '*.apk' -print -quit)"
+          test -n "$apk"
+          build_tools="$ANDROID_HOME/build-tools/35.0.0"
+          signing_dir="$(mktemp -d "$RUNNER_TEMP/navo-signing.XXXXXX")"
+          trap 'rm -rf -- "$signing_dir"' EXIT
+          printf '%s' "$NAVO_KEYSTORE_BASE64" | base64 --decode > "$signing_dir/navo.p12"
+          "$build_tools/zipalign" -f -p 4 "$apk" "$signing_dir/aligned.apk"
+          "$build_tools/apksigner" sign --ks "$signing_dir/navo.p12" --ks-key-alias navo-smart \
+            --ks-pass env:NAVO_KEYSTORE_PASSWORD --key-pass env:NAVO_KEYSTORE_PASSWORD \
+            --out "$signing_dir/signed.apk" "$signing_dir/aligned.apk"
+
+          verification="$("$build_tools/apksigner" verify --verbose --print-certs "$signing_dir/signed.apk")"
+          actual_cert="$(awk -F ': ' '/^Signer #[0-9]+ certificate SHA-256 digest:/ {print $2}' <<< "$verification")"
+          if [[ "${actual_cert,,}" != "${expected_cert,,}" ]]; then
+            echo "::error::The APK signing certificate differs from the pinned NAVO certificate."
+            exit 1
+          fi
+          badging="$("$build_tools/aapt" dump badging "$signing_dir/signed.apk")"
+          package_line="${badging%%$'\n'*}"
+          if [[ "$package_line" != "package: name='org.mavlink.qgroundcontrol' versionCode='$NAVO_ANDROID_VERSION_CODE' "* ]]; then
+            echo "::error::The APK package name or versionCode differs from the expected NAVO values."
+            exit 1
+          fi
+          mv "$signing_dir/signed.apk" build/NAVO_SMART.apk
+          printf '%s\n%s\n' "$verification" "$package_line"
+
+      - name: Prepare test APK
+        if: env.NAVO_DISTRIBUTION_BUILD != 'true'
+        run: |
+          set -euo pipefail
+          APK="$(find build -type f -name '*.apk' -print -quit)"
           test -n "$APK"
           APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"; ZIPALIGN="$ANDROID_HOME/build-tools/35.0.0/zipalign"; AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
           if ! "$APKSIGNER" verify "$APK"; then
             KS="$HOME/.android/debug.keystore"; mkdir -p "$HOME/.android"
             [ -f "$KS" ] || keytool -genkeypair -v -keystore "$KS" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=NAVO SMART,C=GB"
-            "$ZIPALIGN" -f -p 4 "$APK" build/NAVO_SMART-aligned.apk
-            "$APKSIGNER" sign --ks "$KS" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out build/NAVO_SMART.apk build/NAVO_SMART-aligned.apk
-          else cp "$APK" build/NAVO_SMART.apk; fi
-          "$APKSIGNER" verify --verbose --print-certs build/NAVO_SMART.apk
-          "$AAPT" dump badging build/NAVO_SMART.apk | head -n 8
+            "$ZIPALIGN" -f -p 4 "$APK" build/NAVO_SMART_TEST-aligned.apk
+            "$APKSIGNER" sign --ks "$KS" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out build/NAVO_SMART_TEST.apk build/NAVO_SMART_TEST-aligned.apk
+          else cp "$APK" build/NAVO_SMART_TEST.apk; fi
+          "$APKSIGNER" verify --verbose --print-certs build/NAVO_SMART_TEST.apk
+          "$AAPT" dump badging build/NAVO_SMART_TEST.apk
       - name: Compiler cache statistics
         if: always()
         run: ccache --show-stats
@@ -208,8 +278,16 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
       - name: Upload installable APK
-        if: always()
+        if: env.NAVO_DISTRIBUTION_BUILD == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: NAVO-SMART-INSTALLABLE-APK
           path: build/NAVO_SMART.apk
+          if-no-files-found: error
+      - name: Upload test APK
+        if: env.NAVO_DISTRIBUTION_BUILD != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: NAVO-SMART-TEST-APK
+          path: build/NAVO_SMART_TEST.apk
+          if-no-files-found: error
