@@ -26,10 +26,10 @@ hold_spy=QSignalSpy(s.holdRequested)
 rtl_spy=QSignalSpy(s.rtlRequested)
 s.setProperty('waterValid',True);QTest.qWait(90)
 assert s.property('waterConfirmed') and s.property('state')=='CRITICAL'
-assert len(hold_spy)==0 and len(rtl_spy)==0
+assert hold_spy.count()==0 and rtl_spy.count()==0
 # Critical battery temperature still preserves its existing onboard H743 action request.
 s.setProperty('batteryTempC',60);QTest.qWait(10)
-assert len(hold_spy)==1 and len(rtl_spy)==0
+assert hold_spy.count()==1 and rtl_spy.count()==0
 c2=QQmlComponent(engine,QUrl.fromLocalFile(str(base/'NavoPreLaunchCheck.qml')))
 p=c2.create();assert p,c2.errors()
 p.setProperty('sensorLabel','H743 / V3')
