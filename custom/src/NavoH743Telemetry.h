@@ -55,7 +55,11 @@ public:
  qint64 lastUpdateMs()const{return _lastMs;}
  QObject* vehicle() const; void setVehicle(QObject*);
  bool connected()const; double batteryVoltage()const{return _batteryV;} double batteryTempC()const{return temperatureValid() ? _tempC : qQNaN();}
- bool waterDetected()const{return _water;} bool waterSensorFault()const{return _waterFault;} bool headlightOn()const{return _head;}
+ bool waterDetected()const{return waterValid() && (_waterStandaloneSeen ? _standWet : _water);}
+ bool waterSensorFault()const{return _waterStandaloneSeen
+    ? (waterMonitorStatus()!=2 || !_fresh(_standFaultMs) || _standFault)
+    : _waterFault;}
+ bool headlightOn()const{return _head;}
  bool positionLightsOn()const{return _pos;} int hopperLeftUs()const{return _hl;} int hopperRightUs()const{return _hr;} int rudderUs()const{return _rud;} int alarmMask()const{return _alarm;}
 signals:void telemetryChanged();void vehicleChanged();
 private slots:void _mavlink(const mavlink_message_t&);void _timeout();
@@ -71,6 +75,8 @@ private:
  qint64 _capMs=-1,_headMs=-1,_posMs=-1,_hopMs=-1,_requestMs=-1;
  qint64 _tempMs=-1, _waterMs=-1, _faultMs=-1, _heartbeatMs=-1;
  qint64 _waterStatusMs=-1, _waterAdcMs=-1;
+ qint64 _standWetMs=-1, _standFaultMs=-1;
+ bool _standWet=false, _standFault=true, _waterStandaloneSeen=false;
  int _waterStatus=0;
  double _waterAdcV=qQNaN();
  void _set(const char*,float);
