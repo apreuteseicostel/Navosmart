@@ -7,7 +7,7 @@ local c=core.new(cfg)
 assert(c:push(1.5)==5 and c.wet==nil and c.fault)
 assert(c:push(0/0)==3 and c.wet==nil)
 cfg.calibrated=true;cfg.valid_min_v=0.2;cfg.valid_max_v=3.0
-cfg.threshold_v=1.0;cfg.wet_above=true
+cfg.wet_on_v=1.0;cfg.dry_off_v=0.6;cfg.wet_above=true
 assert(core.valid_calibration(cfg))
 c=core.new(cfg)
 assert(c:push(1.5)==1 and c.wet==nil)
@@ -16,8 +16,36 @@ assert(c:push(0.5)==1 and c.wet==nil)
 assert(c:push(0.5)==1 and c:push(0.5)==2 and not c.wet)
 assert(c:push(3.2)==3 and c.fault and c.wet==nil)
 assert(c:push(0.4)==1 and c:push(0.4)==1 and c:push(0.4)==2)
-cfg.threshold_v=3.3;assert(not core.valid_calibration(cfg))
-cfg.threshold_v=1.0
+-- An intermediate voltage (electrodes drying) holds the last confirmed wet state.
+c=core.new(cfg)
+assert(c:push(1.8)==1 and c:push(1.8)==1 and c:push(1.8)==2)
+assert(c.wet==true and c:push(0.8)==2 and c.wet==true)
+assert(c:push(0.5)==2 and c.wet==true)
+assert(c:push(0.5)==2 and c.wet==true)
+assert(c:push(0.5)==2 and c.wet==false)
+-- A single wet spike cannot become a confirmed dry status or a confirmed leak.
+assert(c:push(1.5)==1 and c.wet==nil)
+assert(c:push(0.8)==1 and c.wet==nil)
+-- Actual 13 Nov bench sequence: dry <0.003, water ~1.8-2.13, dry after ~9 s.
+local logcfg={calibrated=true,valid_min_v=0,valid_max_v=3.0,
+              wet_on_v=1.0,dry_off_v=0.1,wet_above=true,confirm_samples=3}
+assert(core.valid_calibration(logcfg))
+local bench=core.new(logcfg)
+for _,v in ipairs({0.0017,0.0021,0.0014}) do bench:push(v) end
+assert(bench.status==2 and bench.wet==false)
+for _,v in ipairs({2.1333,2.0917,2.0624}) do bench:push(v) end
+assert(bench.status==2 and bench.wet==true)
+for _,v in ipairs({1.1759,0.6695,0.2647,0.2147}) do
+ assert(bench:push(v)==2 and bench.wet==true)
+end
+for _,v in ipairs({0.03555,0.01662}) do
+ assert(bench:push(v)==2 and bench.wet==true)
+end
+assert(bench:push(0.01425)==2 and bench.wet==false)
+cfg.wet_on_v=3.3;assert(not core.valid_calibration(cfg))
+cfg.wet_on_v=1.0
+cfg.dry_off_v=1.0;assert(not core.valid_calibration(cfg))
+cfg.dry_off_v=0.6
 
 local raw=0
 millis=function()return{tofloat=function()return raw end}end
