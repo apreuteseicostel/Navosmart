@@ -123,6 +123,15 @@ Item {
                 root.vehicle.guidedModeChangeGroundSpeedMetersSecond(speed)
         }
     }
+    // Native QGC Vehicle emits a result only for a completed MAVLink command
+    // (or transport/duplicate failure). Filter exact autopilot command/vehicle.
+    Connections {
+        target: root.vehicle
+        function onMavCommandResult(vehicleId,targetComponent,command,ackResult,failureCode) {
+            if(targetComponent===1 && command===181 && root.vehicle && vehicleId===root.vehicle.id)
+                stealth.relayCommandResult(ackResult,failureCode)
+        }
+    }
     NavoAlertAudio { id:alertAudio;volume:(stealth.active || (alerts.forcedCriticalPlayback && alertAudio.criticalPlaying)) ? Math.max(0.5,alerts.volume) : alerts.volume }
     NavoAlerts {
         stealthQuiet:stealth.active
@@ -887,8 +896,15 @@ Item {
         if(target!==1 && target!==2)return false
         // Only manual app/G20 UI calls may toggle. Stealth uses explicit ON/OFF.
         if(mode!==0 && mode!==1 && mode!==2)return false
+        if(!fromStealth && stealth.relayAckPending) {
+            // Cancel next Stealth step, keep physical G20 buttons unaffected.
+            stealth.manualLightOverride()
+            root.lastNavigationStatus=label+" • așteaptă finalizarea comenzii Relay anterioare; reîncearcă"
+            return false
+        }
         var relayIndex=target-1
-        vehicle.sendCommand(1,181,true,relayIndex,mode,0,0,0,0,0)
+        // Stealth errors are shown in its own panel, not as an intrusive QGC popup.
+        vehicle.sendCommand(1,181,!fromStealth,relayIndex,mode,0,0,0,0,0)
         if(!fromStealth && root.stealthController)root.stealthController.manualLightOverride()
         root.lastNavigationStatus=label+" • comandă ArduPilot Relay "+target+" solicitată; fără confirmare fizică"
         return true
