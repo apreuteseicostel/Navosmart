@@ -6,7 +6,7 @@ from tempfile import TemporaryDirectory
 from PySide6.QtCore import QUrl,QMetaObject,QObject,QSettings,Qt
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QQmlComponent,QQmlEngine
-from PySide6.QtTest import QTest
+from PySide6.QtTest import QTest,QSignalSpy
 app=QGuiApplication([]); engine=QQmlEngine(); errors=[]
 engine.warnings.connect(lambda ws:errors.extend(str(w) for w in ws))
 base=Path(__file__).resolve().parent.parent/'custom/qml'
@@ -19,6 +19,17 @@ s.setProperty('batteryTempC',20);assert s.property('state')=='UNKNOWN'
 s.setProperty('waterSensorFault',False);assert s.property('state')=='NORMAL'
 s.setProperty('waterDetected',True);s.setProperty('waterValid',False)
 assert not s.property('waterConfirmed') and s.property('state')=='UNKNOWN'
+# Standalone probe commissioning: a confirmed water alarm must not command the vehicle.
+s.setProperty('waterAutoActionEnabled',False)
+s.setProperty('waterConfirmMs',20)
+hold_spy=QSignalSpy(s.holdRequested)
+rtl_spy=QSignalSpy(s.rtlRequested)
+s.setProperty('waterValid',True);QTest.qWait(90)
+assert s.property('waterConfirmed') and s.property('state')=='CRITICAL'
+assert len(hold_spy)==0 and len(rtl_spy)==0
+# Critical battery temperature still preserves its existing onboard H743 action request.
+s.setProperty('batteryTempC',60);QTest.qWait(10)
+assert len(hold_spy)==1 and len(rtl_spy)==0
 c2=QQmlComponent(engine,QUrl.fromLocalFile(str(base/'NavoPreLaunchCheck.qml')))
 p=c2.create();assert p,c2.errors()
 p.setProperty('sensorLabel','H743 / V3')
