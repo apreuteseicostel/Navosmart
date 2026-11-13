@@ -1,5 +1,9 @@
 # NAVO SMART
 
+## Configurație hardware / RC — punct unic de referință
+
+**[NAVO SMART V3 — CONFIGURAȚIE MASTER G20 / GR01 / H743](docs/NAVO_SMART/CONFIGURATIE_MASTER_G20_H743_V3.md)** — butoane G20, CH5 moduri, CH7/CH16 lumini, ArduPilot Relay1/2, pini S6/S7, Stealth, Lua și linkuri către schemele anterioare. Consultați acest document **înainte de orice schimbare de parametri sau cablare**; rândurile fără export `.param` sunt marcate ca raportate/planificate, nu hardware validate.
+
 Custom Android ground-control application for Costel's bait boat, based on QGroundControl custom-build architecture.
 
 ## V0.1 target
