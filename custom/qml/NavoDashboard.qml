@@ -106,10 +106,18 @@ Item {
         navigationActive: root.directGotoActive || scanCoordinator.state==="SCANNING" || baitingController.enabled
         flightMode: root.flightMode
         nominalSpeedMps: baitingController.enabled ? baitingController.targetSpeedMps : scanCoordinator.state==="SCANNING" ? root.scanEstimateSpeedMps : baitingController.normalSpeedMps
-        lightsReady: h743Telemetry.connected && !!(h743Telemetry.capabilities & 1) && h743Telemetry.lightsValid && !hopperBridge.commandPending
+        // One light authority: H743 NAVO V3 Lua service via commandH743Light / MAVLink 31001.
+        // Do not treat a transient hopper command as loss of the lighting capability.
+        lightsReady: h743Telemetry.connected && !!(h743Telemetry.capabilities & 1) && h743Telemetry.lightsValid
+        lightCommandBusy: hopperBridge.commandPending
+        lightUnavailableReason: !root.linkAlive ? "Legătura MAVLink H743 lipsește"
+            : !h743Telemetry.connected ? "Serviciul Lua NAVO V3 nu transmite NV3VER"
+            : !(h743Telemetry.capabilities & 1) ? "Luminile nu sunt activate în NV3CAP (verifică lights din navo_v3_config.lua)"
+            : !h743Telemetry.lightsValid ? "Lipsesc stările actuale NV3HEAD / NV3POS"
+            : "Comanda a fost refuzată; verifică legătura și serviciul V3"
         headlightOn: h743Telemetry.headlightOn
         positionLightsOn: h743Telemetry.positionLightsOn
-        onLightRequested: function(target,value) { root.commandH743Light(target,value,"Stealth",true) }
+        dispatchLight: function(target,value) { return root.commandH743Light(target,value,"Stealth",true) }
         onSpeedRequested: function(speed) {
             if(root.linkAlive && stealth.gpsReady && !sonar.replayMode && root.vehicle && root.vehicle.guidedModeChangeGroundSpeedMetersSecond &&
                ["AUTO","GUIDED"].indexOf(root.flightMode.toUpperCase())>=0 && isFinite(speed) && speed>0)
