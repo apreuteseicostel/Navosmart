@@ -503,6 +503,18 @@ test('ArduPilot Relay is the sole light owner; RC7/RC16 work without Lua NV3CAP'
  c.sonarController.replayMode=true;assert.equal(c.commandH743Light(1,1,'Far'),false);assert.equal(sent.length,4);
  c.sonarController.replayMode=false;assert.equal(c.commandH743Light(1,3,'Far'),false);assert.equal(sent.length,4);
 });
+test('Physical G20 L2/R2 are not re-dispatched from NAVO and RC remains the default',()=>{
+ const sent=[];
+ const c=context('NavoDashboard.qml',{lastNavigationStatus:'',vehicle:{sendCommand:(...args)=>sent.push(args)},linkAlive:true,sonarController:{replayMode:false}});
+ c.dispatchG20Action('L2','FAR');
+ c.dispatchG20Action('R2','POZITII');
+ c.dispatchG20Action('R2','SONAR');
+ assert.equal(sent.length,0);
+ assert.match(c.lastNavigationStatus,/Relay/);
+ const qml=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+ assert.match(qml,/property string positionMode: "RC"/);
+ assert.match(qml,/autoPositionExplicitThisSession && lightSettings.positionMode==="AUTO"/);
+});
 test('V3 close can supersede a pending release but cannot bypass stale telemetry',()=>{
  const sent=[];const c=context('NavoHopperBridge.qml',{vehicle:{vehicleLinkManager:{communicationLost:false},sendCommand:(...a)=>sent.push(a)},hardwareTelemetry:{connected:true,capabilities:8,hopperStateValid:true,hopperMask:3},commandPending:true,nextRequest:()=>2,onboardWatchdog:{restart:noop},mavCompAutopilot1:1,leftServoOutput:9,rightServoOutput:10,leftClosedPwm:1500,leftOpenPwm:1900,rightClosedPwm:1500,rightOpenPwm:1900,releaseHoldMs:900,commandSent:noop,commandRejected:noop});
  assert.equal(c.sendOnboard(3,1),false);assert(c.closeOnboard());assert.equal(sent[0][3],4);
