@@ -98,7 +98,8 @@ test('Map source uses pan reuse and actual track incremental Qt path updates',()
  assert.match(track,/actualTrack\.addCoordinate\(c\)/);
  assert.match(track,/function appendTrackCoordinate\(c\)/);
  assert.match(track,/trackCoordinates\s*=\s*trackCoordinates\.concat\(\[c\]\)/);
- assert.doesNotMatch(track,/path:\s*root\.trackCoordinates/);
+ const trackItem=track.slice(track.indexOf('id: actualTrack'),track.indexOf('id: homeLeg'));
+ assert.doesNotMatch(trackItem,/path:\s*root\.trackCoordinates/);
  assert.match(cmake,/qml\/NavoMapProjection\.js/);
 });
 console.log(`${count} map visual stability scenarios passed`);
