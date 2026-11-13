@@ -45,4 +45,60 @@ test('Raw input unchanged and visual binding isolated from controllers',()=>{
  assert.match(map,/center: visible \? root.vehicle.coordinate : QtPositioning.coordinate\(\)/);
  assert.match(map,/text: "GPS vechi"/);
 });
+
+// Keep native mesh geometry reusable when only map.center moves. Zoom,
+// rotation, tilt, large jumps and a not-ready map must reproject accurately.
+const mapPan=vm.createContext({});
+vm.runInContext(fs.readFileSync('custom/qml/NavoMapProjection.js','utf8').replace('.pragma library',''),mapPan);
+function mockMap(center) {
+ return {mapReady:true,width:400,height:300,center,zoomLevel:17,bearing:0,tilt:0,
+   fromCoordinate(p){return {x:200+(p.longitude-this.center.longitude)*10000,
+                              y:150-(p.latitude-this.center.latitude)*10000};}};
+}
+function snapshot(map) {
+ return {center:{...map.center},width:map.width,height:map.height,zoomLevel:map.zoomLevel,bearing:map.bearing,tilt:map.tilt};
+}
+test('Native surface pan reuses projected vertices with the same screen coordinates',()=>{
+ const old={latitude:52,longitude:-1,isValid:true}, map=mockMap(old), view=snapshot(map);
+ const points=[{latitude:52.001,longitude:-1.002},{latitude:52.002,longitude:-1.001}];
+ const projected=points.map(p=>map.fromCoordinate(p));
+ map.center={latitude:52.001,longitude:-1.01,isValid:true};
+ const expected=points.map(p=>map.fromCoordinate(p));
+ const offset=mapPan.panOffset(map,view);
+ assert(offset); assert.equal(offset.x,100); assert.equal(offset.y,10);
+ const result=mapPan.translateProjected(projected,offset);
+ for(let i=0;i<points.length;i++){
+   assert(Math.abs(result[i].x-expected[i].x)<1e-8);
+   assert(Math.abs(result[i].y-expected[i].y)<1e-8);
+ }
+});
+test('Native surface pan preserves invalid vertices and zero movement',()=>{
+ const map=mockMap({latitude:52,longitude:-1,isValid:true}),view=snapshot(map);
+ assert.equal(mapPan.panOffset(map,view).x,0);
+ const points=[null,{x:2,y:3}];
+ assert.equal(mapPan.translateProjected(points,{x:4,y:-1}),points);
+ assert.equal(points[0],null);assert.equal(points[1].x,6);assert.equal(points[1].y,2);
+});
+test('Native pan cache safely falls back on zoom, rotation, tilt, resize, large jumps and invalid map',()=>{
+ const original={latitude:52,longitude:-1,isValid:true},map=mockMap(original),view=snapshot(map);
+ for(const [field,value] of [['zoomLevel',18],['bearing',10],['tilt',10],['width',500],['height',200],['mapReady',false]]){
+   const other={...map,[field]:value};assert.equal(mapPan.panOffset(other,view),null,field);
+ }
+ assert.equal(mapPan.panOffset({...map,center:{latitude:52,longitude:1,isValid:true}},view),null);
+ assert.equal(mapPan.panOffset({...map,center:{latitude:52,longitude:0,isValid:false}},view),null);
+});
+test('Map source uses pan reuse and actual track incremental Qt path updates',()=>{
+ const source=fs.readFileSync('custom/qml/NavoNativeBathymetryOverlay.qml','utf8');
+ const track=fs.readFileSync('custom/qml/NavoActualTrack.qml','utf8');
+ const cmake=fs.readFileSync('custom/CMakeLists.txt','utf8');
+ assert.match(source,/import "NavoMapProjection\\.js" as MapPan/);
+ assert.match(source,/onCenterChanged\\(\\)\\{root\\.invalidateProjection\\(true,true\\)\\}/);
+ assert.match(source,/MapPan\\.translateProjected\\(root\\.projected,offset\\)/);
+ assert.match(source,/root\\.projectedView=root\\.currentMapView\\(\\)/);
+ assert.match(track,/actualTrack\\.addCoordinate\\(c\\)/);
+ assert.match(track,/function appendTrackCoordinate\\(c\\)/);
+ assert.match(track,/trackCoordinates\\s*=\\s*trackCoordinates\\.concat\\(\\[c\\]\\)/);
+ assert.doesNotMatch(track,/path:\\s*root\\.trackCoordinates/);
+ assert.match(cmake,/qml\\/NavoMapProjection\\.js/);
+});
 console.log(`${count} map visual stability scenarios passed`);
