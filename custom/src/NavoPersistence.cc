@@ -1,12 +1,10 @@
 #include "NavoPersistence.h"
+#include "NavoBackup.h"
 #include <QSettings>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QDateTime>
-#include <QDir>
-#include <QFile>
-#include <QSaveFile>
 #include <QUuid>
 #include <cmath>
 
@@ -203,30 +201,29 @@ bool NavoPersistence::exportFishingTrip(const QString& tripId,const QUrl& destin
 
  const QJsonObject snapshot{{"format","navo-fishing-trip"},{"version",1},{"trip",QJsonObject::fromVariantMap(trip)}};
  const auto bytes=QJsonDocument(snapshot).toJson(QJsonDocument::Indented);
- bool written=false;
- const auto path=destination.toLocalFile();
- if(destination.isLocalFile() && destination.host().isEmpty() && QDir::isAbsolutePath(path)) {
-  QSaveFile file(path);
-  written=file.open(QIODevice::WriteOnly) && file.write(bytes)==bytes.size() && file.commit();
- }
-#ifdef Q_OS_ANDROID
- else if(destination.scheme()==QLatin1String("content") && !destination.host().isEmpty()) {
-  // Android's document picker grants access to a URI rather than a filesystem
-  // path. A provider need not support the sibling rename used by QSaveFile.
-  QFile file(destination.toString());
-  if(file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-   written=file.write(bytes)==bytes.size() && file.flush();
-   file.close();
-   written=written && file.error()==QFileDevice::NoError;
-  }
- }
-#endif
- if(!written)return journalFailure(QStringLiteral("Exportul nu a fost salvat. Alege alt fișier sau verifică spațiul disponibil."));
+ if(!NavoBackup::writeDocument(destination,bytes))
+  return journalFailure(QStringLiteral("Exportul nu a fost salvat. Alege alt fișier sau verifică spațiul disponibil."));
  if(!_journalError.isEmpty()) {
   _journalError.clear();
   emit journalErrorChanged();
  }
  return true;
+}
+QString NavoPersistence::exportBackup(const QUrl& destination) const {
+ if(!_catalogValid)return QStringLiteral("Catalogul local este invalid. Copia nu a fost creată.");
+ const QJsonObject catalog{{"version",1},{"lakes",QJsonArray::fromVariantList(_lakes)},
+  {"sessions",QJsonArray::fromVariantList(_bathymetrySessions)},{"trips",QJsonArray::fromVariantList(_fishingTrips)}};
+ return NavoBackup::exportTo(destination,{
+  {"catalog",catalog},{"waypointNames",QJsonObject::fromVariantMap(_waypointNames)},
+  {"sonarSamples",QJsonArray::fromVariantList(_sonarSamples)},
+  {"pendingBaitJournal",QJsonArray::fromVariantList(pendingBaitJournalEvents())}
+ });
+}
+QString NavoPersistence::stageBackupRestore(const QUrl& source) {
+ return NavoBackup::stageImport(source);
+}
+bool NavoPersistence::backupRestorePending() const {
+ return NavoBackup::pending();
 }
 QString NavoPersistence::saveFishingEntry(const QString& tripId,const QVariantMap& input) {
  const auto text=input.value("text").toString().trimmed(),type=input.value("type").toString();

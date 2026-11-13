@@ -1,4 +1,5 @@
 #include "../../custom/src/NavoPersistence.h"
+#include "../../custom/src/NavoBackup.h"
 #include <QCoreApplication>
 #include <QDataStream>
 #include <QFile>
@@ -17,6 +18,75 @@ static bool writeSettings(QIODevice& device,const QSettings::SettingsMap& map){i
 class PersistenceTests:public QObject {
  Q_OBJECT
 private slots:
+ void portableBackupSurvivesReinstall() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  const auto format=QSettings::registerFormat("navobackup",readSettings,writeSettings);
+  QSettings::setDefaultFormat(format);
+  QSettings::setPath(format,QSettings::UserScope,directory.path());
+  failWrites=false;
+  const auto url=QUrl::fromLocalFile(directory.filePath("NAVO-backup.json"));
+  QString lake,trip;
+  {
+   QSettings settings;
+   settings.setValue("NavoEthernet/sonarPort",23);
+   settings.setValue("NavoG20/homeChannel",6);
+   settings.setValue("NavoG20/hardwareActionsEnabled",true);
+   settings.setValue("NavoHopperCalibration/confirmed",true);
+   settings.setValue("NavoHopperCalibration/leftOutput",9);
+   settings.setValue("NavoEnergy/confirmed",true);
+   settings.setValue("QGC/privateSetting","excluded");
+   NavoPersistence store;
+   lake=store.saveLake({{"name","Lake"}});
+   QVERIFY(store.saveLakeState(lake,{{"fishingSpots",QVariantList{QVariantMap{{"name","Spot"}}}}}));
+   trip=store.startFishingTrip(lake,"Trip");
+   QVERIFY(!store.saveFishingEntry(trip,{{"text","Note"},{"type","note"}}).isEmpty());
+   store.setWaypointName(1,"Waypoint");
+   store.addSonarSample({{"lat",52.0},{"lon",0.0},{"depth",2.0}});
+   QVERIFY(store.exportBackup(url).isEmpty());
+  }
+  QSettings settings;
+  settings.clear();
+  settings.setValue("QGC/privateSetting","keep this");
+  settings.sync();
+  NavoPersistence freshInstall;
+  QVERIFY(freshInstall.lakes().isEmpty());
+  QFile invalid(directory.filePath("invalid.json"));
+  QVERIFY(invalid.open(QIODevice::WriteOnly));
+  invalid.write("{\"format\":\"navo-smart-backup\",\"version\":1,\"data\":{}}");
+  invalid.close();
+  QVERIFY(!freshInstall.stageBackupRestore(QUrl::fromLocalFile(invalid.fileName())).isEmpty());
+  QVERIFY(!freshInstall.backupRestorePending());
+  failWrites=true;
+  QVERIFY(!freshInstall.stageBackupRestore(url).isEmpty());
+  QVERIFY(!freshInstall.backupRestorePending());
+  failWrites=false;
+  QVERIFY(freshInstall.stageBackupRestore(url).isEmpty());
+  QVERIFY(freshInstall.backupRestorePending());
+  QVERIFY(freshInstall.lakes().isEmpty());
+  QVERIFY(!QSettings().contains("NavoEthernet/sonarPort"));
+
+  failWrites=true;
+  QVERIFY(NavoBackup::applyPending().contains(QStringLiteral("nu a fost aplicată")));
+  QVERIFY(freshInstall.backupRestorePending());
+  QVERIFY(!QSettings().contains("NavoEthernet/sonarPort"));
+  failWrites=false;
+  QCOMPARE(NavoBackup::applyPending(),QStringLiteral("Copia NAVO a fost restaurată."));
+  QVERIFY(!freshInstall.backupRestorePending());
+  QVERIFY(NavoBackup::applyPending().isEmpty());
+  NavoPersistence restarted;
+  QCOMPARE(restarted.lakeState(lake).value("fishingSpots").toList().size(),1);
+  QCOMPARE(restarted.fishingTrips().first().toMap().value("id").toString(),trip);
+  QCOMPARE(restarted.waypointNames().value("1").toString(),QString("Waypoint"));
+  QCOMPARE(restarted.sonarSamples().size(),1);
+  QCOMPARE(QSettings().value("NavoEthernet/sonarPort").toInt(),23);
+  QCOMPARE(QSettings().value("NavoG20/homeChannel").toInt(),6);
+  QCOMPARE(QSettings().value("NavoHopperCalibration/leftOutput").toInt(),9);
+  QVERIFY(!QSettings().value("NavoG20/hardwareActionsEnabled",true).toBool());
+  QVERIFY(!QSettings().value("NavoEnergy/confirmed",true).toBool());
+  QVERIFY(!QSettings().value("NavoHopperCalibration/confirmed",true).toBool());
+  QCOMPARE(QSettings().value("QGC/privateSetting").toString(),QString("keep this"));
+ }
  void exportSelectedFishingTrip() {
   QTemporaryDir directory;
   QVERIFY(directory.isValid());

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Dialogs as FilePickers
 
 // Compact, tabbed NAVO SMART Settings from the approved cyan/navy visual reference.
 // All control actions are backed by existing NAVO modules; QGC handles its own parameters.
@@ -18,6 +19,11 @@ Rectangle {
     property var g20: null
     property var energy: null
     property var stealth: null
+    property var backupStore: null
+    property bool backupAllowed: false
+    property string backupStartupStatus: ""
+    property string backupMessage: ""
+    property url restoreSource: ""
     property string cameraStreamUrl: ""
     property string cameraProtocol: "auto"
     property string cameraDecoder: "hardware"
@@ -52,6 +58,55 @@ Rectangle {
         statusText = "Setări salvate • LAN/UART, cameră și preferințe NAVO"
         status(statusText)
         return true
+    }
+
+    FilePickers.FileDialog {
+        id: backupExport
+        objectName: "navoBackupExportPicker"
+        title: "Salvează copia NAVO (.json)"
+        fileMode: FilePickers.FileDialog.SaveFile
+        nameFilters: ["Copie NAVO (*.json)"]
+        defaultSuffix: Qt.platform.os === "android" ? "" : "json"
+        onAccepted: {
+            if (root.backupAllowed && root.backupStore)
+                root.backupMessage = root.backupStore.exportBackup(selectedFile) ||
+                    "Copia NAVO a fost salvată. Păstrează fișierul pentru reinstalare."
+        }
+    }
+    FilePickers.FileDialog {
+        id: backupImport
+        objectName: "navoBackupImportPicker"
+        title: "Alege copia de rezervă NAVO"
+        nameFilters: ["Copie NAVO (*.json)"]
+        onAccepted: {
+            if (root.backupAllowed && root.backupStore) {
+                root.restoreSource = selectedFile
+                confirmBackupRestore.open()
+            }
+        }
+    }
+    Dialog {
+        id: confirmBackupRestore
+        objectName: "navoBackupRestoreConfirmation"
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(390, parent.width - 24)
+        implicitHeight: 176
+        title: "Restaurezi copia NAVO?"
+        modal: true
+        standardButtons: Dialog.Yes | Dialog.No
+        Label {
+            width: confirmBackupRestore.availableWidth
+            wrapMode: Text.WordWrap
+            text: "La repornire, copia va înlocui bălțile, punctele, traseele și jurnalul din aplicație. Dacă vrei să păstrezi datele actuale, exportă-le înainte."
+        }
+        onAccepted: {
+            if (root.backupAllowed && root.backupStore)
+                root.backupMessage = root.backupStore.stageBackupRestore(root.restoreSource) ||
+                    "Copia este pregătită. Închide complet și redeschide NAVO SMART pentru restaurare."
+            root.restoreSource = ""
+        }
+        onRejected: root.restoreSource = ""
     }
 
     component NavTab: Button {
@@ -236,6 +291,53 @@ Rectangle {
                     }
                 }
                 NavoStealthPanel { Layout.fillWidth:true; controller:root.stealth }
+                Rectangle {
+                    visible: !!root.backupStore
+                    Layout.fillWidth: true
+                    implicitHeight: backupContent.implicitHeight + 18
+                    radius: 10
+                    color: root.surface
+                    border.color: root.line
+                    ColumnLayout {
+                        id: backupContent
+                        anchors { left: parent.left; right: parent.right; top: parent.top; margins: 9 }
+                        Label { text: "COPIE DE REZERVĂ"; color: root.fg; font.bold: true }
+                        Label {
+                            Layout.fillWidth: true
+                            color: root.muted
+                            wrapMode: Text.WordWrap
+                            text: "Setări salvate, bălți, puncte, trasee, jurnal și batimetrie. Salvează fișierul în Descărcări, ca să îl poți recupera după reinstalare."
+                        }
+                        GridLayout {
+                            Layout.fillWidth: true
+                            columns: root.width < 390 ? 1 : 2
+                            ActionButton {
+                                objectName: "navoBackupExport"
+                                Layout.fillWidth: true
+                                text: "Salvează copia"
+                                enabled: root.backupAllowed
+                                onClicked: backupExport.open()
+                            }
+                            ActionButton {
+                                objectName: "navoBackupImport"
+                                Layout.fillWidth: true
+                                text: "Restaurează din fișier"
+                                enabled: root.backupAllowed
+                                onClicked: backupImport.open()
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            color: root.muted
+                            wrapMode: Text.WordWrap
+                            text: root.backupMessage || root.backupStartupStatus ||
+                                (root.backupStore && root.backupStore.backupRestorePending()
+                                    ? "Copia este pregătită. Închide complet și redeschide aplicația."
+                                    : root.backupAllowed ? "" : "Disponibil când barca este dezarmată și operațiunile sunt oprite.")
+                            visible: text.length > 0
+                        }
+                    }
+                }
                 Rectangle {
                     id: energyCard
                     Layout.fillWidth: true

@@ -24,6 +24,9 @@ public:
  Q_INVOKABLE bool finishFishingTrip(const QString& tripId);
  Q_INVOKABLE bool deleteFishingTrip(const QString& tripId);
  Q_INVOKABLE bool exportFishingTrip(const QString& tripId,const QUrl& destination);
+ Q_INVOKABLE QString exportBackup(const QUrl& destination) const;
+ Q_INVOKABLE QString stageBackupRestore(const QUrl& source);
+ Q_INVOKABLE bool backupRestorePending() const;
  Q_INVOKABLE QString saveFishingEntry(const QString& tripId,const QVariantMap& entry);
  Q_INVOKABLE bool deleteFishingEntry(const QString& tripId,const QString& entryId);
  Q_INVOKABLE void setWaypointName(int sequence,const QString& name);
