@@ -120,7 +120,10 @@ test('GPS history appends without array copying and keeps the HOME leg reactive'
  const added=[], ctx=vm.createContext({
    trackCoordinates:[], trackPointCount:0, lastTrackCoordinate:null,
    trackMapItemReady:true,
-   actualTrack:{path:null,addCoordinate(p){added.push(p)}},
+   actualTrack:{_path:[],
+     set path(points){this._path=[...points]},
+     get path(){return this._path},
+     addCoordinate(p){added.push(p);this._path.push(p)}},
    QtPositioning:{coordinate(){return {isValid:false}}},
  });
  vm.runInContext(extract('replaceTrack')+'\n'+extract('appendTrackCoordinate'),ctx);
