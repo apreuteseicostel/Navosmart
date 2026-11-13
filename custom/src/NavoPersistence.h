@@ -3,6 +3,7 @@
 #include <QVariantList>
 #include <QVariantMap>
 #include <QTimer>
+#include <QUrl>
 class NavoPersistence : public QObject {
  Q_OBJECT
  Q_PROPERTY(QVariantMap waypointNames READ waypointNames NOTIFY waypointNamesChanged)
@@ -22,6 +23,7 @@ public:
  Q_INVOKABLE QString startFishingTrip(const QString& lakeId,const QString& title);
  Q_INVOKABLE bool finishFishingTrip(const QString& tripId);
  Q_INVOKABLE bool deleteFishingTrip(const QString& tripId);
+ Q_INVOKABLE bool exportFishingTrip(const QString& tripId,const QUrl& destination);
  Q_INVOKABLE QString saveFishingEntry(const QString& tripId,const QVariantMap& entry);
  Q_INVOKABLE bool deleteFishingEntry(const QString& tripId,const QString& entryId);
  Q_INVOKABLE void setWaypointName(int sequence,const QString& name);

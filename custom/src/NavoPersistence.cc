@@ -4,6 +4,9 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QDateTime>
+#include <QDir>
+#include <QFile>
+#include <QSaveFile>
 #include <QUuid>
 #include <cmath>
 
@@ -186,6 +189,44 @@ bool NavoPersistence::deleteFishingTrip(const QString& id) {
  auto trips=_fishingTrips;
  for(int i=0;i<trips.size();++i)if(trips[i].toMap().value("id").toString()==id){trips.removeAt(i);return commitTrips(trips);}
  return journalFailure(QStringLiteral("Partida nu există."));
+}
+bool NavoPersistence::exportFishingTrip(const QString& tripId,const QUrl& destination) {
+ QVariantMap trip;
+ for(const auto& value : _fishingTrips) {
+  const auto candidate=value.toMap();
+  if(!tripId.isEmpty() && candidate.value("id").toString()==tripId) {
+   trip=candidate;
+   break;
+  }
+ }
+ if(trip.isEmpty())return journalFailure(QStringLiteral("Partida de exportat nu mai există."));
+
+ const QJsonObject snapshot{{"format","navo-fishing-trip"},{"version",1},{"trip",QJsonObject::fromVariantMap(trip)}};
+ const auto bytes=QJsonDocument(snapshot).toJson(QJsonDocument::Indented);
+ bool written=false;
+ const auto path=destination.toLocalFile();
+ if(destination.isLocalFile() && destination.host().isEmpty() && QDir::isAbsolutePath(path)) {
+  QSaveFile file(path);
+  written=file.open(QIODevice::WriteOnly) && file.write(bytes)==bytes.size() && file.commit();
+ }
+#ifdef Q_OS_ANDROID
+ else if(destination.scheme()==QLatin1String("content") && !destination.host().isEmpty()) {
+  // Android's document picker grants access to a URI rather than a filesystem
+  // path. A provider need not support the sibling rename used by QSaveFile.
+  QFile file(destination.toString());
+  if(file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+   written=file.write(bytes)==bytes.size() && file.flush();
+   file.close();
+   written=written && file.error()==QFileDevice::NoError;
+  }
+ }
+#endif
+ if(!written)return journalFailure(QStringLiteral("Exportul nu a fost salvat. Alege alt fișier sau verifică spațiul disponibil."));
+ if(!_journalError.isEmpty()) {
+  _journalError.clear();
+  emit journalErrorChanged();
+ }
+ return true;
 }
 QString NavoPersistence::saveFishingEntry(const QString& tripId,const QVariantMap& input) {
  const auto text=input.value("text").toString().trimmed(),type=input.value("type").toString();
