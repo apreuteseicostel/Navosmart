@@ -6,6 +6,8 @@ from pathlib import Path
 import argparse
 import hashlib
 import shutil
+import subprocess
+import tempfile
 import urllib.request
 
 SDK_COMMIT = 'd9c6bcab8bb9993cd16f117c01a7601dce10ea6a'
@@ -49,6 +51,46 @@ def prepare(qgc, aar):
     once(manager, '#include "UDPLink.h"', '#include "UDPLink.h"\n#include "NavoSkydroidLink.h"')
     once(manager, FACTORY_OLD, FACTORY_NEW)
 
+def download_official_sdk():
+    """Try the pinned vendor raw URL, then fetch the same commit via git.
+
+    Never accept an unpinned mirror or skip the SHA256 check in prepare().
+    """
+    errors = []
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(SDK_URL, timeout=45) as response:
+                data = response.read(10 * 1024 * 1024 + 1)
+            if len(data) > 10 * 1024 * 1024:
+                raise RuntimeError('Unexpected SDK size')
+            if hashlib.sha256(data).hexdigest() != SDK_SHA256:
+                raise RuntimeError('Downloaded SDK hash mismatch')
+            return data
+        except Exception as exc:
+            errors.append(f'raw attempt {attempt + 1}: {type(exc).__name__}: {exc}')
+
+    # The Gitee raw endpoint has returned truncated responses on CI runners.
+    # The official Git transport already works for our pinned FPV SDK.
+    try:
+        with tempfile.TemporaryDirectory(prefix='navo-rcsdk-') as directory:
+            subprocess.run(['git', 'init', '-q', directory], check=True, timeout=20)
+            subprocess.run(['git', '-C', directory, 'remote', 'add', 'origin',
+                            'https://gitee.com/skydroid/rcsdk-demo.git'], check=True, timeout=20)
+            subprocess.run(['git', '-C', directory, 'fetch', '--depth', '1',
+                            'origin', SDK_COMMIT], check=True, timeout=180,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            data = subprocess.check_output(['git', '-C', directory, 'show',
+                                            f'{SDK_COMMIT}:app/libs/rcsdk-v1.9.2.aar'],
+                                           timeout=30)
+            if len(data) > 10 * 1024 * 1024:
+                raise RuntimeError('Unexpected SDK size from pinned git commit')
+            if hashlib.sha256(data).hexdigest() != SDK_SHA256:
+                raise RuntimeError('Pinned git SDK hash mismatch')
+            return data
+    except Exception as exc:
+        errors.append(f'pinned git fallback: {type(exc).__name__}: {exc}')
+    raise RuntimeError('Cannot download pinned official RCSDK: ' + '; '.join(errors))
+
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument('qgc', type=Path)
     ap.add_argument('--sdk-file', type=Path, help='Offline official AAR, still SHA256 verified')
@@ -56,18 +98,7 @@ def main():
     if args.sdk_file:
         aar = args.sdk_file.read_bytes()
     else:
-        error = None
-        for _ in range(3):
-            try:
-                with urllib.request.urlopen(SDK_URL, timeout=45) as response:
-                    aar = response.read(10 * 1024 * 1024 + 1)
-                if len(aar) > 10 * 1024 * 1024:
-                    raise RuntimeError('Unexpected SDK size')
-                break
-            except Exception as exc:
-                error = exc
-        else:
-            raise RuntimeError(f'Cannot download pinned official RCSDK: {error}')
+        aar = download_official_sdk()
     prepare(args.qgc, aar)
     print(f'PASS Skydroid RCSDK 1.9.2 {SDK_COMMIT}: SHA256 verified; QGC factory/Java installed')
 
