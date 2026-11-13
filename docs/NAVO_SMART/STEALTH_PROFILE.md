@@ -65,3 +65,31 @@ alerts, environment and controller regressions remain required in CI.
 Still required: Android build and G20 installed UI/audio, H743 command acceptance,
 real light wiring/thermal protection, speed/ramp and pilot takeover, loss/reconnect,
 RTL/failsafe and loaded boat trials. No merge or hardware activation is claimed.
+
+## One canonical light authority (13 November 2026)
+
+The G20 Stealth panel, manual FAR/POZITII controls and automatic position lights
+must all dispatch through `NavoDashboard.commandH743Light()` to **one** H743
+owner: `ardupilot/scripts/navo_v3_service.lua`, `COMMAND_LONG 31001`.
+That same service publishes `NV3VER`, `NV3CAP` bit 1, `NV3HEAD` and `NV3POS`.
+Do **not** install a second Lua light handler or reactivate the historical
+`navo_nano_bridge.lua` / Arduino Nano light path for V3.
+The separate SHT31 / water monitoring scripts are read-only and not lighting
+controllers; keep them separate until individually commissioned.
+
+Important: the repository ships `navo_v3_config.lua` with `enabled=false`
+and `lights=nil`. No app change can safely invent the required physical H743
+GPIO mapping. For an independently reviewed *lights-only* bench configuration,
+set only `lights={head_gpio=<verified>,position_gpio=<verified>}` and `enabled=true`;
+leave `hoppers=nil`, `temperature=nil`, `water=nil`, `rgb=nil` unless
+separately verified. Confirm the output functions, pin aliases, active-high
+MOSFET logic, the PCB J7 5 V gate-driver supply, and installed ArduPilot Lua
+support **before** powering the circuit. Never use an unverified pin number.
+
+The dashboard now displays the precise missing prerequisite (no NV3VER,
+no NV3CAP lighting capability, or stale NV3HEAD/NV3POS) rather than implying
+there are two different services to combine. A pending hopper command is
+transiently busy, not an offline lighting service. The Stealth controller accepts
+light state transitions only after the shared command dispatcher returns true;
+rejected commands are shown as failed and are not counted as pending ACK.
+Actual illumination and thermal cut-off still require physical verification.
