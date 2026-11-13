@@ -33,6 +33,7 @@ Item {
     readonly property bool verifiedLanOnline: lanService.online || root.cameraConnected
         || (sonar.connected && (!sonar.udp || sonar.dataAlive))
     property int settingsStartTab: 0
+    property string waterEmergencyRtlStatus: ""
     property bool networkStartupLoaded: false
     property bool sonarStartupEnabled: true
     NavoConnectivity {
@@ -116,7 +117,7 @@ Item {
                 root.vehicle.guidedModeChangeGroundSpeedMetersSecond(speed)
         }
     }
-    NavoAlertAudio { id:alertAudio;volume:(stealth.active || (alerts.forcedCriticalPlayback && alertAudio.criticalPlaying)) ? Math.max(0.5,alerts.volume) : alerts.volume }
+    NavoAlertAudio { id:alertAudio;volume:safetyManager.waterAlarmLatched && !safetyManager.waterAlarmMuted ? Math.max(0.85,alerts.volume) : (stealth.active || (alerts.forcedCriticalPlayback && alertAudio.criticalPlaying)) ? Math.max(0.5,alerts.volume) : alerts.volume }
     NavoAlerts {
         stealthQuiet:stealth.active
         id:alerts;output:alertAudio;vehicle:root.vehicle;replayMode:sonar.replayMode
@@ -130,6 +131,8 @@ Item {
         waterValid:h743Telemetry.waterValid
         temperatureValid:h743Telemetry.temperatureValid
         waterConfirmed:safetyManager.waterConfirmed
+        waterEmergencyActive:safetyManager.waterAlarmLatched
+        waterAlarmMuted:safetyManager.waterAlarmMuted
         batteryTempC:h743Telemetry.batteryTempC
         batteryPercent:root.battery && root.battery.percentRemaining ? Number(root.battery.percentRemaining.rawValue) : NaN
         gpsHealthy:failsafeController.gpsHealthy()
@@ -600,7 +603,7 @@ Item {
     }
     property bool awaitingMissionStart: false
     property string areaScanFinishAction: "HOLD"
-    onVehicleChanged: { directGotoActive=false; if(routePlan && routePlan.active) routePlan.cancel("Autopilot schimbat"); proBoatTrack=[]; awaitingMissionStart=false; if(baitingController && baitingController.enabled) baitingController.abortCycle("Autopilot schimbat"); if(scanCoordinator && scanCoordinator.state==="SCANNING") scanCoordinator.pause("Autopilot schimbat") }
+    onVehicleChanged: { directGotoActive=false;waterEmergencyRtlStatus=""; if(routePlan && routePlan.active) routePlan.cancel("Autopilot schimbat"); proBoatTrack=[]; awaitingMissionStart=false; if(baitingController && baitingController.enabled) baitingController.abortCycle("Autopilot schimbat"); if(scanCoordinator && scanCoordinator.state==="SCANNING") scanCoordinator.pause("Autopilot schimbat") }
     property string pendingMode: ""
     property string pendingModeLabel: ""
     Timer {
@@ -822,11 +825,30 @@ Item {
         batteryTempC: h743Telemetry.batteryTempC
         onWarning: function(reason) { root.lastNavigationStatus = "AVERTISMENT: " + reason }
         onHoldRequested: function(reason) {
+            if(safetyManager.waterConfirmed) {
+                root.waterEmergencyRtlStatus="RTL IMPOSIBIL: GPS/HOME ori telemetrie indisponibilă • preia controlul"
+                root.lastNavigationStatus="URGENT: "+reason
+                // Never invent a HOME route with invalid navigation inputs.
+                return
+            }
             if(root.manualControlActive()) {root.lastNavigationStatus="MANUAL/ACRO • alertă senzori: "+reason;return}
             root.lastNavigationStatus = "SIGURANTA HOLD: " + reason
             root.holdMission()
         }
         onRtlRequested: function(reason) {
+            if(safetyManager.waterConfirmed) {
+                // Explicit emergency: request RTL also when MANUAL was selected;
+                // the physical CH5 pilot switch may still change the mode.
+                if(!root.linkAlive || sonar.replayMode) {
+                    root.waterEmergencyRtlStatus="RTL NEEXECUTAT: legătură indisponibilă • preia controlul"
+                    return
+                }
+                var sent=root.rtlMission()
+                root.waterEmergencyRtlStatus=sent
+                    ? "RTL SOLICITAT către H743 • aștept confirmarea modului"
+                    : "RTL NEEXECUTAT: comanda nu a fost transmisă • preia controlul"
+                return
+            }
             if(root.manualControlActive()) {root.lastNavigationStatus="MANUAL/ACRO • alertă senzori: "+reason;return}
             root.lastNavigationStatus = "SIGURANTA RTL: " + reason
             root.rtlMission()
