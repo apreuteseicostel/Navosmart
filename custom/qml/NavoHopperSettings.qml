@@ -172,6 +172,14 @@ ColumnLayout {
                 color: form.waterValid ? "#37e9a2" : "#ffd166"
             }
             Label {
+                objectName: "hopperWaterAdcVoltage"
+                Layout.fillWidth: true; wrapMode: Text.WordWrap; font.pixelSize: 11
+                text: "Tensiune sondă ADC: " + (form.linkAlive &&
+                      isFinite(Number(form.telemetry.waterAdcVoltage))
+                      ? Number(form.telemetry.waterAdcVoltage).toFixed(3) + " V" : "—")
+                color: "#91c5d8"
+            }
+            Label {
                 objectName: "hopperWaterStatus"
                 Layout.fillWidth: true; wrapMode: Text.WordWrap; font.pixelSize: 11
                 text: "Apă  " + (!form.waterValid ? "—" : form.telemetry.waterDetected ? "DETECTATĂ" : "OK")
