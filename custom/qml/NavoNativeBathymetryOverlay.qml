@@ -31,7 +31,12 @@ Item {
         if (!centerOnly) { projected=[]; projectedView=({}) }
         if (!active || !ready) { paintTimer.stop(); viewportTimer.stop(); return }
         if (!paintTimer.running) paintTimer.start()
-        if (requestTiles && !viewportTimer.running) viewportTimer.start()
+        // While dragging, delay costly native viewport queries until the
+        // viewport settles. Existing mesh pixels still track the pan.
+        if (requestTiles) {
+            if (centerOnly) viewportTimer.restart()
+            else if (!viewportTimer.running) viewportTimer.start()
+        }
     }
     onSurfaceChanged: invalidateProjection(false)
     onActiveChanged: invalidateProjection(true)
