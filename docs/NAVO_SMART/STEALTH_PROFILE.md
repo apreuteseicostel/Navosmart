@@ -44,8 +44,11 @@ No reliable relay state feedback is currently available in this integration:
 transport acceptance is not light confirmation. The UI displays "requested,
 unverified" instead of falsely showing "confirmed" or timing out because
 NV3HEAD/NV3POS are absent. On deactivation the app does not attempt to
-restore headlight state from an unknown snapshot. No automatic light
-control outside a user-requested Stealth session is added here.
+restore headlight state from an unknown snapshot. Automatic position-light control is **not** enabled from a restored old AUTO
+preference: the default is physical RC, and AUTO requires an explicit selection
+in the current session. This prevents movement from unexpectedly overriding R2.
+The optional Android RC listener does not redispatch L2 or R2 (and does not
+open SONAR from R2); native ArduPilot handles those physical buttons.
 
 The V3 Lua config must keep `lights=nil` for this boat. The V3 service can
 continue handling separately verified hoppers and sensors; SHT31 and
