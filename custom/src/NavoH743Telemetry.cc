@@ -14,6 +14,7 @@ void NavoH743Telemetry::_reset(){
  _water=_waterFault=_head=_pos=false; _hl=_hr=_rud=_alarm=0;
  _tempMs=_waterMs=_faultMs=_heartbeatMs=-1;
  _waterStatusMs=_waterAdcMs=-1;_waterStatus=0;_waterAdcV=qQNaN();
+ _standWetMs=_standFaultMs=-1;_standWet=false;_standFault=true;_waterStandaloneSeen=false;
 }
 void NavoH743Telemetry::setV3Profile(bool value){
  // NAVO V3 has no Nano: refuse legacy mode and keep the H743 namespace.
@@ -41,10 +42,10 @@ int NavoH743Telemetry::waterMonitorStatus()const{
  return _fresh(_waterStatusMs) ? _waterStatus : 0;
 }
 bool NavoH743Telemetry::waterValid()const{
- const int status=waterMonitorStatus();
- // Standalone status is authoritative when present; V3 legacy heartbeat remains supported.
- const bool sourceLive=(status==2) || (status==0 && connected());
- return sourceLive && _fresh(_waterMs) && _fresh(_faultMs) && !_waterFault;
+ if(_waterStandaloneSeen){
+  return waterMonitorStatus()==2 && _fresh(_standWetMs) && _fresh(_standFaultMs) && !_standFault;
+ }
+ return connected() && _fresh(_waterMs) && _fresh(_faultMs) && !_waterFault;
 }
 void NavoH743Telemetry::_timeout(){emit telemetryChanged();}
 void NavoH743Telemetry::_set(const char*n,float v){
@@ -65,13 +66,22 @@ void NavoH743Telemetry::_set(const char*n,float v){
   else if(!strcmp(n,"NV3HUM")){_humidity=std::isfinite(v)&&v>=0&&v<=100?v:qQNaN();_humidityMs=now;}
   else if(!strcmp(n,"NV3TEMP")){_tempC=std::isfinite(v)&&v>-1000?v:qQNaN();_tempMs=now;}
   else if(!strcmp(n,"NV3WSTAT")){
+   _waterStandaloneSeen=true;
    _waterStatus=std::isfinite(v)&&v>=1&&v<=5&&std::floor(v)==v?int(v):0;
    _waterStatusMs=_waterStatus?now:-1;
-   if(_waterStatus!=2){_waterMs=_faultMs=-1;_water=false;_waterFault=true;}
+   if(_waterStatus!=2){_standWetMs=_standFaultMs=-1;_standWet=false;_standFault=true;}
   }
   else if(!strcmp(n,"NV3WADC")){
    _waterAdcV=std::isfinite(v)&&v>=0&&v<=3.3?v:qQNaN();
    _waterAdcMs=std::isfinite(_waterAdcV)?now:-1;
+  }
+  else if(!strcmp(n,"NV3WDET")){
+   _waterStandaloneSeen=true;_standWet=v==1.0f;
+   _standWetMs=(v==0.0f||v==1.0f)?now:-1;
+  }
+  else if(!strcmp(n,"NV3WFLT")){
+   _waterStandaloneSeen=true;_standFault=v!=0.0f;
+   _standFaultMs=(v==0.0f||v==1.0f)?now:-1;
   }
   else if(!strcmp(n,"NV3WATER")){_water=v==1.0f;_waterMs=(v==0.0f||v==1.0f)?now:-1;}
   else if(!strcmp(n,"NV3WFAULT")){_waterFault=v!=0.0f;_faultMs=(v==0.0f||v==1.0f)?now:-1;}
