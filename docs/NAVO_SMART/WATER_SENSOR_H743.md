@@ -40,10 +40,22 @@ J11 nu furnizează direct telemetrie. J12 trebuie cablat 3 fire către H743. Nu 
 |---|---|
 | `NV3WADC` | Voltaj brut la intrarea analogică (V), diagnostic pentru calibrare |
 | `NV3WSTAT` | 1 așteptare/confirmare; 2 citiri valide calibrate; 3 citire sau domeniu defect; 4 conflict config/firmware; 5 necalibrat |
-| `NV3WATER` | 0 uscat / 1 ud; publicat doar la 3 probe valide consecvente și calibrare activă |
-| `NV3WFAULT` | 0 fără defect / 1 defect; nu înseamnă că lipsa sondei este o stare uscată |
+| `NV3WDET` | 0 uscat / 1 ud; exclusiv serviciul independent, numai după 3 probe calibrate |
+| `NV3WFLT` | 0 fără defect / 1 defect, exclusiv serviciul independent; absența datelor nu este o stare uscată |
 
 Aplicația G20 actualizată trebuie să arate `NV3WADC` în **Cuve & siguranță hardware**, să primească `NV3WSTAT` separat de heartbeat-ul serviciului V3 pentru cuve/lumini și să afișeze `—` până la calibrare. Pe durata punerii în funcțiune, **alertele sunt numai informative; nu se trimit comenzi automate RTL/HOLD** din lectura senzorului de apă. Decizia de navigație trebuie implementată/verificată ulterior la bord, nu doar în Android.
 
 ## CI și acceptare
 `lua5.3 tests/firmware/water-only.lua` testează logica și adaptorul cu dispozitive simulate. Testele QML/C++ verifică sursa MAVLink, validarea, expirația și interblocarea comenzilor de siguranță. CI nu validează instalația fizică. Nu integra în main/nu lansa APK de producție până când bench testul și verificarea S8/CU2 nu sunt complete.
+
+## Diagnostic realizat pe jurnalul real din 13 nov 2026, ora 19:22 UTC
+Analizat `2026-11-13 19-22-04.tlog` (39.64 sec, 4,119 mesaje MAVLink):
+- `NV3WADC`: 35 citiri între **0.01229–0.11294 V**, medie 0.06536 V. Nu rezultă încă ce probe au fost uscate/ude; necesită măsurători separate și confirmarea schemei J12.
+- `NV3WSTAT`: 40 mesaje toate cu valoarea **5 (uncalibrat)**. Serviciul independent citește ADC și transmite, fără confirmare apă.
+- `NV3VER=1`, `NV3CAP=2`: serviciul V3 vechi este încă activ, **doar capabilitate temperatură**, fără capabilitate apă. Totuși, vechiul serviciu publică `NV3WATER=0` și `NV3WFAULT=1` de 77 ori, inclusiv fără `water` configurat.
+- `NV3TEMP`: numeroase citiri invalid(-32768) și temperaturi aparente 89–118°C; nu considera canalul NTC baterie calibrat sau sigur pentru acțiuni autonome.
+- `NV3ENV=2` și 8 perechi `NV3ITMP`/`NV3HUM` confirmă separat că serviciul SHT31 rulează.
+
+**Mitigare:** în branch, serviciul V3 nu mai emite stări de apă în lipsa lui `water_in`. În plus, fluxul independent folosește **`NV3WDET`/`NV3WFLT`**, astfel încât receptoarele G20 actualizate nu vor interpreta vechiul `NV3WATER=0` drept uscat sau vechiul `NV3WFAULT=1` drept defect propriu sondei. Dacă stația a primit cândva `NV3WSTAT`, la expirarea fluxului independent NU cade înapoi pe fluxul vechi V3. Pentru testarea hardware folosește cele 3 scripturi din această ramură actualizată, nu versiuni mai vechi ale lor.
+
+Până la remedierea canalului NTC care raportează temperaturi false, păstrează motorul nealimentat și nu permite decizii automate de navigație bazate pe acel canal.
