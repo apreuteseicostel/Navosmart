@@ -818,9 +818,9 @@ Item {
         id: safetyManager
         vehicle: root.vehicle
         replayMode: sonar.replayMode
-        telemetryLive: h743Telemetry.connected
+        telemetryLive: h743Telemetry.connected && root.linkAlive
         temperatureValid: h743Telemetry.temperatureValid
-        waterValid: h743Telemetry.waterValid
+        waterValid: h743Telemetry.waterValid && root.linkAlive
         waterSensorFault: h743Telemetry.waterSensorFault
         waterDetected: h743Telemetry.waterDetected
         batteryTempC: h743Telemetry.batteryTempC
