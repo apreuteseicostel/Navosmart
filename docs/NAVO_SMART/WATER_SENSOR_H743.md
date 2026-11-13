@@ -59,3 +59,36 @@ Analizat `2026-11-13 19-22-04.tlog` (39.64 sec, 4,119 mesaje MAVLink):
 **Mitigare:** în branch, serviciul V3 nu mai emite stări de apă în lipsa lui `water_in`. În plus, fluxul independent folosește **`NV3WDET`/`NV3WFLT`**, astfel încât receptoarele G20 actualizate nu vor interpreta vechiul `NV3WATER=0` drept uscat sau vechiul `NV3WFAULT=1` drept defect propriu sondei. Dacă stația a primit cândva `NV3WSTAT`, la expirarea fluxului independent NU cade înapoi pe fluxul vechi V3. Pentru testarea hardware folosește cele 3 scripturi din această ramură actualizată, nu versiuni mai vechi ale lor.
 
 Până la remedierea canalului NTC care raportează temperaturi false, păstrează motorul nealimentat și nu permite decizii automate de navigație bazate pe acel canal.
+
+
+## Jurnal calibrat în trei etape — 13 Nov 2026, 19:37–19:39 UTC
+
+Fișier real: `2026-11-13 19-37-04.tlog`, 145.45 s (11,360 mesaje MAVLink, 128 valori `NV3WADC`). Utilizatorul confirmă: primul minut uscat, un minut în apă, la final sonda scoasă.
+
+| Etapă | Secunde tlog | ADC măsurat |
+|---|---|---|
+| Uscat stabil inițial | 0–60 s (53 probe) | minim 0.00076 V; maxim 0.00297 V; medie **0.00175 V** |
+| Introducere în apă | între 64.26 și 65.41 s | trecere 0.00070 → **2.13330 V** |
+| Ud, stabilizat | 75–105 s (27 probe) | 1.84049–1.95716 V; mediană **1.88007 V** |
+| Sfârșit imersie | ~123.11 s | **1.77538 V** |
+| Scoatere din apă | ~124.25 s | 1.17592 V, apoi 0.66951 V la 125.37 s |
+| Revenire sub 0.1 V | 128.78 s | 0.03555 V |
+| Revenire aproape de uscat | 133.31 s | 0.00206 V |
+
+**Concluzie:** fluxul analogic FUNCȚIONEAZĂ în acest test. Nu se poate deduce din acest jurnal dacă un fir întrerupt sau un scurt vor fi detectate ca defect; valorile inițiale foarte apropiate de zero pot fi confundate cu circuitul întrerupt în lipsa validării rezistorului EOL.
+
+**Praguri propuse doar pentru testul de banc**, nu autoactivate:
+```lua
+-- Set only after controlled open/short and lake-water checks.
+valid_min_v = 0.0
+valid_max_v = 3.0
+wet_above = true
+wet_on_v = 1.0
+dry_off_v = 0.10
+calibrated = false -- maintain until commissioning
+```
+Noua logică are **histerezis**, confirmă fiecare schimbare prin 3 probe valide și menține `APĂ DETECTATĂ` în intervalul intermediar 0.1–1.0 V după scoatere, fără să alterneze între ud/uscat. La contactul inițial măsurat ~65.4 s, trei probe umede ar confirma apa în ~2.3 s. La scoaterea de la ~124 s, căderea sub 0.10 V la 128.78 s și următoarele două probe ar confirma uscat în jurul secundei 131.1. Aceste întârzieri sunt estimări calculate din acest log, nu garanții pentru orice tip de apă.
+
+**Mai există o sursă veche activă în tlog:** `NV3VER=1`, `NV3CAP=2`, `NV3WATER=0`, `NV3WFAULT=1` în paralel cu `NV3WSTAT=5`. Pentru probă independentă folosiți noile mesaje `NV3WDET` și `NV3WFLT` și codul G20 din PR; un G20 cu APK vechi nu este o dovadă că alarmele sunt implementate corect.
+
+Până când sunt măsurate testele open/short, pragurile nu trebuie marcate `calibrated=true` și comanda automată RTL/HOLD trebuie să rămână dezactivată.
