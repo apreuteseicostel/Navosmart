@@ -66,25 +66,25 @@ raw=0;local update=dofile("ardupilot/scripts/navo_water_service.lua")
 assert(outputs.NV3WSTAT==1 and gpio_state==1)
 raw=119;update();assert(gpio_state==1)
 raw=120;update();assert(gpio_state==0 and outputs.NV3WADC==1.5)
-raw=1120;update();raw=1240;update();assert(outputs.NV3WSTAT==5 and outputs.NV3WATER==nil)
+raw=1120;update();raw=1240;update();assert(outputs.NV3WSTAT==5 and outputs.NV3WDET==nil)
 -- Hardware restart with verified calibration after dry/wet/open/short measurement.
 cfg.calibrated=true
 raw=0;update=dofile("ardupilot/scripts/navo_water_service.lua")
 raw=120;update();assert(gpio_state==0)
-raw=1120;update();raw=1240;update();assert(outputs.NV3WATER==nil)
+raw=1120;update();raw=1240;update();assert(outputs.NV3WDET==nil)
 raw=2240;update();raw=2360;update()
-assert(outputs.NV3WATER==1 and outputs.NV3WFAULT==0 and gpio_state==0)
+assert(outputs.NV3WDET==1 and outputs.NV3WFLT==0 and gpio_state==0)
 raw=3360;update();assert(outputs.NV3WSTAT==2)
 -- Electrodes go dry: require three independent consistent ADC samples.
 adcV=0.5
-raw=3480;update();assert(gpio_state==0 and outputs.NV3WATER==1)
+raw=3480;update();assert(gpio_state==0 and outputs.NV3WDET==1)
 raw=4480;update();raw=4600;update()
 raw=5600;update();raw=5720;update()
-assert(outputs.NV3WATER==0 and outputs.NV3WFAULT==0)
+assert(outputs.NV3WDET==0 and outputs.NV3WFLT==0)
 -- Out-of-range fault never publishes a false dry reading.
 adcV=3.2
 raw=6720;update();raw=6840;update()
-assert(outputs.NV3WFAULT==1 and gpio_state==0)
+assert(outputs.NV3WFLT==1 and gpio_state==0)
 raw=7840;update();assert(outputs.NV3WSTAT==3)
 -- Clock rollover must not hold excitation forever.
 raw=4294967290;update();raw=10;update();raw=130;update()
