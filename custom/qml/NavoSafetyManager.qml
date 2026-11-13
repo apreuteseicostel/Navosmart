@@ -4,6 +4,7 @@ QtObject {
     id: root
     property var vehicle
     property bool enabled: true
+    property bool replayMode: false // Recorded sonar must not trigger live RTL.
     property bool telemetryLive: false
     property bool temperatureValid: telemetryLive && isFinite(batteryTempC)
     property bool waterValid: telemetryLive && !waterSensorFault
@@ -49,7 +50,7 @@ QtObject {
         return false // Wet/unknown: silence only, never dismiss red warning.
     }
     function evaluate() {
-        if (!enabled) return
+        if (!enabled || replayMode) return
         var hot = temperatureValid && isFinite(batteryTempC) && batteryTempC >= criticalTempC
         var warm = temperatureValid && isFinite(batteryTempC) && batteryTempC >= warningTempC
 
@@ -85,6 +86,7 @@ QtObject {
         }
     }
     function updateWater() {
+        if(replayMode) { waterTimer.stop();return }
         if (!waterValid) {
             // Loss stops pending confirmation, but does not clear a known leak.
             waterTimer.stop()
@@ -107,6 +109,7 @@ QtObject {
         setState("UNKNOWN", "Aștept datele senzorilor")
     }
     onVehicleChanged: resetVehicle()
+    onReplayModeChanged: updateWater()
     onWaterDetectedChanged: updateWater()
     onWaterValidChanged: updateWater()
     onTemperatureValidChanged: evaluate()
@@ -120,6 +123,6 @@ QtObject {
     }
     property Timer waterTimer: Timer {
         interval: root.waterConfirmMs; repeat:false
-        onTriggered: { if(root.waterValid && root.waterDetected){root.waterConfirmed=true;root.evaluate()} }
+        onTriggered: { if(!root.replayMode && root.waterValid && root.waterDetected){root.waterConfirmed=true;root.evaluate()} }
     }
 }
