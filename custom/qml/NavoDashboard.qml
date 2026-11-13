@@ -203,7 +203,7 @@ Item {
     Settings {
         id: lightSettings
         category: "NavoLights"
-        property string positionMode: "AUTO"
+        property string positionMode: "RC" // Physical G20 R2/CH16 is default authority.
     }
     Settings {
         id: hopperSettings
@@ -594,14 +594,18 @@ Item {
     }
     readonly property bool boatActive: !!vehicle && ((vehicle.groundSpeed && Number(vehicle.groundSpeed.rawValue)>0.25) || scanCoordinator.state==="SCANNING" || baitingController.enabled || root.awaitingMissionStart)
     property bool lastAutoPositionState: false
+    property bool autoPositionExplicitThisSession: false // Do not override RC with a restored old AUTO preference.
     onBoatActiveChanged: {
-        if(!stealth.active && lightSettings.positionMode==="AUTO" && lastAutoPositionState!==boatActive) {
+        if(!stealth.active && autoPositionExplicitThisSession && lightSettings.positionMode==="AUTO" && lastAutoPositionState!==boatActive) {
             lastAutoPositionState=boatActive
             commandH743Light(2,boatActive?1:0,"Poziții AUTO")
         }
     }
     function setPositionLightMode(mode) {
+        if(["RC","AUTO","ON","OFF"].indexOf(mode)<0)return
         lightSettings.positionMode=mode
+        autoPositionExplicitThisSession=(mode==="AUTO")
+        if(mode==="RC")return // Never issue an OFF just for selecting physical RC control.
         if(mode==="AUTO") { lastAutoPositionState=boatActive; commandH743Light(2,boatActive?1:0,"Poziții AUTO") }
         else commandH743Light(2,mode==="ON"?1:0,"Poziții")
     }
@@ -848,6 +852,13 @@ Item {
     }
 
     function dispatchG20Action(control, action) {
+        // L2/CH7 and R2/CH16 are already handled onboard by RCx_OPTION=28/34.
+        // The optional Android RC listener must not issue a SECOND relay toggle
+        // or open SONAR when the same physical light button was pressed.
+        if(control==="L2" || control==="R2") {
+            root.lastNavigationStatus="G20 "+control+" • lumini controlate direct prin ArduPilot Relay"
+            return
+        }
         if(action==="NONE") return
         if(action==="CUVA_STANGA") { openHopper("stanga"); return }
         if(action==="CUVA_DREAPTA") { openHopper("dreapta"); return }
