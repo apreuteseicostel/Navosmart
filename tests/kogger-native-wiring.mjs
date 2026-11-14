@@ -30,6 +30,8 @@ required(renderer,'NavoKoggerSampling::atDisplayDepth(');
 required(renderer,'_frameTimer.setInterval(33)','paint calls must be throttled for G20');
 required(renderer,'if(_columns.size()>MaxRetainedColumns)','unbounded G20 RAM use');
 required(header,'MaxRetainedColumns=4096');
+required(header,'MaxRawCacheBytes=24*1024*1024');
+required(renderer,'_rawCacheBytes>MaxRawCacheBytes');
 required(renderer,'QMutexLocker lock(&_mutex)','cross-thread native snapshots must be protected');
 assert(!/sendCommand\(|MAV_CMD|guidedModeGotoLocation\(|uploadMission\(/.test(renderer),'renderer contains navigation or control code');
 required(palette,'src/scene2d/plot2D_echogram.cpp (GPL-3.0)');
