@@ -57,6 +57,7 @@ signals:
  void stateChanged();
  void progressChanged();
  void indexChanged();
+ void previewLastColumnReady();
  void annotationsChanged();
  void annotationAnchorChanged();
 private:
@@ -64,7 +65,7 @@ private:
   bool gpsFix=false;
   double lat=qQNaN(), lon=qQNaN(), heading=qQNaN(), pitch=qQNaN(), roll=qQNaN();
  };
- struct ColumnOffset { qint64 offset=0; qint64 frameBefore=0; Pose pose; };
+ struct ColumnOffset { qint64 offset=0; qint64 frameBefore=0; Pose pose; int firstPacketSize=0; };
  QFile _indexFile;
  QTimer _indexTimer;
  QByteArray _indexBuffer;
@@ -77,6 +78,8 @@ private:
  quint16 _lastResolution=0, _lastAbsoluteOffset=0;
  quint8 _lastVersion=0;
  bool _indexReady=false, _haveChart=false;
+ qint64 _previewStopOffset=-1;
+ bool _previewFlushLast=false;
  void beginIndexing();
  void indexTick();
  bool indexKoggerFrame(const char* frame,int frameLength,qint64 offset);
