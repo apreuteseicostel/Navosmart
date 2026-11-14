@@ -12,7 +12,7 @@
 // Reuses Kogger palette and Epoch::chartTo sampling, but avoids importing
 // KoggerApp's whole Plot2D (navigation, Core, contacts, map) dependency tree.
 // Live/replay input is the existing NavoKoggerDecoder; no MAVLink access.
-class NavoKoggerEchogramItem final : public QQuickPaintedItem {
+class NavoKoggerEchogramItem : public QQuickPaintedItem {
     Q_OBJECT
     Q_PROPERTY(QObject* decoder READ decoder WRITE setDecoder NOTIFY decoderChanged)
     Q_PROPERTY(qreal depthFrom READ depthFrom WRITE setDepthFrom NOTIFY displayChanged)
