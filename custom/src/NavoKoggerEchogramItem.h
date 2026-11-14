@@ -88,6 +88,7 @@ private:
     QPointer<QObject> _fileReplay;
     int _fileWindowStart=0;
     int _fileWindowColumns=1;
+    int _fileTotalColumns=0;
     QHash<int,Column> _fileColumns;
     QQueue<int> _fileCacheOrder;
     int _fileCacheBytes=0;
