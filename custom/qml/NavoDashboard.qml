@@ -2946,6 +2946,9 @@ Item {
         Item {
             NavoBathymetry3D {
                 anchors.fill: parent
+                // Same selected lake/replay data contract as 2D native bathymetry.
+                // Native 3D rendering remains operator opt-in (K3D), OFF on opening.
+                nativeSurfaceMesh: root.displayNativeSurfaceMesh
                 // Use the active/restored lake session, not the global sonar history.
                 // restoreLake() repopulates rawSamples from the selected lake checkpoint.
                 samples: sonar.replayMode ? replayMapping.rawSamples : sonarMapping.rawSamples
