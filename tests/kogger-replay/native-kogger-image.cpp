@@ -90,7 +90,7 @@ int main(int argc,char**argv) {
                 "cannot save real recorded Kogger native screenshot");
         replay.stop();
         std::cout<<"PASS Kogger recorded CHART through native 8-bit view: columns="
-                 <<actual<<" unique_display_colours="<<used.size()<<'\\n';
+                 <<actual<<" unique_display_colours="<<used.size()<<'\n';
     }
-    std::cout<<"PASS native Kogger 256-level palette, exact original palette stops, CHART sampling, valid source depths, 8-bit image rendering\\n";
+    std::cout<<"PASS native Kogger 256-level palette, exact original palette stops, CHART sampling, valid source depths, 8-bit image rendering\n";
 }
