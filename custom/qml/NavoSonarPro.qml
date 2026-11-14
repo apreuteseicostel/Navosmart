@@ -489,6 +489,7 @@ Rectangle {
                 fileReplay:root.fileBrowserActive ? root.chartSource.replay : null
                 fileWindowStart:root.fileWindowStart
                 fileWindowColumns:root.fileVisibleColumns
+                fileSelectedColumn:root.fileCenterColumn
                 depthFrom:isFinite(root.scaleStart)?root.scaleStart:0
                 depthRange:isFinite(root.scaleRange)&&root.scaleRange>0?root.scaleRange:50
                 paletteMode:root.paletteMode
