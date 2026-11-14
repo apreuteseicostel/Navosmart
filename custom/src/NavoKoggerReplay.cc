@@ -40,7 +40,8 @@ bool NavoKoggerReplay::open(const QUrl& url) {
  _active=true; _paused=false; _pacing.start(); _timer.start(); emit stateChanged(); emit progressChanged(); return true;
 }
 void NavoKoggerReplay::stop() {
- _timer.stop();_indexTimer.stop();_indexFile.close();_indexBuffer.clear();_columns.clear();
+ _timer.stop();_timer.setInterval(40);
+ _overview.clear();_overviewStride=1;_viewportColumn=-1;emit overviewChanged();_indexTimer.stop();_indexFile.close();_indexBuffer.clear();_columns.clear();
  _indexBufferOffset=0;_indexProcessed=0;_indexReady=false;_haveChart=false;
  _scanPacketCount=0;_scanPose=Pose();_lastSeqEnd=0;_lastAddress=-1;
  _previewStopOffset=-1;_previewFlushLast=false;
@@ -78,6 +79,7 @@ int NavoKoggerReplay::currentColumn() const {
  return int(std::max<qint64>(0,std::distance(_columns.cbegin(),it)-1));
 }
 bool NavoKoggerReplay::seekColumn(int column) {
+ _viewportColumn=-1;_timer.setInterval(40);
  if(_archive||!_indexReady||column<0||column>=_columns.size()||!_file.isOpen())return false;
  const auto entry=_columns.at(column);
  if(entry.offset<0||entry.offset>=_file.size()||!_file.seek(entry.offset))return false;
@@ -102,6 +104,69 @@ bool NavoKoggerReplay::seekColumn(int column) {
  QTimer::singleShot(0,this,[this](){if(_active&&!_paused)tick();});
  return true;
 }
+QVariantList NavoKoggerReplay::overviewColumns() const {
+ QVariantList bins;
+ bins.reserve(_overview.size());
+ for(const auto& bin:_overview) {
+  QVariantList row; row.reserve(int(bin.levels.size()));
+  for(const quint8 value:bin.levels)row.append(int(value));
+  bins.append(row);
+ }
+ return bins;
+}
+// Build a bounded whole-file echogram thumbnail while scanning the KLF index.
+// The thumbnail is deliberately low resolution; full-resolution CHART stays on disk.
+void NavoKoggerReplay::feedOverview(const uchar* raw,int byteCount,int sequence,int resolution,int offset,int version) {
+ if(_columns.isEmpty()||!raw||byteCount<=0||resolution<=0)return;
+ constexpr int maxBins=512;
+ while((_columns.size()-1)/_overviewStride>=maxBins) {
+  QVector<OverviewBin> compact;
+  compact.reserve((_overview.size()+1)/2);
+  for(int i=0;i<_overview.size();i+=2) {
+   auto merged=_overview[i];
+   if(i+1<_overview.size())
+    for(size_t row=0;row<merged.levels.size();++row)
+     merged.levels[row]=std::max(merged.levels[row],_overview[i+1].levels[row]);
+   compact.append(merged);
+  }
+  _overview=std::move(compact);
+  _overviewStride*=2;
+ }
+ const int bucket=int((_columns.size()-1)/_overviewStride);
+ if(bucket>=_overview.size())_overview.resize(bucket+1);
+ auto& profile=_overview[bucket].levels;
+ const int sampleCount=version==1?byteCount/2:byteCount;
+ for(int i=0;i<sampleCount;++i) {
+  const int strength=version==1 ? int(qFromLittleEndian<quint16>(raw+i*2)>>8) : int(raw[i]);
+  const double depth=double(offset+sequence+i)*double(resolution)*0.001;
+  if(!std::isfinite(depth)||depth<0||depth>100)continue;
+  // Nonlinear shallow-water allocation is for timeline thumbnails ONLY.
+  // The actual echogram remains rendered with physical linear depth.
+  const int row=std::clamp(int(std::sqrt(depth/100.0)*48.0),0,47);
+  profile[size_t(row)]=std::max(profile[size_t(row)],quint8(strength));
+ }
+}
+bool NavoKoggerReplay::seekWindow(int centerColumn,int visibleColumns) {
+ if(_archive||!_indexReady||centerColumn<0||centerColumn>=_columns.size()||!_file.isOpen())return false;
+ const int count=int(_columns.size());
+ const int width=std::clamp(visibleColumns,1,2048);
+ const int start=std::clamp(centerColumn-width/2,0,std::max(0,count-width));
+ const int last=std::min(count-1,start+width-1);
+ if(!seekColumn(start))return false;
+ // Load both sides of the requested position into the existing native display.
+ // Stop at the first packet of the next column, which publishes the last
+ // column in the window; do not continue playing from the seek point.
+ _previewStopOffset=last+1<count
+     ?std::min<qint64>(_file.size(),_columns[last+1].offset+_columns[last+1].firstPacketSize)
+     :_file.size();
+ _previewFlushLast=last==count-1;
+ _viewportColumn=centerColumn;
+ _timer.setInterval(0); // bounded 64 KiB per event for responsive random access
+ _timer.start();
+ emit progressChanged();
+ return true;
+}
+
 void NavoKoggerReplay::beginIndexing() {
  // NAVOSONAR chunk archives need an independent record seek protocol.
  // KLF is byte-indexed; do not mislabel archive chunks as sonar columns.
@@ -169,6 +234,7 @@ bool NavoKoggerReplay::indexKoggerFrame(const char* bytes,int length,qint64 offs
   if(_columns.size()>=500000)return false;
   _columns.push_back({offset,_scanPacketCount-1,_scanPose,length});
  }
+ feedOverview(p+6,payload,seq,res,off,version);
  _haveChart=true;_lastSeqEnd=seq+payload;_lastResolution=res;
  _lastAbsoluteOffset=off;_lastVersion=quint8(version);_lastAddress=address;
  return newColumn;
@@ -215,6 +281,7 @@ void NavoKoggerReplay::indexTick() {
  _indexProcessed=_indexFile.pos();
  if(_indexFile.atEnd()){
   _indexTimer.stop();_indexFile.close();_indexBuffer.clear();_indexReady=true;
+  emit overviewChanged();
  }
  emit indexChanged();
 }
@@ -236,7 +303,7 @@ void NavoKoggerReplay::tick() {
  const int budget=std::clamp(int(4096.0*_speed*std::min<qint64>(elapsed,1000)/40.0),nominal,65536);
  const qint64 remaining=_previewStopOffset>=0?_previewStopOffset-_file.pos():budget;
  if(_previewStopOffset>=0&&remaining<=0){
-  _timer.stop();_paused=true;_previewStopOffset=-1;
+  _timer.stop();_timer.setInterval(40);_paused=true;_previewStopOffset=-1;
   if(_previewFlushLast){_previewFlushLast=false;emit previewLastColumnReady();}
   emit stateChanged();return;
  }
@@ -254,7 +321,7 @@ void NavoKoggerReplay::tick() {
  }
  emit progressChanged();
  if(_previewStopOffset>=0&&_file.pos()>=_previewStopOffset) {
-  _timer.stop();_paused=true;_previewStopOffset=-1;
+  _timer.stop();_timer.setInterval(40);_paused=true;_previewStopOffset=-1;
   if(_previewFlushLast){_previewFlushLast=false;emit previewLastColumnReady();}
   emit stateChanged();return;
  }
