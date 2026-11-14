@@ -25,6 +25,26 @@ errors=[];view.engine().warnings.connect(lambda warnings:errors.extend(str(w) fo
 view.setSource(QUrl.fromLocalFile(str(repo/'custom/qml/NavoSonarPro.qml')))
 assert view.status()==QQuickView.Ready,errors
 root=view.rootObject()
+# Kogger-inspired 2D controls are real QML, independent of the native decoder.
+levelsPanel=root.findChild(QObject,'sonarPro2DLevels')
+levelRange=root.findChild(QObject,'sonarProLevelRange')
+assert levelsPanel and levelRange, 'NAVO level-window controls failed to instantiate'
+for width,height in [(320,600),(480,720),(900,600)]:
+ view.resize(width,height)
+ root.setProperty('settingsVisible',True)
+ QTest.qWait(40)
+ assert levelsPanel.property('visible'), '2D settings panel is hidden'
+ assert float(levelsPanel.property('width')) > 0
+ assert view.grabWindow().width()>0, '2D settings view failed to render'
+root.setProperty('levelLow',25.0);root.setProperty('levelHigh',75.0)
+QTest.qWait(20)
+assert abs(float(levelsPanel.property('lowerLevel'))-25)<.01
+assert abs(float(levelsPanel.property('upperLevel'))-75)<.01
+root.setProperty('amberPalette',True)
+assert root.property('paletteMode')==2
+QMetaObject.invokeMethod(root,'resetDisplaySettings')
+assert root.property('paletteMode')==0 and root.property('levelLow')==0 and root.property('levelHigh')==100
+root.setProperty('settingsVisible',False)
 component=QQmlComponent(view.engine())
 component.setData(b'''import QtQuick
 QtObject {
