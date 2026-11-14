@@ -6,6 +6,7 @@ import QtPositioning
 import QtLocation
 import QGroundControl.FlightMap
 import "NavoBottomAnalysis.js" as BottomAnalysis
+import "NavoSonarDepthScale.js" as DepthWindow
 
 Rectangle {
     id: root
@@ -112,6 +113,11 @@ Rectangle {
     property bool menuOpen: false
     property bool paused: false
     property var history: []
+    // Auto window is view-only, never a rewrite of the CHART/Dataset samples.
+    // RAW always restores the exact recording range (e.g. 0–50 m).
+    property string depthScaleMode: "auto" // auto | raw | fixed
+    property real manualDepthRangeM: 5
+    property real autoDepthRangeM: 0
     property string activeLakeId: ""
     property string pointSaveStatus: ""
     property bool pointPicking: false
@@ -356,6 +362,8 @@ Rectangle {
         amberPalette = false
         levelLow = 0
         levelHigh = 100
+        depthScaleMode = "auto"
+        autoDepthRangeM = 0
     }
     function repaint() { echogram.requestPaint(); liveEcho.requestPaint() }
     // Read the source getters synchronously: all metadata is published before
@@ -367,9 +375,13 @@ Rectangle {
     }
     onSamplesChanged: if (!chartSource) Qt.callLater(pushHistory)
     Component.onCompleted: Qt.callLater(pushHistory)
-    onHistoryChanged: { if (!history.length) rasterCache = []; repaint() }
+    onHistoryChanged: {
+        if (!history.length) { rasterCache = []; autoDepthRangeM=0 }
+        if (depthScaleMode==="auto" && !paused && history.length) depthScaleTimer.restart()
+        repaint()
+    }
     onActiveLakeIdChanged: { endPointPick();sonarPointDialog.close();history=[] }
-    onReplayModeChanged: { endPointPick();sonarPointDialog.close();history=[] }
+    onReplayModeChanged: { endPointPick();sonarPointDialog.close();history=[];autoDepthRangeM=0 }
     onGainChanged: repaint()
     onNoiseFloorChanged: repaint()
     onNoiseFilterEnabledChanged: repaint()
@@ -377,12 +389,26 @@ Rectangle {
     onAmberPaletteChanged: repaint()
     onLevelLowChanged: repaint()
     onLevelHighChanged: repaint()
-    onReplayActiveChanged: { if(replayActive)history=[]; root.menuOpen=false }
+    onReplayActiveChanged: { if(replayActive){history=[];autoDepthRangeM=0}; root.menuOpen=false }
     onKoggerCompensationChanged: { history = []; pushHistory(); repaint() }
     onShowBottomTrackChanged: repaint()
-    // Freeze scale together with the displayed history while paused.
+    // Scale is a display crop: raw amplitude/sample positions are unchanged.
+    // Freeze auto updates with the displayed history while paused.
     readonly property real scaleStart: displayedColumn ? displayedColumn.offset : (isFinite(chartOffsetMeters) ? chartOffsetMeters : 0)
-    readonly property real scaleRange: displayedColumn ? displayedColumn.range : (isFinite(chartRangeMeters) && chartRangeMeters > 0 ? chartRangeMeters : 0)
+    readonly property real sourceDepthRange: displayedColumn ? displayedColumn.range : (isFinite(chartRangeMeters) && chartRangeMeters > 0 ? chartRangeMeters : 0)
+    readonly property real scaleRange: depthScaleMode==="raw" ? sourceDepthRange :
+        depthScaleMode==="fixed" ? Math.min(sourceDepthRange,manualDepthRangeM) :
+        (autoDepthRangeM>0 ? Math.min(sourceDepthRange,autoDepthRangeM) : sourceDepthRange)
+    function updateAutoDepthRange() {
+        if (depthScaleMode!=="auto" || paused || !displayedColumn) return
+        var target=DepthWindow.targetRange(history,depthM,scaleStart,sourceDepthRange)
+        // Unknown bottom => keep the full native range; do not zoom into noise.
+        autoDepthRangeM=target>0 ? DepthWindow.smoothRange(autoDepthRangeM,target,sourceDepthRange) : 0
+    }
+    Timer { id:depthScaleTimer;interval:450;repeat:false;onTriggered:root.updateAutoDepthRange() }
+    onDepthScaleModeChanged: { if(depthScaleMode==="auto")depthScaleTimer.restart();repaint() }
+    onManualDepthRangeMChanged: repaint()
+    onDepthMChanged: if(depthScaleMode==="auto" && !paused && history.length)depthScaleTimer.restart()
     onScaleStartChanged: repaint()
     onScaleRangeChanged: repaint()
 
@@ -696,6 +722,48 @@ Rectangle {
             ColumnLayout {
                 id: settingsContent
                 width: settingsScroll.availableWidth; spacing: 6
+                Label {
+                    text: "SCARĂ VERTICALĂ • PROFUNZIME"
+                    color:"#d9edf7";font.bold:true;font.pixelSize:11
+                }
+                RowLayout {
+                    Layout.fillWidth:true;spacing:5
+                    Button {
+                        objectName:"sonarDepthAutoButton"
+                        text:"AUTO";checkable:true;checked:root.depthScaleMode==="auto"
+                        onClicked:root.depthScaleMode="auto"
+                        Accessible.name:"Scară automată în funcție de fund"
+                    }
+                    Button {
+                        objectName:"sonarDepthRawButton"
+                        text:"RAW";checkable:true;checked:root.depthScaleMode==="raw"
+                        onClicked:root.depthScaleMode="raw"
+                        Accessible.name:"Scară originală CHART"
+                    }
+                    ComboBox {
+                        id:depthScaleSelect
+                        objectName:"sonarDepthManualSelector"
+                        Layout.fillWidth:true
+                        model:[2,3,5,10,20,50]
+                        currentIndex:Math.max(0,model.indexOf(root.manualDepthRangeM))
+                        displayText:root.depthScaleMode==="fixed" ? "FIX "+root.manualDepthRangeM+" m" : "FIX..."
+                        onActivated:function(index){
+                            root.manualDepthRangeM=model[index]
+                            root.depthScaleMode="fixed"
+                        }
+                        Accessible.name:"Scară fixă în metri"
+                    }
+                }
+                Label {
+                    Layout.fillWidth:true
+                    color:"#9db2c5";font.pixelSize:10;wrapMode:Text.WordWrap
+                    text:root.depthScaleMode==="auto" ?
+                        (root.autoDepthRangeM>0 ? "AUTO: fundul ocupă ~75–80% din înălțime. Datele CHART rămân intacte." :
+                        "AUTO: aștept un fund valid; afișez scara originală, fără zoom pe zgomot.") :
+                        root.depthScaleMode==="raw" ? "RAW: intervalul original al sonarului, fără decupare." :
+                        "FIX: zoom doar pentru afișare; datele originale nu se pierd."
+                }
+                Rectangle { Layout.fillWidth:true;Layout.preferredHeight:1;color:"#31536c" }
                 NavoSonar2DLevels {
                     Layout.fillWidth: true
                     lowerLevel: root.levelLow
