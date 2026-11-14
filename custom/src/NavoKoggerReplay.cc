@@ -1,4 +1,5 @@
 #include "NavoKoggerReplay.h"
+#include "NavoKoggerDecoder.h"
 #include "../../third_party/KoggerApp/src/proto_binnary.h"
 #include <QtEndian>
 #include <QSaveFile>
@@ -42,6 +43,7 @@ bool NavoKoggerReplay::open(const QUrl& url) {
 void NavoKoggerReplay::stop() {
  _timer.stop();_indexTimer.stop();_indexFile.close();_indexBuffer.clear();_columns.clear();
  _indexBufferOffset=0;_indexProcessed=0;_indexReady=false;_haveChart=false;
+ _previewCache.clear();_previewCacheOrder.clear();_previewCacheBytes=0;
  _scanPacketCount=0;_scanPose=Pose();_lastSeqEnd=0;_lastAddress=-1;
  _previewStopOffset=-1;_previewFlushLast=false;
  _lastResolution=0;_lastAbsoluteOffset=0;_lastVersion=0;
@@ -101,6 +103,89 @@ bool NavoKoggerReplay::seekColumn(int column) {
  // Decode from the selected *on-disk* column, never from file start.
  QTimer::singleShot(0,this,[this](){if(_active&&!_paused)tick();});
  return true;
+}
+// A full KLF timeline is indexed once. This view reader never seeks the
+// playback QFile, resets the production decoder, or changes the Dataset.
+// It fetches only selected source columns; FULL overview deliberately samples
+// across the file at the number of horizontal display pixels.
+QVector<NavoKoggerReplay::ViewColumn> NavoKoggerReplay::readDisplaySlice(
+    int endColumn,int spanColumns,int pixels,int firstPixel,int pixelCount) const {
+ QVector<ViewColumn> out;
+ if(!_indexReady||_archive||_columns.isEmpty()||!_file.isOpen()||
+    pixels<1||pixels>2048||firstPixel<0||firstPixel>=pixels||
+    pixelCount<=0||pixelCount>128)return out;
+ endColumn=std::clamp(endColumn,0,int(_columns.size())-1);
+ spanColumns=std::clamp(spanColumns,1,int(_columns.size()));
+ const int start=std::max(0,endColumn-spanColumns+1);
+ const int span=endColumn-start+1;
+ const int take=std::min(pixelCount,pixels-firstPixel);
+ out.reserve(take);
+ QFile viewFile(_file.fileName());
+ if(!viewFile.open(QIODevice::ReadOnly)||viewFile.isSequential())return {};
+ int lastSource=-1;
+ ViewColumn lastValue;
+ for(int px=firstPixel;px<firstPixel+take;++px) {
+  const int source=std::min(endColumn,start+int(qint64(px)*span/pixels));
+  if(source==lastSource){out.push_back(lastValue);continue;}
+  lastSource=source;
+  const auto cached=_previewCache.constFind(source);
+  if(cached!=_previewCache.cend()){
+   lastValue=cached.value();out.push_back(lastValue);continue;
+  }
+  lastValue=ViewColumn();
+  lastValue.sourceIndex=source;
+  const auto &entry=_columns[source];
+  const qint64 begin=entry.offset;
+  const qint64 next=source+1<_columns.size()
+    ?_columns[source+1].offset+_columns[source+1].firstPacketSize
+    :viewFile.size();
+  // A malformed/misindexed source can never cause unlimited synchronous IO.
+  const qint64 until=std::min({viewFile.size(),next,begin+2*1024*1024LL});
+  if(begin<0||until<=begin||!viewFile.seek(begin)){
+   out.push_back(lastValue);continue;
+  }
+  Parsers::FrameParser parser;
+  NavoKoggerDecoder decoder;
+  bool obtained=false;
+  QObject::connect(&decoder,&NavoKoggerDecoder::chartColumnReady,&decoder,[&](){
+   if(obtained)return;
+   const auto bytes=decoder.chartRawBytes();
+   if(bytes.isEmpty()||bytes.size()>128*1024)return;
+   lastValue.bytes=bytes;
+   lastValue.resolutionMm=decoder.chartResolution();
+   lastValue.absoluteOffset=decoder.chartAbsoluteOffset();
+   lastValue.version=decoder.chartVersion();
+   obtained=true;
+  });
+  while(!obtained&&viewFile.pos()<until){
+   QByteArray chunk=viewFile.read(int(std::min<qint64>(32768,until-viewFile.pos())));
+   if(chunk.isEmpty())break;
+   parser.setContext(reinterpret_cast<uint8_t*>(chunk.data()),chunk.size());
+   while(parser.availContext()>0&&!obtained){
+    parser.process();
+    if(parser.completeAsKBP()||parser.completeAsKBP2()){
+     decoder.feedBytes(QByteArray(reinterpret_cast<const char*>(parser.frame()),parser.frameLen()));
+    }
+   }
+  }
+  if(!obtained)decoder.flushPendingChart();
+  if(!lastValue.bytes.isEmpty()){
+   _previewCache.insert(source,lastValue);
+   _previewCacheOrder.enqueue(source);
+   _previewCacheBytes+=lastValue.bytes.size();
+   while((_previewCacheBytes>24*1024*1024||_previewCache.size()>4096)
+         &&!_previewCacheOrder.isEmpty()){
+    const int victim=_previewCacheOrder.dequeue();
+    auto it=_previewCache.find(victim);
+    if(it!=_previewCache.end()){
+     _previewCacheBytes-=it.value().bytes.size();
+     _previewCache.erase(it);
+    }
+   }
+  }
+  out.push_back(lastValue);
+ }
+ return out;
 }
 void NavoKoggerReplay::beginIndexing() {
  // NAVOSONAR chunk archives need an independent record seek protocol.
