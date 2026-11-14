@@ -1,4 +1,5 @@
 #include "NavoKoggerEchogramItem.h"
+#include "NavoKoggerReplay.h"
 #include "../kogger_native/navo_kogger_echogram_palette.h"
 #include "../kogger_native/navo_kogger_echogram_sampling.h"
 #include <QPainter>
@@ -18,11 +19,122 @@ NavoKoggerEchogramItem::NavoKoggerEchogramItem(QQuickItem* parent)
     _frameTimer.setSingleShot(true);
     _frameTimer.setInterval(33); // coalesce fast replay into <= ~30 UI updates/sec
     connect(&_frameTimer,&QTimer::timeout,this,[this](){update();});
+    _fileLoadTimer.setSingleShot(true);
+    _fileLoadTimer.setInterval(1);
+    connect(&_fileLoadTimer,&QTimer::timeout,this,&NavoKoggerEchogramItem::loadFileBatch);
 }
 int NavoKoggerEchogramItem::columnCount() const {
     QMutexLocker lock(&_mutex);
-    return _columns.size();
+    return _fileTotalColumns>0 ? _fileColumns.size() : _columns.size();
 }
+// Kogger-style cursor: the file index belongs to the replay object, while the
+// on-screen window and a bounded decoded cache belong to the renderer.
+// Switching viewport never calls seekColumn(), feedBytes() or Dataset::clear().
+void NavoKoggerEchogramItem::setFileReplay(QObject* source) {
+    auto* next=qobject_cast<NavoKoggerReplay*>(source);
+    if(_fileReplay==next)return;
+    _fileLoadTimer.stop();
+    if(_fileReplay)disconnect(_fileReplay,nullptr,this,nullptr);
+    {
+        QMutexLocker lock(&_mutex);
+        _fileReplay=next;
+        _fileTotalColumns=next && next->indexReady() ? next->indexedColumns() : 0;
+        _fileColumns.clear();_fileCacheOrder.clear();_fileCacheBytes=0;
+    }
+    if(next){
+        connect(next,&NavoKoggerReplay::indexChanged,this,[this](){
+            auto* r=qobject_cast<NavoKoggerReplay*>(_fileReplay.data());
+            {
+                QMutexLocker lock(&_mutex);
+                _fileTotalColumns=r && r->indexReady()?r->indexedColumns():0;
+            }
+            refreshFileViewport();
+        });
+        connect(next,&QObject::destroyed,this,[this](){
+            _fileReplay=nullptr;
+            _fileLoadTimer.stop();
+            {
+                QMutexLocker lock(&_mutex);
+                _fileTotalColumns=0;_fileColumns.clear();
+                _fileCacheOrder.clear();_fileCacheBytes=0;
+            }
+            emit fileReplayChanged();emit columnsChanged();requestFrame();
+        });
+    }
+    emit fileReplayChanged();
+    emit columnsChanged();
+    refreshFileViewport();
+}
+void NavoKoggerEchogramItem::setFileWindowStart(int start) {
+    start=std::max(0,start);
+    if(_fileWindowStart==start)return;
+    _fileWindowStart=start;emit fileViewportChanged();refreshFileViewport();
+}
+void NavoKoggerEchogramItem::setFileWindowColumns(int count) {
+    count=std::clamp(count,1,500000);
+    if(_fileWindowColumns==count)return;
+    _fileWindowColumns=count;emit fileViewportChanged();refreshFileViewport();
+}
+int NavoKoggerEchogramItem::fileIndexAtPixel(int x,int imageWidth,int fileSize) const {
+    if(fileSize<=0 || imageWidth<=0 || x<0 || x>=imageWidth)return -1;
+    const int span=std::clamp(_fileWindowColumns,1,fileSize);
+    const int start=std::clamp(_fileWindowStart,0,fileSize-span);
+    // Pixel centres sample the entire recording at full-file zoom, with
+    // exact per-column access after zoom-in; no artificial 4096-column cap.
+    return start+int((qint64(2)*x+1)*span/(qint64(2)*imageWidth));
+}
+void NavoKoggerEchogramItem::refreshFileViewport() {
+    auto* r=qobject_cast<NavoKoggerReplay*>(_fileReplay.data());
+    if(r && r->indexReady() && _fileTotalColumns>0 && width()>0){
+        _fileLoadTimer.start();
+    }
+    requestFrame();
+}
+void NavoKoggerEchogramItem::loadFileBatch() {
+    auto* r=qobject_cast<NavoKoggerReplay*>(_fileReplay.data());
+    if(!r || !r->indexReady() || _fileTotalColumns<=0 || width()<=0)return;
+    const int imageW=std::clamp(int(std::ceil(width())),1,2048);
+    int loaded=0;bool pending=false;
+    for(int px=0;px<imageW;++px) {
+        const int idx=fileIndexAtPixel(px,imageW,_fileTotalColumns);
+        if(idx<0)continue;
+        {
+            QMutexLocker lock(&_mutex);
+            if(_fileColumns.contains(idx))continue;
+        }
+        if(loaded>=12){pending=true;break;}
+        NavoKoggerReplay::ChartColumn source;
+        const bool ok=r->readChartColumn(idx,&source);
+        Column c;
+        if(ok) {
+            c.bytes=std::move(source.bytes);
+            c.resolutionMm=source.resolutionMm;
+            c.absoluteOffset=source.absoluteOffset;
+            c.version=source.version;
+        }
+        // Cache even unreadable columns as empty so corrupt data cannot
+        // restart an infinite read loop. Empty pixels remain transparent/black.
+        {
+            QMutexLocker lock(&_mutex);
+            _fileCacheBytes+=c.bytes.size();
+            _fileColumns.insert(idx,std::move(c));
+            _fileCacheOrder.enqueue(idx);
+            while(_fileCacheOrder.size()>MaxFileCacheColumns ||
+                  _fileCacheBytes>MaxFileCacheBytes) {
+                const int oldest=_fileCacheOrder.dequeue();
+                auto it=_fileColumns.find(oldest);
+                if(it!=_fileColumns.end()) {
+                    _fileCacheBytes-=it.value().bytes.size();
+                    _fileColumns.erase(it);
+                }
+            }
+        }
+        ++loaded;
+    }
+    if(loaded){emit columnsChanged();requestFrame();}
+    if(pending)_fileLoadTimer.start();
+}
+
 void NavoKoggerEchogramItem::requestFrame() {
     if(!_frameTimer.isActive())_frameTimer.start();
 }
