@@ -27,6 +27,10 @@ int NavoKoggerEchogramItem::columnCount() const {
     QMutexLocker lock(&_mutex);
     return _fileTotalColumns>0 ? _fileColumns.size() : _columns.size();
 }
+void NavoKoggerEchogramItem::geometryChange(const QRectF& now,const QRectF& before) {
+    QQuickPaintedItem::geometryChange(now,before);
+    if(now.size()!=before.size())refreshFileViewport();
+}
 // Kogger-style cursor: the file index belongs to the replay object, while the
 // on-screen window and a bounded decoded cache belong to the renderer.
 // Switching viewport never calls seekColumn(), feedBytes() or Dataset::clear().
@@ -39,7 +43,7 @@ void NavoKoggerEchogramItem::setFileReplay(QObject* source) {
         QMutexLocker lock(&_mutex);
         _fileReplay=next;
         _fileTotalColumns=next && next->indexReady() ? next->indexedColumns() : 0;
-        _fileColumns.clear();_fileCacheOrder.clear();_fileCacheBytes=0;
+        _fileColumns.clear();_fileCacheOrder.clear();_fileAttempted.clear();_fileCacheBytes=0;
     }
     if(next){
         connect(next,&NavoKoggerReplay::indexChanged,this,[this](){
@@ -56,7 +60,7 @@ void NavoKoggerEchogramItem::setFileReplay(QObject* source) {
             {
                 QMutexLocker lock(&_mutex);
                 _fileTotalColumns=0;_fileColumns.clear();
-                _fileCacheOrder.clear();_fileCacheBytes=0;
+                _fileCacheOrder.clear();_fileAttempted.clear();_fileCacheBytes=0;
             }
             emit fileReplayChanged();emit columnsChanged();requestFrame();
         });
@@ -84,6 +88,7 @@ int NavoKoggerEchogramItem::fileIndexAtPixel(int x,int imageWidth,int fileSize) 
     return start+int((qint64(2)*x+1)*span/(qint64(2)*imageWidth));
 }
 void NavoKoggerEchogramItem::refreshFileViewport() {
+    _fileAttempted.clear();
     auto* r=qobject_cast<NavoKoggerReplay*>(_fileReplay.data());
     if(r && r->indexReady() && _fileTotalColumns>0 && width()>0){
         _fileLoadTimer.start();
@@ -100,7 +105,7 @@ void NavoKoggerEchogramItem::loadFileBatch() {
         if(idx<0)continue;
         {
             QMutexLocker lock(&_mutex);
-            if(_fileColumns.contains(idx))continue;
+            if(_fileColumns.contains(idx)||_fileAttempted.contains(idx))continue;
         }
         if(loaded>=12){pending=true;break;}
         NavoKoggerReplay::ChartColumn source;
@@ -129,6 +134,7 @@ void NavoKoggerEchogramItem::loadFileBatch() {
                 }
             }
         }
+        _fileAttempted.insert(idx);
         ++loaded;
     }
     if(loaded){emit columnsChanged();requestFrame();}
@@ -244,9 +250,16 @@ QVariantMap NavoKoggerEchogramItem::inspectAt(qreal x,qreal y) const {
     int epoch=-1;
     {
         QMutexLocker lock(&_mutex);
-        epoch=_columns.size()-imageW+pos;
-        if(epoch<0||epoch>=_columns.size())return {};
-        c=_columns[epoch];
+        if(_fileTotalColumns>0){
+            epoch=fileIndexAtPixel(pos,imageW,_fileTotalColumns);
+            if(!_fileColumns.contains(epoch))return {};
+            c=_fileColumns.value(epoch);
+        }else{
+            epoch=_columns.size()-imageW+pos;
+            if(epoch<0||epoch>=_columns.size())return {};
+            c=_columns[epoch];
+        }
+        if(c.bytes.isEmpty()||c.resolutionMm==0)return {};
     }
     const double resolution=c.resolutionMm*0.001;
     const double offset=c.absoluteOffset*resolution;
@@ -254,12 +267,12 @@ QVariantMap NavoKoggerEchogramItem::inspectAt(qreal x,qreal y) const {
     const quint8 signal=NavoKoggerSampling::atDisplayDepth(
         c.bytes,c.version,offset,resolution,selectedDepth,pixelDepth);
     return QVariantMap{
-        {"column",epoch+1},{"sequence",QVariant::fromValue(c.sequence)},
+        {"column",epoch+1},{"sequence",_fileTotalColumns>0?QVariant():QVariant::fromValue(c.sequence)},
         {"selectedDepthM",selectedDepth},{"bottomDepthM",c.bottom},
         {"amplitudePercent",100.0*double(signal)/255.0},
         {"resolutionMm",c.resolutionMm},{"sourceOffsetM",offset},
         {"sampleCount",c.bytes.size()/(c.version==1?2:1)},
-        {"source",QStringLiteral("Kogger CHART 8-bit")}
+        {"source",_fileTotalColumns>0?QStringLiteral("Kogger KLF on-disk CHART 8-bit"):QStringLiteral("Kogger CHART 8-bit")}
     };
 }
 void NavoKoggerEchogramItem::paint(QPainter* p) {
@@ -270,8 +283,16 @@ void NavoKoggerEchogramItem::paint(QPainter* p) {
     QVector<Column> visible;
     {
         QMutexLocker lock(&_mutex);
-        const int start=std::max(0,int(_columns.size())-imageW);
-        visible=_columns.mid(start);
+        if(_fileTotalColumns>0){
+            visible.reserve(imageW);
+            for(int x=0;x<imageW;++x){
+                const int index=fileIndexAtPixel(x,imageW,_fileTotalColumns);
+                visible.append(_fileColumns.value(index));
+            }
+        }else{
+            const int start=std::max(0,int(_columns.size())-imageW);
+            visible=_columns.mid(start);
+        }
     }
     QImage image(imageW,imageH,QImage::Format_Indexed8);
     image.setColorTable(NavoKoggerPalette::colors(_palette,float(_low),float(_high)));
@@ -281,6 +302,7 @@ void NavoKoggerEchogramItem::paint(QPainter* p) {
     for(int i=0;i<visible.size();++i) {
         const int x=imageW-visible.size()+i;
         const auto& col=visible[i];
+        if(col.bytes.isEmpty() || col.resolutionMm==0)continue;
         const double resolution=col.resolutionMm*0.001;
         const double offset=col.absoluteOffset*resolution;
         for(int y=0;y<imageH;++y) {
