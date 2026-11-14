@@ -58,6 +58,9 @@ Item {
     property var bathymetryCells: []
     property var nativeSurfaceMesh: ({})
     property var nativeSurfaceBridge: null
+    // Experimental Kogger isobaths are computed only for the live native Dataset.
+    readonly property bool nativeIsobathsEnabled: !!nativeSurfaceBridge && !!nativeSurfaceBridge.isobathsEnabled
+    readonly property bool nativeIsobathsAvailable: !!nativeSurfaceBridge && !recordedReplay && !replayPreview
     readonly property bool nativeSurfaceReady: !!nativeSurfaceMesh && nativeSurfaceMesh.version===1 && !!nativeSurfaceMesh.indices && nativeSurfaceMesh.indices.length>=3 && nativeSurfaceMesh.indices.length<=49152 && !!nativeSurfaceMesh.vertices && nativeSurfaceMesh.vertices.length<=8192
     property bool replayPreview: false
     property var replayTrack: []
@@ -451,6 +454,12 @@ Item {
         nativeBridge: root.nativeSurfaceBridge
         active: root.bathymetryHDEnabled && root.nativeSurfaceReady
     }
+    NavoNativeIsobathsOverlay {
+        map: liveMap
+        geometry: root.nativeSurfaceBridge ? root.nativeSurfaceBridge.nativeIsobaths : ({})
+        active: root.nativeIsobathsAvailable && root.nativeIsobathsEnabled &&
+                root.bathymetryHDEnabled && root.nativeSurfaceReady
+    }
     NavoBathymetryHDOverlay {
         map: liveMap
         cells: root.bathymetryCells
@@ -786,6 +795,41 @@ Item {
             CheckBox{text:"Traseu planificat / Area Scan";palette.windowText:"white";checked:layerSettings.plannedVisible;onToggled:layerSettings.plannedVisible=checked}
             CheckBox{text:"Marcaje sonar";palette.windowText:"white";checked:layerSettings.fishVisible;onToggled:layerSettings.fishVisible=checked}
             CheckBox{text:"Batimetrie HD";palette.windowText:"#e9f2fa";checked:root.bathymetryHDEnabled;onToggled:root.bathymetryHDEnabled=checked}
+            CheckBox {
+                objectName: "nativeIsobathsToggle"
+                text: "Curbe de nivel Kogger (experimental)"
+                palette.windowText: "#e9f2fa"
+                enabled: root.nativeIsobathsAvailable
+                checked: root.nativeIsobathsEnabled
+                onToggled: if(root.nativeIsobathsAvailable)root.nativeSurfaceBridge.setIsobathsEnabled(checked)
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                enabled: root.nativeIsobathsAvailable && root.nativeIsobathsEnabled
+                Label { text:"Pas curbe:";color:"#e9f2fa";font.pixelSize:12 }
+                ComboBox {
+                    id: isobathsStep
+                    objectName: "nativeIsobathsStep"
+                    Layout.fillWidth: true
+                    model: ["0.5 m","1 m","2 m","5 m"]
+                    currentIndex: !root.nativeSurfaceBridge ? 1 :
+                        (root.nativeSurfaceBridge.isobathsStepMeters===0.5 ? 0 :
+                         root.nativeSurfaceBridge.isobathsStepMeters===2 ? 2 :
+                         root.nativeSurfaceBridge.isobathsStepMeters===5 ? 3 : 1)
+                    onActivated: function(index) {
+                        if(root.nativeIsobathsAvailable)
+                            root.nativeSurfaceBridge.setIsobathsStepMeters([0.5,1,2,5][index])
+                    }
+                }
+            }
+            Label {
+                visible: root.nativeIsobathsEnabled
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                color: "#9db2c5"
+                font.pixelSize: 10
+                text: "Doar pe batimetria nativă live, cu GPS valid. Nu influențează navigația."
+            }
             Button{text:"Salvează zona offline";onClicked:{var region=root.offlineRegion();layersPopup.close();root.offlineMapsRequested(region)}}
             Button{text:"Închide";onClicked:layersPopup.close()}
         }
