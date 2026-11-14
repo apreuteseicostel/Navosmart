@@ -8,6 +8,7 @@
 #include <QColor>
 #include <QHash>
 #include <QQueue>
+#include <QSet>
 #include "NavoKoggerDecoder.h"
 
 // Native KoggerApp-style 8-bit echogram for NAVO / QGroundControl.
@@ -64,6 +65,8 @@ public:
     Q_INVOKABLE void setBottomDepth(quint64 sequence, double depth);
     Q_INVOKABLE QVariantMap inspectAt(qreal x, qreal y) const;
     void paint(QPainter* painter) override;
+protected:
+    void geometryChange(const QRectF& newGeometry,const QRectF& oldGeometry) override;
 signals:
     void decoderChanged();
     void displayChanged();
@@ -91,6 +94,7 @@ private:
     int _fileTotalColumns=0;
     QHash<int,Column> _fileColumns;
     QQueue<int> _fileCacheOrder;
+    QSet<int> _fileAttempted; // Avoid thrashing if one viewport exceeds the byte cache.
     int _fileCacheBytes=0;
     static constexpr int MaxFileCacheBytes=24*1024*1024;
     static constexpr int MaxFileCacheColumns=4096;
