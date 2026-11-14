@@ -61,6 +61,7 @@ QtObject {
   id: replayObject
   onPositionReady: function(lat,lon,heading,pitch,roll) { chartBridge.setPosition(lat,lon,heading,pitch,roll) }
   onBytesReady: function(data) { decoderObject.feedBytes(data) }
+  onPreviewLastColumnReady: decoderObject.flushPendingChart()
  }
  onNativeCapacityFullChanged: replayObject.setBlocked(nativeCapacityFull)
  readonly property string status: transportObject.status
