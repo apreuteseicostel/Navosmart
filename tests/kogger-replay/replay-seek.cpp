@@ -78,6 +78,12 @@ int main(int argc,char**argv){
  const int count=replay.indexedColumns();
  if(fixture)require(count>=14000 && count<=20000,"real Kogger fixture index should cover all real columns");
  else require(count==42,"each physical CHART column indexed exactly once");
+ // Whole file is addressable from a bounded global preview, not a rolling plot cache.
+ const auto thumbnail=replay.overviewColumns();
+ std::cout<<"OVERVIEW diagnostic: "<<thumbnail.size()<<" bins, "<<count
+          <<" indexed columns, stride="<<replay.overviewStride()<<std::endl;
+ require(!thumbnail.isEmpty() && thumbnail.size()<=512,"full KLF thumbnail missing or unbounded");
+ require(replay.overviewStride()>=1,"overview compression stride invalid");
  require(!replay.seekColumn(-1) && !replay.seekColumn(count),"invalid seek accepted");
  const int wanted=fixture?count/2:19;
  decoder.reset();published=0;firstAmplitude=-1;
@@ -96,6 +102,20 @@ int main(int argc,char**argv){
  drain(replay,published);
  require(published>0,"replay from zero produced no CHART column");
  if(!fixture)require(std::abs(firstAmplitude-20)<1e-9,"return to first column wrong");
+ // Unlike the old direct seek, viewport seek materialises columns BEFORE
+ // and AFTER the selected epoch, then stops for bidirectional inspection.
+ decoder.reset();published=0;firstAmplitude=-1;
+ require(replay.seekWindow(wanted,8),"centred viewport seek rejected");
+ QElapsedTimer windowTimer;windowTimer.start();
+ while(!replay.paused() && windowTimer.elapsed()<15000){
+  QCoreApplication::processEvents(QEventLoop::AllEvents,20);
+  QThread::msleep(1);
+ }
+ require(replay.paused() && published>=std::min(8,count),
+         "centred viewport did not complete both sides of the selected epoch");
+ require(replay.viewportColumn()==wanted,"viewport lost selected column");
+ if(!fixture)require(std::abs(firstAmplitude-(20+std::max(0,wanted-4)))<1e-9,
+                     "window must begin BEFORE target, not at target");
  // A paused slider drag must show the chosen column then remain paused.
  require(replay.seekColumn(5),"prime a running replay before pausing");
  replay.setPaused(true);

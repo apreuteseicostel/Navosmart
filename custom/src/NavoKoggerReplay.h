@@ -8,6 +8,7 @@
 #include <QVector>
 #include <QByteArray>
 #include <memory>
+#include <array>
 #include "NavoSonarArchive.h"
 namespace Parsers { class FrameParser; }
 class NavoKoggerReplay : public QObject {
@@ -22,6 +23,9 @@ class NavoKoggerReplay : public QObject {
  Q_PROPERTY(double indexProgress READ indexProgress NOTIFY indexChanged)
  Q_PROPERTY(int indexedColumns READ indexedColumns NOTIFY indexChanged)
  Q_PROPERTY(int currentColumn READ currentColumn NOTIFY progressChanged)
+ Q_PROPERTY(int viewportColumn READ viewportColumn NOTIFY progressChanged)
+ Q_PROPERTY(QVariantList overviewColumns READ overviewColumns NOTIFY overviewChanged)
+ Q_PROPERTY(int overviewStride READ overviewStride NOTIFY overviewChanged)
  Q_PROPERTY(QString error READ error NOTIFY stateChanged)
  Q_PROPERTY(QVariantMap annotationAnchor READ annotationAnchor NOTIFY annotationAnchorChanged)
  Q_PROPERTY(QVariantList annotations READ annotations NOTIFY annotationsChanged)
@@ -39,7 +43,11 @@ public:
  double indexProgress() const;
  int indexedColumns() const { return _columns.size(); }
  int currentColumn() const;
+ int viewportColumn() const { return _viewportColumn>=0 ? _viewportColumn : currentColumn(); }
+ QVariantList overviewColumns() const;
+ int overviewStride() const { return _overviewStride; }
  Q_INVOKABLE bool seekColumn(int column);
+ Q_INVOKABLE bool seekWindow(int centerColumn,int visibleColumns);
  QString error() const { return _error; }
  QVariantMap annotationAnchor() const;
  QVariantList annotations() const { return _annotations; }
@@ -57,6 +65,7 @@ signals:
  void stateChanged();
  void progressChanged();
  void indexChanged();
+ void overviewChanged();
  void previewLastColumnReady();
  void annotationsChanged();
  void annotationAnchorChanged();
@@ -66,6 +75,11 @@ private:
   double lat=qQNaN(), lon=qQNaN(), heading=qQNaN(), pitch=qQNaN(), roll=qQNaN();
  };
  struct ColumnOffset { qint64 offset=0; qint64 frameBefore=0; Pose pose; int firstPacketSize=0; };
+ struct OverviewBin { std::array<quint8,48> levels{}; };
+ QVector<OverviewBin> _overview;
+ int _overviewStride=1;
+ int _viewportColumn=-1;
+ void feedOverview(const uchar* packet,int byteCount,int sequence,int resolution,int offset,int version);
  QFile _indexFile;
  QTimer _indexTimer;
  QByteArray _indexBuffer;

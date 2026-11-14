@@ -693,65 +693,146 @@ Rectangle {
             }
         }
     }
+    // Kogger's timeline moves a viewport over the whole recording; the file
+    // index and thumbnail are retained independently of live screen history.
+    function showReplayWindow(column) {
+        if (!chartSource || !chartSource.replayIndexReady || chartSource.replayColumnCount<1)return false
+        var selected=Math.max(0,Math.min(chartSource.replayColumnCount-1,Math.round(column)))
+        var visibleColumns=useNativeRenderer ? Math.max(20,Math.ceil(nativeEchogram.width)) : historyColumns
+        return chartSource.seekReplayWindow(selected,visibleColumns)
+    }
     Rectangle {
         id: replaySeekBar
         objectName:"sonarProReplaySeekBar"
         visible:root.replayMode
         anchors.left:parent.left;anchors.right:parent.right;anchors.bottom:parent.bottom
-        height:52;z:96
+        height:100;z:96
         color:"#ed081c2a";border.color:"#2d536d"
         RowLayout {
-            anchors.fill:parent;anchors.leftMargin:10;anchors.rightMargin:10;spacing:8
+            anchors.fill:parent;anchors.leftMargin:9;anchors.rightMargin:9;spacing:7
             Label {
-                Layout.preferredWidth:Math.min(205,Math.max(95,replaySeekBar.width*.23))
-                elide:Text.ElideRight
+                Layout.preferredWidth:Math.min(156,Math.max(80,replaySeekBar.width*.17))
+                elide:Text.ElideRight;wrapMode:Text.WordWrap
                 font.pixelSize:11;color:"#deedf6"
                 text:root.chartSource && root.chartSource.replayIndexReady ?
-                    "Coloana "+(Math.min(root.chartSource.replayColumnCount-1,
-                      root.seekPreviewColumn>=0?root.seekPreviewColumn:root.chartSource.replayCurrentColumn)+1)+
+                    "FIȘIER KLF COMPLET\\n"+(Math.min(root.chartSource.replayColumnCount-1,
+                      root.seekPreviewColumn>=0?root.seekPreviewColumn:root.chartSource.replayViewportColumn)+1)+
                     " / "+root.chartSource.replayColumnCount :
                     (root.chartSource && root.chartSource.replayIndexProgress>0 ?
                      "Indexare KLF "+Math.floor(root.chartSource.replayIndexProgress*100)+"%" :
-                     "Seek disponibil pentru fișiere KLF")
+                     "Deschide o înregistrare KLF")
             }
-            Slider {
-                id:replayColumnSlider
-                objectName:"sonarProReplayColumnSlider"
-                Layout.fillWidth:true
-                from:0
-                to:root.chartSource && isFinite(root.chartSource.replayColumnCount) ? Math.max(0,root.chartSource.replayColumnCount-1):0
-                stepSize:1
-                enabled:!!(root.chartSource && root.chartSource.replayIndexReady &&
-                    root.chartSource.replayColumnCount>1)
-                value: root.seekPreviewColumn>=0 ? root.seekPreviewColumn :
-                    (root.chartSource && isFinite(root.chartSource.replayCurrentColumn) ? root.chartSource.replayCurrentColumn : 0)
-                Accessible.name:"Mergi direct la coloana din înregistrare"
-                ToolTip.visible:pressed
-                ToolTip.text:"Coloana "+(Math.round(value)+1)
-                onMoved:root.seekPreviewColumn=Math.round(value)
-                onPressedChanged: {
-                    if(!pressed && root.seekPreviewColumn>=0) {
-                        var selected=root.seekPreviewColumn
-                        if(root.chartSource)root.chartSource.seekReplayColumn(selected)
-                        root.seekPreviewColumn=-1
+            ColumnLayout {
+                Layout.fillWidth:true;spacing:2
+                Item {
+                    id:replayOverview
+                    objectName:"sonarProWholeFileOverview"
+                    Layout.fillWidth:true;Layout.preferredHeight:55
+                    clip:true
+                    Rectangle {anchors.fill:parent;color:"#030d19";border.color:"#345a70";radius:3}
+                    Canvas {
+                        id:overviewCanvas
+                        anchors.fill:parent;anchors.margins:2
+                        property var overviewData:root.chartSource ? root.chartSource.replayOverviewColumns : []
+                        onOverviewDataChanged:requestPaint()
+                        onWidthChanged:requestPaint()
+                        onHeightChanged:requestPaint()
+                        onPaint: {
+                            var ctx=getContext("2d");ctx.reset()
+                            ctx.fillStyle="#05142c";ctx.fillRect(0,0,width,height)
+                            var columns=overviewData
+                            if(!columns || !columns.length)return
+                            // Kogger DeepBlue colour anchors; 256 shades, compact overview.
+                            var stops=[0,18,36,60,90,120,150,185,210,235,255]
+                            var colors=[[0,0,40],[20,0,120],[40,0,200],[0,90,255],
+                                        [0,200,255],[0,255,200],[0,255,80],[220,255,0],
+                                        [255,120,0],[255,40,40],[255,255,255]]
+                            var palette=new Array(256)
+                            for(var k=0;k<stops.length-1;k++) {
+                                for(var level=stops[k];level<=stops[k+1];level++) {
+                                    var t=(level-stops[k])/(stops[k+1]-stops[k])
+                                    palette[level]="rgb("+Math.round(colors[k][0]*(1-t)+colors[k+1][0]*t)+","+
+                                        Math.round(colors[k][1]*(1-t)+colors[k+1][1]*t)+","+
+                                        Math.round(colors[k][2]*(1-t)+colors[k+1][2]*t)+")"
+                                }
+                            }
+                            for(var i=0;i<columns.length;i++) {
+                                var band=columns[i],x=Math.floor(i*width/columns.length)
+                                var w=Math.max(1,Math.ceil((i+1)*width/columns.length)-x)
+                                for(var y=0;y<band.length;y++) {
+                                    var intensity=Math.max(0,Math.min(255,Math.floor(Number(band[y]))))
+                                    if(intensity<8)continue
+                                    ctx.fillStyle=palette[intensity]
+                                    var yy=Math.floor(y*height/band.length)
+                                    ctx.fillRect(x,yy,w,Math.max(1,Math.ceil((y+1)*height/band.length)-yy))
+                                }
+                            }
+                        }
+                    }
+                    Rectangle {
+                        visible:!!(root.chartSource && root.chartSource.replayIndexReady && root.chartSource.replayColumnCount>0)
+                        x:!root.chartSource || !root.chartSource.replayIndexReady ? 0 :
+                            parent.width * Math.max(0,(root.seekPreviewColumn>=0?root.seekPreviewColumn:root.chartSource.replayViewportColumn)-
+                                (root.useNativeRenderer?nativeEchogram.width:root.historyColumns)/2) /
+                                Math.max(1,root.chartSource.replayColumnCount)
+                        width:!root.chartSource || !root.chartSource.replayIndexReady ? 0 :
+                            Math.max(4,parent.width*Math.min(root.chartSource.replayColumnCount,
+                                root.useNativeRenderer?nativeEchogram.width:root.historyColumns)/
+                                Math.max(1,root.chartSource.replayColumnCount))
+                        height:parent.height
+                        border.color:"#ffd56e";border.width:2;color:"#26ffd56e"
+                    }
+                    MouseArea {
+                        anchors.fill:parent
+                        enabled:!!(root.chartSource && root.chartSource.replayIndexReady && root.chartSource.replayColumnCount>0)
+                        cursorShape:Qt.PointingHandCursor
+                        onPositionChanged:function(mouse) {
+                            if(pressed)root.seekPreviewColumn=Math.max(0,Math.min(root.chartSource.replayColumnCount-1,
+                                Math.floor(mouse.x/Math.max(1,width)*root.chartSource.replayColumnCount)))
+                        }
+                        onReleased:function(mouse) {
+                            var column=Math.max(0,Math.min(root.chartSource.replayColumnCount-1,
+                                Math.floor(mouse.x/Math.max(1,width)*root.chartSource.replayColumnCount)))
+                            root.showReplayWindow(column);root.seekPreviewColumn=-1
+                        }
+                    }
+                }
+                Slider {
+                    id:replayColumnSlider
+                    objectName:"sonarProReplayColumnSlider"
+                    Layout.fillWidth:true;Layout.preferredHeight:28
+                    from:0
+                    to:root.chartSource && isFinite(root.chartSource.replayColumnCount) ? Math.max(0,root.chartSource.replayColumnCount-1):0
+                    stepSize:1
+                    enabled:!!(root.chartSource && root.chartSource.replayIndexReady && root.chartSource.replayColumnCount>1)
+                    value:root.seekPreviewColumn>=0 ? root.seekPreviewColumn :
+                        (root.chartSource && isFinite(root.chartSource.replayViewportColumn)?root.chartSource.replayViewportColumn:0)
+                    Accessible.name:"Explorează întreaga înregistrare KLF, înainte și înapoi"
+                    ToolTip.visible:pressed;ToolTip.text:"Coloana "+(Math.round(value)+1)
+                    onMoved:root.seekPreviewColumn=Math.round(value)
+                    onPressedChanged: {
+                        if(!pressed && root.seekPreviewColumn>=0) {
+                            root.showReplayWindow(root.seekPreviewColumn)
+                            root.seekPreviewColumn=-1
+                        }
                     }
                 }
             }
             Button {
                 objectName:"sonarProReplayBack"
-                text:"−"
-                implicitWidth:40
+                text:"◀";implicitWidth:38
                 enabled:replayColumnSlider.enabled
-                Accessible.name:"Coloana precedentă"
-                onClicked:root.chartSource.seekReplayColumn(Math.max(0,root.chartSource.replayCurrentColumn-1))
+                Accessible.name:"Fereastra precedentă din fișier"
+                onClicked:root.showReplayWindow(root.chartSource.replayViewportColumn-
+                    Math.max(1,Math.round((root.useNativeRenderer?nativeEchogram.width:root.historyColumns)*.75)))
             }
             Button {
                 objectName:"sonarProReplayForward"
-                text:"+"
-                implicitWidth:40
+                text:"▶";implicitWidth:38
                 enabled:replayColumnSlider.enabled
-                Accessible.name:"Coloana următoare"
-                onClicked:root.chartSource.seekReplayColumn(Math.min(root.chartSource.replayColumnCount-1,root.chartSource.replayCurrentColumn+1))
+                Accessible.name:"Fereastra următoare din fișier"
+                onClicked:root.showReplayWindow(root.chartSource.replayViewportColumn+
+                    Math.max(1,Math.round((root.useNativeRenderer?nativeEchogram.width:root.historyColumns)*.75)))
             }
         }
     }
