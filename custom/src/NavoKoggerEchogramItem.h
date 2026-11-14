@@ -74,6 +74,8 @@ private:
     int _palette=0;
     bool _frozen=false, _showBottom=true;
     static constexpr int MaxRetainedColumns=4096;
+    static constexpr int MaxRawCacheBytes=24*1024*1024;
+    int _rawCacheBytes=0;
     void receiveColumn();
     void requestFrame();
 };
