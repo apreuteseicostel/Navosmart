@@ -770,7 +770,7 @@ Rectangle {
                         }
                     }
                     Rectangle {
-                        visible:root.chartSource && root.chartSource.replayIndexReady && root.chartSource.replayColumnCount>0
+                        visible:!!(root.chartSource && root.chartSource.replayIndexReady && root.chartSource.replayColumnCount>0)
                         x:!root.chartSource || !root.chartSource.replayIndexReady ? 0 :
                             parent.width * Math.max(0,(root.seekPreviewColumn>=0?root.seekPreviewColumn:root.chartSource.replayViewportColumn)-
                                 (root.useNativeRenderer?nativeEchogram.width:root.historyColumns)/2) /
