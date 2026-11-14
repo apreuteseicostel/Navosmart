@@ -64,6 +64,8 @@ jobs:
       - name: Test bounded elapsed replay pacing
         run: /tmp/navo-replay/navo-replay-pacing
 
+      - name: Verify Kogger-style full-file viewport contracts
+        run: node tests/kogger-file-viewport.mjs
       - name: Verify indexed KLF direct seek on synthetic columns
         run: /tmp/navo-replay/navo-replay-seek
       - name: Test offline NAVO recording roundtrip and corruption handling
@@ -99,6 +101,7 @@ jobs:
             kogger-native-surface*.png
             kogger-native-surface.json
             kogger-native-8bit-replay.png
+            kogger-native-file-overview.png
             kogger-sonar-pro-*.png
             kogger-sonarRecordingDialog-*.png
             kogger-sonarRecordingsDialog-*.png
