@@ -111,7 +111,7 @@ int main(int argc,char**argv) {
             }
             return false;
         };
-        const int centreAtOverview=total/2+1;
+        const int centreAtOverview=int(qint64(961)*total/1920)+1;
         require(awaitInspect(centreAtOverview),
                 "global overview does not address whole KLF timeline");
         QImage overview(960,540,QImage::Format_ARGB32_Premultiplied);
