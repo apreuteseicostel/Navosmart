@@ -181,6 +181,10 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoAndroidAcceptance.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerEchogramItem.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerEchogramItem.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/navo_kogger_echogram_palette.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/navo_kogger_echogram_sampling.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerReplay.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerReplay.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerRecorder.cc
