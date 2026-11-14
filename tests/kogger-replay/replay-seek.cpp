@@ -25,9 +25,9 @@ static QByteArray kp1(quint16 sequence,quint8 amplitude) {
  f.append(char(a));f.append(char(b));
  return f;
 }
-static void drain(NavoKoggerReplay& r,int maxMs=5000){
+static void drain(NavoKoggerReplay& r,const int& published,int maxMs=5000){
  QElapsedTimer t;t.start();
- while(r.active() && t.elapsed()<maxMs){
+ while(r.active() && published<3 && t.elapsed()<maxMs){
   QCoreApplication::processEvents(QEventLoop::AllEvents,20);
   QMetaObject::invokeMethod(&r,"tick");
  }
@@ -76,13 +76,13 @@ int main(int argc,char**argv){
  decoder.reset();published=0;firstAmplitude=-1;
  require(replay.seekColumn(wanted),"direct seek to middle failed");
  require(replay.currentColumn()>=wanted,"file did not reposition to the selected CHART column");
- drain(replay);
+ drain(replay,published);
  require(published>0,"seek did not decode the chosen column");
  if(!fixture)require(std::abs(firstAmplitude-(20+wanted))<1e-9,
                      "seek decoded wrong column or replayed from file beginning");
  decoder.reset();published=0;firstAmplitude=-1;
  require(replay.seekColumn(0),"return to first indexed column");
- drain(replay);
+ drain(replay,published);
  require(published>0,"replay from zero produced no CHART column");
  if(!fixture)require(std::abs(firstAmplitude-20)<1e-9,"return to first column wrong");
  if(!fixture){
