@@ -93,7 +93,10 @@ test('Map source uses pan reuse and actual track incremental Qt path updates',()
  const cmake=fs.readFileSync('custom/CMakeLists.txt','utf8');
  assert.match(source,/import "NavoMapProjection\.js" as MapPan/);
  assert.match(source,/onCenterChanged\(\)\{root\.invalidateProjection\(true,true\)\}/);
- assert.match(source,/MapPan\.translateProjected\(root\.projected,offset\)/);
+ assert.match(source,/var pan=\{x:0,y:0\}/);
+ assert.match(source,/else pan=offset/);
+ assert.match(source,/ctx\.moveTo\(a\.x\+pan\.x,a\.y\+pan\.y\)/);
+ assert.doesNotMatch(source,/MapPan\.translateProjected\(root\.projected,offset\)/);
  assert.match(source,/root\.projectedView=root\.currentMapView\(\)/);
  assert.match(track,/actualTrack\.addCoordinate\(c\)/);
  assert.match(track,/function appendTrackCoordinate\(c\)/);

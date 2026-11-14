@@ -34,6 +34,12 @@ void NavoKoggerDecoder::publishChart(){
 }
 quint16 NavoKoggerDecoder::le16(const char* p){return qFromLittleEndian<quint16>(reinterpret_cast<const uchar*>(p));}
 quint32 NavoKoggerDecoder::le32(const char* p){return qFromLittleEndian<quint32>(reinterpret_cast<const uchar*>(p));}
+void NavoKoggerDecoder::flushPendingChart(){
+ // Only used by paused seek-to-last-column preview: the final KLF CHART
+ // has no following sequence-0 boundary to close the last pending packet.
+ if(_chart.isEmpty()||_chartResolution==0)return;
+ publishChart();_chart.clear();_chartAddress=-1;_chartResolution=0;
+}
 void NavoKoggerDecoder::reset(){_buffer.clear();_chart.clear();_publishedChartRaw.clear();_echoSamples.clear();_compensatedSamples.clear();_chartAddress=-1;_publishedChartAddress=-1;_chartResolution=0;_chartAbsoluteOffset=0;_chartVersion=0;_publishedChartResolution=0;_publishedChartAbsoluteOffset=0;_publishedChartVersion=0;_connected=false;_depthM=qQNaN();_waterTempC=qQNaN();emit connectedChanged();emit depthChanged();emit temperatureChanged();emit echoSamplesChanged();}
 void NavoKoggerDecoder::feedBytes(const QByteArray& b){
  if(b.isEmpty())return;

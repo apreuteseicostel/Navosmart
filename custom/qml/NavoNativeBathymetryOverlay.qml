@@ -15,6 +15,24 @@ Item {
     property var nativeBridge: null
     property var projected: []
     property var projectedView: ({})
+    // Contour geometry is immutable between native mesh updates. Compute
+    // triangle fill colours once instead of allocating Qt.rgba per paint.
+    property var triangleColors: []
+    function rebuildTriangleColors() {
+        var colors=[]
+        if(surface && surface.vertices && surface.indices) {
+            var vertices=surface.vertices,indices=surface.indices
+            for(var i=0;i+2<indices.length;i+=3) {
+                var ia=Number(indices[i]),ib=Number(indices[i+1]),ic=Number(indices[i+2])
+                if(ia%1 || ib%1 || ic%1 || ia<0 || ib<0 || ic<0 ||
+                   ia>=vertices.length || ib>=vertices.length || ic>=vertices.length ||
+                   !vertices[ia] || !vertices[ib] || !vertices[ic]) { colors.push(null);continue }
+                var depth=(Number(vertices[ia][2])+Number(vertices[ib][2])+Number(vertices[ic][2]))/3
+                colors.push(isFinite(depth) && depth>0 ? depthColor(depth):null)
+            }
+        }
+        triangleColors=colors
+    }
     function currentMapView() {
         return { center:QtPositioning.coordinate(root.map.center.latitude,root.map.center.longitude), zoomLevel:root.map.zoomLevel,
                  bearing:root.map.bearing, tilt:root.map.tilt,
@@ -38,8 +56,11 @@ Item {
             else if (!viewportTimer.running) viewportTimer.start()
         }
     }
-    onSurfaceChanged: invalidateProjection(false)
-    onActiveChanged: invalidateProjection(true)
+    onSurfaceChanged: {rebuildTriangleColors();invalidateProjection(false)}
+    onActiveChanged: {
+        if(!active){projected=[];projectedView=({})}
+        invalidateProjection(true)
+    }
     function depthColor(depth) {
         var lo=Number(surface.minDepth),hi=Number(surface.maxDepth)
         var t=hi>lo?(depth-lo)/(hi-lo):0.5
@@ -88,13 +109,15 @@ Item {
             root.renderedTriangles=0
             if(!root.active || !root.ready || !root.map)return
             var vertices=root.surface.vertices,indices=root.surface.indices
-            if (root.projected.length) {
+            // Instead of touching up to 8192 points on *every* map pan,
+            // leave projection fixed and translate the painter coordinates.
+            // The existing panOffset() guard forces reprojection on zoom,
+            // rotation, tilt, resize or geographic discontinuity.
+            var pan={x:0,y:0}
+            if(root.projected.length) {
                 var offset=MapPan.panOffset(root.map,root.projectedView)
-                if (!offset) root.projected=[]
-                else if (offset.x !== 0 || offset.y !== 0) {
-                    MapPan.translateProjected(root.projected,offset)
-                    root.projectedView=root.currentMapView()
-                }
+                if(!offset)root.projected=[]
+                else pan=offset
             }
             if(!root.projected.length) {
                 var out=[]
@@ -116,10 +139,15 @@ Item {
                     ia>=vertices.length || ib>=vertices.length || ic>=vertices.length)continue
                 var a=root.projected[ia],b=root.projected[ib],c=root.projected[ic]
                 if(!a || !b || !c)continue
-                if(Math.max(a.x,b.x,c.x)<0 || Math.min(a.x,b.x,c.x)>width ||
-                    Math.max(a.y,b.y,c.y)<0 || Math.min(a.y,b.y,c.y)>height)continue
-                ctx.fillStyle=root.depthColor((vertices[ia][2]+vertices[ib][2]+vertices[ic][2])/3)
-                ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.lineTo(c.x,c.y)
+                if(Math.max(a.x,b.x,c.x)+pan.x<0 || Math.min(a.x,b.x,c.x)+pan.x>width ||
+                    Math.max(a.y,b.y,c.y)+pan.y<0 || Math.min(a.y,b.y,c.y)+pan.y>height)continue
+                var fill=root.triangleColors[i/3]
+                if(!fill)continue
+                ctx.fillStyle=fill
+                ctx.beginPath()
+                ctx.moveTo(a.x+pan.x,a.y+pan.y)
+                ctx.lineTo(b.x+pan.x,b.y+pan.y)
+                ctx.lineTo(c.x+pan.x,c.y+pan.y)
                 ctx.closePath();ctx.fill();count++
             }
             root.renderedTriangles=count
