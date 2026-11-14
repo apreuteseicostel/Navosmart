@@ -30,6 +30,22 @@ NavoKoggerService::NavoKoggerService(QObject* parent):QObject(parent){
 }
 NavoKoggerService::~NavoKoggerService(){shutdown();}
 void NavoKoggerService::shutdown(){rolloverTimer_.stop();if(processor_)processor_->shutdown();}
+void NavoKoggerService::setIsobathsEnabled(bool enabled){
+    if(isobathsEnabled_==enabled)return;
+    isobathsEnabled_=enabled;
+    emit isobathsSegmentsChanged({});
+    if(processor_){
+        if(enabled)processor_->setSurfaceIsobathsStepSize(float(isobathsStepMeters_));
+        processor_->setUpdateIsobaths(enabled);
+    }
+}
+void NavoKoggerService::setIsobathsStepMeters(double step){
+    if(step!=0.5 && step!=1.0 && step!=2.0 && step!=5.0)return;
+    if(isobathsStepMeters_==step)return;
+    isobathsStepMeters_=step;
+    emit isobathsSegmentsChanged({});
+    if(isobathsEnabled_ && processor_)processor_->setSurfaceIsobathsStepSize(float(step));
+}
 void NavoKoggerService::startProcessor(){
     processor_=std::make_unique<DataProcessor>(nullptr,&dataset_);
     auto* p=processor_.get();
@@ -67,13 +83,19 @@ void NavoKoggerService::startProcessor(){
         }
         emit tilesChanged();emit processingChanged();
     },Qt::QueuedConnection);
+    connect(p,&DataProcessor::sendIsobathsLineSegments,this,[this,generation](const QVector<QVector3D>& lines){
+        if(generation!=generation_ || !isobathsEnabled_)return;
+        emit isobathsSegmentsChanged(lines);
+    },Qt::QueuedConnection);
     p->setBottomTrackPtr(&bottomTrack_);
     p->setUpdateBottomTrack(true);
     p->setUpdateMosaic(false);
     // DownView is a downward beam. Derive bathymetry from located depths;
     // never project its samples as a fabricated lateral side-scan swath.
     p->setUpdateSurface(true);
-    p->setUpdateIsobaths(false);
+    // Opt-in only: drawing contours must not slow regular G20 survey sessions.
+    if(isobathsEnabled_)p->setSurfaceIsobathsStepSize(float(isobathsStepMeters_));
+    p->setUpdateIsobaths(isobathsEnabled_);
     dataset_.setState(Dataset::DatasetState::kConnection);
 }
 bool NavoKoggerService::ingest(const NavoKoggerChartRecord& record,const ChannelId& channel,double heading,double pitch,double roll){
@@ -135,7 +157,7 @@ void NavoKoggerService::clear(){
     processor_->shutdown();processor_.reset();
     dataset_.resetDataset();horizon_.clear();bottomTrack_.clear();tiles_.clear();
     rawBytes_=0;processedColumns_=0;capacityFull_=false;bottomDepth_=qQNaN();channel_.clear();
-    startProcessor();emit processingChanged();emit tilesChanged();
+    startProcessor();emit processingChanged();emit tilesChanged();emit isobathsSegmentsChanged({});
 }
 void NavoKoggerService::onBottomUpdated(const ChannelId& channel,int from,int to,bool manual,bool){
     QVector<int> epochs,vertices;
