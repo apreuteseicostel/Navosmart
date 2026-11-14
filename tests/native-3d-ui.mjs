@@ -45,7 +45,7 @@ const c={
      buildCached(arr){calls.push(['samples',arr.length]);this.vertices=[{x:0,y:0,depth:4}];return true},
      clear(){calls.push(['clear']);this.vertices=[]}
   },
-  sampleSignature(){return 'test'},fitCamera(){this.cameraFramed=true}
+  sampleSignature(){return 'test'},fitCamera(){c.cameraFramed=true}
 };
 const ctx=vm.createContext(c);
 for(const name of ['rebuild','refreshForSamples'])vm.runInContext(extractFunction(name),ctx);
