@@ -4,6 +4,9 @@ import QtQuick
 Item {
  objectName:"mockKoggerNativeEchogram"
  property var decoder:null
+ property var fileReplay:null
+ property int fileWindowStart:0
+ property int fileWindowColumns:1
  property real depthFrom:0
  property real depthRange:50
  property int paletteMode:0
