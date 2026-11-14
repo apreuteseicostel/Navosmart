@@ -74,6 +74,11 @@ void NavoKoggerEchogramItem::setFileWindowStart(int start) {
     if(_fileWindowStart==start)return;
     _fileWindowStart=start;emit fileViewportChanged();refreshFileViewport();
 }
+void NavoKoggerEchogramItem::setFileSelectedColumn(int column) {
+    column=std::max(0,column);
+    if(_fileSelectedColumn==column)return;
+    _fileSelectedColumn=column;emit fileViewportChanged();requestFrame();
+}
 void NavoKoggerEchogramItem::setFileWindowColumns(int count) {
     count=std::clamp(count,1,500000);
     if(_fileWindowColumns==count)return;
@@ -281,9 +286,11 @@ void NavoKoggerEchogramItem::paint(QPainter* p) {
     const int imageH=std::clamp(int(std::ceil(height())),1,1600);
     const double from=_from, range=_range;
     QVector<Column> visible;
+    int fileTotal=0;
     {
         QMutexLocker lock(&_mutex);
-        if(_fileTotalColumns>0){
+        fileTotal=_fileTotalColumns;
+        if(fileTotal>0){
             visible.reserve(imageW);
             for(int x=0;x<imageW;++x){
                 const int index=fileIndexAtPixel(x,imageW,_fileTotalColumns);
@@ -331,6 +338,16 @@ void NavoKoggerEchogramItem::paint(QPainter* p) {
         p->setRenderHint(QPainter::Antialiasing,true);
         p->drawPath(line);
         p->setRenderHint(QPainter::Antialiasing,false);
+    }
+    // Cursor is a position in the complete KLF index, not replay progress.
+    if(fileTotal>0){
+        const int span=std::clamp(_fileWindowColumns,1,fileTotal);
+        const int start=std::clamp(_fileWindowStart,0,fileTotal-span);
+        if(_fileSelectedColumn>=start && _fileSelectedColumn<start+span){
+            const qreal x=(qreal(_fileSelectedColumn-start)+0.5)*width()/span;
+            p->setPen(QPen(QColor(255,207,76,205),1.5));
+            p->drawLine(QPointF(x,0),QPointF(x,height()));
+        }
     }
     p->setFont(QFont(QStringLiteral("Sans Serif"),10));
     for(int i=0;i<=4;++i) {
