@@ -6,12 +6,16 @@
 #include <QMetaObject>
 #include <cmath>
 #include "../kogger_native/navo_surface_mesh.h"
+#include "../kogger_native/navo_native_isobaths.h"
 
 // Live input bridge. Upstream Dataset processing is enabled only after the
 // complete KoggerApp dependency tree passes the Android build.
 class NavoKoggerChartBridge : public QObject {
     Q_OBJECT
     Q_PROPERTY(QVariantMap nativeSurfaceMesh READ nativeSurfaceMesh NOTIFY nativeSurfaceChanged)
+    Q_PROPERTY(QVariantMap nativeIsobaths READ nativeIsobaths NOTIFY nativeIsobathsChanged)
+    Q_PROPERTY(bool isobathsEnabled READ isobathsEnabled WRITE setIsobathsEnabled NOTIFY isobathsSettingsChanged)
+    Q_PROPERTY(double isobathsStepMeters READ isobathsStepMeters WRITE setIsobathsStepMeters NOTIFY isobathsSettingsChanged)
     Q_PROPERTY(bool channelReady READ channelReady NOTIFY recordsChanged)
     Q_PROPERTY(double bottomDepthM READ bottomDepthM NOTIFY recordsChanged)
     Q_PROPERTY(int processedColumns READ processedColumns NOTIFY recordsChanged)
@@ -32,7 +36,24 @@ public:
             surfaceMesh_=navoNativeSurfaceMesh(service.tiles(),service.dataset().getLlaRef());
             emit nativeSurfaceChanged();
         });
+        isobathsRefresh_.setSingleShot(true); isobathsRefresh_.setInterval(250);
+        connect(&isobathsRefresh_,&QTimer::timeout,this,[this](){
+            auto& service=NavoKoggerService::instance();
+            if(!service.isobathsEnabled())return;
+            nativeIsobaths_=navoNativeIsobaths(pendingIsobaths_,service.dataset().getLlaRef(),
+                                               service.isobathsStepMeters());
+            emit nativeIsobathsChanged();
+        });
         auto& service=NavoKoggerService::instance();
+        connect(&service,&NavoKoggerService::isobathsSegmentsChanged,this,[this](const QVector<QVector3D>& lines){
+            if(lines.isEmpty()){
+                isobathsRefresh_.stop();pendingIsobaths_.clear();nativeIsobaths_.clear();
+                emit nativeIsobathsChanged();return;
+            }
+            if(!serviceIsobathsEnabled())return;
+            pendingIsobaths_=lines;
+            if(!isobathsRefresh_.isActive())isobathsRefresh_.start();
+        });
         connect(&service,&NavoKoggerService::tilesChanged,this,[this](){
             if(NavoKoggerService::instance().tileCount()==0) {
                 surfaceRefresh_.stop();surfaceMesh_.clear();emit nativeSurfaceChanged();
@@ -43,6 +64,20 @@ public:
         QObject::connect(&service,&NavoKoggerService::bottomColumnReady,this,&NavoKoggerChartBridge::bottomColumnReady);
     }
     QVariantMap nativeSurfaceMesh() const {return surfaceMesh_;}
+    QVariantMap nativeIsobaths() const {return nativeIsobaths_;}
+    bool serviceIsobathsEnabled() const {return NavoKoggerService::instance().isobathsEnabled();}
+    bool isobathsEnabled() const {return serviceIsobathsEnabled();}
+    double isobathsStepMeters() const {return NavoKoggerService::instance().isobathsStepMeters();}
+    Q_INVOKABLE void setIsobathsEnabled(bool enabled) {
+        if(isobathsEnabled()==enabled)return;
+        NavoKoggerService::instance().setIsobathsEnabled(enabled);
+        emit isobathsSettingsChanged();
+    }
+    Q_INVOKABLE void setIsobathsStepMeters(double step) {
+        const double prior=isobathsStepMeters();
+        NavoKoggerService::instance().setIsobathsStepMeters(step);
+        if(prior!=isobathsStepMeters())emit isobathsSettingsChanged();
+    }
     bool channelReady() const {return !linkUuid_.isNull() && decoder_ && decoder_->chartAddress()>=0;}
     double bottomDepthM() const {return NavoKoggerService::instance().bottomDepth();}
     int processedColumns() const {return NavoKoggerService::instance().processedColumns();}
@@ -109,6 +144,8 @@ public:
     Q_INVOKABLE void clear() {
         viewportValid_=false;
         adapter_.clear();
+        isobathsRefresh_.stop(); pendingIsobaths_.clear(); nativeIsobaths_.clear();
+        emit nativeIsobathsChanged();
         NavoKoggerService::instance().clear();
         rejected_ = 0;
         unlocated_ = 0;
@@ -119,6 +156,8 @@ public:
 signals:
     void recordsChanged();
     void nativeSurfaceChanged();
+    void nativeIsobathsChanged();
+    void isobathsSettingsChanged();
     void geoSampleReady(const QVariantMap& sample);
     void bottomColumnReady(quint64 sequence,double depth);
 private:
@@ -144,6 +183,9 @@ private:
     bool viewportValid_=false;
     float viewportN0_=0,viewportE0_=0,viewportN1_=0,viewportE1_=0;
     QTimer surfaceRefresh_;
+    QTimer isobathsRefresh_;
+    QVector<QVector3D> pendingIsobaths_;
+    QVariantMap nativeIsobaths_;
     QVariantMap surfaceMesh_;
     QPointer<NavoKoggerDecoder> decoder_;
     QMetaObject::Connection connection_;

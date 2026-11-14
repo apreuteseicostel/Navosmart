@@ -40,6 +40,8 @@ public:
  double chartRangeMeters() const { return double(chartSampleCount()) * chartResolutionMeters(); }
  Q_INVOKABLE void feedBytes(const QByteArray& bytes);
  Q_INVOKABLE void reset();
+ Q_INVOKABLE void flushPendingChart();
+
 signals:
  void connectedChanged();
  void depthChanged();

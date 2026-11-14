@@ -11,6 +11,7 @@ Rectangle {
     property var connectivity: null
     property bool cameraLive: false
     property bool vehicleConnected: false
+    property bool offlineLabAllowed:true
     property var sonar: null
     property var camera: null
     property var alerts: null
@@ -39,6 +40,7 @@ Rectangle {
     readonly property color muted: "#c1d7e6"
     readonly property bool narrow: width < 890
     signal status(string message)
+    signal offlineLabRequested()
     signal settingsToolRequested()
     signal vehicleToolRequested()
     signal parametersToolRequested()
@@ -423,6 +425,31 @@ Rectangle {
                         anchors.fill: parent; anchors.margins: 10
                         text: "AVANSAT • G20 / H743. Verifică mai întâi canalele în Device Tool, apoi testează comenzile pe banc."
                         color: root.fg; font.pixelSize: 12; wrapMode: Text.WordWrap
+                    }
+                }
+                Rectangle {
+                    objectName:"settingsOfflineLabCard"
+                    Layout.fillWidth:true
+                    implicitHeight:labActions.implicitHeight+20
+                    color:root.surface
+                    border.color:root.cyan
+                    radius:10
+                    ColumnLayout {
+                        id:labActions
+                        anchors {left:parent.left;right:parent.right;top:parent.top;margins:10}
+                        spacing:6
+                        Label {Layout.fillWidth:true;text:"NAVO PRO • OFFLINE LAB";font.bold:true;color:root.cyan}
+                        Label {
+                            Layout.fillWidth:true;wrapMode:Text.WordWrap;font.pixelSize:11;color:root.muted
+                            text:"Test 2D/3D și replay .klf fără sonar sau barcă. Date sintetice, fără comenzi către H743. Intrarea este blocată când există operațiuni active."
+                        }
+                        ActionButton {
+                            objectName:"settingsOpenOfflineLab"
+                            Layout.fillWidth:true
+                            text:"Deschide laboratorul offline"
+                            enabled:root.offlineLabAllowed
+                            onClicked:root.offlineLabRequested()
+                        }
                     }
                 }
                 NavoG20Settings {
