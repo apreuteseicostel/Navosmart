@@ -26,7 +26,7 @@ entire original KoggerApp user interface.
    `NavoKoggerDecoder::chartColumnReady` C++ signal. QML never serializes the
    amplitude array to draw the native renderer.
 3. GPU refresh/coalescing: 33-ms maximum redraw rate. Retains a bounded
-   4096-column raw ring for recent screen inspection and live/recorded data;
+   4096-column / 24MiB raw ring for recent screen inspection and live/recorded data;
    snapshots protected by QMutex. The original replay file is *not* truncated.
 4. Menu switch: **Kogger nativ 256 niveluri** (default), legacy NAVO Canvas
    (fallback). RAW/AUTO/FIX depth controls from #81 work on the native view.
