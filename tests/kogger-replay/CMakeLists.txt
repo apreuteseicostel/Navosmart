@@ -51,7 +51,9 @@ add_executable(navo-native-kogger-image native-kogger-image.cpp
     ../../custom/src/NavoKoggerEchogramItem.cc
     ../../custom/src/NavoKoggerEchogramItem.h
     ../../custom/src/NavoKoggerDecoder.cc
-    ../../custom/src/NavoKoggerDecoder.h)
+    ../../custom/src/NavoKoggerDecoder.h
+    ../../custom/src/NavoKoggerReplay.cc
+    ../../custom/src/NavoKoggerReplay.h)
 target_link_libraries(navo-native-kogger-image PRIVATE Qt6::Quick Qt6::Gui Qt6::Core)
 
 add_executable(navo-servo-feedback servo-feedback.cpp)
