@@ -32,6 +32,7 @@ class NavoKoggerEchogramItem : public QQuickPaintedItem {
     Q_PROPERTY(QObject* fileReplay READ fileReplay WRITE setFileReplay NOTIFY fileReplayChanged)
     Q_PROPERTY(int fileWindowStart READ fileWindowStart WRITE setFileWindowStart NOTIFY fileViewportChanged)
     Q_PROPERTY(int fileWindowColumns READ fileWindowColumns WRITE setFileWindowColumns NOTIFY fileViewportChanged)
+    Q_PROPERTY(int fileSelectedColumn READ fileSelectedColumn WRITE setFileSelectedColumn NOTIFY fileViewportChanged)
 public:
     explicit NavoKoggerEchogramItem(QQuickItem* parent=nullptr);
     QObject* decoder() const { return _decoder; }
@@ -52,6 +53,8 @@ public:
     void setFileWindowStart(int start);
     int fileWindowColumns() const { return _fileWindowColumns; }
     void setFileWindowColumns(int count);
+    int fileSelectedColumn() const { return _fileSelectedColumn; }
+    void setFileSelectedColumn(int column);
     void setDepthFrom(qreal v);
     void setDepthRange(qreal v);
     void setPaletteMode(int v);
@@ -91,6 +94,7 @@ private:
     QPointer<QObject> _fileReplay;
     int _fileWindowStart=0;
     int _fileWindowColumns=1;
+    int _fileSelectedColumn=0;
     int _fileTotalColumns=0;
     QHash<int,Column> _fileColumns;
     QQueue<int> _fileCacheOrder;
