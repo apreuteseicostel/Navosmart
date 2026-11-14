@@ -444,7 +444,7 @@ Rectangle {
                 anchors.left:parent.left;anchors.top:parent.top
                 anchors.bottom:parent.bottom;anchors.right:echoColumn.left
                 visible:root.useNativeRenderer
-                decoder:root.chartSource ? root.chartSource.nativeEchogramDecoder : null
+                decoder:root.chartSource ? (root.chartSource.nativeEchogramDecoder || null) : null
                 depthFrom:isFinite(root.scaleStart)?root.scaleStart:0
                 depthRange:isFinite(root.scaleRange)&&root.scaleRange>0?root.scaleRange:50
                 paletteMode:root.paletteMode
