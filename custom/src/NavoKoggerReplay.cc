@@ -43,6 +43,7 @@ void NavoKoggerReplay::stop() {
  _timer.stop();_indexTimer.stop();_indexFile.close();_indexBuffer.clear();_columns.clear();
  _indexBufferOffset=0;_indexProcessed=0;_indexReady=false;_haveChart=false;
  _scanPacketCount=0;_scanPose=Pose();_lastSeqEnd=0;_lastAddress=-1;
+ _previewStopOffset=-1;_previewFlushLast=false;
  _lastResolution=0;_lastAbsoluteOffset=0;_lastVersion=0;
  emit indexChanged();
  _pacing.invalidate(); _file.close(); _parser=std::make_unique<Parsers::FrameParser>();
@@ -80,6 +81,14 @@ bool NavoKoggerReplay::seekColumn(int column) {
  if(_archive||!_indexReady||column<0||column>=_columns.size()||!_file.isOpen())return false;
  const auto entry=_columns.at(column);
  if(entry.offset<0||entry.offset>=_file.size()||!_file.seek(entry.offset))return false;
+ const bool preservePause=_active && _paused;
+ // For an already-paused replay, decode just enough to publish the selected
+ // column (the NEXT CHART start closes it), then stop without autoplay.
+ _previewStopOffset=preservePause
+   ?(column+1<_columns.size()
+       ?_columns.at(column+1).offset+_columns.at(column+1).firstPacketSize
+       :_file.size()) : -1;
+ _previewFlushLast=preservePause && column==_columns.size()-1;
  _parser=std::make_unique<Parsers::FrameParser>();
  _gpsFix=entry.pose.gpsFix;_lat=entry.pose.lat;_lon=entry.pose.lon;
  _heading=entry.pose.heading;_pitch=entry.pose.pitch;_roll=entry.pose.roll;
@@ -158,7 +167,7 @@ bool NavoKoggerReplay::indexKoggerFrame(const char* bytes,int length,qint64 offs
     version!=_lastVersion||address!=_lastAddress;
  if(newColumn){
   if(_columns.size()>=500000)return false;
-  _columns.push_back({offset,_scanPacketCount-1,_scanPose});
+  _columns.push_back({offset,_scanPacketCount-1,_scanPose,length});
  }
  _haveChart=true;_lastSeqEnd=seq+payload;_lastResolution=res;
  _lastAbsoluteOffset=off;_lastVersion=quint8(version);_lastAddress=address;
@@ -225,7 +234,13 @@ void NavoKoggerReplay::tick() {
  if(_archive){archiveTick(elapsed);return;}
  const int nominal=int(4096*_speed);
  const int budget=std::clamp(int(4096.0*_speed*std::min<qint64>(elapsed,1000)/40.0),nominal,65536);
- QByteArray bytes=_file.read(budget);
+ const qint64 remaining=_previewStopOffset>=0?_previewStopOffset-_file.pos():budget;
+ if(_previewStopOffset>=0&&remaining<=0){
+  _timer.stop();_paused=true;_previewStopOffset=-1;
+  if(_previewFlushLast){_previewFlushLast=false;emit previewLastColumnReady();}
+  emit stateChanged();return;
+ }
+ QByteArray bytes=_file.read(int(std::min<qint64>(budget,remaining)));
  _parser->setContext(reinterpret_cast<uint8_t*>(bytes.data()),bytes.size());
  while(_parser->availContext()>0) {
   _parser->process();
@@ -238,6 +253,11 @@ void NavoKoggerReplay::tick() {
   }
  }
  emit progressChanged();
+ if(_previewStopOffset>=0&&_file.pos()>=_previewStopOffset) {
+  _timer.stop();_paused=true;_previewStopOffset=-1;
+  if(_previewFlushLast){_previewFlushLast=false;emit previewLastColumnReady();}
+  emit stateChanged();return;
+ }
  if(_file.atEnd()) {
   // Preserve native results for preview; EOF is not an explicit session reset.
   _timer.stop(); _active=false; emit stateChanged();
