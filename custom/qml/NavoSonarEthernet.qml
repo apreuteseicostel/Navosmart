@@ -136,6 +136,7 @@ QtObject {
                          v && v.heading?v.heading.rawValue:NaN,v && v.pitch?v.pitch.rawValue:NaN,v && v.roll?v.roll.rawValue:NaN)
    decoderObject.feedBytes(data) }
  }
+ property alias nativeEchogramDecoder: decoderObject
  property NavoKoggerDecoder decoder: NavoKoggerDecoder {
   id: decoderObject
   onEchoSamplesChanged: {
