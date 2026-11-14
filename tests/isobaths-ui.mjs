@@ -1,0 +1,22 @@
+// Regression guard: Isobaths are a display-only, user-opt-in native Kogger layer.
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const map=fs.readFileSync('custom/qml/NavoMap.qml','utf8');
+const overlay=fs.readFileSync('custom/qml/NavoNativeIsobathsOverlay.qml','utf8');
+const bridge=fs.readFileSync('custom/src/NavoKoggerChartBridge.h','utf8');
+const service=fs.readFileSync('custom/kogger_native/NavoKoggerService.cpp','utf8');
+const hdr=fs.readFileSync('custom/kogger_native/NavoKoggerService.h','utf8');
+const cmake=fs.readFileSync('custom/CMakeLists.txt','utf8');
+assert(cmake.includes('qml/NavoNativeIsobathsOverlay.qml'), 'map overlay omitted from QML module');
+assert(map.includes('NavoNativeIsobathsOverlay {') && map.includes('nativeIsobathsToggle'), 'contour overlay/toggle missing');
+assert(map.includes('root.nativeSurfaceBridge.setIsobathsEnabled(checked)'), 'toggle does not use native bridge');
+assert(map.includes('!recordedReplay && !replayPreview'), 'must not overlay live contours onto saved/replay lakes');
+assert(overlay.includes('line[4] <= 0') && overlay.includes('geometry.segments.length <= 4000'), 'bounds/invalid checks missing');
+assert(overlay.includes('MapPan.panOffset'), 'pan must reuse coordinate projection');
+assert(bridge.includes('Q_PROPERTY(bool isobathsEnabled'), 'QML cannot see isobaths state');
+assert(bridge.includes('navoNativeIsobaths(pendingIsobaths_'), 'native GPS conversion not connected');
+assert(hdr.includes('bool isobathsEnabled_=false'), 'isobaths must be OFF by default');
+assert(service.includes('p->setUpdateIsobaths(isobathsEnabled_)'), 'Kogger isobaths processor not gated');
+assert(service.includes('generation!=generation_ || !isobathsEnabled_'), 'stale worker outputs not rejected');
+assert(service.includes('p->setUpdateMosaic(false)'), 'downview must not activate side-scan mosaic');
+console.log('PASS native Kogger isobaths opt-in wiring, map/replay isolation and bounded Canvas layer');
