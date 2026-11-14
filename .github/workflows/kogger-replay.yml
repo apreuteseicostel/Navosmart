@@ -55,6 +55,8 @@ jobs:
         run: /tmp/navo-replay/navo-native-isobaths
       - name: Verify native Kogger 3D terrain conversion and sample fallback
         run: /tmp/navo-replay/navo-native-3d
+      - name: Verify original Kogger echogram palette and native 8-bit renderer
+        run: /tmp/navo-replay/navo-native-kogger-image
       - name: Test production H743 servo feedback wiring
         run: /tmp/navo-replay/navo-servo-feedback custom/qml/NavoHopperBridge.qml
       - name: Test installed acceptance scene ownership
