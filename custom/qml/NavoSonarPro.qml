@@ -771,10 +771,14 @@ Rectangle {
                     }
                     Rectangle {
                         visible:root.chartSource && root.chartSource.replayIndexReady && root.chartSource.replayColumnCount>0
-                        x: parent.width * Math.max(0,(root.seekPreviewColumn>=0?root.seekPreviewColumn:root.chartSource.replayViewportColumn)-
-                            (root.useNativeRenderer?nativeEchogram.width:root.historyColumns)/2) / Math.max(1,root.chartSource.replayColumnCount)
-                        width:Math.max(4,parent.width*Math.min(root.chartSource.replayColumnCount,
-                            root.useNativeRenderer?nativeEchogram.width:root.historyColumns)/Math.max(1,root.chartSource.replayColumnCount))
+                        x:!root.chartSource || !root.chartSource.replayIndexReady ? 0 :
+                            parent.width * Math.max(0,(root.seekPreviewColumn>=0?root.seekPreviewColumn:root.chartSource.replayViewportColumn)-
+                                (root.useNativeRenderer?nativeEchogram.width:root.historyColumns)/2) /
+                                Math.max(1,root.chartSource.replayColumnCount)
+                        width:!root.chartSource || !root.chartSource.replayIndexReady ? 0 :
+                            Math.max(4,parent.width*Math.min(root.chartSource.replayColumnCount,
+                                root.useNativeRenderer?nativeEchogram.width:root.historyColumns)/
+                                Math.max(1,root.chartSource.replayColumnCount))
                         height:parent.height
                         border.color:"#ffd56e";border.width:2;color:"#26ffd56e"
                     }
