@@ -13,6 +13,14 @@
 #include <QDir>
 #include <cmath>
 
+// Android is built against Qt 6.8; the host Kogger replay job uses distro Qt 6.x.
+// Keep production's Qt 6.8 cache encoding intact and allow older host test builds.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
+static constexpr QDataStream::Version kNavoMeshStreamVersion=QDataStream::Qt_6_8;
+#else
+static constexpr QDataStream::Version kNavoMeshStreamVersion=QDataStream::Qt_6_0;
+#endif
+
 NavoBathymetryMesh::NavoBathymetryMesh(QObject* parent):QObject(parent){}
 
 // Native Kogger surface -> the pre-existing NAVO Qt Quick 3D geometry contract.
@@ -189,9 +197,9 @@ bool NavoBathymetryMesh::build(const QVariantList& samples,double gridSizeM,doub
 
 bool NavoBathymetryMesh::saveCache(const QString& path) const{
     QSaveFile f(path); if(!f.open(QIODevice::WriteOnly)) return false;
-    QDataStream s(&f); s.setVersion(QDataStream::Qt_6_8);
+    QDataStream s(&f); s.setVersion(kNavoMeshStreamVersion);
     s<<quint32(0x4E564D33)<<quint16(2)<<_cacheKey<<qint32(_lodLevel)<<_originLat<<_originLon<<_minDepth<<_maxDepth<<qint32(_measuredCount)<<qint32(_interpolatedCount)<<_vertices<<_triangles;
     if(s.status()!=QDataStream::Ok) { f.cancelWriting(); return false; }
     return f.commit();
 }
-bool NavoBathymetryMesh::loadCache(const QString& path,const QString& expectedKey){ QFile f(path);if(!f.open(QIODevice::ReadOnly))return false;QDataStream s(&f);s.setVersion(QDataStream::Qt_6_8);quint32 magic;quint16 ver;qint32 lod,mc,ic;QString key;QVariantList v,t;double la,lo,mi,ma;s>>magic>>ver>>key>>lod>>la>>lo>>mi>>ma>>mc>>ic>>v>>t;if(s.status()!=QDataStream::Ok||magic!=0x4E564D33||ver!=2||(!expectedKey.isEmpty()&&key!=expectedKey))return false;_cacheKey=key;_lodLevel=lod;_originLat=la;_originLon=lo;_minDepth=mi;_maxDepth=ma;_measuredCount=mc;_interpolatedCount=ic;_vertices=v;_triangles=t;emit meshChanged();return true;}
+bool NavoBathymetryMesh::loadCache(const QString& path,const QString& expectedKey){ QFile f(path);if(!f.open(QIODevice::ReadOnly))return false;QDataStream s(&f);s.setVersion(kNavoMeshStreamVersion);quint32 magic;quint16 ver;qint32 lod,mc,ic;QString key;QVariantList v,t;double la,lo,mi,ma;s>>magic>>ver>>key>>lod>>la>>lo>>mi>>ma>>mc>>ic>>v>>t;if(s.status()!=QDataStream::Ok||magic!=0x4E564D33||ver!=2||(!expectedKey.isEmpty()&&key!=expectedKey))return false;_cacheKey=key;_lodLevel=lod;_originLat=la;_originLon=lo;_minDepth=mi;_maxDepth=ma;_measuredCount=mc;_interpolatedCount=ic;_vertices=v;_triangles=t;emit meshChanged();return true;}
