@@ -254,6 +254,24 @@ Rectangle {
     }
     property int historyColumns: 240
     property int seekPreviewColumn: -1
+    // Kogger-style file browser: timeline and visible region are independent
+    // of playback. Zoom=1 shows representative pixels across the entire KLF.
+    property int fileCenterColumn: 0
+    property int fileZoom: 1
+    readonly property bool fileBrowserActive: replayMode && useNativeRenderer &&
+        chartSource && chartSource.replayIndexReady && chartSource.replayColumnCount>0
+    readonly property int fileVisibleColumns: fileBrowserActive ?
+        Math.max(1,Math.ceil(chartSource.replayColumnCount/fileZoom)) : 1
+    readonly property int fileWindowStart: fileBrowserActive ?
+        Math.max(0,Math.min(chartSource.replayColumnCount-fileVisibleColumns,
+            fileCenterColumn-Math.floor(fileVisibleColumns/2))) : 0
+    function moveFileCenter(delta) {
+        if(!fileBrowserActive)return
+        fileCenterColumn=Math.max(0,Math.min(chartSource.replayColumnCount-1, fileCenterColumn+Math.round(delta)))
+    }
+    function changeFileZoom(factor) {
+        fileZoom=Math.max(1,Math.min(64,factor))
+    }
     property int replaySampleCount: 0
     property string replaySaveStatus: ""
     signal saveReplayRequested(string name)
@@ -396,7 +414,18 @@ Rectangle {
         repaint()
     }
     onActiveLakeIdChanged: { endPointPick();sonarPointDialog.close();history=[];nativeEchogram.resetColumns();inspectedColumn=({}) }
-    onReplayModeChanged: { endPointPick();sonarPointDialog.close();history=[];autoDepthRangeM=0;nativeEchogram.resetColumns();inspectedColumn=({}) }
+    onReplayModeChanged: {
+        endPointPick();sonarPointDialog.close();history=[];autoDepthRangeM=0
+        nativeEchogram.resetColumns();inspectedColumn=({});fileZoom=1;fileCenterColumn=0
+    }
+    onFileBrowserActiveChanged: {
+        if(fileBrowserActive){
+            fileCenterColumn=Math.floor(chartSource.replayColumnCount/2)
+            fileZoom=1
+            // Pause ordinary playback; browsing never seeks or clears Dataset.
+            chartSource.pauseReplay(true)
+        }
+    }
     onGainChanged: repaint()
     onNoiseFloorChanged: repaint()
     onNoiseFilterEnabledChanged: repaint()
@@ -457,6 +486,9 @@ Rectangle {
                 anchors.bottom:parent.bottom;anchors.right:echoColumn.left
                 visible:root.useNativeRenderer
                 decoder:root.chartSource ? (root.chartSource.nativeEchogramDecoder || null) : null
+                fileReplay:root.fileBrowserActive ? root.chartSource.replay : null
+                fileWindowStart:root.fileWindowStart
+                fileWindowColumns:root.fileVisibleColumns
                 depthFrom:isFinite(root.scaleStart)?root.scaleStart:0
                 depthRange:isFinite(root.scaleRange)&&root.scaleRange>0?root.scaleRange:50
                 paletteMode:root.paletteMode
@@ -469,7 +501,21 @@ Rectangle {
                 MouseArea {
                     anchors.fill:parent
                     cursorShape:Qt.CrossCursor
+                    property real startX:0
+                    property int startColumn:0
+                    property bool moved:false
+                    onPressed:function(mouse){
+                        startX=mouse.x;startColumn=root.fileCenterColumn;moved=false
+                    }
+                    onPositionChanged:function(mouse){
+                        if(!pressed || !root.fileBrowserActive || root.fileZoom===1)return
+                        var dx=mouse.x-startX
+                        if(Math.abs(dx)>4)moved=true
+                        if(moved)root.fileCenterColumn=Math.max(0,Math.min(root.chartSource.replayColumnCount-1,
+                            startColumn-Math.round(dx/Math.max(1,width)*root.fileVisibleColumns)))
+                    }
                     onClicked:function(mouse){
+                        if(moved)return
                         if(root.pointPicking){root.selectSonarPoint(mouse.x,width);return}
                         root.inspectedColumn=nativeEchogram.inspectAt(mouse.x,mouse.y)
                     }
@@ -706,13 +752,16 @@ Rectangle {
                 Layout.preferredWidth:Math.min(205,Math.max(95,replaySeekBar.width*.23))
                 elide:Text.ElideRight
                 font.pixelSize:11;color:"#deedf6"
-                text:root.chartSource && root.chartSource.replayIndexReady ?
+                text:root.fileBrowserActive ?
+                    "FIȘIER  "+(root.fileCenterColumn+1)+" / "+root.chartSource.replayColumnCount+
+                    "  •  "+root.fileZoom+"×" :
+                    (root.chartSource && root.chartSource.replayIndexReady ?
                     "Coloana "+(Math.min(root.chartSource.replayColumnCount-1,
                       root.seekPreviewColumn>=0?root.seekPreviewColumn:root.chartSource.replayCurrentColumn)+1)+
                     " / "+root.chartSource.replayColumnCount :
                     (root.chartSource && root.chartSource.replayIndexProgress>0 ?
                      "Indexare KLF "+Math.floor(root.chartSource.replayIndexProgress*100)+"%" :
-                     "Seek disponibil pentru fișiere KLF")
+                     "Seek disponibil pentru fișiere KLF"))
             }
             Slider {
                 id:replayColumnSlider
@@ -723,14 +772,18 @@ Rectangle {
                 stepSize:1
                 enabled:!!(root.chartSource && root.chartSource.replayIndexReady &&
                     root.chartSource.replayColumnCount>1)
-                value: root.seekPreviewColumn>=0 ? root.seekPreviewColumn :
-                    (root.chartSource && isFinite(root.chartSource.replayCurrentColumn) ? root.chartSource.replayCurrentColumn : 0)
+                value:root.fileBrowserActive ? root.fileCenterColumn :
+                    (root.seekPreviewColumn>=0 ? root.seekPreviewColumn :
+                    (root.chartSource && isFinite(root.chartSource.replayCurrentColumn) ? root.chartSource.replayCurrentColumn : 0))
                 Accessible.name:"Mergi direct la coloana din înregistrare"
                 ToolTip.visible:pressed
                 ToolTip.text:"Coloana "+(Math.round(value)+1)
-                onMoved:root.seekPreviewColumn=Math.round(value)
+                onMoved: {
+                    if(root.fileBrowserActive)root.fileCenterColumn=Math.round(value)
+                    else root.seekPreviewColumn=Math.round(value)
+                }
                 onPressedChanged: {
-                    if(!pressed && root.seekPreviewColumn>=0) {
+                    if(!root.fileBrowserActive && !pressed && root.seekPreviewColumn>=0) {
                         var selected=root.seekPreviewColumn
                         if(root.chartSource)root.chartSource.seekReplayColumn(selected)
                         root.seekPreviewColumn=-1
@@ -743,7 +796,10 @@ Rectangle {
                 implicitWidth:40
                 enabled:replayColumnSlider.enabled
                 Accessible.name:"Coloana precedentă"
-                onClicked:root.chartSource.seekReplayColumn(Math.max(0,root.chartSource.replayCurrentColumn-1))
+                onClicked: {
+                    if(root.fileBrowserActive)root.moveFileCenter(-Math.max(1,Math.ceil(root.fileVisibleColumns/4)))
+                    else root.chartSource.seekReplayColumn(Math.max(0,root.chartSource.replayCurrentColumn-1))
+                }
             }
             Button {
                 objectName:"sonarProReplayForward"
@@ -751,7 +807,34 @@ Rectangle {
                 implicitWidth:40
                 enabled:replayColumnSlider.enabled
                 Accessible.name:"Coloana următoare"
-                onClicked:root.chartSource.seekReplayColumn(Math.min(root.chartSource.replayColumnCount-1,root.chartSource.replayCurrentColumn+1))
+                onClicked: {
+                    if(root.fileBrowserActive)root.moveFileCenter(Math.max(1,Math.ceil(root.fileVisibleColumns/4)))
+                    else root.chartSource.seekReplayColumn(Math.min(root.chartSource.replayColumnCount-1,root.chartSource.replayCurrentColumn+1))
+                }
+            }
+            Button {
+                objectName:"sonarProFileZoomOut"
+                text:"−×";implicitWidth:40
+                visible:root.fileBrowserActive
+                enabled:root.fileZoom>1
+                Accessible.name:"Micșorează ecograma pentru a vedea mai mult din fișier"
+                onClicked:root.changeFileZoom(Math.floor(root.fileZoom/2))
+            }
+            Button {
+                objectName:"sonarProFileZoomIn"
+                text:"+×";implicitWidth:40
+                visible:root.fileBrowserActive
+                enabled:root.fileZoom<64
+                Accessible.name:"Mărește fereastra din înregistrarea KLF"
+                onClicked:root.changeFileZoom(root.fileZoom*2)
+            }
+            Button {
+                objectName:"sonarProFileShowAll"
+                text:"TOT";implicitWidth:46
+                visible:root.fileBrowserActive
+                enabled:root.fileZoom!==1
+                Accessible.name:"Afișează toate coloanele din fișier"
+                onClicked:root.changeFileZoom(1)
             }
         }
     }
