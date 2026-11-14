@@ -47,6 +47,7 @@ ApplicationWindow {
  }
  property int settingsStartTab:0
  property bool actionActive:false
+ property bool offlineLabAllowed:true
  property var sonar:sonarMock
  QtObject {
   id:persistence;objectName:"backupBackend"
