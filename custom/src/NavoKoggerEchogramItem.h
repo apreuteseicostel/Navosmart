@@ -7,6 +7,7 @@
 #include <QVector>
 #include <QColor>
 #include "NavoKoggerDecoder.h"
+class NavoKoggerReplay;
 
 // Native KoggerApp-style 8-bit echogram for NAVO / QGroundControl.
 // Reuses Kogger palette and Epoch::chartTo sampling, but avoids importing
@@ -15,6 +16,9 @@
 class NavoKoggerEchogramItem : public QQuickPaintedItem {
     Q_OBJECT
     Q_PROPERTY(QObject* decoder READ decoder WRITE setDecoder NOTIFY decoderChanged)
+    Q_PROPERTY(QObject* recordingSource READ recordingSource WRITE setRecordingSource NOTIFY recordingSourceChanged)
+    Q_PROPERTY(int recordingEndColumn READ recordingEndColumn WRITE setRecordingEndColumn NOTIFY recordingViewChanged)
+    Q_PROPERTY(int recordingSpanColumns READ recordingSpanColumns WRITE setRecordingSpanColumns NOTIFY recordingViewChanged)
     Q_PROPERTY(qreal depthFrom READ depthFrom WRITE setDepthFrom NOTIFY displayChanged)
     Q_PROPERTY(qreal depthRange READ depthRange WRITE setDepthRange NOTIFY displayChanged)
     Q_PROPERTY(int paletteMode READ paletteMode WRITE setPaletteMode NOTIFY displayChanged)
@@ -28,6 +32,12 @@ class NavoKoggerEchogramItem : public QQuickPaintedItem {
 public:
     explicit NavoKoggerEchogramItem(QQuickItem* parent=nullptr);
     QObject* decoder() const { return _decoder; }
+    QObject* recordingSource() const {return _recordingSource;}
+    int recordingEndColumn() const {return _recordingEndColumn;}
+    int recordingSpanColumns() const {return _recordingSpanColumns;}
+    void setRecordingSource(QObject* source);
+    void setRecordingEndColumn(int value);
+    void setRecordingSpanColumns(int value);
     void setDecoder(QObject* source);
     qreal depthFrom() const {return _from;}
     qreal depthRange() const {return _range;}
@@ -54,12 +64,15 @@ public:
     void paint(QPainter* painter) override;
 signals:
     void decoderChanged();
+    void recordingSourceChanged();
+    void recordingViewChanged();
     void displayChanged();
     void frozenChanged();
     void columnsChanged();
 private:
     struct Column {
         QByteArray bytes;
+        int sourceIndex=-1;
         quint64 sequence=0;
         quint16 resolutionMm=0;
         quint16 absoluteOffset=0;
@@ -69,6 +82,15 @@ private:
     mutable QMutex _mutex;
     QVector<Column> _columns;
     QPointer<NavoKoggerDecoder> _decoder;
+    QPointer<NavoKoggerReplay> _recordingSource;
+    QTimer _recordingTimer;
+    QVector<Column> _recordingColumns;
+    int _recordingEndColumn=-1,_recordingSpanColumns=0;
+    int _recordingNextPixel=0,_recordingPixelWidth=0;
+    int _recordingRenderEnd=-1,_recordingRenderSpan=0;
+    void rebuildRecordingView();
+    void appendRecordingSlice();
+    void scheduleRecordingView();
     QTimer _frameTimer;
     qreal _from=0, _range=50, _low=0, _high=100, _gain=1, _noiseFloor=0;
     int _palette=0;
