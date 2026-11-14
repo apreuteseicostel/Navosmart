@@ -12,6 +12,10 @@ QtObject {
  readonly property double replaySpeed: replayObject.speed
  readonly property double replayPosition: replayObject.position
  readonly property double replaySize: replayObject.size
+ readonly property bool replayIndexReady: replayObject.indexReady
+ readonly property real replayIndexProgress: replayObject.indexProgress
+ readonly property int replayColumnCount: replayObject.indexedColumns
+ readonly property int replayCurrentColumn: replayObject.currentColumn
  readonly property string replayError: replayObject.error
  readonly property var replayAnnotationAnchor: replayObject.annotationAnchor
  readonly property var replayAnnotations: replayObject.annotations
@@ -38,6 +42,19 @@ QtObject {
   return opened
  }
  function stopReplay() { replayObject.stop(); replayMode=false; decoderObject.reset(); chartBridge.setConnectionEndpoint(root.host,root.port,root.udp); root.updateNativePosition() }
+ // No live-GPS or actuator input on seek. Clear old native Dataset and QML
+ // samples *before* reading new packets from the selected file offset.
+ signal replaySeeked(int column)
+ function seekReplayColumn(column) {
+  if (!replayMode || !replayObject.indexReady || !isFinite(column) ||
+      column<0 || column>=replayObject.indexedColumns) return false
+  decoderObject.reset()
+  chartBridge.clear()
+  chartBridge.setPosition(NaN,NaN,NaN,NaN,NaN)
+  var ok=replayObject.seekColumn(Math.floor(column))
+  if(ok)replaySeeked(Math.floor(column))
+  return ok
+ }
  function pauseReplay(paused) { replayObject.setPaused(paused) }
  function setReplaySpeed(speed) { replayObject.setSpeed(speed) }
  property NavoKoggerReplay replay: NavoKoggerReplay {
