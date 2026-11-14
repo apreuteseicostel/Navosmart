@@ -2,6 +2,7 @@
 #include "../kogger_native/navo_kogger_echogram_palette.h"
 #include "../kogger_native/navo_kogger_echogram_sampling.h"
 #include <QPainter>
+#include <QPainterPath>
 #include <QImage>
 #include <QMutexLocker>
 #include <QPen>
