@@ -53,9 +53,12 @@ void NavoKoggerEchogramItem::receiveColumn() {
        c.resolutionMm==0 || c.version>1)return;
     {
         QMutexLocker lock(&_mutex);
+        _rawCacheBytes+=c.bytes.size();
         _columns.append(std::move(c));
-        if(_columns.size()>MaxRetainedColumns)
-            _columns.remove(0,_columns.size()-MaxRetainedColumns);
+        while(_columns.size()>MaxRetainedColumns || _rawCacheBytes>MaxRawCacheBytes) {
+            _rawCacheBytes-=_columns.first().bytes.size();
+            _columns.removeFirst();
+        }
     }
     emit columnsChanged();
     requestFrame();
@@ -64,6 +67,7 @@ void NavoKoggerEchogramItem::resetColumns() {
     {
         QMutexLocker lock(&_mutex);
         _columns.clear();
+        _rawCacheBytes=0;
     }
     emit columnsChanged();
     requestFrame();
