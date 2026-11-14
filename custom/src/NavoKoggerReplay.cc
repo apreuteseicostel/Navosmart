@@ -300,7 +300,8 @@ void NavoKoggerReplay::tick() {
  const qint64 elapsed=_pacing.isValid()?_pacing.restart():40;
  if(_archive){archiveTick(elapsed);return;}
  const int nominal=int(4096*_speed);
- const int budget=std::clamp(int(4096.0*_speed*std::min<qint64>(elapsed,1000)/40.0),nominal,65536);
+ const int budget=_previewStopOffset>=0 ? 65536 :
+     std::clamp(int(4096.0*_speed*std::min<qint64>(elapsed,1000)/40.0),nominal,65536);
  const qint64 remaining=_previewStopOffset>=0?_previewStopOffset-_file.pos():budget;
  if(_previewStopOffset>=0&&remaining<=0){
   _timer.stop();_timer.setInterval(40);_paused=true;_previewStopOffset=-1;
