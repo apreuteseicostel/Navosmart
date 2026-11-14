@@ -7,6 +7,7 @@ import QtLocation
 import QGroundControl.FlightMap
 import "NavoBottomAnalysis.js" as BottomAnalysis
 import "NavoSonarDepthScale.js" as DepthWindow
+import "NavoKoggerPalette.js" as KoggerPalette
 
 Rectangle {
     id: root
@@ -218,7 +219,7 @@ Rectangle {
             if (!isFinite(v)) v = 0
             v = levelStrength(v)
             strengths[y] = v
-            bins[y] = v <= 0 ? 0 : v > .72 ? 4 : v > .48 ? 3 : v > .24 ? 2 : 1
+            bins[y] = KoggerPalette.index(v)
         }
         cached = {samples:col, key:key, geometryKey:geometryKey, peaks:peaks, strengths:strengths, bins:bins}
         if (slot >= 0) cache[slot] = cached
@@ -450,11 +451,7 @@ Rectangle {
                         if (!root.scaleRange || !isFinite(entry.range) || entry.range<=0) continue
                         var px=width-(root.history.length-x)*cw
                         var bins = root.displayRaster(entry, height).bins
-                        var palette = root.dayPalette
-                            ? ["", "#b7d8e8", "#136d9b", "#e97820", "#a52026"]
-                            : root.amberPalette
-                                ? ["", "#6b3b18", "#d18a30", "#f1d18a", "#fff1c5"]
-                                : ["", "#105caa", "#1ccde1", "#f6da46", "#f44b2e"]
+                        var palette = KoggerPalette.table(root.paletteMode)
                         for (var y=0; y<bins.length;) {
                             var shade=bins[y], end=y+1
                             while (end<bins.length && bins[end]===shade) ++end
