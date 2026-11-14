@@ -35,6 +35,7 @@ const source={version:1,source:'kogger-native-surface',vertices:[[40.16,44.47,3,
 const calls=[];
 const c={
   nativeModeRequested:false,nativeSurfaceAvailable:true,nativeSurfaceMesh:source,
+  usePersistentCache:true, simulatedData:false,
   samples:[{lat:40.16,lon:44.47,depth:3}],
   lodLevel:0,gridSizeM:2,maxGapM:6,
   cachedSampleCount:0,cachedSampleSignature:'',selectedPoint:{old:true},selectedObject:null,
