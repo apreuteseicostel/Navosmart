@@ -1,4 +1,5 @@
 #include "NavoKoggerEchogramItem.h"
+#include "NavoKoggerReplay.h"
 #include "../kogger_native/navo_kogger_echogram_palette.h"
 #include "../kogger_native/navo_kogger_echogram_sampling.h"
 #include <QPainter>
@@ -15,9 +16,89 @@ NavoKoggerEchogramItem::NavoKoggerEchogramItem(QQuickItem* parent)
     : QQuickPaintedItem(parent) {
     setOpaquePainting(true);
     setAntialiasing(false);
+    _recordingTimer.setSingleShot(true);
+    _recordingTimer.setInterval(65); // coalesce scrubbing movements
+    connect(&_recordingTimer,&QTimer::timeout,this,&NavoKoggerEchogramItem::rebuildRecordingView);
     _frameTimer.setSingleShot(true);
     _frameTimer.setInterval(33); // coalesce fast replay into <= ~30 UI updates/sec
     connect(&_frameTimer,&QTimer::timeout,this,[this](){update();});
+}
+// Recording browse is independent of playback. The original replay parser,
+// live H743 telemetry and Dataset are never touched during a visual drag.
+void NavoKoggerEchogramItem::setRecordingSource(QObject* source) {
+    auto* next=qobject_cast<NavoKoggerReplay*>(source);
+    if(_recordingSource==next)return;
+    if(_recordingSource)disconnect(_recordingSource,nullptr,this,nullptr);
+    _recordingSource=next;
+    if(next) {
+        connect(next,&NavoKoggerReplay::indexChanged,this,[this](){
+            if(_recordingSource&&_recordingSource->indexReady())scheduleRecordingView();
+        });
+        connect(next,&QObject::destroyed,this,[this](){
+            _recordingSource=nullptr;scheduleRecordingView();emit recordingSourceChanged();
+        });
+    }
+    scheduleRecordingView();emit recordingSourceChanged();
+}
+void NavoKoggerEchogramItem::setRecordingEndColumn(int value) {
+    if(_recordingEndColumn==value)return;
+    _recordingEndColumn=value;emit recordingViewChanged();scheduleRecordingView();
+}
+void NavoKoggerEchogramItem::setRecordingSpanColumns(int value) {
+    if(_recordingSpanColumns==value)return;
+    _recordingSpanColumns=value;emit recordingViewChanged();scheduleRecordingView();
+}
+void NavoKoggerEchogramItem::scheduleRecordingView(){
+    _recordingTimer.stop();
+    if(!_recordingSource||!_recordingSource->indexReady()){
+        QMutexLocker lock(&_mutex);
+        _recordingColumns.clear();
+        _recordingNextPixel=0;lock.unlock();requestFrame();return;
+    }
+    _recordingTimer.start();
+}
+void NavoKoggerEchogramItem::rebuildRecordingView(){
+    if(!_recordingSource||!_recordingSource->indexReady())return;
+    const int total=_recordingSource->indexedColumns();
+    if(total<=0)return;
+    const int pixelWidth=std::clamp(int(std::ceil(width())),1,2048);
+    const int end=_recordingEndColumn<0?total-1:std::clamp(_recordingEndColumn,0,total-1);
+    const int span=_recordingSpanColumns<=0?pixelWidth:std::clamp(_recordingSpanColumns,1,total);
+    _recordingRenderEnd=end;_recordingRenderSpan=span;_recordingPixelWidth=pixelWidth;
+    _recordingNextPixel=0;
+    {
+        QMutexLocker lock(&_mutex);
+        _recordingColumns=QVector<Column>(pixelWidth);
+    }
+    requestFrame();
+    QTimer::singleShot(0,this,&NavoKoggerEchogramItem::appendRecordingSlice);
+}
+void NavoKoggerEchogramItem::appendRecordingSlice(){
+    if(!_recordingSource||!_recordingSource->indexReady())return;
+    if(_recordingNextPixel>=_recordingPixelWidth)return;
+    // Process 32 display pixels at a time to keep the G20 UI responsive.
+    const int first=_recordingNextPixel;
+    const int take=std::min(32,_recordingPixelWidth-first);
+    const auto columns=_recordingSource->readDisplaySlice(
+        _recordingRenderEnd,_recordingRenderSpan,_recordingPixelWidth,first,take);
+    if(columns.size()!=take)return;
+    {
+        QMutexLocker lock(&_mutex);
+        if(_recordingColumns.size()!=_recordingPixelWidth)return;
+        for(int i=0;i<take;++i) {
+            Column col;
+            col.bytes=columns[i].bytes;
+            col.sourceIndex=columns[i].sourceIndex;
+            col.resolutionMm=columns[i].resolutionMm;
+            col.absoluteOffset=columns[i].absoluteOffset;
+            col.version=columns[i].version;
+            _recordingColumns[first+i]=std::move(col);
+        }
+    }
+    _recordingNextPixel+=take;
+    requestFrame();
+    if(_recordingNextPixel<_recordingPixelWidth)
+        QTimer::singleShot(0,this,&NavoKoggerEchogramItem::appendRecordingSlice);
 }
 int NavoKoggerEchogramItem::columnCount() const {
     QMutexLocker lock(&_mutex);
@@ -132,9 +213,15 @@ QVariantMap NavoKoggerEchogramItem::inspectAt(qreal x,qreal y) const {
     int epoch=-1;
     {
         QMutexLocker lock(&_mutex);
-        epoch=_columns.size()-imageW+pos;
-        if(epoch<0||epoch>=_columns.size())return {};
-        c=_columns[epoch];
+        if(_recordingSource&&_recordingSource->indexReady()) {
+            if(pos>=_recordingColumns.size())return {};
+            c=_recordingColumns[pos];epoch=c.sourceIndex;
+            if(epoch<0||c.bytes.isEmpty())return {};
+        } else {
+            epoch=_columns.size()-imageW+pos;
+            if(epoch<0||epoch>=_columns.size())return {};
+            c=_columns[epoch];
+        }
     }
     const double resolution=c.resolutionMm*0.001;
     const double offset=c.absoluteOffset*resolution;
@@ -156,10 +243,14 @@ void NavoKoggerEchogramItem::paint(QPainter* p) {
     const int imageH=std::clamp(int(std::ceil(height())),1,1600);
     const double from=_from, range=_range;
     QVector<Column> visible;
+    const bool recordingMode=_recordingSource&&_recordingSource->indexReady();
     {
         QMutexLocker lock(&_mutex);
-        const int start=std::max(0,int(_columns.size())-imageW);
-        visible=_columns.mid(start);
+        if(recordingMode) visible=_recordingColumns;
+        else {
+            const int start=std::max(0,int(_columns.size())-imageW);
+            visible=_columns.mid(start);
+        }
     }
     QImage image(imageW,imageH,QImage::Format_Indexed8);
     image.setColorTable(NavoKoggerPalette::colors(_palette,float(_low),float(_high)));
@@ -167,8 +258,9 @@ void NavoKoggerEchogramItem::paint(QPainter* p) {
     // Same per-screen-pixel column caching approach as Kogger Plot2DEchogram.
     // No JS sample conversion and no four-bin quantisation.
     for(int i=0;i<visible.size();++i) {
-        const int x=imageW-visible.size()+i;
+        const int x=recordingMode?i:imageW-visible.size()+i;
         const auto& col=visible[i];
+        if(col.bytes.isEmpty()||col.resolutionMm==0)continue;
         const double resolution=col.resolutionMm*0.001;
         const double offset=col.absoluteOffset*resolution;
         for(int y=0;y<imageH;++y) {
@@ -189,7 +281,7 @@ void NavoKoggerEchogramItem::paint(QPainter* p) {
             if(!std::isfinite(col.bottom)) {started=false;continue;}
             const double depthY=(col.bottom-from)/range*height();
             if(depthY<0||depthY>height()) {started=false;continue;}
-            const qreal px=(imageW-visible.size()+i+0.5)*width()/imageW;
+            const qreal px=((recordingMode?i:imageW-visible.size()+i)+0.5)*width()/imageW;
             if(started)line.lineTo(px,depthY);
             else {line.moveTo(px,depthY);started=true;}
         }
