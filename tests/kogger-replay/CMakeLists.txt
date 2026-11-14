@@ -40,6 +40,9 @@ target_link_libraries(navo-native-surface PRIVATE Qt6::Core Qt6::Gui)
 add_executable(navo-native-surface-view native-surface-view.cpp)
 target_link_libraries(navo-native-surface-view PRIVATE Qt6::Quick Qt6::Qml)
 
+add_executable(navo-native-isobaths native-isobaths.cpp)
+target_link_libraries(navo-native-isobaths PRIVATE Qt6::Core Qt6::Gui)
+
 add_executable(navo-native-3d native-3d.cpp ../../custom/src/NavoBathymetryMesh.cc ../../custom/src/NavoBathymetryMesh.h)
 target_link_libraries(navo-native-3d PRIVATE Qt6::Core Qt6::Gui)
 
