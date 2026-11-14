@@ -11,7 +11,7 @@ assert(cmake.includes('qml/NavoNativeIsobathsOverlay.qml'), 'map overlay omitted
 assert(map.includes('NavoNativeIsobathsOverlay {') && map.includes('nativeIsobathsToggle'), 'contour overlay/toggle missing');
 assert(map.includes('root.nativeSurfaceBridge.setIsobathsEnabled(checked)'), 'toggle does not use native bridge');
 assert(map.includes('!recordedReplay && !replayPreview'), 'must not overlay live contours onto saved/replay lakes');
-assert(overlay.includes('line[4] <= 0') && overlay.includes('lines.length <= 4000'), 'bounds/invalid checks missing');
+assert(overlay.includes('line[4] <= 0') && overlay.includes('geometry.segments.length <= 4000'), 'bounds/invalid checks missing');
 assert(overlay.includes('MapPan.panOffset'), 'pan must reuse coordinate projection');
 assert(bridge.includes('Q_PROPERTY(bool isobathsEnabled'), 'QML cannot see isobaths state');
 assert(bridge.includes('navoNativeIsobaths(pendingIsobaths_'), 'native GPS conversion not connected');
