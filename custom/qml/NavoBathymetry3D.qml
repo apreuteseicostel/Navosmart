@@ -12,6 +12,8 @@ Item {
  property var nativeSurfaceMesh: ({})
  property bool nativeModeRequested:false
  property bool nativeMeshLoaded:false
+ // G20-friendly default. Operator can restore full MSAA/shadows in the toolbar.
+ property bool performanceMode:true
  readonly property bool nativeSurfaceAvailable: !!nativeSurfaceMesh &&
      nativeSurfaceMesh.version===1 && nativeSurfaceMesh.source==="kogger-native-surface" &&
      !!nativeSurfaceMesh.vertices && nativeSurfaceMesh.vertices.length>=3 &&
@@ -24,8 +26,14 @@ Item {
  signal openSonarRequested()
  property bool showTrack:true; property bool showWaypoints:true; property bool showSpots:true; property bool showFish:true; property int maxTrackPoints3D:1200; property int maxFish3D:500
  readonly property int lodLevel: cameraDistance>500?3:cameraDistance>250?2:cameraDistance>110?1:0
- readonly property int adaptiveTrackLimit: lodLevel===3?180:lodLevel===2?350:lodLevel===1?700:maxTrackPoints3D
- readonly property int adaptiveFishLimit: lodLevel===3?60:lodLevel===2?140:lodLevel===1?280:maxFish3D
+ // Screen-space LOD affects only decorative track/fish markers, never
+ // sonar depth triangles or GPS data used by navigation.
+ readonly property int adaptiveTrackLimit: performanceMode ?
+     (lodLevel===3?120:lodLevel===2?240:lodLevel===1?480:Math.min(800,maxTrackPoints3D)) :
+     (lodLevel===3?180:lodLevel===2?350:lodLevel===1?700:maxTrackPoints3D)
+ readonly property int adaptiveFishLimit: performanceMode ?
+     (lodLevel===3?40:lodLevel===2?90:lodLevel===1?180:Math.min(320,maxFish3D)) :
+     (lodLevel===3?60:lodLevel===2?140:lodLevel===1?280:maxFish3D)
  property int cachedSampleCount:0
  property string cachedSampleSignature:""
  property bool cameraFramed:false
@@ -89,14 +97,14 @@ Item {
  function fmtTime(v){if(!v)return "--";return new Date(v).toLocaleString(Qt.locale(),"dd MMM yyyy HH:mm:ss")}
  NavoBathymetryMesh{id:meshEngine;objectName:"navoBathymetryMesh"}
  Rectangle{anchors.fill:parent;color:"#071019"}
- View3D{id:view;anchors.fill:parent;camera:camera;environment:SceneEnvironment{clearColor:"#071019";backgroundMode:SceneEnvironment.Color;antialiasingMode:SceneEnvironment.MSAA;antialiasingQuality:SceneEnvironment.High}
+ View3D{id:view;anchors.fill:parent;camera:camera;environment:SceneEnvironment{clearColor:"#071019";backgroundMode:SceneEnvironment.Color;antialiasingMode:root.performanceMode?SceneEnvironment.NoAA:SceneEnvironment.MSAA;antialiasingQuality:root.performanceMode?SceneEnvironment.Low:SceneEnvironment.High}
   // Rotate the camera around the data centre, rather than rotating its gaze
   // from a fixed world position. The local -Z axis always points at the pivot.
   Node{id:cameraPivot;position:Qt.vector3d(root.sceneBounds.centerX+root.panOffset.x,root.sceneBounds.centerY,root.sceneBounds.centerZ+root.panOffset.y);eulerRotation.x:root.pitch;eulerRotation.y:root.yaw
    PerspectiveCamera{id:camera;position:Qt.vector3d(0,0,root.cameraDistance);fieldOfView:45;fieldOfViewOrientation:PerspectiveCamera.Vertical;clipNear:.1;clipFar:Math.max(5000,root.cameraDistance+root.sceneBounds.radius*3)}
   }
-  DirectionalLight{eulerRotation.x:-45;eulerRotation.y:-35;brightness:1.15;castsShadow:true} DirectionalLight{eulerRotation.x:35;eulerRotation.y:145;brightness:.35}
-  Model{id:terrain;pickable:true;geometry:NavoBathymetryGeometry{vertices:meshEngine.vertices;triangles:meshEngine.triangles;verticalExaggeration:root.verticalExaggeration;minDepth:meshEngine.minDepthM;maxDepth:meshEngine.maxDepthM}materials:PrincipledMaterial{vertexColorsEnabled:true;roughness:.72;cullMode:Material.NoCulling}}
+  DirectionalLight{eulerRotation.x:-45;eulerRotation.y:-35;brightness:1.15;castsShadow:!root.performanceMode} DirectionalLight{eulerRotation.x:35;eulerRotation.y:145;brightness:.35}
+  Model{id:terrain;pickable:true;geometry:NavoBathymetryGeometry{id:terrainGeometry;objectName:"nativeTerrainGeometry";vertices:meshEngine.vertices;triangles:meshEngine.triangles;verticalExaggeration:root.verticalExaggeration;minDepth:meshEngine.minDepthM;maxDepth:meshEngine.maxDepthM}materials:PrincipledMaterial{vertexColorsEnabled:true;roughness:.72;cullMode:Material.NoCulling}}
   Node{id:overlayRoot
    Repeater3D{model:root.showWaypoints?root.waypoints:[];delegate:Model{id:wp;required property var modelData;property string kind:"waypoint";pickable:true;position:root.localPoint(modelData.lat!==undefined?modelData.lat:modelData.coordinate.latitude,modelData.lon!==undefined?modelData.lon:modelData.coordinate.longitude,Math.max(0,root.bottomDepth(modelData.lat!==undefined?modelData.lat:modelData.coordinate.latitude,modelData.lon!==undefined?modelData.lon:modelData.coordinate.longitude)-.7));source:"#Sphere";scale:Qt.vector3d(.8,.8,.8);materials:PrincipledMaterial{baseColor:"#ffd54f";emissiveFactor:Qt.vector3d(.25,.18,0)}}}
    Repeater3D{model:root.showSpots?root.fishingSpots:[];delegate:Model{id:spot;required property var modelData;property string kind:"spot";pickable:true;position:root.localPoint(modelData.lat,modelData.lon,Math.max(0,(modelData.depth!==null&&modelData.depth!==undefined?modelData.depth:root.bottomDepth(modelData.lat,modelData.lon))-.8));source:"#Cylinder";scale:Qt.vector3d(.45,1.4,.45);materials:PrincipledMaterial{baseColor:"#ff8a3d"}}}
@@ -124,6 +132,20 @@ Item {
    Tool3D{hint:"Vedere de sus";contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.strokeRect(11,9,20,20);p.beginPath();p.moveTo(21,5);p.lineTo(21,14);p.moveTo(17,10);p.lineTo(21,14);p.lineTo(25,10);p.stroke()}} onClicked:root.topCamera()}
    Tool3D{hint:"Vedere izometrică";contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.beginPath();p.moveTo(21,6);p.lineTo(34,13);p.lineTo(34,27);p.lineTo(21,34);p.lineTo(8,27);p.lineTo(8,13);p.closePath();p.moveTo(8,13);p.lineTo(21,20);p.lineTo(34,13);p.moveTo(21,20);p.lineTo(21,34);p.stroke()}} onClicked:root.isoCamera()}
    Tool3D{hint:"Resetează camera";contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.beginPath();p.arc(21,20,11,.4,5.5);p.stroke();p.beginPath();p.moveTo(29,7);p.lineTo(34,13);p.lineTo(26,14);p.stroke()}} onClicked:root.resetCamera()}
+   Tool3D {
+    objectName:"bathymetryPerformanceToggle"
+    width:58
+    hint: root.performanceMode ? "Mod fluid • apasă pentru antialiasing și umbre" :
+                               "Mod detaliu • apasă pentru randare mai fluidă"
+    checkable:true;checked:root.performanceMode
+    contentItem:Label {
+      text:root.performanceMode?"FLUID":"HD"
+      color:root.performanceMode?"#21b7ff":"#f2f7fb"
+      font.pixelSize:11;font.bold:true
+      horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter
+    }
+    onClicked:root.performanceMode=!root.performanceMode
+   }
    Tool3D {
     objectName:"nativeKogger3dToggle"
     hint: root.nativeSurfaceAvailable ? "Kogger 3D nativ • comută cu modelul din probe" :
@@ -163,7 +185,8 @@ Item {
   }}
  Column{anchors{right:parent.right;bottom:parent.bottom;margins:12}spacing:5;Rectangle{width:180;height:18;gradient:Gradient{orientation:Gradient.Horizontal;GradientStop{position:0;color:"#0db8c7"}GradientStop{position:.5;color:"#0a3d9e"}GradientStop{position:1;color:"#330a61"}}}Text{color:"white";text:Number(meshEngine.minDepthM).toFixed(1)+" m                         "+Number(meshEngine.maxDepthM).toFixed(1)+" m"}Text{color:"white";text:root.nativeMeshLoaded ?
    "KOGGER NATIV • "+meshEngine.triangles.length+" triunghiuri • adâncimi derivate"+(root.nativeSurfaceMesh.truncated?" • limitat":"") :
-   meshEngine.measuredVertexCount+" măsurate • "+meshEngine.interpolatedVertexCount+" interpolate • LOD "+root.lodLevel}}
+   meshEngine.measuredVertexCount+" măsurate • "+meshEngine.interpolatedVertexCount+" interpolate • LOD "+root.lodLevel}
+ Text{color:"#a9bfcb";font.pixelSize:10;text:"GPU geom. "+(terrainGeometry.geometryBytes/1048576).toFixed(2)+" MiB • build "+terrainGeometry.lastBuildMs.toFixed(1)+" ms"}}
  Timer{id:nativeDebounce;interval:350;repeat:false;onTriggered:root.rebuild()}
  Timer{id:lodDebounce;interval:220;repeat:false;onTriggered:if(!root.nativeMeshLoaded&&samples.length)root.rebuild()}
  Timer{id:sampleDebounce;interval:650;repeat:false;onTriggered:if(samples.length)root.refreshForSamples()}
