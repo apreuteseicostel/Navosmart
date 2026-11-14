@@ -88,6 +88,7 @@ jobs:
           node tests/offline-lab-auto-depth.mjs
           node tests/kogger-native-wiring.mjs
           node tests/native-3d-ui.mjs
+          node tests/sonar-replay-seek-ui.mjs
       - name: Render production Missions UI with Qt 6.8.3
         run: |
           python3 -m venv /tmp/navo-ui-env

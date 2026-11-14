@@ -65,5 +65,11 @@ target_link_libraries(navo-acceptance-scene PRIVATE Qt6::Quick Qt6::Qml)
 add_executable(navo-replay-pacing replay-pacing.cpp ../../custom/src/NavoKoggerReplay.cc ../../custom/src/NavoKoggerReplay.h)
 target_link_libraries(navo-replay-pacing PRIVATE Qt6::Core)
 
+add_executable(navo-replay-seek replay-seek.cpp
+    ../../custom/src/NavoKoggerReplay.cc ../../custom/src/NavoKoggerReplay.h
+    ../../custom/src/NavoKoggerDecoder.cc ../../custom/src/NavoKoggerDecoder.h)
+target_link_libraries(navo-replay-seek PRIVATE Qt6::Core)
+
+
 add_executable(navo-sonar-recording recording.cpp ../../custom/src/NavoKoggerRecorder.cc ../../custom/src/NavoKoggerRecorder.h ../../custom/src/NavoKoggerReplay.cc ../../custom/src/NavoKoggerReplay.h)
 target_link_libraries(navo-sonar-recording PRIVATE Qt6::Core)
