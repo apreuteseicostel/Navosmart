@@ -518,7 +518,10 @@ Rectangle {
                     onClicked:function(mouse){
                         if(moved)return
                         if(root.pointPicking){root.selectSonarPoint(mouse.x,width);return}
-                        root.inspectedColumn=nativeEchogram.inspectAt(mouse.x,mouse.y)
+                        var selected=nativeEchogram.inspectAt(mouse.x,mouse.y)
+                        root.inspectedColumn=selected
+                        if(root.fileBrowserActive && selected && isFinite(selected.column))
+                            root.fileCenterColumn=Math.max(0,Math.min(root.chartSource.replayColumnCount-1,selected.column-1))
                     }
                 }
             }
