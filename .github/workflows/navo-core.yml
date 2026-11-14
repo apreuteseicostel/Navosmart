@@ -86,6 +86,7 @@ jobs:
           node tests/isobaths-ui.mjs
           node tests/g20-performance.mjs
           node tests/offline-lab-auto-depth.mjs
+          node tests/kogger-native-wiring.mjs
           node tests/native-3d-ui.mjs
       - name: Render production Missions UI with Qt 6.8.3
         run: |
