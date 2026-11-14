@@ -39,6 +39,14 @@ public:
  double indexProgress() const;
  int indexedColumns() const { return _columns.size(); }
  int currentColumn() const;
+ // Random-access, read-only viewport source. Independent of the replay decoder,
+ // live GPS and playback cursor; return raw bytes, never palette-filtered samples.
+ struct ChartColumn {
+  QByteArray bytes;
+  quint16 resolutionMm=0, absoluteOffset=0;
+  quint8 version=0;
+ };
+ bool readChartColumn(int column, ChartColumn* out);
  Q_INVOKABLE bool seekColumn(int column);
  QString error() const { return _error; }
  QVariantMap annotationAnchor() const;
@@ -67,6 +75,7 @@ private:
  };
  struct ColumnOffset { qint64 offset=0; qint64 frameBefore=0; Pose pose; int firstPacketSize=0; };
  QFile _indexFile;
+ QFile _viewFile; // Separate handle: drawing must never move the playback file cursor.
  QTimer _indexTimer;
  QByteArray _indexBuffer;
  qint64 _indexBufferOffset=0;
@@ -81,6 +90,7 @@ private:
  qint64 _previewStopOffset=-1;
  bool _previewFlushLast=false;
  void beginIndexing();
+ static bool readChartPacket(const char* frame,int length,int* seq,quint16* resolution,quint16* absoluteOffset,quint8* version,QByteArray* bytes);
  void indexTick();
  bool indexKoggerFrame(const char* frame,int frameLength,qint64 offset);
  static void updatePose(Pose& pose,const uchar* frame,int frameLength,bool v2);
