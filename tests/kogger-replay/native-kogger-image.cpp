@@ -113,7 +113,14 @@ int main(int argc,char**argv) {
         };
         const int centreAtOverview=int(qint64(961)*total/1920)+1;
         require(awaitInspect(centreAtOverview),
-                "global overview does not address whole KLF timeline");
+                "global overview does not address middle of KLF timeline");
+        // Don't capture a misleading half-black image while the 12-column
+        // incremental on-disk loader is still filling the right-hand pixels.
+        const int rightmostColumn=int(qint64(1919)*total/1920)+1;
+        require(awaitInspect(rightmostColumn),
+                "global overview never loaded the end-of-file pixels");
+        require(item.columnCount()>=900,
+                "whole-file overview was prematurely declared complete");
         QImage overview(960,540,QImage::Format_ARGB32_Premultiplied);
         overview.fill(Qt::black);
         QPainter overviewPainter(&overview);item.paint(&overviewPainter);overviewPainter.end();
