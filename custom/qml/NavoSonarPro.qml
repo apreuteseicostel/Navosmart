@@ -719,12 +719,12 @@ Rectangle {
                 objectName:"sonarProReplayColumnSlider"
                 Layout.fillWidth:true
                 from:0
-                to:root.chartSource ? Math.max(0,root.chartSource.replayColumnCount-1):0
+                to:root.chartSource && isFinite(root.chartSource.replayColumnCount) ? Math.max(0,root.chartSource.replayColumnCount-1):0
                 stepSize:1
-                enabled:root.chartSource && root.chartSource.replayIndexReady &&
-                    root.chartSource.replayColumnCount>1
+                enabled:!!(root.chartSource && root.chartSource.replayIndexReady &&
+                    root.chartSource.replayColumnCount>1)
                 value: root.seekPreviewColumn>=0 ? root.seekPreviewColumn :
-                    (root.chartSource ? root.chartSource.replayCurrentColumn : 0)
+                    (root.chartSource && isFinite(root.chartSource.replayCurrentColumn) ? root.chartSource.replayCurrentColumn : 0)
                 Accessible.name:"Mergi direct la coloana din înregistrare"
                 ToolTip.visible:pressed
                 ToolTip.text:"Coloana "+(Math.round(value)+1)
