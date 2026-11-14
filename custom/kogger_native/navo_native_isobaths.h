@@ -29,6 +29,9 @@ inline QVariantMap navoNativeIsobaths(const QVector<QVector3D>& pairs,
             !std::isfinite(b.x()) || !std::isfinite(b.y()) || !std::isfinite(b.z()))
             continue;
         // Native Kogger uses negative Z for depth and adds +0.03 m for line offset.
+        // IsobathsProcessor raises valid depth contours by 3 cm for drawing;
+        // a zero/uninitialized Z must never be promoted into a depth contour.
+        if (a.z() >= -0.03f || b.z() >= -0.03f) continue;
         const double depth = -(double(a.z()) + double(b.z())) / 2.0 + 0.03;
         if (!std::isfinite(depth) || depth <= 0 || depth > 1000 ||
             std::abs(double(a.z())-double(b.z())) > 0.15)
