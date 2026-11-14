@@ -1,10 +1,15 @@
 #include "../../custom/kogger_native/navo_kogger_echogram_palette.h"
 #include "../../custom/kogger_native/navo_kogger_echogram_sampling.h"
 #include "../../custom/src/NavoKoggerEchogramItem.h"
+#include "../../custom/src/NavoKoggerReplay.h"
+#include "../../custom/src/NavoKoggerDecoder.h"
 #include <QGuiApplication>
 #include <QImage>
 #include <QPainter>
 #include <QSet>
+#include <QElapsedTimer>
+#include <QEventLoop>
+#include <QUrl>
 #include <QtGlobal>
 #include <cassert>
 #include <cmath>
@@ -56,5 +61,36 @@ int main(int argc,char**argv) {
     require(qAlpha(target.pixel(120,30))==255,"native Qt Quick painter did not fill the image");
     require(item.columnCount()==0,"fresh renderer must not invent sonar data");
     require(item.inspectAt(40,40).isEmpty(),"inspector invented a CHART column");
-    std::cout<<"PASS native Kogger 256-level palette, exact original palette stops, CHART sampling, valid source depths, 8-bit image rendering\n";
+    if (argc >= 2) {
+        NavoKoggerDecoder decoder;
+        NavoKoggerReplay replay;
+        item.resetColumns();
+        item.setWidth(960);item.setHeight(540);
+        item.setPaletteMode(0);item.setLowLevel(0);item.setHighLevel(100);
+        item.setDepthFrom(0);item.setDepthRange(50);
+        item.setNoiseFloor(0);item.setGain(1);
+        item.setDecoder(&decoder);
+        QObject::connect(&replay,&NavoKoggerReplay::bytesReady,
+                         &decoder,&NavoKoggerDecoder::feedBytes);
+        require(replay.open(QUrl::fromLocalFile(QString::fromLocal8Bit(argv[1]))),
+                "cannot open actual Kogger DownView fixture");
+        QElapsedTimer timer;timer.start();
+        while(item.columnCount()<350 && timer.elapsed()<25000 && replay.active())
+            QCoreApplication::processEvents(QEventLoop::AllEvents,60);
+        const int actual=item.columnCount();
+        require(actual>=30,"native renderer did not receive actual completed .klf CHART columns");
+        QImage recording(960,540,QImage::Format_ARGB32_Premultiplied);
+        recording.fill(Qt::black);
+        QPainter draw(&recording);item.paint(&draw);draw.end();
+        QSet<QRgb> used;
+        for(int y=30;y<500;y+=3)for(int x=400;x<950;x+=3)
+            used.insert(recording.pixel(x,y));
+        require(used.size()>16,"actual .klf still rendered as a coarse four-colour image");
+        require(recording.save(QStringLiteral("kogger-native-8bit-replay.png")),
+                "cannot save real recorded Kogger native screenshot");
+        replay.stop();
+        std::cout<<"PASS Kogger recorded CHART through native 8-bit view: columns="
+                 <<actual<<" unique_display_colours="<<used.size()<<'\\n';
+    }
+    std::cout<<"PASS native Kogger 256-level palette, exact original palette stops, CHART sampling, valid source depths, 8-bit image rendering\\n";
 }
