@@ -2,6 +2,9 @@ import QtQuick
 // Software performance harness exercises legacy QML separately from the C++ 8-bit renderer.
 Item {
  property var decoder:null
+ property var recordingSource:null
+ property int recordingEndColumn:-1
+ property int recordingSpanColumns:0
  property real depthFrom:0
  property real depthRange:50
  property int paletteMode:0
