@@ -26,8 +26,14 @@ Item {
  signal openSonarRequested()
  property bool showTrack:true; property bool showWaypoints:true; property bool showSpots:true; property bool showFish:true; property int maxTrackPoints3D:1200; property int maxFish3D:500
  readonly property int lodLevel: cameraDistance>500?3:cameraDistance>250?2:cameraDistance>110?1:0
- readonly property int adaptiveTrackLimit: lodLevel===3?180:lodLevel===2?350:lodLevel===1?700:maxTrackPoints3D
- readonly property int adaptiveFishLimit: lodLevel===3?60:lodLevel===2?140:lodLevel===1?280:maxFish3D
+ // Screen-space LOD affects only decorative track/fish markers, never
+ // sonar depth triangles or GPS data used by navigation.
+ readonly property int adaptiveTrackLimit: performanceMode ?
+     (lodLevel===3?120:lodLevel===2?240:lodLevel===1?480:Math.min(800,maxTrackPoints3D)) :
+     (lodLevel===3?180:lodLevel===2?350:lodLevel===1?700:maxTrackPoints3D)
+ readonly property int adaptiveFishLimit: performanceMode ?
+     (lodLevel===3?40:lodLevel===2?90:lodLevel===1?180:Math.min(320,maxFish3D)) :
+     (lodLevel===3?60:lodLevel===2?140:lodLevel===1?280:maxFish3D)
  property int cachedSampleCount:0
  property string cachedSampleSignature:""
  property bool cameraFramed:false
