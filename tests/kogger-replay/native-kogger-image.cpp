@@ -102,11 +102,11 @@ int main(int argc,char**argv) {
         item.setFileWindowStart(0);
         item.setFileWindowColumns(total);
         item.setFileSelectedColumn(total/2);
-        auto awaitInspect=[&](int expected){
+        auto awaitInspect=[&](int expected,int x=480){
             QElapsedTimer wait;wait.start();
             while(wait.elapsed()<18000){
                 QCoreApplication::processEvents(QEventLoop::AllEvents,15);
-                const auto info=item.inspectAt(480,180);
+                const auto info=item.inspectAt(x,180);
                 if(info.value("column").toInt()==expected)return true;
             }
             return false;
@@ -117,7 +117,7 @@ int main(int argc,char**argv) {
         // Don't capture a misleading half-black image while the 12-column
         // incremental on-disk loader is still filling the right-hand pixels.
         const int rightmostColumn=int(qint64(1919)*total/1920)+1;
-        require(awaitInspect(rightmostColumn),
+        require(awaitInspect(rightmostColumn,959),
                 "global overview never loaded the end-of-file pixels");
         require(item.columnCount()>=900,
                 "whole-file overview was prematurely declared complete");
