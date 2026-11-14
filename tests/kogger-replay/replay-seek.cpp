@@ -86,8 +86,8 @@ int main(int argc,char**argv){
  auto whole=replay.readDisplaySlice(count-1,count,overviewWidth,0,overviewWidth);
  require(whole.size()==overviewWidth,"full-file overview did not cover screen width");
  require(whole.front().sourceIndex==0,"full-file overview does not begin at first column");
- require(whole.back().sourceIndex<count && whole.back().sourceIndex>=count-2-count/overviewWidth,
-         "full-file overview omits the final part of recording");
+ require(whole.back().sourceIndex==count-1,
+         "full-file overview must include the exact final source column");
  const auto midWindow=replay.readDisplaySlice(count/2,fixture?40:10,10,0,10);
  require(midWindow.size()==10,"detail view missing some historical columns");
  require(midWindow.front().sourceIndex<count/2,"detail does not show columns before cursor");
