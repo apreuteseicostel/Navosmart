@@ -85,6 +85,10 @@ int main(int argc,char**argv){
  const int overviewWidth=fixture?64:42;
  auto whole=replay.readDisplaySlice(count-1,count,overviewWidth,0,overviewWidth);
  require(whole.size()==overviewWidth,"full-file overview did not cover screen width");
+ int realColumnsInOverview=0;
+ for(const auto& c:whole)if(!c.bytes.isEmpty()&&c.resolutionMm>0)++realColumnsInOverview;
+ require(realColumnsInOverview>=overviewWidth*9/10,
+         "whole-file overview contains missing or invalid real CHART columns");
  require(whole.front().sourceIndex==0,"full-file overview does not begin at first column");
  require(whole.back().sourceIndex==count-1,
          "full-file overview must include the exact final source column");
