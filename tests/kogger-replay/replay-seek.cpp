@@ -80,6 +80,8 @@ int main(int argc,char**argv){
  else require(count==42,"each physical CHART column indexed exactly once");
  // Whole file is addressable from a bounded global preview, not a rolling plot cache.
  const auto thumbnail=replay.overviewColumns();
+ std::cout<<"OVERVIEW diagnostic: "<<thumbnail.size()<<" bins, "<<count
+          <<" indexed columns, stride="<<replay.overviewStride()<<std::endl;
  require(!thumbnail.isEmpty() && thumbnail.size()<=512,"full KLF thumbnail missing or unbounded");
  require(replay.overviewStride()>=1,"overview compression stride invalid");
  require(!replay.seekColumn(-1) && !replay.seekColumn(count),"invalid seek accepted");
