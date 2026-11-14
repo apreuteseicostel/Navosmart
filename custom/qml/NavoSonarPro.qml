@@ -253,6 +253,7 @@ Rectangle {
         geoChartRecords = next
     }
     property int historyColumns: 240
+    property int seekPreviewColumn: -1
     property int replaySampleCount: 0
     property string replaySaveStatus: ""
     signal saveReplayRequested(string name)
@@ -374,6 +375,16 @@ Rectangle {
     // this signal. Capture every column even when one TCP chunk holds several.
     Connections {
         target: root.chartSource || null
+        ignoreUnknownSignals: true
+        function onReplaySeeked(column) {
+            root.history=[]
+            root.rasterCache=[]
+            root.autoDepthRangeM=0
+            root.seekPreviewColumn=-1
+            root.inspectedColumn=({})
+            root.endPointPick()
+            nativeEchogram.resetColumns()
+        }
         function onEchoSamplesChanged() { root.captureGeoChart(); root.pushHistory() }
         function onBottomColumnReady(sequence,depth) { root.updateHistoryBottom(sequence,depth); nativeEchogram.setBottomDepth(sequence,depth) }
     }
@@ -429,7 +440,8 @@ Rectangle {
         contentItem: Image { source: "qrc:/qml/NavoSmart/icons/" + control.glyph + ".svg"; fillMode: Image.PreserveAspectFit }
     }
     Row {
-        anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
+        anchors.left: parent.left; anchors.right: parent.right
+        anchors.bottom: replaySeekBar.visible ? replaySeekBar.top : parent.bottom
         // Keep the scale and echo key below the status/close controls.
         anchors.top: telemetryBar.bottom; anchors.topMargin: 8
         spacing: root.mapEnabled ? 2 : 0
@@ -678,6 +690,68 @@ Rectangle {
                         IconButton { glyph: "zoom-in"; hint: "Mărește harta"; onClicked: liveMap.zoomLevel++ }
                     }
                 }
+            }
+        }
+    }
+    Rectangle {
+        id: replaySeekBar
+        objectName:"sonarProReplaySeekBar"
+        visible:root.replayMode
+        anchors.left:parent.left;anchors.right:parent.right;anchors.bottom:parent.bottom
+        height:52;z:96
+        color:"#ed081c2a";border.color:"#2d536d"
+        RowLayout {
+            anchors.fill:parent;anchors.leftMargin:10;anchors.rightMargin:10;spacing:8
+            Label {
+                Layout.preferredWidth:Math.min(205,Math.max(95,replaySeekBar.width*.23))
+                elide:Text.ElideRight
+                font.pixelSize:11;color:"#deedf6"
+                text:root.chartSource && root.chartSource.replayIndexReady ?
+                    "Coloana "+(Math.min(root.chartSource.replayColumnCount-1,
+                      root.seekPreviewColumn>=0?root.seekPreviewColumn:root.chartSource.replayCurrentColumn)+1)+
+                    " / "+root.chartSource.replayColumnCount :
+                    (root.chartSource && root.chartSource.replayIndexProgress>0 ?
+                     "Indexare KLF "+Math.floor(root.chartSource.replayIndexProgress*100)+"%" :
+                     "Seek disponibil pentru fișiere KLF")
+            }
+            Slider {
+                id:replayColumnSlider
+                objectName:"sonarProReplayColumnSlider"
+                Layout.fillWidth:true
+                from:0
+                to:root.chartSource ? Math.max(0,root.chartSource.replayColumnCount-1):0
+                stepSize:1
+                enabled:root.chartSource && root.chartSource.replayIndexReady &&
+                    root.chartSource.replayColumnCount>1
+                value: root.seekPreviewColumn>=0 ? root.seekPreviewColumn :
+                    (root.chartSource ? root.chartSource.replayCurrentColumn : 0)
+                Accessible.name:"Mergi direct la coloana din înregistrare"
+                ToolTip.visible:pressed
+                ToolTip.text:"Coloana "+(Math.round(value)+1)
+                onMoved:root.seekPreviewColumn=Math.round(value)
+                onPressedChanged: {
+                    if(!pressed && root.seekPreviewColumn>=0) {
+                        var selected=root.seekPreviewColumn
+                        if(root.chartSource)root.chartSource.seekReplayColumn(selected)
+                        root.seekPreviewColumn=-1
+                    }
+                }
+            }
+            Button {
+                objectName:"sonarProReplayBack"
+                text:"−"
+                implicitWidth:40
+                enabled:replayColumnSlider.enabled
+                Accessible.name:"Coloana precedentă"
+                onClicked:root.chartSource.seekReplayColumn(Math.max(0,root.chartSource.replayCurrentColumn-1))
+            }
+            Button {
+                objectName:"sonarProReplayForward"
+                text:"+"
+                implicitWidth:40
+                enabled:replayColumnSlider.enabled
+                Accessible.name:"Coloana următoare"
+                onClicked:root.chartSource.seekReplayColumn(Math.min(root.chartSource.replayColumnCount-1,root.chartSource.replayCurrentColumn+1))
             }
         }
     }
