@@ -14,6 +14,8 @@ Item {
  property bool nativeMeshLoaded:false
  // G20-friendly default. Operator can restore full MSAA/shadows in the toolbar.
  property bool performanceMode:true
+ property bool simulatedData:false
+ property bool usePersistentCache:true
  readonly property bool nativeSurfaceAvailable: !!nativeSurfaceMesh &&
      nativeSurfaceMesh.version===1 && nativeSurfaceMesh.source==="kogger-native-surface" &&
      !!nativeSurfaceMesh.vertices && nativeSurfaceMesh.vertices.length>=3 &&
@@ -64,7 +66,10 @@ Item {
   var loaded=false
   if(nativeModeRequested && nativeSurfaceAvailable)loaded=meshEngine.loadNativeSurface(nativeSurfaceMesh)
   if(!loaded) {
-   if(samples && samples.length)meshEngine.buildCached(samples,gridSizeM,maxGapM,lodLevel)
+   if(samples && samples.length) {
+    if(usePersistentCache)meshEngine.buildCached(samples,gridSizeM,maxGapM,lodLevel)
+    else meshEngine.build(samples,gridSizeM,maxGapM,lodLevel)
+   }
    else meshEngine.clear()
   }
   nativeMeshLoaded=loaded
@@ -180,10 +185,11 @@ Item {
    Text{color:"white";text:selectedKind==="fish"&&selectedObject?"Adâncime pește: "+Number(selectedObject.targetDepth).toFixed(2)+" m":selectedObject&&selectedObject.depth!==undefined&&selectedObject.depth!==null?"Adâncime: "+Number(selectedObject.depth).toFixed(2)+" m":selectedPoint?"Adâncime: "+Number(selectedPoint.depth).toFixed(2)+" m":""}
    Text{color:"white";visible:selectedObject&&selectedObject.temp!==undefined&&selectedObject.temp!==null;text:visible?"Temperatură: "+Number(selectedObject.temp).toFixed(1)+" °C":""}
    Text{color:"white";visible:selectedObject&&(selectedObject.time||selectedObject.createdAt);text:visible?"Timp: "+root.fmtTime(selectedObject.time||selectedObject.createdAt):""}
-   Text{color:"white";visible:selectedPoint!==null;text:visible?(selectedPoint.measured?"Măsurat":"Interpolat")+" • confidence "+Math.round(selectedPoint.confidence*100)+"%":""}
+   Text{color:"white";visible:selectedPoint!==null;text:visible?(root.simulatedData?"SIMULAT • fără măsurători reale":(selectedPoint.measured?"Măsurat":"Interpolat")+" • confidence "+Math.round(selectedPoint.confidence*100)+"%"):""}
    Text{color:"white";visible:selectedObject&&selectedObject.strength!==undefined&&selectedObject.strength!==null;text:visible?"Intensitate sonar: "+Number(selectedObject.strength).toFixed(2):""}
   }}
- Column{anchors{right:parent.right;bottom:parent.bottom;margins:12}spacing:5;Rectangle{width:180;height:18;gradient:Gradient{orientation:Gradient.Horizontal;GradientStop{position:0;color:"#0db8c7"}GradientStop{position:.5;color:"#0a3d9e"}GradientStop{position:1;color:"#330a61"}}}Text{color:"white";text:Number(meshEngine.minDepthM).toFixed(1)+" m                         "+Number(meshEngine.maxDepthM).toFixed(1)+" m"}Text{color:"white";text:root.nativeMeshLoaded ?
+ Column{anchors{right:parent.right;bottom:parent.bottom;margins:12}spacing:5;Rectangle{width:180;height:18;gradient:Gradient{orientation:Gradient.Horizontal;GradientStop{position:0;color:"#0db8c7"}GradientStop{position:.5;color:"#0a3d9e"}GradientStop{position:1;color:"#330a61"}}}Text{color:"white";text:Number(meshEngine.minDepthM).toFixed(1)+" m                         "+Number(meshEngine.maxDepthM).toFixed(1)+" m"}Text{color:"white";text:root.simulatedData ? "SIMULARE • "+meshEngine.vertices.length+" puncte sintetice • LOD "+root.lodLevel :
+ root.nativeMeshLoaded ?
    "KOGGER NATIV • "+meshEngine.triangles.length+" triunghiuri • adâncimi derivate"+(root.nativeSurfaceMesh.truncated?" • limitat":"") :
    meshEngine.measuredVertexCount+" măsurate • "+meshEngine.interpolatedVertexCount+" interpolate • LOD "+root.lodLevel}
  Text{color:"#a9bfcb";font.pixelSize:10;text:"GPU geom. "+(terrainGeometry.geometryBytes/1048576).toFixed(2)+" MiB • build "+terrainGeometry.lastBuildMs.toFixed(1)+" ms"}}
