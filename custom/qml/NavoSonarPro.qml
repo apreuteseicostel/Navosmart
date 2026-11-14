@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import QtQuick.Dialogs
 import QtPositioning
 import QtLocation
+import NavoSmart.Backend 1.0
 import QGroundControl.FlightMap
 import "NavoBottomAnalysis.js" as BottomAnalysis
 import "NavoSonarDepthScale.js" as DepthWindow
@@ -283,6 +284,9 @@ Rectangle {
     property bool koggerCompensation: false
     // Native bottom results update their matching completed CHART column.
     property bool showBottomTrack: true
+    // Opt-in fallback remains for APK testing; native Kogger 8-bit is default.
+    property bool useNativeRenderer: true
+    property var inspectedColumn: ({})
     readonly property var displayedColumn: history.length ? history[history.length - 1] : null
     readonly property int buttonSize: width < 640 ? 36 : 40
     readonly property color selectedMenuColor: "#176b86"
@@ -371,7 +375,7 @@ Rectangle {
     Connections {
         target: root.chartSource || null
         function onEchoSamplesChanged() { root.captureGeoChart(); root.pushHistory() }
-        function onBottomColumnReady(sequence,depth) { root.updateHistoryBottom(sequence,depth) }
+        function onBottomColumnReady(sequence,depth) { root.updateHistoryBottom(sequence,depth); nativeEchogram.setBottomDepth(sequence,depth) }
     }
     onSamplesChanged: if (!chartSource) Qt.callLater(pushHistory)
     Component.onCompleted: Qt.callLater(pushHistory)
@@ -380,8 +384,8 @@ Rectangle {
         if (depthScaleMode==="auto" && !paused && history.length && !depthScaleTimer.running) depthScaleTimer.start()
         repaint()
     }
-    onActiveLakeIdChanged: { endPointPick();sonarPointDialog.close();history=[] }
-    onReplayModeChanged: { endPointPick();sonarPointDialog.close();history=[];autoDepthRangeM=0 }
+    onActiveLakeIdChanged: { endPointPick();sonarPointDialog.close();history=[];nativeEchogram.resetColumns();inspectedColumn=({}) }
+    onReplayModeChanged: { endPointPick();sonarPointDialog.close();history=[];autoDepthRangeM=0;nativeEchogram.resetColumns();inspectedColumn=({}) }
     onGainChanged: repaint()
     onNoiseFloorChanged: repaint()
     onNoiseFilterEnabledChanged: repaint()
@@ -389,7 +393,7 @@ Rectangle {
     onAmberPaletteChanged: repaint()
     onLevelLowChanged: repaint()
     onLevelHighChanged: repaint()
-    onReplayActiveChanged: { if(replayActive){history=[];autoDepthRangeM=0}; root.menuOpen=false }
+    onReplayActiveChanged: { if(replayActive){history=[];autoDepthRangeM=0;nativeEchogram.resetColumns();inspectedColumn=({})}; root.menuOpen=false }
     onKoggerCompensationChanged: { history = []; pushHistory(); repaint() }
     onShowBottomTrackChanged: repaint()
     // Scale is a display crop: raw amplitude/sample positions are unchanged.
@@ -434,7 +438,33 @@ Rectangle {
             width: root.mapEnabled ? Math.floor((parent.width - 2) * 0.55) : parent.width
             height: parent.height
             clip: true
+            NavoKoggerEchogramItem {
+                id: nativeEchogram
+                objectName:"sonarProNativeKoggerEchogram"
+                anchors.left:parent.left;anchors.top:parent.top
+                anchors.bottom:parent.bottom;anchors.right:echoColumn.left
+                visible:root.useNativeRenderer
+                decoder:root.chartSource ? root.chartSource.nativeEchogramDecoder : null
+                depthFrom:isFinite(root.scaleStart)?root.scaleStart:0
+                depthRange:isFinite(root.scaleRange)&&root.scaleRange>0?root.scaleRange:50
+                paletteMode:root.paletteMode
+                lowLevel:root.levelLow
+                highLevel:root.levelHigh
+                gain:root.gain
+                noiseFloor:root.noiseFloor
+                frozen:root.paused
+                showBottomTrack:root.showBottomTrack
+                MouseArea {
+                    anchors.fill:parent
+                    cursorShape:Qt.CrossCursor
+                    onClicked:function(mouse){
+                        if(root.pointPicking){root.selectSonarPoint(mouse.x,width);return}
+                        root.inspectedColumn=nativeEchogram.inspectAt(mouse.x,mouse.y)
+                    }
+                }
+            }
             Canvas {
+                visible:!root.useNativeRenderer
                 id: echogram
                 objectName: "sonarProEchogram"
                 anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
@@ -498,6 +528,27 @@ Rectangle {
                     onClicked:function(mouse){root.selectSonarPoint(mouse.x,width)}
                 }
             }
+            Rectangle {
+                objectName:"sonarProNativeInspector"
+                visible:root.useNativeRenderer && root.inspectedColumn &&
+                    root.inspectedColumn.column!==undefined
+                z:10;radius:7;color:"#ee061523";border.color:"#3bbcd4"
+                anchors.horizontalCenter:nativeEchogram.horizontalCenter
+                anchors.bottom:parent.bottom;anchors.bottomMargin:12
+                width:Math.min(parent.width-65,400);height:74
+                Text {
+                    anchors.fill:parent;anchors.margins:7;color:"#e3f4fa"
+                    font.pixelSize:11;wrapMode:Text.WordWrap
+                    text:!parent.visible?"":(
+                        "CHART #"+root.inspectedColumn.column+" • "+root.inspectedColumn.sequence+
+                        "\\nCursor: "+Number(root.inspectedColumn.selectedDepthM).toFixed(2)+" m"+
+                        " • ecou: "+Number(root.inspectedColumn.amplitudePercent).toFixed(1)+"%"+
+                        "\\nFund: "+(isFinite(Number(root.inspectedColumn.bottomDepthM))?
+                            Number(root.inspectedColumn.bottomDepthM).toFixed(2)+" m":"nedetectat")+
+                        " • rez. "+root.inspectedColumn.resolutionMm+" mm")
+                }
+                MouseArea {anchors.fill:parent;onClicked:root.inspectedColumn=({})}
+            }
             Label {
                 anchors.horizontalCenter:echogram.horizontalCenter;anchors.bottom:parent.bottom
                 visible:root.pointPicking;z:2;text:"Atinge coloana sonar • PAUZĂ";color:"#ffffff"
@@ -505,7 +556,7 @@ Rectangle {
             }
             Label {
                 anchors.centerIn: parent
-                visible: !root.history.length
+                visible: root.useNativeRenderer ? nativeEchogram.columnCount===0 : !root.history.length
                 text: root.connected ? "Aștept coloane CHART" : "Aștept date Kogger"
                 color: "#9db2c5"
             }
@@ -703,7 +754,12 @@ Rectangle {
                 MenuAction { selected:root.paused; text: root.paused ? "Continuă ecograma" : "Pauză ecogramă"; onClicked: root.paused=!root.paused }
                 MenuAction { selected:root.paletteMode!==0; text: "Paletă: " + ["NAVO", "ZI", "AMBRĂ"][root.paletteMode]; onClicked: root.selectPalette((root.paletteMode+1)%3) }
                 MenuAction { selected:root.settingsVisible; text: "Reglaje Kogger 2D"; onClicked: {root.settingsVisible=!root.settingsVisible;root.menuOpen=false} }
-                MenuAction { selected:root.koggerCompensation; text: root.koggerCompensation ? "Ecou brut" : "Compensare Kogger"; onClicked: root.koggerCompensation=!root.koggerCompensation }
+                MenuAction { visible:!root.useNativeRenderer; selected:root.koggerCompensation; text: root.koggerCompensation ? "Ecou brut" : "Compensare Kogger"; onClicked: root.koggerCompensation=!root.koggerCompensation }
+                MenuAction {
+                    selected:root.useNativeRenderer
+                    text:root.useNativeRenderer ? "Motor: Kogger nativ 256 niveluri" : "Motor: NAVO vechi 4 niveluri"
+                    onClicked:{root.useNativeRenderer=!root.useNativeRenderer;root.inspectedColumn=({})}
+                }
                 MenuAction { selected:root.showBottomTrack; text: root.showBottomTrack ? "Ascunde linia fundului" : "Arată linia fundului"; onClicked: root.showBottomTrack=!root.showBottomTrack }
                 MenuAction { text: "Reset reglaje"; onClicked: root.resetDisplaySettings() }
             }
