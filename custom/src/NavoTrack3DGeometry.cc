@@ -26,8 +26,15 @@ QVector<QVector3D> simplifyTrack(const QVector<QVector3D>& in,float epsilon){
 }
 }
 NavoTrack3DGeometry::NavoTrack3DGeometry(QQuick3DObject*p):QQuick3DGeometry(p){}
-void NavoTrack3DGeometry::setPoints(const QVariantList&p){_p=p;rebuild();emit changed();}
-void NavoTrack3DGeometry::setWidth(float w){_w=qMax(.03f,w);rebuild();emit changed();}
+void NavoTrack3DGeometry::setPoints(const QVariantList&p){
+    if(_p==p)return; // Avoid full RDP track simplification for unchanged paths.
+    _p=p;rebuild();emit changed();
+}
+void NavoTrack3DGeometry::setWidth(float w){
+    w=qMax(.03f,w);
+    if(qFuzzyCompare(_w,w))return;
+    _w=w;rebuild();emit changed();
+}
 void NavoTrack3DGeometry::rebuild(){
     clear();if(_p.size()<2)return;
     QVector<QVector3D> raw;raw.reserve(_p.size());

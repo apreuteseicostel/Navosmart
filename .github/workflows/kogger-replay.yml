@@ -51,6 +51,10 @@ jobs:
           path: /tmp/navo-qt-runtime/ui.tar.gz
       - name: Test native surface geometry
         run: /tmp/navo-replay/navo-native-surface
+      - name: Test Kogger native isobaths NED to GPS conversion
+        run: /tmp/navo-replay/navo-native-isobaths
+      - name: Verify native Kogger 3D terrain conversion and sample fallback
+        run: /tmp/navo-replay/navo-native-3d
       - name: Test production H743 servo feedback wiring
         run: /tmp/navo-replay/navo-servo-feedback custom/qml/NavoHopperBridge.qml
       - name: Test installed acceptance scene ownership

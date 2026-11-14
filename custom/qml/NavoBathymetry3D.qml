@@ -7,14 +7,33 @@ import NavoSmart.Backend 1.0
 Item {
  id:root
  objectName:"navoBathymetry3D"
+ // Native Kogger surface is optional input to the existing Qt Quick 3D scene.
+ // Default continues to use saved GPS/depth samples, without a second renderer.
+ property var nativeSurfaceMesh: ({})
+ property bool nativeModeRequested:false
+ property bool nativeMeshLoaded:false
+ // G20-friendly default. Operator can restore full MSAA/shadows in the toolbar.
+ property bool performanceMode:true
+ readonly property bool nativeSurfaceAvailable: !!nativeSurfaceMesh &&
+     nativeSurfaceMesh.version===1 && nativeSurfaceMesh.source==="kogger-native-surface" &&
+     !!nativeSurfaceMesh.vertices && nativeSurfaceMesh.vertices.length>=3 &&
+     nativeSurfaceMesh.vertices.length<=8192 &&
+     !!nativeSurfaceMesh.indices && nativeSurfaceMesh.indices.length>=3 &&
+     nativeSurfaceMesh.indices.length<=49152
  property var samples:[]; property var boatTrack:[]; property var waypoints:[]; property var fishingSpots:[]; property var fishDetections:[]
  property real gridSizeM:2; property real maxGapM:6; property real verticalExaggeration:2; property real yaw:-35; property real pitch:-48; property real cameraDistance:180; property point panOffset:Qt.point(0,0)
  property var selectedPoint:null; property var selectedObject:null; property string selectedKind:""
  signal openSonarRequested()
  property bool showTrack:true; property bool showWaypoints:true; property bool showSpots:true; property bool showFish:true; property int maxTrackPoints3D:1200; property int maxFish3D:500
  readonly property int lodLevel: cameraDistance>500?3:cameraDistance>250?2:cameraDistance>110?1:0
- readonly property int adaptiveTrackLimit: lodLevel===3?180:lodLevel===2?350:lodLevel===1?700:maxTrackPoints3D
- readonly property int adaptiveFishLimit: lodLevel===3?60:lodLevel===2?140:lodLevel===1?280:maxFish3D
+ // Screen-space LOD affects only decorative track/fish markers, never
+ // sonar depth triangles or GPS data used by navigation.
+ readonly property int adaptiveTrackLimit: performanceMode ?
+     (lodLevel===3?120:lodLevel===2?240:lodLevel===1?480:Math.min(800,maxTrackPoints3D)) :
+     (lodLevel===3?180:lodLevel===2?350:lodLevel===1?700:maxTrackPoints3D)
+ readonly property int adaptiveFishLimit: performanceMode ?
+     (lodLevel===3?40:lodLevel===2?90:lodLevel===1?180:Math.min(320,maxFish3D)) :
+     (lodLevel===3?60:lodLevel===2?140:lodLevel===1?280:maxFish3D)
  property int cachedSampleCount:0
  property string cachedSampleSignature:""
  property bool cameraFramed:false
@@ -41,8 +60,24 @@ Item {
   for(var i=0;i<samples.length;i++){var s=samples[i];mix(s.lat);mix(s.lon);mix(s.depth);mix(s.time===undefined?s.timestamp:s.time);mix(s.confidence)}
   return String(h>>>0)
  }
- function rebuild(){meshEngine.buildCached(samples,gridSizeM,maxGapM,lodLevel);cachedSampleCount=samples.length;cachedSampleSignature=sampleSignature();if(!cameraFramed&&meshEngine.vertices.length)fitCamera()}
- function refreshForSamples(){var sig=sampleSignature();if(sig!==cachedSampleSignature)rebuild()}
+ function rebuild(){
+  var loaded=false
+  if(nativeModeRequested && nativeSurfaceAvailable)loaded=meshEngine.loadNativeSurface(nativeSurfaceMesh)
+  if(!loaded) {
+   if(samples && samples.length)meshEngine.buildCached(samples,gridSizeM,maxGapM,lodLevel)
+   else meshEngine.clear()
+  }
+  nativeMeshLoaded=loaded
+  cachedSampleCount=samples ? samples.length : 0
+  cachedSampleSignature=sampleSignature()
+  selectedPoint=null;selectedObject=null
+  if(!cameraFramed && meshEngine.vertices.length)fitCamera()
+ }
+ function refreshForSamples(){
+  if(nativeModeRequested && nativeSurfaceAvailable)return
+  var sig=sampleSignature()
+  if(sig!==cachedSampleSignature)rebuild()
+ }
  function resetCamera(){yaw=-35;pitch=-48;fitCamera()} function topCamera(){yaw=0;pitch=-89;fitCamera()} function isoCamera(){yaw=-45;pitch=-42;fitCamera()}
  // Evaluate cumulative gesture values against a snapshot taken at gesture start.
  function orbitCameraGesture(baseYaw,basePitch,dx,dy){
@@ -62,14 +97,14 @@ Item {
  function fmtTime(v){if(!v)return "--";return new Date(v).toLocaleString(Qt.locale(),"dd MMM yyyy HH:mm:ss")}
  NavoBathymetryMesh{id:meshEngine;objectName:"navoBathymetryMesh"}
  Rectangle{anchors.fill:parent;color:"#071019"}
- View3D{id:view;anchors.fill:parent;camera:camera;environment:SceneEnvironment{clearColor:"#071019";backgroundMode:SceneEnvironment.Color;antialiasingMode:SceneEnvironment.MSAA;antialiasingQuality:SceneEnvironment.High}
+ View3D{id:view;anchors.fill:parent;camera:camera;environment:SceneEnvironment{clearColor:"#071019";backgroundMode:SceneEnvironment.Color;antialiasingMode:root.performanceMode?SceneEnvironment.NoAA:SceneEnvironment.MSAA;antialiasingQuality:root.performanceMode?SceneEnvironment.Low:SceneEnvironment.High}
   // Rotate the camera around the data centre, rather than rotating its gaze
   // from a fixed world position. The local -Z axis always points at the pivot.
   Node{id:cameraPivot;position:Qt.vector3d(root.sceneBounds.centerX+root.panOffset.x,root.sceneBounds.centerY,root.sceneBounds.centerZ+root.panOffset.y);eulerRotation.x:root.pitch;eulerRotation.y:root.yaw
    PerspectiveCamera{id:camera;position:Qt.vector3d(0,0,root.cameraDistance);fieldOfView:45;fieldOfViewOrientation:PerspectiveCamera.Vertical;clipNear:.1;clipFar:Math.max(5000,root.cameraDistance+root.sceneBounds.radius*3)}
   }
-  DirectionalLight{eulerRotation.x:-45;eulerRotation.y:-35;brightness:1.15;castsShadow:true} DirectionalLight{eulerRotation.x:35;eulerRotation.y:145;brightness:.35}
-  Model{id:terrain;pickable:true;geometry:NavoBathymetryGeometry{vertices:meshEngine.vertices;triangles:meshEngine.triangles;verticalExaggeration:root.verticalExaggeration;minDepth:meshEngine.minDepthM;maxDepth:meshEngine.maxDepthM}materials:PrincipledMaterial{vertexColorsEnabled:true;roughness:.72;cullMode:Material.NoCulling}}
+  DirectionalLight{eulerRotation.x:-45;eulerRotation.y:-35;brightness:1.15;castsShadow:!root.performanceMode} DirectionalLight{eulerRotation.x:35;eulerRotation.y:145;brightness:.35}
+  Model{id:terrain;pickable:true;geometry:NavoBathymetryGeometry{id:terrainGeometry;objectName:"nativeTerrainGeometry";vertices:meshEngine.vertices;triangles:meshEngine.triangles;verticalExaggeration:root.verticalExaggeration;minDepth:meshEngine.minDepthM;maxDepth:meshEngine.maxDepthM}materials:PrincipledMaterial{vertexColorsEnabled:true;roughness:.72;cullMode:Material.NoCulling}}
   Node{id:overlayRoot
    Repeater3D{model:root.showWaypoints?root.waypoints:[];delegate:Model{id:wp;required property var modelData;property string kind:"waypoint";pickable:true;position:root.localPoint(modelData.lat!==undefined?modelData.lat:modelData.coordinate.latitude,modelData.lon!==undefined?modelData.lon:modelData.coordinate.longitude,Math.max(0,root.bottomDepth(modelData.lat!==undefined?modelData.lat:modelData.coordinate.latitude,modelData.lon!==undefined?modelData.lon:modelData.coordinate.longitude)-.7));source:"#Sphere";scale:Qt.vector3d(.8,.8,.8);materials:PrincipledMaterial{baseColor:"#ffd54f";emissiveFactor:Qt.vector3d(.25,.18,0)}}}
    Repeater3D{model:root.showSpots?root.fishingSpots:[];delegate:Model{id:spot;required property var modelData;property string kind:"spot";pickable:true;position:root.localPoint(modelData.lat,modelData.lon,Math.max(0,(modelData.depth!==null&&modelData.depth!==undefined?modelData.depth:root.bottomDepth(modelData.lat,modelData.lon))-.8));source:"#Cylinder";scale:Qt.vector3d(.45,1.4,.45);materials:PrincipledMaterial{baseColor:"#ff8a3d"}}}
@@ -97,6 +132,34 @@ Item {
    Tool3D{hint:"Vedere de sus";contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.strokeRect(11,9,20,20);p.beginPath();p.moveTo(21,5);p.lineTo(21,14);p.moveTo(17,10);p.lineTo(21,14);p.lineTo(25,10);p.stroke()}} onClicked:root.topCamera()}
    Tool3D{hint:"Vedere izometrică";contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.beginPath();p.moveTo(21,6);p.lineTo(34,13);p.lineTo(34,27);p.lineTo(21,34);p.lineTo(8,27);p.lineTo(8,13);p.closePath();p.moveTo(8,13);p.lineTo(21,20);p.lineTo(34,13);p.moveTo(21,20);p.lineTo(21,34);p.stroke()}} onClicked:root.isoCamera()}
    Tool3D{hint:"Resetează camera";contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle="#f2f7fb";p.lineWidth=2;p.beginPath();p.arc(21,20,11,.4,5.5);p.stroke();p.beginPath();p.moveTo(29,7);p.lineTo(34,13);p.lineTo(26,14);p.stroke()}} onClicked:root.resetCamera()}
+   Tool3D {
+    objectName:"bathymetryPerformanceToggle"
+    width:58
+    hint: root.performanceMode ? "Mod fluid • apasă pentru antialiasing și umbre" :
+                               "Mod detaliu • apasă pentru randare mai fluidă"
+    checkable:true;checked:root.performanceMode
+    contentItem:Label {
+      text:root.performanceMode?"FLUID":"HD"
+      color:root.performanceMode?"#21b7ff":"#f2f7fb"
+      font.pixelSize:11;font.bold:true
+      horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter
+    }
+    onClicked:root.performanceMode=!root.performanceMode
+   }
+   Tool3D {
+    objectName:"nativeKogger3dToggle"
+    hint: root.nativeSurfaceAvailable ? "Kogger 3D nativ • comută cu modelul din probe" :
+          "Suprafața nativă Kogger nu are încă triunghiuri și GPS valide"
+    enabled: root.nativeSurfaceAvailable || root.nativeModeRequested
+    checkable:true; checked:root.nativeModeRequested && root.nativeMeshLoaded
+    width:58
+    contentItem:Label{
+     text:"K3D"
+     color:root.nativeMeshLoaded?"#21b7ff":"#f2f7fb"
+     font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter
+    }
+    onClicked:root.nativeModeRequested=!root.nativeModeRequested
+   }
    Repeater{model:[1,2,3,5];delegate:Tool3D{required property var modelData;hint:"Exagerare verticală "+modelData+"x";checkable:true;checked:root.verticalExaggeration===modelData;contentItem:Label{text:modelData+"x";color:parent.checked?"#21b7ff":"#f2f7fb";font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter} onClicked:root.verticalExaggeration=modelData}}
    Tool3D{hint:"Traseu barcă";checkable:true;checked:root.showTrack;contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle=parent.checked?"#21b7ff":"#f2f7fb";p.lineWidth=2;p.beginPath();p.moveTo(7,29);p.bezierCurveTo(13,7,29,35,36,11);p.stroke()}} onClicked:root.showTrack=checked}
    Tool3D{hint:"Waypoint-uri";checkable:true;checked:root.showWaypoints;contentItem:Label{text:"WP";color:parent.checked?"#21b7ff":"#f2f7fb";font.bold:true;horizontalAlignment:Text.AlignHCenter;verticalAlignment:Text.AlignVCenter} onClicked:root.showWaypoints=checked}
@@ -104,7 +167,7 @@ Item {
    Tool3D{hint:"Detecții pești";checkable:true;checked:root.showFish;contentItem:Canvas{anchors.fill:parent;onPaint:{var p=getContext("2d");p.reset();p.strokeStyle=parent.checked?"#21b7ff":"#f2f7fb";p.lineWidth=2;p.beginPath();p.ellipse(9,12,19,13);p.moveTo(28,18);p.lineTo(36,12);p.lineTo(36,25);p.closePath();p.stroke();p.beginPath();p.arc(14,18,1.3,0,Math.PI*2);p.fillStyle=p.strokeStyle;p.fill()}} onClicked:root.showFish=checked}
   }
  }
- Rectangle{visible:!root.samples||root.samples.length===0;anchors.centerIn:parent;width:Math.min(parent.width-24,430);height:empty3d.implicitHeight+32;radius:10;color:"#102232";border.color:"#315b75"
+ Rectangle{visible:meshEngine.vertices.length===0;anchors.centerIn:parent;width:Math.min(parent.width-24,430);height:empty3d.implicitHeight+32;radius:10;color:"#102232";border.color:"#315b75"
   ColumnLayout{id:empty3d;anchors.centerIn:parent;width:parent.width-24;spacing:8
    Label{Layout.fillWidth:true;text:"Nu există încă măsurători 3D";color:"white";font.bold:true;horizontalAlignment:Text.AlignHCenter}
    Label{Layout.fillWidth:true;text:"Conectează Kogger și salvează probe sonar cu poziție GPS pentru a construi fundul bălții.";color:"#9db2c5";wrapMode:Text.WordWrap;horizontalAlignment:Text.AlignHCenter}
@@ -120,13 +183,23 @@ Item {
    Text{color:"white";visible:selectedPoint!==null;text:visible?(selectedPoint.measured?"Măsurat":"Interpolat")+" • confidence "+Math.round(selectedPoint.confidence*100)+"%":""}
    Text{color:"white";visible:selectedObject&&selectedObject.strength!==undefined&&selectedObject.strength!==null;text:visible?"Intensitate sonar: "+Number(selectedObject.strength).toFixed(2):""}
   }}
- Column{anchors{right:parent.right;bottom:parent.bottom;margins:12}spacing:5;Rectangle{width:180;height:18;gradient:Gradient{orientation:Gradient.Horizontal;GradientStop{position:0;color:"#0db8c7"}GradientStop{position:.5;color:"#0a3d9e"}GradientStop{position:1;color:"#330a61"}}}Text{color:"white";text:Number(meshEngine.minDepthM).toFixed(1)+" m                         "+Number(meshEngine.maxDepthM).toFixed(1)+" m"}Text{color:"white";text:meshEngine.measuredVertexCount+" măsurate • "+meshEngine.interpolatedVertexCount+" interpolate • LOD "+root.lodLevel}}
- Timer{id:lodDebounce;interval:220;repeat:false;onTriggered:if(samples.length)root.rebuild()}
+ Column{anchors{right:parent.right;bottom:parent.bottom;margins:12}spacing:5;Rectangle{width:180;height:18;gradient:Gradient{orientation:Gradient.Horizontal;GradientStop{position:0;color:"#0db8c7"}GradientStop{position:.5;color:"#0a3d9e"}GradientStop{position:1;color:"#330a61"}}}Text{color:"white";text:Number(meshEngine.minDepthM).toFixed(1)+" m                         "+Number(meshEngine.maxDepthM).toFixed(1)+" m"}Text{color:"white";text:root.nativeMeshLoaded ?
+   "KOGGER NATIV • "+meshEngine.triangles.length+" triunghiuri • adâncimi derivate"+(root.nativeSurfaceMesh.truncated?" • limitat":"") :
+   meshEngine.measuredVertexCount+" măsurate • "+meshEngine.interpolatedVertexCount+" interpolate • LOD "+root.lodLevel}
+ Text{color:"#a9bfcb";font.pixelSize:10;text:"GPU geom. "+(terrainGeometry.geometryBytes/1048576).toFixed(2)+" MiB • build "+terrainGeometry.lastBuildMs.toFixed(1)+" ms"}}
+ Timer{id:nativeDebounce;interval:350;repeat:false;onTriggered:root.rebuild()}
+ Timer{id:lodDebounce;interval:220;repeat:false;onTriggered:if(!root.nativeMeshLoaded&&samples.length)root.rebuild()}
  Timer{id:sampleDebounce;interval:650;repeat:false;onTriggered:if(samples.length)root.refreshForSamples()}
- onLodLevelChanged:if(samples.length)lodDebounce.restart()
+ onLodLevelChanged:if(!root.nativeMeshLoaded&&samples.length)lodDebounce.restart()
+ onNativeModeRequestedChanged:{cameraFramed=false;nativeDebounce.restart()}
+ onNativeSurfaceMeshChanged:if(nativeModeRequested)nativeDebounce.restart()
  onWidthChanged:if(cameraFramed)fitCamera()
  onHeightChanged:if(cameraFramed)fitCamera()
  onVerticalExaggerationChanged:if(cameraFramed)fitCamera()
- Component.onCompleted:{if(samples.length)rebuild()}
- onSamplesChanged:{if(samples.length)sampleDebounce.restart();else{sampleDebounce.stop();meshEngine.clear();cachedSampleSignature="";cameraFramed=false}}
+ Component.onCompleted:{if(samples.length || (nativeModeRequested && nativeSurfaceAvailable))rebuild()}
+ onSamplesChanged:{
+  if(nativeModeRequested && nativeSurfaceAvailable)return
+  if(samples.length)sampleDebounce.restart()
+  else if(!nativeMeshLoaded){sampleDebounce.stop();meshEngine.clear();cachedSampleSignature="";cameraFramed=false}
+ }
 }

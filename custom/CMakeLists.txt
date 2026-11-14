@@ -46,6 +46,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoHopperBridge.qml
         qml/NavoSonarCard.qml
         qml/NavoSonarPro.qml
+        qml/NavoSonar2DLevels.qml
         qml/NavoAlertAudio.qml
         qml/NavoStealth.qml
         qml/NavoStealthPanel.qml
@@ -83,6 +84,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoBathymetryOverlay.qml
         qml/NavoBathymetryHDOverlay.qml
         qml/NavoNativeBathymetryOverlay.qml
+        qml/NavoNativeIsobathsOverlay.qml
         qml/NavoBathymetryHDModel.qml
         qml/NavoAreaScanOverlay.qml
         qml/NavoAreaDrawOverlay.qml
