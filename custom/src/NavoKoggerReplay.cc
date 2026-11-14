@@ -110,7 +110,8 @@ QVariantList NavoKoggerReplay::overviewColumns() const {
  for(const auto& bin:_overview) {
   QVariantList row; row.reserve(int(bin.levels.size()));
   for(const quint8 value:bin.levels)row.append(int(value));
-  bins.append(row);
+  // QList::append(QList) would flatten the 48 samples into the outer list.
+  bins.append(QVariant::fromValue(row));
  }
  return bins;
 }
