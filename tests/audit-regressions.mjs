@@ -353,7 +353,7 @@ test('Changing the vehicle removes stale servo feedback',()=>{
 test('Sonar PRO preserves recorded ecogram at EOF and starts a clean new replay',()=>{
  const source=fs.readFileSync(path.join(dir,'NavoSonarPro.qml'),'utf8');
  const handler=source.match(/onReplayActiveChanged:\s*(\{[^\n]*\})/)[1];
- const c=vm.createContext({history:[{sequence:1},{sequence:2}],replayActive:false,menuOpen:true});c.root=c;
+ const c=vm.createContext({history:[{sequence:1},{sequence:2}],replayActive:false,menuOpen:true,autoDepthRangeM:0,inspectedColumn:{},nativeEchogram:{resetColumns(){}}});c.root=c;
  vm.runInContext(handler,c);assert.equal(c.history.length,2);assert.equal(c.menuOpen,false);
  c.replayActive=true;vm.runInContext(handler,c);assert.equal(c.history.length,0);
 });
