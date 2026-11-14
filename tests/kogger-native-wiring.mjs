@@ -35,7 +35,7 @@ assert(!/sendCommand\(|MAV_CMD|guidedModeGotoLocation\(|uploadMission\(/.test(re
 required(palette,'src/scene2d/plot2D_echogram.cpp (GPL-3.0)');
 required(sampling,'src/epoch.h (GPL-3.0)');
 assert(palette.includes('QVector<QRgb> adjusted(256)'),'8-bit color table not mapped');
-assert(!renderer.includes('Uint8Array') && !renderer.includes('fillRect('),'old JS four-bin path leaked into C++');
+assert(!renderer.includes('Uint8Array') && renderer.includes('image.scanLine(y)[x]=quint8(value);'),'raster amplitude is not written as exact 8-bit pixels');
 required(cmake,'src/NavoKoggerEchogramItem.cc');
 required(plugin,'qmlRegisterType<NavoKoggerEchogramItem>');
 const mock=read('tests/kogger-replay/mock-imports/NavoSmart/Backend/qmldir');
