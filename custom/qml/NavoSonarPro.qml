@@ -377,7 +377,7 @@ Rectangle {
     Component.onCompleted: Qt.callLater(pushHistory)
     onHistoryChanged: {
         if (!history.length) { rasterCache = []; autoDepthRangeM=0 }
-        if (depthScaleMode==="auto" && !paused && history.length) depthScaleTimer.restart()
+        if (depthScaleMode==="auto" && !paused && history.length && !depthScaleTimer.running) depthScaleTimer.start()
         repaint()
     }
     onActiveLakeIdChanged: { endPointPick();sonarPointDialog.close();history=[] }
@@ -408,7 +408,8 @@ Rectangle {
     Timer { id:depthScaleTimer;interval:450;repeat:false;onTriggered:root.updateAutoDepthRange() }
     onDepthScaleModeChanged: { if(depthScaleMode==="auto")depthScaleTimer.restart();repaint() }
     onManualDepthRangeMChanged: repaint()
-    onDepthMChanged: if(depthScaleMode==="auto" && !paused && history.length)depthScaleTimer.restart()
+    onDepthMChanged: if(depthScaleMode==="auto" && !paused && history.length && !depthScaleTimer.running)depthScaleTimer.start()
+    onPausedChanged: if(!paused && depthScaleMode==="auto" && history.length)depthScaleTimer.restart()
     onScaleStartChanged: repaint()
     onScaleRangeChanged: repaint()
 
