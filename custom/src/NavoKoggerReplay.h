@@ -7,6 +7,8 @@
 #include <QVariantList>
 #include <QVector>
 #include <QByteArray>
+#include <QHash>
+#include <QQueue>
 #include <memory>
 #include "NavoSonarArchive.h"
 namespace Parsers { class FrameParser; }
@@ -40,6 +42,17 @@ public:
  int indexedColumns() const { return _columns.size(); }
  int currentColumn() const;
  Q_INVOKABLE bool seekColumn(int column);
+ // Read any visible horizontal slice of the indexed .klf without moving the
+ // playback cursor. pixels is output width, span is source-column width.
+ // Every returned entry carries its original global column index.
+ struct ViewColumn {
+  QByteArray bytes;
+  int sourceIndex=-1;
+  quint16 resolutionMm=0, absoluteOffset=0;
+  quint8 version=0;
+ };
+ QVector<ViewColumn> readDisplaySlice(int endColumn,int spanColumns,int pixels,
+                                     int firstPixel,int pixelCount) const;
  QString error() const { return _error; }
  QVariantMap annotationAnchor() const;
  QVariantList annotations() const { return _annotations; }
@@ -71,6 +84,11 @@ private:
  QByteArray _indexBuffer;
  qint64 _indexBufferOffset=0;
  QVector<ColumnOffset> _columns;
+ // 24 MiB maximum cached raw CHART columns for smooth repeated back/forward
+ // browsing. Never pre-render or hold all file images in RAM.
+ mutable QHash<int,ViewColumn> _previewCache;
+ mutable QQueue<int> _previewCacheOrder;
+ mutable qint64 _previewCacheBytes=0;
  Pose _scanPose;
  qint64 _scanPacketCount=0;
  qint64 _indexProcessed=0;
