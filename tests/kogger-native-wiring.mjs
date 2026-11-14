@@ -28,7 +28,7 @@ required(renderer,'image.setColorTable(NavoKoggerPalette::colors(');
 required(renderer,'QImage::Format_Indexed8','renderer still uses low-resolution rectangles');
 required(renderer,'NavoKoggerSampling::atDisplayDepth(');
 required(renderer,'_frameTimer.setInterval(33)','paint calls must be throttled for G20');
-required(renderer,'if(_columns.size()>MaxRetainedColumns)','unbounded G20 RAM use');
+required(renderer,'while(_columns.size()>MaxRetainedColumns || _rawCacheBytes>MaxRawCacheBytes)','G20 size/byte cache evictions missing');
 required(header,'MaxRetainedColumns=4096');
 required(header,'MaxRawCacheBytes=24*1024*1024');
 required(renderer,'_rawCacheBytes>MaxRawCacheBytes');
