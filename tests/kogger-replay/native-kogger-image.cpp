@@ -88,6 +88,47 @@ int main(int argc,char**argv) {
         require(used.size()>16,"actual .klf still rendered as a coarse four-colour image");
         require(recording.save(QStringLiteral("kogger-native-8bit-replay.png")),
                 "cannot save real recorded Kogger native screenshot");
+        // The same recording must remain browsable as a whole, after replay is
+        // paused, with exact on-disk columns at every zoom and no re-seek.
+        QElapsedTimer indexWait;indexWait.start();
+        while(!replay.indexReady() && indexWait.elapsed()<45000)
+            QCoreApplication::processEvents(QEventLoop::AllEvents,20);
+        require(replay.indexReady() && replay.indexedColumns()>10000,
+                "complete KLF index not ready for file viewport");
+        replay.setPaused(true);
+        const qint64 playbackPosition=replay.position();
+        const int total=replay.indexedColumns();
+        item.setFileReplay(&replay);
+        item.setFileWindowStart(0);
+        item.setFileWindowColumns(total);
+        item.setFileSelectedColumn(total/2);
+        auto awaitInspect=[&](int expected){
+            QElapsedTimer wait;wait.start();
+            while(wait.elapsed()<18000){
+                QCoreApplication::processEvents(QEventLoop::AllEvents,15);
+                const auto info=item.inspectAt(480,180);
+                if(info.value("column").toInt()==expected)return true;
+            }
+            return false;
+        };
+        const int centreAtOverview=total/2+1;
+        require(awaitInspect(centreAtOverview),
+                "global overview does not address whole KLF timeline");
+        QImage overview(960,540,QImage::Format_ARGB32_Premultiplied);
+        overview.fill(Qt::black);
+        QPainter overviewPainter(&overview);item.paint(&overviewPainter);overviewPainter.end();
+        require(overview.save("kogger-native-file-overview.png"),
+                "cannot save full-file native overview screenshot");
+        item.setFileWindowColumns(64);
+        item.setFileWindowStart(0);
+        require(awaitInspect(33),"zoomed file viewport cannot read start-of-file");
+        item.setFileWindowStart(total/2);
+        require(awaitInspect(total/2+33),"zoomed file viewport cannot read middle");
+        item.setFileWindowStart(total-64);
+        require(awaitInspect(total-31),"zoomed file viewport cannot read end-of-file");
+        require(replay.position()==playbackPosition,
+                "file pan/zoom unexpectedly advanced playback");
+        item.setFileReplay(nullptr);
         replay.stop();
         std::cout<<"PASS Kogger recorded CHART through native 8-bit view: columns="
                  <<actual<<" unique_display_colours="<<used.size()<<'\n';
