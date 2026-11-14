@@ -16,6 +16,9 @@ QtObject {
  readonly property real replayIndexProgress: replayObject.indexProgress
  readonly property int replayColumnCount: replayObject.indexedColumns
  readonly property int replayCurrentColumn: replayObject.currentColumn
+ readonly property int replayViewportColumn: replayObject.viewportColumn
+ readonly property var replayOverviewColumns: replayObject.overviewColumns
+ readonly property int replayOverviewStride: replayObject.overviewStride
  readonly property string replayError: replayObject.error
  readonly property var replayAnnotationAnchor: replayObject.annotationAnchor
  readonly property var replayAnnotations: replayObject.annotations
@@ -53,6 +56,17 @@ QtObject {
   chartBridge.setPosition(NaN,NaN,NaN,NaN,NaN)
   var ok=replayObject.seekColumn(Math.floor(column))
   if(ok)replaySeeked(Math.floor(column))
+  return ok
+ }
+ // Viewport is independent of chronological replay: centred window on disk.
+ function seekReplayWindow(center,visibleColumns) {
+  if(!replayMode || !replayObject.indexReady || !isFinite(center) ||
+     center<0 || center>=replayObject.indexedColumns)return false
+  decoderObject.reset()
+  chartBridge.clear()
+  chartBridge.setPosition(NaN,NaN,NaN,NaN,NaN)
+  var ok=replayObject.seekWindow(Math.floor(center),Math.max(1,Math.floor(visibleColumns)))
+  if(ok)replaySeeked(Math.floor(center))
   return ok
  }
  function pauseReplay(paused) { replayObject.setPaused(paused) }
