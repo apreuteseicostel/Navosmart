@@ -11,8 +11,88 @@
 #include <QSaveFile>
 #include <QStandardPaths>
 #include <QDir>
+#include <cmath>
 
 NavoBathymetryMesh::NavoBathymetryMesh(QObject* parent):QObject(parent){}
+
+// Native Kogger surface -> the pre-existing NAVO Qt Quick 3D geometry contract.
+// No re-triangulation, synthetic soundings, or mutations to the source Dataset.
+bool NavoBathymetryMesh::loadNativeSurface(const QVariantMap& surface) {
+    if(surface.value("version").toInt()!=1 ||
+       surface.value("source").toString()!=QStringLiteral("kogger-native-surface")) return false;
+    const auto points=surface.value("vertices").toList();
+    const auto indices=surface.value("indices").toList();
+    if(points.size()<3 || points.size()>8192 ||
+       indices.size()<3 || indices.size()>49152 || indices.size()%3) return false;
+
+    const auto first=points.first().toList();
+    if(first.size()!=4) return false;
+    bool okLat=false,okLon=false;
+    const double lat0=first[0].toDouble(&okLat),lon0=first[1].toDouble(&okLon);
+    if(!okLat || !okLon || !std::isfinite(lat0) || !std::isfinite(lon0) ||
+       std::abs(lat0)>90 || std::abs(lon0)>180) return false;
+
+    struct Point { double x,y,depth; int mark; };
+    QVector<Point> converted;
+    QVariantList vertices,triangles;
+    converted.reserve(points.size());
+    const double kEarthRadius=6378137.0, latRadians=qDegreesToRadians(lat0);
+    double minDepth=std::numeric_limits<double>::infinity();
+    double maxDepth=-std::numeric_limits<double>::infinity();
+    for(const auto& item:points) {
+        const auto p=item.toList();
+        if(p.size()!=4) return false;
+        bool a=false,b=false,c=false,d=false;
+        const double lat=p[0].toDouble(&a),lon=p[1].toDouble(&b),depth=p[2].toDouble(&c);
+        const int mark=p[3].toInt(&d);
+        if(!a||!b||!c||!d||!std::isfinite(lat)||!std::isfinite(lon)||!std::isfinite(depth) ||
+           std::abs(lat)>90||std::abs(lon)>180||depth<=0||depth>1000||mark<1||mark>3)
+            return false;
+        // Local scene is X=east, Y=north, Z=-depth; QQuick3D maps X,Y to X,-Z.
+        const double east=qDegreesToRadians(lon-lon0)*std::cos(latRadians)*kEarthRadius;
+        const double north=qDegreesToRadians(lat-lat0)*kEarthRadius;
+        if(!std::isfinite(east)||!std::isfinite(north) ||
+           std::abs(east)>10000||std::abs(north)>10000) return false;
+        converted.push_back({east,north,depth,mark});
+        // Kogger surface mark kTriangulation is derived, NOT proof of a direct
+        // sonar measurement; never label these exported vertices "measured".
+        const double displayConfidence=mark==3 ? 0.75 : mark==2 ? 0.60 : 0.35;
+        vertices.append(QVariantMap{{"x",east},{"y",north},{"z",-depth},
+                                    {"depth",depth},{"measured",false},
+                                    {"confidence",displayConfidence},
+                                    {"nativeMark",mark}});
+        minDepth=std::min(minDepth,depth);
+        maxDepth=std::max(maxDepth,depth);
+    }
+    for(int t=0;t<indices.size();t+=3) {
+        bool a=false,b=false,c=false;
+        const int i=indices[t].toInt(&a),j=indices[t+1].toInt(&b),k=indices[t+2].toInt(&c);
+        if(!a||!b||!c || i<0||j<0||k<0 ||
+           i>=converted.size()||j>=converted.size()||k>=converted.size() ||
+           i==j||j==k||i==k) return false;
+        const auto& p=converted[i]; const auto& q=converted[j]; const auto& r=converted[k];
+        const double twiceArea=(q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x);
+        if(!std::isfinite(twiceArea) || std::abs(twiceArea)<0.00001) return false;
+        const auto edge2=[](const Point& a,const Point& b){
+            const double dx=a.x-b.x,dy=a.y-b.y;
+            return dx*dx+dy*dy;
+        };
+        // Reject huge geographic jumps instead of filling unknown lake areas.
+        if(edge2(p,q)>40000 || edge2(q,r)>40000 || edge2(r,p)>40000) return false;
+        triangles.append(QVariant(QVariantList{i,j,k}));
+    }
+
+    // Commit atomically so a malformed recording cannot replace a valid scene.
+    _vertices=std::move(vertices);
+    _triangles=std::move(triangles);
+    _originLat=lat0; _originLon=lon0;
+    _minDepth=minDepth; _maxDepth=maxDepth;
+    _measuredCount=0; _interpolatedCount=_vertices.size();
+    _lodLevel=0;
+    _cacheKey=QStringLiteral("kogger-native-runtime");
+    emit meshChanged();
+    return true;
+}
 void NavoBathymetryMesh::clear(){_vertices.clear();_triangles.clear();_cacheKey.clear();_originLat=_originLon=0;_minDepth=_maxDepth=0;_measuredCount=_interpolatedCount=0;emit meshChanged();}
 
 static QString measurementKey(const QVariantList& samples,double gridSizeM,double maxGapM,int lodLevel){
