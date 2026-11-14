@@ -82,6 +82,12 @@ jobs:
           node tests/installed-spots-driver.mjs
           node tests/steering-bottom.mjs
           node tests/map-visual-position.mjs
+          node tests/sonar-kogger-2d.mjs
+          node tests/isobaths-ui.mjs
+          node tests/g20-performance.mjs
+          node tests/offline-lab-auto-depth.mjs
+          node tests/kogger-native-wiring.mjs
+          node tests/native-3d-ui.mjs
       - name: Render production Missions UI with Qt 6.8.3
         run: |
           python3 -m venv /tmp/navo-ui-env

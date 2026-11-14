@@ -51,6 +51,12 @@ jobs:
           path: /tmp/navo-qt-runtime/ui.tar.gz
       - name: Test native surface geometry
         run: /tmp/navo-replay/navo-native-surface
+      - name: Test Kogger native isobaths NED to GPS conversion
+        run: /tmp/navo-replay/navo-native-isobaths
+      - name: Verify native Kogger 3D terrain conversion and sample fallback
+        run: /tmp/navo-replay/navo-native-3d
+      - name: Verify original Kogger echogram palette and native 8-bit renderer
+        run: /tmp/navo-replay/navo-native-kogger-image
       - name: Test production H743 servo feedback wiring
         run: /tmp/navo-replay/navo-servo-feedback custom/qml/NavoHopperBridge.qml
       - name: Test installed acceptance scene ownership
@@ -71,6 +77,8 @@ jobs:
         run: curl --fail --location --retry 3 --max-time 180 https://kogger.tech/wp-content/uploads/00028_DownView.klf -o /tmp/00028_DownView.klf
       - name: Replay verified fixture through actual NAVO decoder
         run: /tmp/navo-replay/navo-kogger-replay /tmp/00028_DownView.klf custom/qml/NavoSonarEthernet.qml
+      - name: Render original DownView recording with native Kogger 256-shade view
+        run: /tmp/navo-replay/navo-native-kogger-image /tmp/00028_DownView.klf
 
       - name: Render production native surface Canvas
         run: /tmp/navo-replay/navo-native-surface-view tests/kogger-replay/native-surface-view.qml kogger-native-surface.json
@@ -85,6 +93,7 @@ jobs:
           path: |
             kogger-native-surface*.png
             kogger-native-surface.json
+            kogger-native-8bit-replay.png
             kogger-sonar-pro-*.png
             kogger-sonarRecordingDialog-*.png
             kogger-sonarRecordingsDialog-*.png

@@ -18,6 +18,10 @@ public:
     bool ingest(const NavoKoggerChartRecord& record, const ChannelId& channel, double heading,double pitch=qQNaN(),double roll=qQNaN());
     void clear();
     void shutdown();
+    bool isobathsEnabled() const { return isobathsEnabled_; }
+    double isobathsStepMeters() const { return isobathsStepMeters_; }
+    void setIsobathsEnabled(bool enabled);
+    void setIsobathsStepMeters(double step);
     int processedColumns() const {return processedColumns_;}
     int tileCount() const {return tiles_.size();}
     bool capacityFull() const {return capacityFull_;}
@@ -30,6 +34,7 @@ signals:
     void processingChanged();
     void bottomSampleReady(int epoch,double latitude,double longitude,double depth,double temperature);
     void tilesChanged();
+    void isobathsSegmentsChanged(const QVector<QVector3D>& lineSegments);
     void bottomColumnReady(quint64 sequence,double depth);
     void geoSampleReady(const QVariantMap& sample);
 private:
@@ -46,6 +51,8 @@ private:
     int processedColumns_=0;
     bool capacityFull_=false;
     double bottomDepth_=qQNaN();
+    bool isobathsEnabled_=false;
+    double isobathsStepMeters_=1.0;
     QTimer rolloverTimer_;
     struct PendingInput {QByteArray chart;quint16 resolution,offset;quint8 version; qint64 time;double lat,lon,depth,temp,heading,pitch,roll;ChannelId channel;quint64 sequence;};
     QVector<PendingInput> pending_;

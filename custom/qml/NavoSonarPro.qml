@@ -4,8 +4,10 @@ import QtQuick.Layouts
 import QtQuick.Dialogs
 import QtPositioning
 import QtLocation
+import NavoSmart.Backend 1.0
 import QGroundControl.FlightMap
 import "NavoBottomAnalysis.js" as BottomAnalysis
+import "NavoSonarDepthScale.js" as DepthWindow
 
 Rectangle {
     id: root
@@ -112,6 +114,11 @@ Rectangle {
     property bool menuOpen: false
     property bool paused: false
     property var history: []
+    // Auto window is view-only, never a rewrite of the CHART/Dataset samples.
+    // RAW always restores the exact recording range (e.g. 0–50 m).
+    property string depthScaleMode: "auto" // auto | raw | fixed
+    property real manualDepthRangeM: 5
+    property real autoDepthRangeM: 0
     property string activeLakeId: ""
     property string pointSaveStatus: ""
     property bool pointPicking: false
@@ -175,7 +182,7 @@ Rectangle {
         var col = entry.samples
         var geometryKey = [rows, scaleStart, scaleRange, entry.offset, entry.range,
                            noiseFilterEnabled].join(":")
-        var key = [geometryKey, gain, noiseFloor].join(":")
+        var key = [geometryKey, gain, noiseFloor, levelLow, levelHigh].join(":")
         var cache = rasterCache, slot = -1, cached = null
         for (var c = 0; c < cache.length; ++c)
             if (cache[c].samples === col) { slot = c; cached = cache[c]; break }
@@ -210,6 +217,7 @@ Rectangle {
         for (var y = 0; y < rows; ++y) {
             var v = isFinite(peaks[y]) ? Math.max(0, Math.min(1, (peaks[y] - floor) * displayGain)) : 0
             if (!isFinite(v)) v = 0
+            v = levelStrength(v)
             strengths[y] = v
             bins[y] = v <= 0 ? 0 : v > .72 ? 4 : v > .48 ? 3 : v > .24 ? 2 : 1
         }
@@ -266,11 +274,19 @@ Rectangle {
     }
     property real gain: 1.0
     property real noiseFloor: 0.10
+    // Kogger-style display levels; raw CHART/Dataset bytes remain untouched.
+    property real levelLow: 0
+    property real levelHigh: 100
+    property bool amberPalette: false
+    readonly property int paletteMode: amberPalette ? 2 : (dayPalette ? 1 : 0)
     property bool noiseFilterEnabled: false
     property bool dayPalette: false
     property bool koggerCompensation: false
     // Native bottom results update their matching completed CHART column.
     property bool showBottomTrack: true
+    // Opt-in fallback remains for APK testing; native Kogger 8-bit is default.
+    property bool useNativeRenderer: true
+    property var inspectedColumn: ({})
     readonly property var displayedColumn: history.length ? history[history.length - 1] : null
     readonly property int buttonSize: width < 640 ? 36 : 40
     readonly property color selectedMenuColor: "#176b86"
@@ -322,9 +338,22 @@ Rectangle {
             if (isFinite(left) && isFinite(right))
                 value = Math.max(Math.min(left, value), Math.min(Math.max(left, value), right))
         }
-        return Math.max(0, Math.min(1, (value - noiseFloor) * gain))
+        return levelStrength(Math.max(0, Math.min(1, (value - noiseFloor) * gain)))
+    }
+    function levelStrength(value) {
+        // A 0–100 window is the old display exactly; avoid changing sonar processing.
+        var lower = Math.max(0, Math.min(.99, levelLow / 100))
+        var upper = Math.max(lower + .01, Math.min(1, levelHigh / 100))
+        return Math.max(0, Math.min(1, (value - lower) / (upper - lower)))
+    }
+    function selectPalette(mode) {
+        if (mode !== 0 && mode !== 1 && mode !== 2) return
+        dayPalette = mode === 1
+        amberPalette = mode === 2
     }
     function echoColor(value) {
+        if (amberPalette)
+            return value > .72 ? "#fff1c5" : value > .48 ? "#f1d18a" : value > .24 ? "#d18a30" : "#6b3b18"
         if (dayPalette)
             return value > .72 ? "#a52026" : value > .48 ? "#e97820" : value > .24 ? "#136d9b" : "#b7d8e8"
         return value > .72 ? "#f44b2e" : value > .48 ? "#f6da46" : value > .24 ? "#1ccde1" : "#105caa"
@@ -334,6 +363,11 @@ Rectangle {
         noiseFloor = .10
         noiseFilterEnabled = false
         dayPalette = false
+        amberPalette = false
+        levelLow = 0
+        levelHigh = 100
+        depthScaleMode = "auto"
+        autoDepthRangeM = 0
     }
     function repaint() { echogram.requestPaint(); liveEcho.requestPaint() }
     // Read the source getters synchronously: all metadata is published before
@@ -341,23 +375,45 @@ Rectangle {
     Connections {
         target: root.chartSource || null
         function onEchoSamplesChanged() { root.captureGeoChart(); root.pushHistory() }
-        function onBottomColumnReady(sequence,depth) { root.updateHistoryBottom(sequence,depth) }
+        function onBottomColumnReady(sequence,depth) { root.updateHistoryBottom(sequence,depth); nativeEchogram.setBottomDepth(sequence,depth) }
     }
     onSamplesChanged: if (!chartSource) Qt.callLater(pushHistory)
     Component.onCompleted: Qt.callLater(pushHistory)
-    onHistoryChanged: { if (!history.length) rasterCache = []; repaint() }
-    onActiveLakeIdChanged: { endPointPick();sonarPointDialog.close();history=[] }
-    onReplayModeChanged: { endPointPick();sonarPointDialog.close();history=[] }
+    onHistoryChanged: {
+        if (!history.length) { rasterCache = []; autoDepthRangeM=0 }
+        if (depthScaleMode==="auto" && !paused && history.length && !depthScaleTimer.running) depthScaleTimer.start()
+        repaint()
+    }
+    onActiveLakeIdChanged: { endPointPick();sonarPointDialog.close();history=[];nativeEchogram.resetColumns();inspectedColumn=({}) }
+    onReplayModeChanged: { endPointPick();sonarPointDialog.close();history=[];autoDepthRangeM=0;nativeEchogram.resetColumns();inspectedColumn=({}) }
     onGainChanged: repaint()
     onNoiseFloorChanged: repaint()
     onNoiseFilterEnabledChanged: repaint()
     onDayPaletteChanged: repaint()
-    onReplayActiveChanged: { if(replayActive)history=[]; root.menuOpen=false }
+    onAmberPaletteChanged: repaint()
+    onLevelLowChanged: repaint()
+    onLevelHighChanged: repaint()
+    onReplayActiveChanged: { if(replayActive){history=[];autoDepthRangeM=0;nativeEchogram.resetColumns();inspectedColumn=({})}; root.menuOpen=false }
     onKoggerCompensationChanged: { history = []; pushHistory(); repaint() }
     onShowBottomTrackChanged: repaint()
-    // Freeze scale together with the displayed history while paused.
+    // Scale is a display crop: raw amplitude/sample positions are unchanged.
+    // Freeze auto updates with the displayed history while paused.
     readonly property real scaleStart: displayedColumn ? displayedColumn.offset : (isFinite(chartOffsetMeters) ? chartOffsetMeters : 0)
-    readonly property real scaleRange: displayedColumn ? displayedColumn.range : (isFinite(chartRangeMeters) && chartRangeMeters > 0 ? chartRangeMeters : 0)
+    readonly property real sourceDepthRange: displayedColumn ? displayedColumn.range : (isFinite(chartRangeMeters) && chartRangeMeters > 0 ? chartRangeMeters : 0)
+    readonly property real scaleRange: depthScaleMode==="raw" ? sourceDepthRange :
+        depthScaleMode==="fixed" ? Math.min(sourceDepthRange,manualDepthRangeM) :
+        (autoDepthRangeM>0 ? Math.min(sourceDepthRange,autoDepthRangeM) : sourceDepthRange)
+    function updateAutoDepthRange() {
+        if (depthScaleMode!=="auto" || paused || !displayedColumn) return
+        var target=DepthWindow.targetRange(history,depthM,scaleStart,sourceDepthRange)
+        // Unknown bottom => keep the full native range; do not zoom into noise.
+        autoDepthRangeM=target>0 ? DepthWindow.smoothRange(autoDepthRangeM,target,sourceDepthRange) : 0
+    }
+    Timer { id:depthScaleTimer;interval:450;repeat:false;onTriggered:root.updateAutoDepthRange() }
+    onDepthScaleModeChanged: { if(depthScaleMode==="auto")depthScaleTimer.restart();repaint() }
+    onManualDepthRangeMChanged: repaint()
+    onDepthMChanged: if(depthScaleMode==="auto" && !paused && history.length && !depthScaleTimer.running)depthScaleTimer.start()
+    onPausedChanged: if(!paused && depthScaleMode==="auto" && history.length)depthScaleTimer.restart()
     onScaleStartChanged: repaint()
     onScaleRangeChanged: repaint()
 
@@ -382,7 +438,33 @@ Rectangle {
             width: root.mapEnabled ? Math.floor((parent.width - 2) * 0.55) : parent.width
             height: parent.height
             clip: true
+            NavoKoggerEchogramItem {
+                id: nativeEchogram
+                objectName:"sonarProNativeKoggerEchogram"
+                anchors.left:parent.left;anchors.top:parent.top
+                anchors.bottom:parent.bottom;anchors.right:echoColumn.left
+                visible:root.useNativeRenderer
+                decoder:root.chartSource ? (root.chartSource.nativeEchogramDecoder || null) : null
+                depthFrom:isFinite(root.scaleStart)?root.scaleStart:0
+                depthRange:isFinite(root.scaleRange)&&root.scaleRange>0?root.scaleRange:50
+                paletteMode:root.paletteMode
+                lowLevel:root.levelLow
+                highLevel:root.levelHigh
+                gain:root.gain
+                noiseFloor:root.noiseFloor
+                frozen:root.paused
+                showBottomTrack:root.showBottomTrack
+                MouseArea {
+                    anchors.fill:parent
+                    cursorShape:Qt.CrossCursor
+                    onClicked:function(mouse){
+                        if(root.pointPicking){root.selectSonarPoint(mouse.x,width);return}
+                        root.inspectedColumn=nativeEchogram.inspectAt(mouse.x,mouse.y)
+                    }
+                }
+            }
             Canvas {
+                visible:!root.useNativeRenderer
                 id: echogram
                 objectName: "sonarProEchogram"
                 anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
@@ -391,7 +473,7 @@ Rectangle {
                 onHeightChanged: requestPaint()
                 onPaint: {
                     var ctx = getContext("2d")
-                    ctx.reset(); ctx.fillStyle = root.dayPalette ? "#f1f5f7" : "#03101a"; ctx.fillRect(0,0,width,height)
+                    ctx.reset(); ctx.fillStyle = root.dayPalette ? "#f1f5f7" : (root.amberPalette ? "#170e0a" : "#03101a"); ctx.fillRect(0,0,width,height)
                     var cw = width / root.historyColumns
                     for (var x=0; x<root.history.length; x++) {
                         var entry=root.history[x], col=entry.samples
@@ -400,7 +482,9 @@ Rectangle {
                         var bins = root.displayRaster(entry, height).bins
                         var palette = root.dayPalette
                             ? ["", "#b7d8e8", "#136d9b", "#e97820", "#a52026"]
-                            : ["", "#105caa", "#1ccde1", "#f6da46", "#f44b2e"]
+                            : root.amberPalette
+                                ? ["", "#6b3b18", "#d18a30", "#f1d18a", "#fff1c5"]
+                                : ["", "#105caa", "#1ccde1", "#f6da46", "#f44b2e"]
                         for (var y=0; y<bins.length;) {
                             var shade=bins[y], end=y+1
                             while (end<bins.length && bins[end]===shade) ++end
@@ -444,6 +528,27 @@ Rectangle {
                     onClicked:function(mouse){root.selectSonarPoint(mouse.x,width)}
                 }
             }
+            Rectangle {
+                objectName:"sonarProNativeInspector"
+                visible:root.useNativeRenderer && root.inspectedColumn &&
+                    root.inspectedColumn.column!==undefined
+                z:10;radius:7;color:"#ee061523";border.color:"#3bbcd4"
+                anchors.horizontalCenter:nativeEchogram.horizontalCenter
+                anchors.bottom:parent.bottom;anchors.bottomMargin:12
+                width:Math.min(parent.width-65,400);height:74
+                Text {
+                    anchors.fill:parent;anchors.margins:7;color:"#e3f4fa"
+                    font.pixelSize:11;wrapMode:Text.WordWrap
+                    text:!parent.visible?"":(
+                        "CHART #"+root.inspectedColumn.column+" • "+root.inspectedColumn.sequence+
+                        "\\nCursor: "+Number(root.inspectedColumn.selectedDepthM).toFixed(2)+" m"+
+                        " • ecou: "+Number(root.inspectedColumn.amplitudePercent).toFixed(1)+"%"+
+                        "\\nFund: "+(isFinite(Number(root.inspectedColumn.bottomDepthM))?
+                            Number(root.inspectedColumn.bottomDepthM).toFixed(2)+" m":"nedetectat")+
+                        " • rez. "+root.inspectedColumn.resolutionMm+" mm")
+                }
+                MouseArea {anchors.fill:parent;onClicked:root.inspectedColumn=({})}
+            }
             Label {
                 anchors.horizontalCenter:echogram.horizontalCenter;anchors.bottom:parent.bottom
                 visible:root.pointPicking;z:2;text:"Atinge coloana sonar • PAUZĂ";color:"#ffffff"
@@ -451,7 +556,7 @@ Rectangle {
             }
             Label {
                 anchors.centerIn: parent
-                visible: !root.history.length
+                visible: root.useNativeRenderer ? nativeEchogram.columnCount===0 : !root.history.length
                 text: root.connected ? "Aștept coloane CHART" : "Aștept date Kogger"
                 color: "#9db2c5"
             }
@@ -647,9 +752,14 @@ Rectangle {
                 MenuAction { visible:root.replayMode; text:'Închide replay'; onClicked:root.chartSource.stopReplay() }
                 MenuAction { selected:root.mapEnabled; text: root.mapEnabled ? "Ascunde harta" : "Activează harta"; onClicked: {root.mapEnabled=!root.mapEnabled;root.menuOpen=false} }
                 MenuAction { selected:root.paused; text: root.paused ? "Continuă ecograma" : "Pauză ecogramă"; onClicked: root.paused=!root.paused }
-                MenuAction { selected:root.dayPalette; text: root.dayPalette ? "Paletă NAVO" : "Paletă de zi"; onClicked: root.dayPalette=!root.dayPalette }
-                MenuAction { selected:root.settingsVisible; text: "Sensibilitate și filtre"; onClicked: {root.settingsVisible=!root.settingsVisible;root.menuOpen=false} }
-                MenuAction { selected:root.koggerCompensation; text: root.koggerCompensation ? "Ecou brut" : "Compensare Kogger"; onClicked: root.koggerCompensation=!root.koggerCompensation }
+                MenuAction { selected:root.paletteMode!==0; text: "Paletă: " + ["NAVO", "ZI", "AMBRĂ"][root.paletteMode]; onClicked: root.selectPalette((root.paletteMode+1)%3) }
+                MenuAction { selected:root.settingsVisible; text: "Reglaje Kogger 2D"; onClicked: {root.settingsVisible=!root.settingsVisible;root.menuOpen=false} }
+                MenuAction { visible:!root.useNativeRenderer; selected:root.koggerCompensation; text: root.koggerCompensation ? "Ecou brut" : "Compensare Kogger"; onClicked: root.koggerCompensation=!root.koggerCompensation }
+                MenuAction {
+                    selected:root.useNativeRenderer
+                    text:root.useNativeRenderer ? "Motor: Kogger nativ 256 niveluri" : "Motor: NAVO vechi 4 niveluri"
+                    onClicked:{root.useNativeRenderer=!root.useNativeRenderer;root.inspectedColumn=({})}
+                }
                 MenuAction { selected:root.showBottomTrack; text: root.showBottomTrack ? "Ascunde linia fundului" : "Arată linia fundului"; onClicked: root.showBottomTrack=!root.showBottomTrack }
                 MenuAction { text: "Reset reglaje"; onClicked: root.resetDisplaySettings() }
             }
@@ -669,6 +779,60 @@ Rectangle {
             ColumnLayout {
                 id: settingsContent
                 width: settingsScroll.availableWidth; spacing: 6
+                Label {
+                    text: "SCARĂ VERTICALĂ • PROFUNZIME"
+                    color:"#d9edf7";font.bold:true;font.pixelSize:11
+                }
+                RowLayout {
+                    Layout.fillWidth:true;spacing:5
+                    Button {
+                        objectName:"sonarDepthAutoButton"
+                        text:"AUTO";checkable:true;checked:root.depthScaleMode==="auto"
+                        onClicked:root.depthScaleMode="auto"
+                        Accessible.name:"Scară automată în funcție de fund"
+                    }
+                    Button {
+                        objectName:"sonarDepthRawButton"
+                        text:"RAW";checkable:true;checked:root.depthScaleMode==="raw"
+                        onClicked:root.depthScaleMode="raw"
+                        Accessible.name:"Scară originală CHART"
+                    }
+                    ComboBox {
+                        id:depthScaleSelect
+                        objectName:"sonarDepthManualSelector"
+                        Layout.fillWidth:true
+                        model:[2,3,5,10,20,50]
+                        currentIndex:Math.max(0,model.indexOf(root.manualDepthRangeM))
+                        displayText:root.depthScaleMode==="fixed" ? "FIX "+root.manualDepthRangeM+" m" : "FIX..."
+                        onActivated:function(index){
+                            root.manualDepthRangeM=model[index]
+                            root.depthScaleMode="fixed"
+                        }
+                        Accessible.name:"Scară fixă în metri"
+                    }
+                }
+                Label {
+                    Layout.fillWidth:true
+                    color:"#9db2c5";font.pixelSize:10;wrapMode:Text.WordWrap
+                    text:root.depthScaleMode==="auto" ?
+                        (root.autoDepthRangeM>0 ? "AUTO: fundul ocupă ~75–80% din înălțime. Datele CHART rămân intacte." :
+                        "AUTO: aștept un fund valid; afișez scara originală, fără zoom pe zgomot.") :
+                        root.depthScaleMode==="raw" ? "RAW: intervalul original al sonarului, fără decupare." :
+                        "FIX: zoom doar pentru afișare; datele originale nu se pierd."
+                }
+                Rectangle { Layout.fillWidth:true;Layout.preferredHeight:1;color:"#31536c" }
+                NavoSonar2DLevels {
+                    Layout.fillWidth: true
+                    lowerLevel: root.levelLow
+                    upperLevel: root.levelHigh
+                    paletteMode: root.paletteMode
+                    onLevelsEdited: function(lower, upper) {
+                        root.levelLow = Math.max(0, Math.min(99, lower))
+                        root.levelHigh = Math.max(root.levelLow + 1, Math.min(100, upper))
+                    }
+                    onPaletteSelected: function(mode) { root.selectPalette(mode) }
+                }
+                Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: "#31536c" }
                 RowLayout {
                     Layout.fillWidth: true
                     Image { source: "qrc:/qml/NavoSmart/icons/gain.svg"; Layout.preferredWidth: 22; Layout.preferredHeight: 22 }

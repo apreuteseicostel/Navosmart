@@ -2,6 +2,7 @@
 #include "NavoConnectivity.h"
 #include "NavoFpvItem.h"
 #include "NavoKoggerDecoder.h"
+#include "NavoKoggerEchogramItem.h"
 #include "NavoKoggerReplay.h"
 #include "NavoKoggerRecorder.h"
 #include "NavoKoggerChartBridge.h"
@@ -50,6 +51,7 @@ CustomPlugin::CustomPlugin(QObject* parent):QGCCorePlugin(parent),_options(new C
  qmlRegisterType<NavoKoggerRecorder>("NavoSmart.Backend",1,0,"NavoKoggerRecorder");
  qmlRegisterType<NavoKoggerReplay>("NavoSmart.Backend",1,0,"NavoKoggerReplay");
  qmlRegisterType<NavoKoggerDecoder>("NavoSmart.Backend",1,0,"NavoKoggerDecoder");
+ qmlRegisterType<NavoKoggerEchogramItem>("NavoSmart.Backend",1,0,"NavoKoggerEchogramItem");
  qmlRegisterType<NavoKoggerChartBridge>("NavoSmart.Backend",1,0,"NavoKoggerChartBridge");
  qmlRegisterType<NavoKoggerTcpClient>("NavoSmart.Backend",1,0,"NavoKoggerTcpClient");
  qmlRegisterType<NavoPersistence>("NavoSmart.Backend",1,0,"NavoPersistence");

@@ -46,6 +46,8 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoHopperBridge.qml
         qml/NavoSonarCard.qml
         qml/NavoSonarPro.qml
+        qml/NavoOfflineLab.qml
+        qml/NavoSonar2DLevels.qml
         qml/NavoAlertAudio.qml
         qml/NavoStealth.qml
         qml/NavoStealthPanel.qml
@@ -83,6 +85,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoBathymetryOverlay.qml
         qml/NavoBathymetryHDOverlay.qml
         qml/NavoNativeBathymetryOverlay.qml
+        qml/NavoNativeIsobathsOverlay.qml
         qml/NavoBathymetryHDModel.qml
         qml/NavoAreaScanOverlay.qml
         qml/NavoAreaDrawOverlay.qml
@@ -103,6 +106,8 @@ qt_add_qml_module(NavoSmartModule
         # Imported by relative URL only. Exporting this script in qmldir makes
         # Qt 6.8.3's implicit + explicit NavoSmart imports ambiguous at startup.
         qml/NavoBottomAnalysis.js
+        qml/NavoSonarDepthScale.js
+        qml/NavoOfflineLabData.js
         qml/NavoVisualPosition.js
         qml/NavoMapProjection.js
         icons/layers.svg
@@ -176,6 +181,10 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoAndroidAcceptance.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerEchogramItem.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerEchogramItem.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/navo_kogger_echogram_palette.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/kogger_native/navo_kogger_echogram_sampling.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerReplay.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerReplay.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerRecorder.cc
