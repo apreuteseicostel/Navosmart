@@ -40,7 +40,7 @@ bool NavoKoggerReplay::open(const QUrl& url) {
  _active=true; _paused=false; _pacing.start(); _timer.start(); emit stateChanged(); emit progressChanged(); return true;
 }
 void NavoKoggerReplay::stop() {
- _timer.stop();_indexTimer.stop();_indexFile.close();_indexBuffer.clear();_columns.clear();
+ _timer.stop();_indexTimer.stop();_indexFile.close();_viewFile.close();_indexBuffer.clear();_columns.clear();
  _indexBufferOffset=0;_indexProcessed=0;_indexReady=false;_haveChart=false;
  _scanPacketCount=0;_scanPose=Pose();_lastSeqEnd=0;_lastAddress=-1;
  _previewStopOffset=-1;_previewFlushLast=false;
@@ -77,6 +77,83 @@ int NavoKoggerReplay::currentColumn() const {
      [](qint64 value,const ColumnOffset& col){return value<col.offset;});
  return int(std::max<qint64>(0,std::distance(_columns.cbegin(),it)-1));
 }
+// Parse one original Kogger CHART packet, rejecting proxy and non-CHART frames.
+// This is the same KP1/KP2 schema used by indexKoggerFrame and NavoKoggerDecoder;
+// no QML conversion and no four-level palette quantisation.
+bool NavoKoggerReplay::readChartPacket(const char* frame,int length,int* seq,
+                                        quint16* resolution,quint16* absoluteOffset,
+                                        quint8* version,QByteArray* bytes) {
+ if(!frame||length<8||!seq||!resolution||!absoluteOffset||!version||!bytes)return false;
+ const auto* f=reinterpret_cast<const uchar*>(frame);
+ if((f[0]!=0xbb&&f[0]!=0xcc)||f[1]!=0x55)return false;
+ const bool extended=f[0]==0xcc;
+ const int declared=extended?int(qFromLittleEndian<quint16>(f+2)):8+int(f[5]);
+ if(declared!=length||length>(extended?383:263))return false;
+ quint8 sum=0,check=0;
+ for(int j=2;j<length-2;j++){sum=quint8(sum+f[j]);check=quint8(check+sum);}
+ if(sum!=f[length-2]||check!=f[length-1])return false;
+ int header=6,type=0,id=0,v=0;
+ if(extended){
+  const int options=int(f[4]);header=4+options;
+  if(options<3||header+3>length-2)return false;
+  const int flags=qFromLittleEndian<quint16>(f+5);
+  int required=3;
+  if(flags&2)required+=2;
+  if(flags&4)required+=7;
+  if(flags&8)required+=4;
+  if((flags>>4)&3)required+=8;
+  if((flags&1)||required>options)return false;
+  const int iv=qFromLittleEndian<quint16>(f+header+1);
+  type=f[header]&3;id=iv>>3;v=iv&7;header+=3;
+ }else{
+  type=f[3]&3;v=(f[3]>>3)&7;id=f[4];
+ }
+ if(type!=1||id!=3||(v!=0&&v!=1)||header+6>length-2)return false;
+ const uchar* p=f+header;
+ const int offset=qFromLittleEndian<quint16>(p);
+ const int res=qFromLittleEndian<quint16>(p+2);
+ const int absOff=qFromLittleEndian<quint16>(p+4);
+ const int byteCount=length-2-(header+6);
+ if(res<=0||byteCount<=0||offset+byteCount>128*1024)return false;
+ *seq=offset;*resolution=quint16(res);*absoluteOffset=quint16(absOff);
+ *version=quint8(v);*bytes=QByteArray(reinterpret_cast<const char*>(p+6),byteCount);
+ return true;
+}
+
+// Render any indexed on-disk column without seeking the playback stream.
+// The independent file handle makes horizontal panning safe while paused or
+// while the ordinary replay decoder is reading somewhere else.
+bool NavoKoggerReplay::readChartColumn(int index,ChartColumn* out){
+ if(!out||!_indexReady||!_viewFile.isOpen()||index<0||index>=_columns.size())return false;
+ *out=ChartColumn();
+ const qint64 start=_columns.at(index).offset;
+ const qint64 stop=index+1<_columns.size()?_columns.at(index+1).offset:_viewFile.size();
+ const qint64 length=stop-start;
+ if(start<0||stop>_viewFile.size()||length<=0||length>4*1024*1024)return false;
+ if(!_viewFile.seek(start))return false;
+ const QByteArray data=_viewFile.read(length);
+ if(data.size()!=length)return false;
+ int parsed=0;
+ for(int i=0;i+8<=data.size();++i){
+  const auto* p=reinterpret_cast<const uchar*>(data.constData()+i);
+  if((p[0]!=0xbb&&p[0]!=0xcc)||p[1]!=0x55)continue;
+  if(i+6>data.size())break;
+  const bool extended=p[0]==0xcc;
+  const int size=extended?int(qFromLittleEndian<quint16>(p+2)):8+int(p[5]);
+  if(size<8||size>(extended?383:263)||i+size>data.size())continue;
+  int seq=0;quint16 resolution=0,absoluteOffset=0;quint8 version=0;QByteArray piece;
+  if(!readChartPacket(data.constData()+i,size,&seq,&resolution,&absoluteOffset,&version,&piece))continue;
+  if(parsed && (seq==0||resolution!=out->resolutionMm||
+                 absoluteOffset!=out->absoluteOffset||version!=out->version))break;
+  if(!parsed){out->resolutionMm=resolution;out->absoluteOffset=absoluteOffset;out->version=version;}
+  if(seq<out->bytes.size())continue; // already assembled; do not duplicate fragments
+  if(seq>out->bytes.size())out->bytes.append(QByteArray(seq-out->bytes.size(),char(0)));
+  out->bytes.append(piece);
+  ++parsed;
+ }
+ return parsed>0&&!out->bytes.isEmpty();
+}
+
 bool NavoKoggerReplay::seekColumn(int column) {
  if(_archive||!_indexReady||column<0||column>=_columns.size()||!_file.isOpen())return false;
  const auto entry=_columns.at(column);
@@ -109,6 +186,10 @@ void NavoKoggerReplay::beginIndexing() {
  if(_file.size()<=0||_file.size()>2147483647LL)return;
  _indexFile.setFileName(_file.fileName());
  if(!_indexFile.open(QIODevice::ReadOnly)||_indexFile.isSequential())return;
+ _viewFile.setFileName(_file.fileName());
+ if(!_viewFile.open(QIODevice::ReadOnly)||_viewFile.isSequential()){
+  _indexFile.close();_viewFile.close();return;
+ }
  _indexTimer.start();
 }
 void NavoKoggerReplay::updatePose(Pose& pose,const uchar* raw,int len,bool v2) {
