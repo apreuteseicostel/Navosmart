@@ -27,7 +27,7 @@ static QByteArray kp1(quint16 sequence,quint8 amplitude) {
 }
 static void drain(NavoKoggerReplay& r,const int& published,int maxMs=5000){
  QElapsedTimer t;t.start();
- while(r.active() && published<3 && t.elapsed()<maxMs){
+ while(r.active() && !r.paused() && published<3 && t.elapsed()<maxMs){
   QCoreApplication::processEvents(QEventLoop::AllEvents,20);
   QMetaObject::invokeMethod(&r,"tick");
  }
@@ -85,6 +85,21 @@ int main(int argc,char**argv){
  drain(replay,published);
  require(published>0,"replay from zero produced no CHART column");
  if(!fixture)require(std::abs(firstAmplitude-20)<1e-9,"return to first column wrong");
+ // A paused slider drag must show the chosen column then remain paused.
+ require(replay.seekColumn(5),"prime a running replay before pausing");
+ replay.setPaused(true);
+ decoder.reset();published=0;firstAmplitude=-1;
+ require(replay.seekColumn(wanted),"paused seek rejected");
+ drain(replay,published);
+ require(replay.paused() && published>0,"paused seek did not produce an inspectable column");
+ if(!fixture)require(std::abs(firstAmplitude-(20+wanted))<1e-9,
+                     "paused seek displayed wrong column");
+ decoder.reset();published=0;firstAmplitude=-1;
+ require(replay.seekColumn(count-1),"last indexed column seek failed");
+ drain(replay,published);
+ require(replay.paused()&&published>0,"final KLF column did not flush on paused preview");
+ if(!fixture)require(std::abs(firstAmplitude-(20+count-1))<1e-9,
+                     "last column preview is not the selected last column");
  if(!fixture){
   QFile stored(filePath);require(stored.open(QIODevice::ReadOnly)&&stored.readAll()==original,
                           "index/seek modified original KLF");
