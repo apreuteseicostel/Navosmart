@@ -23,7 +23,14 @@ assert(source.includes('signal replaySeeked(int column)'), 'QML cannot invalidat
 assert(source.includes('replayObject.seekColumn(Math.floor(column))'),'seek argument not forwarded');
 assert(qml.includes('id: replaySeekBar') && qml.includes('objectName:"sonarProReplayColumnSlider"'),'bottom replay scrubber absent');
 assert(qml.includes('root.chartSource.replayColumnCount-1'),'full index is not addressable');
-assert(qml.includes('onPressedChanged:') && qml.includes('seekReplayColumn(selected)'),'seek must be committed on release, not every drag pixel');
+assert(qml.includes('onPressedChanged:') && qml.includes('root.showReplayWindow(root.seekPreviewColumn)'), 'window commit must occur on release, not each drag pixel');
+assert(qml.includes('sonarProWholeFileOverview') && qml.includes('replayOverviewColumns'),'missing global echogram thumbnail');
+assert(qml.includes('replayViewportColumn') && qml.includes('seekReplayWindow(selected,visibleColumns)'), 'viewport must be centred on selected file column');
+assert(source.includes('function seekReplayWindow(center,visibleColumns)'), 'transport must expose window selection');
+assert(replay.includes('seekWindow(int centerColumn,int visibleColumns)'), 'native full-file viewport seek missing');
+assert(replay.includes('feedOverview(') && header.includes('Q_PROPERTY(QVariantList overviewColumns'), 'bounded global overview missing');
+assert(replay.includes('while((_columns.size()-1)/_overviewStride>=maxBins)'), 'overview memory must remain bounded');
+assert(!qml.includes('onMoved:root.chartSource.seekReplayColumn'), 'moving slider may not autoplay seek each pixel');
 assert(qml.includes('onReplaySeeked(column)'), 'stale Sonar PRO history not reset on seek');
 assert(qml.includes('nativeEchogram.resetColumns()'), 'native raster cache not cleared');
 assert(workflow.includes('navo-replay-seek /tmp/00028_DownView.klf'),'real Kogger file seek not tested');
