@@ -60,6 +60,12 @@ int main(int argc,char**argv){
  NavoKoggerReplay replay;
  NavoKoggerDecoder decoder;
  int published=0;double firstAmplitude=-1;
+ double firstSeekLatitude=qQNaN(),firstSeekLongitude=qQNaN();
+ QObject::connect(&replay,&NavoKoggerReplay::positionReady,[&](double lat,double lon,double,double,double){
+  if(!std::isfinite(firstSeekLatitude)&&std::isfinite(lat)&&std::isfinite(lon)){
+   firstSeekLatitude=lat;firstSeekLongitude=lon;
+  }
+ });
  QObject::connect(&replay,&NavoKoggerReplay::bytesReady,&decoder,&NavoKoggerDecoder::feedBytes);
  QObject::connect(&decoder,&NavoKoggerDecoder::chartColumnReady,[&](){
   if(published==0 && decoder.chartRawByteCount()>0)firstAmplitude=double(quint8(decoder.chartRawBytes().at(0)));
@@ -74,10 +80,14 @@ int main(int argc,char**argv){
  require(!replay.seekColumn(-1) && !replay.seekColumn(count),"invalid seek accepted");
  const int wanted=fixture?count/2:19;
  decoder.reset();published=0;firstAmplitude=-1;
+ firstSeekLatitude=qQNaN();firstSeekLongitude=qQNaN();
  require(replay.seekColumn(wanted),"direct seek to middle failed");
  require(replay.currentColumn()>=wanted,"file did not reposition to the selected CHART column");
  drain(replay,published);
  require(published>0,"seek did not decode the chosen column");
+ if(fixture)require(std::isfinite(firstSeekLatitude)&&
+   std::abs(firstSeekLatitude-40.16)<.02&&std::abs(firstSeekLongitude-44.47)<.02,
+   "direct seek did not restore the recorded GPS context");
  if(!fixture)require(std::abs(firstAmplitude-(20+wanted))<1e-9,
                      "seek decoded wrong column or replayed from file beginning");
  decoder.reset();published=0;firstAmplitude=-1;
