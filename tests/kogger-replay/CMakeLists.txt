@@ -46,6 +46,14 @@ target_link_libraries(navo-native-isobaths PRIVATE Qt6::Core Qt6::Gui)
 add_executable(navo-native-3d native-3d.cpp ../../custom/src/NavoBathymetryMesh.cc ../../custom/src/NavoBathymetryMesh.h)
 target_link_libraries(navo-native-3d PRIVATE Qt6::Core Qt6::Gui)
 
+# Native Qt Quick echogram, original Kogger 8-bit palette and resampling.
+add_executable(navo-native-kogger-image native-kogger-image.cpp
+    ../../custom/src/NavoKoggerEchogramItem.cc
+    ../../custom/src/NavoKoggerEchogramItem.h
+    ../../custom/src/NavoKoggerDecoder.cc
+    ../../custom/src/NavoKoggerDecoder.h)
+target_link_libraries(navo-native-kogger-image PRIVATE Qt6::Quick Qt6::Gui Qt6::Core)
+
 add_executable(navo-servo-feedback servo-feedback.cpp)
 target_link_libraries(navo-servo-feedback PRIVATE Qt6::Gui Qt6::Qml)
 
