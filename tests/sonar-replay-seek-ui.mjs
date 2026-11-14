@@ -23,7 +23,12 @@ assert(source.includes('signal replaySeeked(int column)'), 'QML cannot invalidat
 assert(source.includes('replayObject.seekColumn(Math.floor(column))'),'seek argument not forwarded');
 assert(qml.includes('id: replaySeekBar') && qml.includes('objectName:"sonarProReplayColumnSlider"'),'bottom replay scrubber absent');
 assert(qml.includes('root.chartSource.replayColumnCount-1'),'full index is not addressable');
-assert(qml.includes('onPressedChanged:') && qml.includes('seekReplayColumn(selected)'),'seek must be committed on release, not every drag pixel');
+assert(qml.includes('onMoved:root.browseRecording(value)'),'slider must browse independently without seeking the playback reader');
+assert(qml.includes('objectName:"sonarProWholeFile"') &&
+       qml.includes('objectName:"sonarProRecordingDetail"'),'full-file and detail views are missing');
+assert(qml.includes('root.chartSource.seekReplayColumn(root.replayViewEnd)'),'explicit Play From Here must be the only user action seeking playback');
+assert(qml.includes('recordingSource:root.replayMode'),'native item must read indexed KLF source independently');
+assert(qml.includes('recordingSpanColumns:!root.replayBrowseReady'),'full recording span not wired');
 assert(qml.includes('onReplaySeeked(column)'), 'stale Sonar PRO history not reset on seek');
 assert(qml.includes('nativeEchogram.resetColumns()'), 'native raster cache not cleared');
 assert(workflow.includes('navo-replay-seek /tmp/00028_DownView.klf'),'real Kogger file seek not tested');
