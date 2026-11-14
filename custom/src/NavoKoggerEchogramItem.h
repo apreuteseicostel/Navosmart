@@ -7,7 +7,7 @@
 #include <QVector>
 #include <QColor>
 #include "NavoKoggerDecoder.h"
-class NavoKoggerReplay;
+#include "NavoKoggerReplay.h"
 
 // Native KoggerApp-style 8-bit echogram for NAVO / QGroundControl.
 // Reuses Kogger palette and Epoch::chartTo sampling, but avoids importing
