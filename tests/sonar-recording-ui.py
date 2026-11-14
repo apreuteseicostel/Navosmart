@@ -25,6 +25,7 @@ errors=[];view.engine().warnings.connect(lambda warnings:errors.extend(str(w) fo
 view.setSource(QUrl.fromLocalFile(str(repo/'custom/qml/NavoSonarPro.qml')))
 assert view.status()==QQuickView.Ready,errors
 root=view.rootObject()
+root.setProperty('useNativeRenderer',False)  # QML fixture has no native decoder.
 component=QQmlComponent(view.engine())
 component.setData(b'''import QtQuick
 QtObject {
