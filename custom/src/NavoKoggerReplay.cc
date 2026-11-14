@@ -125,7 +125,7 @@ QVector<NavoKoggerReplay::ViewColumn> NavoKoggerReplay::readDisplaySlice(
  int lastSource=-1;
  ViewColumn lastValue;
  for(int px=firstPixel;px<firstPixel+take;++px) {
-  const int source=std::min(endColumn,start+int(qint64(px)*span/pixels));
+  const int source=pixels==1?endColumn:std::min(endColumn,start+int(qint64(px)*(span-1)/(pixels-1)));
   if(source==lastSource){out.push_back(lastValue);continue;}
   lastSource=source;
   const auto cached=_previewCache.constFind(source);
