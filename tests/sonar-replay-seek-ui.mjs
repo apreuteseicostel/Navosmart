@@ -1,0 +1,38 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const r=p=>fs.readFileSync(p,'utf8');
+const replay=r('custom/src/NavoKoggerReplay.cc');
+const header=r('custom/src/NavoKoggerReplay.h');
+const qml=r('custom/qml/NavoSonarPro.qml');
+const source=r('custom/qml/NavoSonarEthernet.qml');
+const workflow=r('.github/workflows/kogger-replay.yml');
+for(const token of ['Q_PROPERTY(bool indexReady','Q_PROPERTY(double indexProgress','Q_PROPERTY(int indexedColumns','Q_PROPERTY(int currentColumn','Q_INVOKABLE bool seekColumn(int column)']){
+ assert(header.includes(token),'missing index API '+token);
+}
+assert(replay.includes('_indexFile.read(128*1024)'), 'bounded progressive file indexing missing');
+assert(replay.includes('_indexTimer.setInterval(12)'), 'background index tick missing');
+assert(replay.includes('if(_archive)return'), 'NAVO archive chunk index cannot pretend to be KLF column index');
+assert(replay.includes('indexKoggerFrame('), 'physical CHART frame index missing');
+assert(replay.includes('if(seq==0') || replay.includes('seq==0||'), 'column boundary detection missing');
+assert(replay.includes('_file.seek(entry.offset)'), 'random seek not using direct file offsets');
+assert(replay.includes('updatePose(_scanPose'), 'index must carry recorded GPS context');
+assert(replay.includes('_parser=std::make_unique<Parsers::FrameParser>();'), 'seek must reset frame parser');
+assert(source.includes('function seekReplayColumn(column)'),'transport lacks replay seek API');
+assert(source.includes('decoderObject.reset()') && source.includes('chartBridge.clear()'), 'seek must isolate live/dead worker cache');
+assert(source.includes('signal replaySeeked(int column)'), 'QML cannot invalidate its history');
+assert(source.includes('replayObject.seekColumn(Math.floor(column))'),'seek argument not forwarded');
+assert(qml.includes('id: replaySeekBar') && qml.includes('objectName:"sonarProReplayColumnSlider"'),'bottom replay scrubber absent');
+assert(qml.includes('root.chartSource.replayColumnCount-1'),'full index is not addressable');
+assert(qml.includes('onPressedChanged:') && qml.includes('root.showReplayWindow(root.seekPreviewColumn)'), 'window commit must occur on release, not each drag pixel');
+assert(qml.includes('sonarProWholeFileOverview') && qml.includes('replayOverviewColumns'),'missing global echogram thumbnail');
+assert(qml.includes('replayViewportColumn') && qml.includes('seekReplayWindow(selected,visibleColumns)'), 'viewport must be centred on selected file column');
+assert(source.includes('function seekReplayWindow(center,visibleColumns)'), 'transport must expose window selection');
+assert(replay.includes('seekWindow(int centerColumn,int visibleColumns)'), 'native full-file viewport seek missing');
+assert(replay.includes('feedOverview(') && header.includes('Q_PROPERTY(QVariantList overviewColumns'), 'bounded global overview missing');
+assert(replay.includes('while((_columns.size()-1)/_overviewStride>=maxBins)'), 'overview memory must remain bounded');
+assert(!qml.includes('onMoved:root.chartSource.seekReplayColumn'), 'moving slider may not autoplay seek each pixel');
+assert(qml.includes('onReplaySeeked(column)'), 'stale Sonar PRO history not reset on seek');
+assert(qml.includes('nativeEchogram.resetColumns()'), 'native raster cache not cleared');
+assert(workflow.includes('navo-replay-seek /tmp/00028_DownView.klf'),'real Kogger file seek not tested');
+assert(!replay.includes('guidedModeGotoLocation') && !source.includes('uploadMission('),'no H743 navigation from replay');
+console.log('PASS indexed KLF seek, QML whole-file scrubber, stale cache invalidation and read-only navigation isolation');

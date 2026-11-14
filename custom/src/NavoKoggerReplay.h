@@ -5,7 +5,10 @@
 #include <QElapsedTimer>
 #include <QUrl>
 #include <QVariantList>
+#include <QVector>
+#include <QByteArray>
 #include <memory>
+#include <array>
 #include "NavoSonarArchive.h"
 namespace Parsers { class FrameParser; }
 class NavoKoggerReplay : public QObject {
@@ -15,6 +18,14 @@ class NavoKoggerReplay : public QObject {
  Q_PROPERTY(double speed READ speed WRITE setSpeed NOTIFY stateChanged)
  Q_PROPERTY(qint64 position READ position NOTIFY progressChanged)
  Q_PROPERTY(qint64 size READ size NOTIFY progressChanged)
+ // Full-file KLF column index, distinct from the bounded live renderer cache.
+ Q_PROPERTY(bool indexReady READ indexReady NOTIFY indexChanged)
+ Q_PROPERTY(double indexProgress READ indexProgress NOTIFY indexChanged)
+ Q_PROPERTY(int indexedColumns READ indexedColumns NOTIFY indexChanged)
+ Q_PROPERTY(int currentColumn READ currentColumn NOTIFY progressChanged)
+ Q_PROPERTY(int viewportColumn READ viewportColumn NOTIFY progressChanged)
+ Q_PROPERTY(QVariantList overviewColumns READ overviewColumns NOTIFY overviewChanged)
+ Q_PROPERTY(int overviewStride READ overviewStride NOTIFY overviewChanged)
  Q_PROPERTY(QString error READ error NOTIFY stateChanged)
  Q_PROPERTY(QVariantMap annotationAnchor READ annotationAnchor NOTIFY annotationAnchorChanged)
  Q_PROPERTY(QVariantList annotations READ annotations NOTIFY annotationsChanged)
@@ -28,6 +39,15 @@ public:
  double speed() const { return _speed; }
  qint64 position() const { return _file.pos(); }
  qint64 size() const { return _file.size(); }
+ bool indexReady() const { return _indexReady; }
+ double indexProgress() const;
+ int indexedColumns() const { return _columns.size(); }
+ int currentColumn() const;
+ int viewportColumn() const { return _viewportColumn>=0 ? _viewportColumn : currentColumn(); }
+ QVariantList overviewColumns() const;
+ int overviewStride() const { return _overviewStride; }
+ Q_INVOKABLE bool seekColumn(int column);
+ Q_INVOKABLE bool seekWindow(int centerColumn,int visibleColumns);
  QString error() const { return _error; }
  QVariantMap annotationAnchor() const;
  QVariantList annotations() const { return _annotations; }
@@ -44,9 +64,40 @@ signals:
  void bytesReady(const QByteArray& bytes);
  void stateChanged();
  void progressChanged();
+ void indexChanged();
+ void overviewChanged();
+ void previewLastColumnReady();
  void annotationsChanged();
  void annotationAnchorChanged();
 private:
+ struct Pose {
+  bool gpsFix=false;
+  double lat=qQNaN(), lon=qQNaN(), heading=qQNaN(), pitch=qQNaN(), roll=qQNaN();
+ };
+ struct ColumnOffset { qint64 offset=0; qint64 frameBefore=0; Pose pose; int firstPacketSize=0; };
+ struct OverviewBin { std::array<quint8,48> levels{}; };
+ QVector<OverviewBin> _overview;
+ int _overviewStride=1;
+ int _viewportColumn=-1;
+ void feedOverview(const uchar* packet,int byteCount,int sequence,int resolution,int offset,int version);
+ QFile _indexFile;
+ QTimer _indexTimer;
+ QByteArray _indexBuffer;
+ qint64 _indexBufferOffset=0;
+ QVector<ColumnOffset> _columns;
+ Pose _scanPose;
+ qint64 _scanPacketCount=0;
+ qint64 _indexProcessed=0;
+ int _lastSeqEnd=0, _lastAddress=-1;
+ quint16 _lastResolution=0, _lastAbsoluteOffset=0;
+ quint8 _lastVersion=0;
+ bool _indexReady=false, _haveChart=false;
+ qint64 _previewStopOffset=-1;
+ bool _previewFlushLast=false;
+ void beginIndexing();
+ void indexTick();
+ bool indexKoggerFrame(const char* frame,int frameLength,qint64 offset);
+ static void updatePose(Pose& pose,const uchar* frame,int frameLength,bool v2);
  QString _annotationKey, _annotationError;
  QVariantList _annotations;
  qint64 _deliveredFrame=0, _deliveredMilliseconds=-1;
