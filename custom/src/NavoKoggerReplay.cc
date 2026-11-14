@@ -16,6 +16,7 @@
 #include <algorithm>
 NavoKoggerReplay::NavoKoggerReplay(QObject* parent):QObject(parent),_parser(std::make_unique<Parsers::FrameParser>()) {
  _timer.setInterval(40); connect(&_timer,&QTimer::timeout,this,&NavoKoggerReplay::tick);
+ _indexTimer.setInterval(12); connect(&_indexTimer,&QTimer::timeout,this,&NavoKoggerReplay::indexTick);
 }
 NavoKoggerReplay::~NavoKoggerReplay()=default;
 bool NavoKoggerReplay::open(const QUrl& url) {
@@ -35,10 +36,16 @@ bool NavoKoggerReplay::open(const QUrl& url) {
   _error=QStringLiteral("Fișierul nu este o înregistrare NAVO v1."); _file.close(); emit stateChanged(); return false;
  }
  loadAnnotations(url);
+ beginIndexing();
  _active=true; _paused=false; _pacing.start(); _timer.start(); emit stateChanged(); emit progressChanged(); return true;
 }
 void NavoKoggerReplay::stop() {
- _timer.stop(); _pacing.invalidate(); _file.close(); _parser=std::make_unique<Parsers::FrameParser>();
+ _timer.stop();_indexTimer.stop();_indexFile.close();_indexBuffer.clear();_columns.clear();
+ _indexBufferOffset=0;_indexProcessed=0;_indexReady=false;_haveChart=false;
+ _scanPacketCount=0;_scanPose=Pose();_lastSeqEnd=0;_lastAddress=-1;
+ _lastResolution=0;_lastAbsoluteOffset=0;_lastVersion=0;
+ emit indexChanged();
+ _pacing.invalidate(); _file.close(); _parser=std::make_unique<Parsers::FrameParser>();
  _active=false; _paused=false; _blocked=false; _gpsFix=false;
  _annotationKey.clear();_annotationError.clear();_annotations.clear();_annotationsWritable=true;
  _deliveredFrame=0;_deliveredMilliseconds=-1;emit annotationAnchorChanged();emit annotationsChanged();
@@ -54,25 +61,160 @@ void NavoKoggerReplay::setSpeed(double value) {
  value=std::clamp(value,0.5,5.0);
  if(_speed==value)return;_speed=value;_pacing.start();emit stateChanged();
 }
-void NavoKoggerReplay::readPosition() {
- const auto* raw=_parser->frame();
- const bool v2=_parser->proto()==Parsers::FrameParser::ProtoMAVLink2;
- const int header=v2?10:6, length=raw[1];
+// Full KLF index: scan physical byte offsets without importing the large
+// KoggerApp Plot2D dependency graph. Work is spread across Qt event loops,
+// so the G20 can continue displaying the file during indexing.
+double NavoKoggerReplay::indexProgress() const {
+ if(_indexReady)return 1.0;
+ return _indexFile.isOpen() && _indexFile.size()>0
+   ?std::clamp(double(_indexFile.pos())/double(_indexFile.size()),0.0,1.0):0.0;
+}
+int NavoKoggerReplay::currentColumn() const {
+ if(_columns.isEmpty())return 0;
+ const qint64 pos=_file.isOpen()?_file.pos():0;
+ auto it=std::upper_bound(_columns.cbegin(),_columns.cend(),pos,
+     [](qint64 value,const ColumnOffset& col){return value<col.offset;});
+ return int(std::max<qint64>(0,std::distance(_columns.cbegin(),it)-1));
+}
+bool NavoKoggerReplay::seekColumn(int column) {
+ if(_archive||!_indexReady||column<0||column>=_columns.size()||!_file.isOpen())return false;
+ const auto entry=_columns.at(column);
+ if(entry.offset<0||entry.offset>=_file.size()||!_file.seek(entry.offset))return false;
+ _parser=std::make_unique<Parsers::FrameParser>();
+ _gpsFix=entry.pose.gpsFix;_lat=entry.pose.lat;_lon=entry.pose.lon;
+ _heading=entry.pose.heading;_pitch=entry.pose.pitch;_roll=entry.pose.roll;
+ // Recorded KBP frame ordinal, not an artificial new recording identity.
+ _deliveredFrame=entry.frameBefore;_deliveredMilliseconds=-1;
+ _pending=false;_blocked=false;_active=true;_paused=false;
+ _error.clear();_pacing.start();_timer.start();
+ emit annotationAnchorChanged();emit stateChanged();emit progressChanged();
+ // The transport resets decoder/Dataset before calling seekColumn().
+ // Decode from the selected *on-disk* column, never from file start.
+ QTimer::singleShot(0,this,[this](){if(_active&&!_paused)tick();});
+ return true;
+}
+void NavoKoggerReplay::beginIndexing() {
+ // NAVOSONAR chunk archives need an independent record seek protocol.
+ // KLF is byte-indexed; do not mislabel archive chunks as sonar columns.
+ if(_archive)return;
+ if(_file.size()<=0||_file.size()>2147483647LL)return;
+ _indexFile.setFileName(_file.fileName());
+ if(!_indexFile.open(QIODevice::ReadOnly)||_indexFile.isSequential())return;
+ _indexTimer.start();
+}
+void NavoKoggerReplay::updatePose(Pose& pose,const uchar* raw,int len,bool v2) {
+ const int header=v2?10:6;
+ if(len<header+2)return;
+ const int length=raw[1];
+ if(header+length+2>len)return;
  const unsigned id=v2?(unsigned(raw[7])|(unsigned(raw[8])<<8)|(unsigned(raw[9])<<16)):raw[5];
- const auto* p=raw+header;
- if(id==24 && length>=30) {
-  _gpsFix=p[28]>=3;
-  _lat=_gpsFix?double(qFromLittleEndian<qint32>(p+8))*1e-7:qQNaN();
-  _lon=_gpsFix?double(qFromLittleEndian<qint32>(p+12))*1e-7:qQNaN();
- } else if(id==33 && length>=28 && _gpsFix) {
-  _lat=double(qFromLittleEndian<qint32>(p+4))*1e-7;
-  _lon=double(qFromLittleEndian<qint32>(p+8))*1e-7;
+ const uchar* p=raw+header;
+ if(id==24&&length>=30){
+  pose.gpsFix=p[28]>=3;
+  pose.lat=pose.gpsFix?double(qFromLittleEndian<qint32>(p+8))*1e-7:qQNaN();
+  pose.lon=pose.gpsFix?double(qFromLittleEndian<qint32>(p+12))*1e-7:qQNaN();
+ }else if(id==33&&length>=28&&pose.gpsFix){
+  pose.lat=double(qFromLittleEndian<qint32>(p+4))*1e-7;
+  pose.lon=double(qFromLittleEndian<qint32>(p+8))*1e-7;
   const auto heading=qFromLittleEndian<quint16>(p+26);
-  if(heading!=65535)_heading=heading*0.01;
- } else if(id==30 && length>=16) {
-  double* values[]={&_roll,&_pitch,&_heading};
-  for(int i=0;i<3;++i){const quint32 bits=qFromLittleEndian<quint32>(p+4+i*4);float f;std::memcpy(&f,&bits,4);*values[i]=f*180.0/3.14159265358979323846;}
+  if(heading!=65535)pose.heading=heading*0.01;
+ }else if(id==30&&length>=16){
+  double* values[]={&pose.roll,&pose.pitch,&pose.heading};
+  for(int k=0;k<3;k++){
+   const quint32 bits=qFromLittleEndian<quint32>(p+4+k*4);
+   float angle;std::memcpy(&angle,&bits,4);
+   *values[k]=double(angle)*180.0/3.14159265358979323846;
+  }
  }
+}
+bool NavoKoggerReplay::indexKoggerFrame(const char* bytes,int length,qint64 offset) {
+ const auto* f=reinterpret_cast<const uchar*>(bytes);
+ ++_scanPacketCount;
+ const bool extended=f[0]==0xcc;
+ int payloadStart=6,address=-1,type=0,version=0,id=0;
+ if(extended) {
+  const int options=f[4],header=4+options;
+  if(options<3||header+3>length-2)return false;
+  const quint16 flags=qFromLittleEndian<quint16>(f+5);
+  int required=3;
+  if(flags&2){required+=2;if(options>=5)address=f[7];}
+  if(flags&4)required+=7;
+  if(flags&8)required+=4;
+  if((flags>>4)&3)required+=8;
+  if((flags&1)||required>options)return false;
+  const auto iv=qFromLittleEndian<quint16>(f+header+1);
+  type=f[header]&3;id=iv>>3;version=iv&7;payloadStart=header+3;
+ }else{
+  address=f[2];type=f[3]&3;version=(f[3]>>3)&7;id=f[4];
+ }
+ if(type!=1||id!=3||(version!=0&&version!=1)||payloadStart+6>length-2)return false;
+ const auto* p=f+payloadStart;
+ const int seq=qFromLittleEndian<quint16>(p),res=qFromLittleEndian<quint16>(p+2);
+ const int off=qFromLittleEndian<quint16>(p+4);
+ const int payload=length-2-(payloadStart+6);
+ if(res<=0||payload<=0||seq+payload>128*1024)return false;
+ const bool newColumn=!_haveChart||seq==0||seq<_lastSeqEnd||
+    res!=_lastResolution||off!=_lastAbsoluteOffset||
+    version!=_lastVersion||address!=_lastAddress;
+ if(newColumn){
+  if(_columns.size()>=500000)return false;
+  _columns.push_back({offset,_scanPacketCount-1,_scanPose});
+ }
+ _haveChart=true;_lastSeqEnd=seq+payload;_lastResolution=res;
+ _lastAbsoluteOffset=off;_lastVersion=quint8(version);_lastAddress=address;
+ return newColumn;
+}
+void NavoKoggerReplay::indexTick() {
+ if(!_indexFile.isOpen()){_indexTimer.stop();return;}
+ const QByteArray input=_indexFile.read(128*1024);
+ if(!input.isEmpty())_indexBuffer+=input;
+ if(_indexBuffer.size()>129*1024){_indexTimer.stop();_indexFile.close();return;}
+ auto* bytes=reinterpret_cast<const uchar*>(_indexBuffer.constData());
+ int i=0;
+ while(i+8<=_indexBuffer.size()){
+  const int available=_indexBuffer.size()-i;
+  const uchar a=bytes[i],b=bytes[i+1];
+  if((a==0xbb||a==0xcc)&&b==0x55){
+   if(available<6)break;
+   const int length=a==0xcc?int(qFromLittleEndian<quint16>(bytes+i+2)):8+int(bytes[i+5]);
+   if(length<8||length>(a==0xcc?383:263)){++i;continue;}
+   if(available<length)break;
+   quint8 sum=0,check=0;
+   for(int p=2;p<length-2;p++){sum=quint8(sum+bytes[i+p]);check=quint8(check+sum);}
+   if(sum==bytes[i+length-2]&&check==bytes[i+length-1])
+     indexKoggerFrame(_indexBuffer.constData()+i,length,_indexBufferOffset+i);
+  }else if(a==0xfe||a==0xfd){
+   if(available<(a==0xfd?10:6))break;
+   const int size=(a==0xfd?12:8)+int(bytes[i+1])+
+       ((a==0xfd&&(bytes[i+2]&1))?13:0);
+   if(size<8||size>280){++i;continue;}
+   if(available<size){
+    if(!_indexFile.atEnd())break;
+   }else{
+    Parsers::FrameParser parser;
+    parser.setContext(const_cast<uchar*>(bytes+i),size);
+    parser.process();
+    if(parser.isCompleteAsMAVLink()&&parser.frameLen()==size)
+     updatePose(_scanPose,bytes+i,size,a==0xfd);
+   }
+  }
+  // Advance one byte to also index CHART/MAVLink nested inside KP2 proxies.
+  ++i;
+ }
+ if(_indexFile.atEnd())i=_indexBuffer.size();
+ _indexBuffer.remove(0,i);_indexBufferOffset+=i;
+ _indexProcessed=_indexFile.pos();
+ if(_indexFile.atEnd()){
+  _indexTimer.stop();_indexFile.close();_indexBuffer.clear();_indexReady=true;
+ }
+ emit indexChanged();
+}
+void NavoKoggerReplay::readPosition() {
+ Pose pose{_gpsFix,_lat,_lon,_heading,_pitch,_roll};
+ updatePose(pose,reinterpret_cast<const uchar*>(_parser->frame()),_parser->frameLen(),
+            _parser->proto()==Parsers::FrameParser::ProtoMAVLink2);
+ _gpsFix=pose.gpsFix;_lat=pose.lat;_lon=pose.lon;
+ _heading=pose.heading;_pitch=pose.pitch;_roll=pose.roll;
 }
 void NavoKoggerReplay::tick() {
  if(!_active||_paused||_blocked){if(_pacing.isValid())_pacing.restart();return;}
