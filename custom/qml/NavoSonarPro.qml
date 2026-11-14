@@ -254,6 +254,24 @@ Rectangle {
     }
     property int historyColumns: 240
     property int seekPreviewColumn: -1
+    // A viewport can inspect the entire indexed recording without moving the
+    // replay reader. Full overview is horizontally sampled; detail is 1:1.
+    property bool replayWholeFile: true
+    property bool replayFollowPlayback: true
+    property int replayBrowseColumn: -1
+    readonly property bool replayBrowseReady: !!(chartSource && replayMode &&
+        chartSource.replayIndexReady && chartSource.replayColumnCount>0)
+    readonly property int replayViewEnd: !replayBrowseReady ? -1 :
+        replayWholeFile ? chartSource.replayColumnCount-1 :
+        replayFollowPlayback ? chartSource.replayCurrentColumn :
+        Math.max(0,Math.min(chartSource.replayColumnCount-1,replayBrowseColumn))
+    function browseRecording(column) {
+        if(!replayBrowseReady) return
+        replayWholeFile=false
+        replayFollowPlayback=false
+        replayBrowseColumn=Math.max(0,Math.min(chartSource.replayColumnCount-1,Math.round(column)))
+        inspectedColumn=({})
+    }
     property int replaySampleCount: 0
     property string replaySaveStatus: ""
     signal saveReplayRequested(string name)
@@ -381,6 +399,8 @@ Rectangle {
             root.rasterCache=[]
             root.autoDepthRangeM=0
             root.seekPreviewColumn=-1
+            root.replayBrowseColumn=column
+            root.replayFollowPlayback=true
             root.inspectedColumn=({})
             root.endPointPick()
             nativeEchogram.resetColumns()
@@ -396,7 +416,7 @@ Rectangle {
         repaint()
     }
     onActiveLakeIdChanged: { endPointPick();sonarPointDialog.close();history=[];nativeEchogram.resetColumns();inspectedColumn=({}) }
-    onReplayModeChanged: { endPointPick();sonarPointDialog.close();history=[];autoDepthRangeM=0;nativeEchogram.resetColumns();inspectedColumn=({}) }
+    onReplayModeChanged: { endPointPick();sonarPointDialog.close();history=[];autoDepthRangeM=0;nativeEchogram.resetColumns();inspectedColumn=({});replayWholeFile=true;replayFollowPlayback=true;replayBrowseColumn=-1 }
     onGainChanged: repaint()
     onNoiseFloorChanged: repaint()
     onNoiseFilterEnabledChanged: repaint()
@@ -457,6 +477,10 @@ Rectangle {
                 anchors.bottom:parent.bottom;anchors.right:echoColumn.left
                 visible:root.useNativeRenderer
                 decoder:root.chartSource ? (root.chartSource.nativeEchogramDecoder || null) : null
+                recordingSource:root.replayMode && root.chartSource ? (root.chartSource.replay || null) : null
+                recordingEndColumn:root.replayViewEnd
+                recordingSpanColumns:!root.replayBrowseReady ? 0 :
+                    root.replayWholeFile ? root.chartSource.replayColumnCount : Math.max(1,Math.ceil(width))
                 depthFrom:isFinite(root.scaleStart)?root.scaleStart:0
                 depthRange:isFinite(root.scaleRange)&&root.scaleRange>0?root.scaleRange:50
                 paletteMode:root.paletteMode
@@ -469,7 +493,22 @@ Rectangle {
                 MouseArea {
                     anchors.fill:parent
                     cursorShape:Qt.CrossCursor
+                    property real startX:0
+                    property int startColumn:0
+                    property bool wasDragged:false
+                    onPressed:function(mouse){
+                        startX=mouse.x;wasDragged=false
+                        startColumn=root.replayViewEnd<0?0:root.replayViewEnd
+                    }
+                    onPositionChanged:function(mouse) {
+                        if(!pressed || !root.replayBrowseReady || root.pointPicking)return
+                        if(Math.abs(mouse.x-startX)<7&&!wasDragged)return
+                        wasDragged=true
+                        var col=Math.round(startColumn+(startX-mouse.x))
+                        root.browseRecording(col)
+                    }
                     onClicked:function(mouse){
+                        if(wasDragged)return
                         if(root.pointPicking){root.selectSonarPoint(mouse.x,width);return}
                         root.inspectedColumn=nativeEchogram.inspectAt(mouse.x,mouse.y)
                     }
@@ -568,7 +607,7 @@ Rectangle {
             }
             Label {
                 anchors.centerIn: parent
-                visible: root.useNativeRenderer ? nativeEchogram.columnCount===0 : !root.history.length
+                visible: root.useNativeRenderer ? (!root.replayBrowseReady && nativeEchogram.columnCount===0) : !root.history.length
                 text: root.connected ? "Aștept coloane CHART" : "Aștept date Kogger"
                 color: "#9db2c5"
             }
@@ -698,60 +737,81 @@ Rectangle {
         objectName:"sonarProReplaySeekBar"
         visible:root.replayMode
         anchors.left:parent.left;anchors.right:parent.right;anchors.bottom:parent.bottom
-        height:52;z:96
+        height:56;z:96
         color:"#ed081c2a";border.color:"#2d536d"
         RowLayout {
-            anchors.fill:parent;anchors.leftMargin:10;anchors.rightMargin:10;spacing:8
+            anchors.fill:parent;anchors.leftMargin:8;anchors.rightMargin:8;spacing:5
+            Button {
+                objectName:"sonarProWholeFile"
+                text:root.replayWholeFile?"TOATĂ ✓":"TOATĂ"
+                enabled:root.replayBrowseReady
+                implicitWidth:74
+                Accessible.name:"Afișează întreaga înregistrare sonar"
+                onClicked:{root.replayWholeFile=true;root.replayFollowPlayback=false;root.inspectedColumn=({})}
+            }
+            Button {
+                objectName:"sonarProRecordingDetail"
+                text:"DETALIU"
+                enabled:root.replayBrowseReady
+                implicitWidth:66
+                Accessible.name:"Afișează coloanele din jurul poziției selectate"
+                onClicked:root.browseRecording(root.replayBrowseReady?
+                    (root.replayBrowseColumn>=0?root.replayBrowseColumn:root.chartSource.replayCurrentColumn):0)
+            }
             Label {
-                Layout.preferredWidth:Math.min(205,Math.max(95,replaySeekBar.width*.23))
+                Layout.preferredWidth:Math.min(168,Math.max(94,replaySeekBar.width*.14))
                 elide:Text.ElideRight
                 font.pixelSize:11;color:"#deedf6"
-                text:root.chartSource && root.chartSource.replayIndexReady ?
-                    "Coloana "+(Math.min(root.chartSource.replayColumnCount-1,
-                      root.seekPreviewColumn>=0?root.seekPreviewColumn:root.chartSource.replayCurrentColumn)+1)+
-                    " / "+root.chartSource.replayColumnCount :
+                text:root.replayBrowseReady ?
+                    (root.replayWholeFile?"TOATE "+root.chartSource.replayColumnCount:
+                    "Col. "+(root.replayViewEnd+1)+" / "+root.chartSource.replayColumnCount) :
                     (root.chartSource && root.chartSource.replayIndexProgress>0 ?
                      "Indexare KLF "+Math.floor(root.chartSource.replayIndexProgress*100)+"%" :
-                     "Seek disponibil pentru fișiere KLF")
+                     "Index KLF indisponibil")
             }
             Slider {
                 id:replayColumnSlider
                 objectName:"sonarProReplayColumnSlider"
                 Layout.fillWidth:true
                 from:0
-                to:root.chartSource && isFinite(root.chartSource.replayColumnCount) ? Math.max(0,root.chartSource.replayColumnCount-1):0
+                to:root.chartSource && isFinite(root.chartSource.replayColumnCount) ?
+                    Math.max(0,root.chartSource.replayColumnCount-1):0
                 stepSize:1
-                enabled:!!(root.chartSource && root.chartSource.replayIndexReady &&
-                    root.chartSource.replayColumnCount>1)
-                value: root.seekPreviewColumn>=0 ? root.seekPreviewColumn :
-                    (root.chartSource && isFinite(root.chartSource.replayCurrentColumn) ? root.chartSource.replayCurrentColumn : 0)
-                Accessible.name:"Mergi direct la coloana din înregistrare"
+                enabled:root.replayBrowseReady && root.chartSource.replayColumnCount>1
+                value: root.replayFollowPlayback && root.replayBrowseReady ?
+                    root.chartSource.replayCurrentColumn :
+                    Math.max(0,root.replayBrowseColumn)
+                Accessible.name:"Explorează orice coloană din întregul fișier"
                 ToolTip.visible:pressed
                 ToolTip.text:"Coloana "+(Math.round(value)+1)
-                onMoved:root.seekPreviewColumn=Math.round(value)
-                onPressedChanged: {
-                    if(!pressed && root.seekPreviewColumn>=0) {
-                        var selected=root.seekPreviewColumn
-                        if(root.chartSource)root.chartSource.seekReplayColumn(selected)
-                        root.seekPreviewColumn=-1
-                    }
-                }
+                // Reading raw CHART windows is separate from decoder seek.
+                onMoved:root.browseRecording(value)
             }
             Button {
                 objectName:"sonarProReplayBack"
-                text:"−"
-                implicitWidth:40
+                text:"−";implicitWidth:34
                 enabled:replayColumnSlider.enabled
-                Accessible.name:"Coloana precedentă"
-                onClicked:root.chartSource.seekReplayColumn(Math.max(0,root.chartSource.replayCurrentColumn-1))
+                Accessible.name:"Vezi coloana precedentă fără reluare"
+                onClicked:root.browseRecording(Math.max(0,root.replayViewEnd-1))
             }
             Button {
                 objectName:"sonarProReplayForward"
-                text:"+"
-                implicitWidth:40
+                text:"+";implicitWidth:34
                 enabled:replayColumnSlider.enabled
-                Accessible.name:"Coloana următoare"
-                onClicked:root.chartSource.seekReplayColumn(Math.min(root.chartSource.replayColumnCount-1,root.chartSource.replayCurrentColumn+1))
+                Accessible.name:"Vezi coloana următoare fără reluare"
+                onClicked:root.browseRecording(Math.min(root.chartSource.replayColumnCount-1,root.replayViewEnd+1))
+            }
+            Button {
+                objectName:"sonarProPlayFromHere"
+                text:"▶ DE AICI";implicitWidth:90
+                enabled:root.replayBrowseReady && !root.replayWholeFile && root.replayViewEnd>=0
+                Accessible.name:"Pornește redarea din coloana vizualizată"
+                onClicked:{
+                    if(root.chartSource && root.chartSource.seekReplayColumn(root.replayViewEnd)){
+                        root.replayFollowPlayback=true
+                        root.chartSource.pauseReplay(false)
+                    }
+                }
             }
         }
     }
