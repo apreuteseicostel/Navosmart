@@ -6,6 +6,8 @@
 #include <QTimer>
 #include <QVector>
 #include <QColor>
+#include <QHash>
+#include <QQueue>
 #include "NavoKoggerDecoder.h"
 
 // Native KoggerApp-style 8-bit echogram for NAVO / QGroundControl.
@@ -25,6 +27,10 @@ class NavoKoggerEchogramItem : public QQuickPaintedItem {
     Q_PROPERTY(bool frozen READ frozen WRITE setFrozen NOTIFY frozenChanged)
     Q_PROPERTY(bool showBottomTrack READ showBottomTrack WRITE setShowBottomTrack NOTIFY displayChanged)
     Q_PROPERTY(int columnCount READ columnCount NOTIFY columnsChanged)
+    // Full-file KLF viewer: independent of the decoder's rolling live ring.
+    Q_PROPERTY(QObject* fileReplay READ fileReplay WRITE setFileReplay NOTIFY fileReplayChanged)
+    Q_PROPERTY(int fileWindowStart READ fileWindowStart WRITE setFileWindowStart NOTIFY fileViewportChanged)
+    Q_PROPERTY(int fileWindowColumns READ fileWindowColumns WRITE setFileWindowColumns NOTIFY fileViewportChanged)
 public:
     explicit NavoKoggerEchogramItem(QQuickItem* parent=nullptr);
     QObject* decoder() const { return _decoder; }
@@ -39,6 +45,12 @@ public:
     bool frozen() const {return _frozen;}
     bool showBottomTrack() const {return _showBottom;}
     int columnCount() const;
+    QObject* fileReplay() const { return _fileReplay; }
+    void setFileReplay(QObject* replay);
+    int fileWindowStart() const { return _fileWindowStart; }
+    void setFileWindowStart(int start);
+    int fileWindowColumns() const { return _fileWindowColumns; }
+    void setFileWindowColumns(int count);
     void setDepthFrom(qreal v);
     void setDepthRange(qreal v);
     void setPaletteMode(int v);
@@ -57,6 +69,8 @@ signals:
     void displayChanged();
     void frozenChanged();
     void columnsChanged();
+    void fileReplayChanged();
+    void fileViewportChanged();
 private:
     struct Column {
         QByteArray bytes;
@@ -70,6 +84,18 @@ private:
     QVector<Column> _columns;
     QPointer<NavoKoggerDecoder> _decoder;
     QTimer _frameTimer;
+    QTimer _fileLoadTimer;
+    QPointer<QObject> _fileReplay;
+    int _fileWindowStart=0;
+    int _fileWindowColumns=1;
+    QHash<int,Column> _fileColumns;
+    QQueue<int> _fileCacheOrder;
+    int _fileCacheBytes=0;
+    static constexpr int MaxFileCacheBytes=24*1024*1024;
+    static constexpr int MaxFileCacheColumns=4096;
+    int fileIndexAtPixel(int x,int imageWidth,int fileSize) const;
+    void refreshFileViewport();
+    void loadFileBatch();
     qreal _from=0, _range=50, _low=0, _high=100, _gain=1, _noiseFloor=0;
     int _palette=0;
     bool _frozen=false, _showBottom=true;
