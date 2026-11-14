@@ -78,6 +78,26 @@ int main(int argc,char**argv){
  const int count=replay.indexedColumns();
  if(fixture)require(count>=14000 && count<=20000,"real Kogger fixture index should cover all real columns");
  else require(count==42,"each physical CHART column indexed exactly once");
+ // Full-file browsing must fetch arbitrary raw columns without changing the
+ // reader cursor, even if we jump backwards through the complete recording.
+ const qint64 cursorBeforeBrowse=replay.position();
+ for(const int idx:{count-1,0,count/2,1,count-2}){
+  NavoKoggerReplay::ChartColumn c;
+  require(replay.readChartColumn(idx,&c),"random-access viewport could not read column");
+  require(!c.bytes.isEmpty() && c.resolutionMm>0 && c.version<=1,
+          "random-access viewport returned invalid Kogger metadata");
+  if(!fixture){
+   require(c.bytes.size()==2 && quint8(c.bytes.at(0))==20+idx &&
+           quint8(c.bytes.at(1))==20+idx,
+           "viewport decoded wrong physical CHART or lost sample bytes");
+  }
+  require(replay.position()==cursorBeforeBrowse,
+          "file browsing illegally moved playback cursor");
+ }
+ NavoKoggerReplay::ChartColumn outOfRange;
+ require(!replay.readChartColumn(-1,&outOfRange) &&
+         !replay.readChartColumn(count,&outOfRange),
+         "viewport accepted nonexistent KLF columns");
  require(!replay.seekColumn(-1) && !replay.seekColumn(count),"invalid seek accepted");
  const int wanted=fixture?count/2:19;
  decoder.reset();published=0;firstAmplitude=-1;
