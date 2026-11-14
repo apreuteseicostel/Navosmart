@@ -67,6 +67,7 @@ int main(int argc,char**argv){
   }
  });
  QObject::connect(&replay,&NavoKoggerReplay::bytesReady,&decoder,&NavoKoggerDecoder::feedBytes);
+ QObject::connect(&replay,&NavoKoggerReplay::previewLastColumnReady,&decoder,&NavoKoggerDecoder::flushPendingChart);
  QObject::connect(&decoder,&NavoKoggerDecoder::chartColumnReady,[&](){
   if(published==0 && decoder.chartRawByteCount()>0)firstAmplitude=double(quint8(decoder.chartRawBytes().at(0)));
   published++;
