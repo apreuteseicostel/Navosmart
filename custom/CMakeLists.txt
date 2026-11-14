@@ -46,6 +46,8 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoHopperBridge.qml
         qml/NavoSonarCard.qml
         qml/NavoSonarPro.qml
+        qml/NavoOfflineLab.qml
+        qml/NavoSonar2DLevels.qml
         qml/NavoAlertAudio.qml
         qml/NavoStealth.qml
         qml/NavoStealthPanel.qml
@@ -83,6 +85,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoBathymetryOverlay.qml
         qml/NavoBathymetryHDOverlay.qml
         qml/NavoNativeBathymetryOverlay.qml
+        qml/NavoNativeIsobathsOverlay.qml
         qml/NavoBathymetryHDModel.qml
         qml/NavoAreaScanOverlay.qml
         qml/NavoAreaDrawOverlay.qml
@@ -103,6 +106,8 @@ qt_add_qml_module(NavoSmartModule
         # Imported by relative URL only. Exporting this script in qmldir makes
         # Qt 6.8.3's implicit + explicit NavoSmart imports ambiguous at startup.
         qml/NavoBottomAnalysis.js
+        qml/NavoSonarDepthScale.js
+        qml/NavoOfflineLabData.js
         qml/NavoVisualPosition.js
         qml/NavoMapProjection.js
         icons/layers.svg
