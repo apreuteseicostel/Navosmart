@@ -78,6 +78,35 @@ int main(int argc,char**argv){
  const int count=replay.indexedColumns();
  if(fixture)require(count>=14000 && count<=20000,"real Kogger fixture index should cover all real columns");
  else require(count==42,"each physical CHART column indexed exactly once");
+ // Kogger-style file browsing is read-only: FULL overview and backward/forward
+ // detail return real CHART bytes without moving the playback QFile.
+ replay.setPaused(true);
+ const qint64 playbackPosBeforeBrowse=replay.position();
+ const int overviewWidth=fixture?64:42;
+ auto whole=replay.readDisplaySlice(count-1,count,overviewWidth,0,overviewWidth);
+ require(whole.size()==overviewWidth,"full-file overview did not cover screen width");
+ require(whole.front().sourceIndex==0,"full-file overview does not begin at first column");
+ require(whole.back().sourceIndex<count && whole.back().sourceIndex>=count-2-count/overviewWidth,
+         "full-file overview omits the final part of recording");
+ const auto midWindow=replay.readDisplaySlice(count/2,fixture?40:10,10,0,10);
+ require(midWindow.size()==10,"detail view missing some historical columns");
+ require(midWindow.front().sourceIndex<count/2,"detail does not show columns before cursor");
+ const auto firstWindow=replay.readDisplaySlice(count-1,fixture?40:10,10,0,10);
+ require(firstWindow.size()==10,"last columns not available after backward browse");
+ const auto backwards=replay.readDisplaySlice(fixture?100:12,fixture?40:10,10,0,10);
+ require(backwards.size()==10,"backwards browse failed");
+ require(replay.position()==playbackPosBeforeBrowse && replay.paused(),
+         "visual browse rewound or restarted the playback reader");
+ if(!fixture) {
+  for(int x=0;x<42;++x){
+   require(!whole[x].bytes.isEmpty(),"indexed CHART column missing from overview");
+   require(whole[x].sourceIndex==x,"overview column global index mismatch");
+   require(quint8(whole[x].bytes[0])==20+x,"overview did not decode original CHART amplitude");
+  }
+  require(quint8(backwards[0].bytes[0])==20+backwards[0].sourceIndex,
+          "backward browsing changed actual source sample");
+ }
+ replay.setPaused(false);
  require(!replay.seekColumn(-1) && !replay.seekColumn(count),"invalid seek accepted");
  const int wanted=fixture?count/2:19;
  decoder.reset();published=0;firstAmplitude=-1;
