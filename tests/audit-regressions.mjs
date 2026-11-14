@@ -255,12 +255,14 @@ test('PRO captures every source column with its own metadata during a burst',()=
   c.paused=true;source.chartRangeMeters=20;c.pushHistory();assert.equal(c.history.length,2);
 });
 test('PRO impulse filter removes an isolated spike and preserves sustained returns',()=>{
-  const c=context('NavoSonarPro.qml',{noiseFilterEnabled:false,noiseFloor:.1,gain:1});
+  const c=context('NavoSonarPro.qml',{noiseFilterEnabled:false,noiseFloor:.1,gain:1,levelLow:0,levelHigh:100});
   assert.equal(c.sampleStrength([.1,.9,.1],1),.8);
   c.noiseFilterEnabled=true;assert.equal(c.sampleStrength([.1,.9,.1],1),0);
   assert.equal(c.sampleStrength([.8,.9,.8],1),.7000000000000001);
   assert.equal(c.sampleStrength([.8,NaN,.8],1),0);
   c.gain=3;assert.equal(c.sampleStrength([.8,.9,.8],1),1);
+  c.gain=1;c.noiseFloor=0;c.noiseFilterEnabled=false;c.levelLow=25;c.levelHigh=75;
+  assert.equal(c.sampleStrength([.25,.5,.75],1),.5);
 });
 test('V3 hopper control does not depend on legacy Nano timeout',()=>{
   const q=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
