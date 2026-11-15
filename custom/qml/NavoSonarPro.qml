@@ -24,6 +24,15 @@ Rectangle {
     property bool useKoggerOriginal: true
     property int koggerZoom: 1
     property real koggerPosition: 0.5
+    property bool bottomControlsVisible: true
+    onKoggerPositionChanged: {
+        if (chartSource && chartSource.replayMode)
+            chartSource.replayViewPosition = koggerPosition
+    }
+    function showBottomControls() {
+        bottomControlsVisible = true
+        bottomToolsHide.restart()
+    }
     property int koggerPalette: 0
     property real koggerDepthRange: 50
     property int koggerInspectorEpoch: -1
@@ -391,6 +400,41 @@ Rectangle {
         background: Rectangle { radius: 8; color: control.checked ? root.selectedMenuColor : "#cc0b1c2e"; opacity: control.enabled ? 1 : .4; border.color: control.checked ? root.selectedMenuBorder : "#31536c"; border.width: control.checked ? 2 : 1 }
         contentItem: Image { source: "qrc:/qml/NavoSmart/icons/" + control.glyph + ".svg"; fillMode: Image.PreserveAspectFit }
     }
+    Timer {
+        id: bottomToolsHide
+        interval: 1500
+        running: true
+        repeat: false
+        onTriggered: {
+            if (bottomToolsSlider.pressed || bottomToolsHover.hovered) restart()
+            else root.bottomControlsVisible = false
+        }
+    }
+    component SonarBottomButton: Button {
+        id: bottomButton
+        property bool active: false
+        implicitHeight: 30
+        implicitWidth: 35
+        padding: 3
+        font.pixelSize: 11
+        font.bold: true
+        background: Rectangle {
+            radius: 6
+            color: bottomButton.down ? "#257189" :
+                   bottomButton.active ? "#15536f" :
+                   bottomButton.hovered ? "#194156" : "#0e293a"
+            border.color: bottomButton.active ? "#38e3ff" : "#42748d"
+            border.width: bottomButton.active ? 2 : 1
+        }
+        contentItem: Text {
+            text: bottomButton.text
+            font: bottomButton.font
+            color: bottomButton.enabled ? "#e5f8ff" : "#547185"
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+    }
     Row {
         anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
         // Keep the scale and echo key below the status/close controls.
@@ -438,34 +482,76 @@ Rectangle {
             Rectangle {
                 id:koggerTools
                 objectName:"sonarProOriginalKoggerTools"
-                visible:root.useKoggerOriginal && !root.pointPicking
+                visible:root.useKoggerOriginal && !root.pointPicking && root.bottomControlsVisible
                 z:11
                 anchors.left:parent.left;anchors.right:echoColumn.left
                 anchors.bottom:parent.bottom;anchors.margins:6
-                height:42;radius:7;color:"#df061724";border.color:"#31536c"
+                height:42;radius:8;color:"#e0081f30";border.color:"#327d94"
+                HoverHandler {
+                    id: bottomToolsHover
+                    onHoveredChanged: {
+                        if(hovered) bottomToolsHide.stop()
+                        else bottomToolsHide.restart()
+                    }
+                }
                 RowLayout {
                     anchors.fill:parent;anchors.leftMargin:6;anchors.rightMargin:6;spacing:4
-                    Button {text:"−";implicitWidth:30;enabled:root.koggerZoom>1;onClicked:root.koggerZoom=Math.max(1,Math.floor(root.koggerZoom/2))}
-                    Label {text:root.koggerZoom+"×";color:"#e4f5fc";font.pixelSize:11}
-                    Button {text:"+";implicitWidth:30;enabled:root.koggerZoom<64;onClicked:root.koggerZoom=Math.min(64,root.koggerZoom*2)}
-                    Button {text:"TOT";implicitWidth:38;onClicked:{root.koggerZoom=1;root.koggerPosition=.5}}
+                    SonarBottomButton {text:"−";enabled:root.koggerZoom>1;active:root.koggerZoom>1;onClicked:{root.koggerZoom=Math.max(1,Math.floor(root.koggerZoom/2));root.showBottomControls()}}
+                    Label {text:root.koggerZoom+"×";color:"#c1edfa";font.pixelSize:11;font.bold:true}
+                    SonarBottomButton {text:"+";enabled:root.koggerZoom<64;onClicked:{root.koggerZoom=Math.min(64,root.koggerZoom*2);root.showBottomControls()}}
+                    SonarBottomButton {text:"TOT";implicitWidth:38;onClicked:{root.koggerZoom=1;root.koggerPosition=.5;root.showBottomControls()}}
                     Slider {
+                        id: bottomToolsSlider
                         objectName:"sonarProKoggerFileTimelineC"
                         Layout.fillWidth:true
                         from:0;to:1;value:root.koggerPosition
                         enabled:koggerPlot.indexedColumns>1
-                        onMoved:root.koggerPosition=value
+                        onMoved:{root.koggerPosition=value;root.showBottomControls()}
                         Accessible.name:"Cursor Kogger pentru întreaga înregistrare"
+                        background: Rectangle {
+                            x: bottomToolsSlider.leftPadding
+                            y: bottomToolsSlider.topPadding + bottomToolsSlider.availableHeight / 2 - height / 2
+                            width: bottomToolsSlider.availableWidth
+                            height: 6;radius:3;color:"#35556a"
+                            Rectangle {
+                                width:bottomToolsSlider.visualPosition*parent.width
+                                height:parent.height;radius:3;color:"#38badb"
+                            }
+                        }
+                        handle: Rectangle {
+                            x:bottomToolsSlider.leftPadding + bottomToolsSlider.visualPosition*(bottomToolsSlider.availableWidth-width)
+                            y:bottomToolsSlider.topPadding + bottomToolsSlider.availableHeight/2-height/2
+                            width:18;height:18;radius:9
+                            color:bottomToolsSlider.pressed?"#ffffff":"#b9f5ff"
+                            border.width:3;border.color:"#128fac"
+                        }
                     }
                     Label {
-                        Layout.preferredWidth:70;horizontalAlignment:Text.AlignRight
+                        Layout.preferredWidth:66;horizontalAlignment:Text.AlignRight
                         font.pixelSize:10;color:"#e4f5fc"
                         text:koggerPlot.indexedColumns>0 ?
                           Math.round(root.koggerPosition*(koggerPlot.indexedColumns-1)+1)+"/"+koggerPlot.indexedColumns : "0/0"
                     }
-                    Button {text:"5m";implicitWidth:32;onClicked:root.koggerDepthRange=5}
-                    Button {text:"20m";implicitWidth:38;onClicked:root.koggerDepthRange=20}
-                    Button {text:"50m";implicitWidth:38;onClicked:root.koggerDepthRange=50}
+                    SonarBottomButton {text:"5m";implicitWidth:32;active:root.koggerDepthRange===5;onClicked:{root.koggerDepthRange=5;root.showBottomControls()}}
+                    SonarBottomButton {text:"20m";implicitWidth:38;active:root.koggerDepthRange===20;onClicked:{root.koggerDepthRange=20;root.showBottomControls()}}
+                    SonarBottomButton {text:"50m";implicitWidth:38;active:root.koggerDepthRange===50;onClicked:{root.koggerDepthRange=50;root.showBottomControls()}}
+                }
+            }
+            MouseArea {
+                objectName: "navoSonarBottomEdgeReveal"
+                visible:root.useKoggerOriginal && !root.pointPicking && !root.bottomControlsVisible
+                z:12
+                anchors.left:parent.left;anchors.right:echoColumn.left
+                anchors.bottom:parent.bottom
+                height:18
+                hoverEnabled:true
+                onEntered:root.showBottomControls()
+                onPressed:root.showBottomControls()
+                Rectangle {
+                    anchors.horizontalCenter:parent.horizontalCenter
+                    anchors.bottom:parent.bottom
+                    width:62;height:5;radius:3;color:"#3fc6eb"
+                    opacity:.7
                 }
             }
             Canvas {
