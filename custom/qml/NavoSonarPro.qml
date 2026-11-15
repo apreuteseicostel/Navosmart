@@ -733,7 +733,10 @@ Rectangle {
                     MapQuickItem {
                         objectName: "sonarProBoatMarker"
                         parent: liveMap
-                        coordinate: root.replayMode ? root.replayCursorCoordinate
+                        coordinate: root.replayMode
+                            ? (root.replayCursorCoordinate && root.replayCursorCoordinate.isValid
+                                ? root.replayCursorCoordinate
+                                : (root.boatTrack.length ? root.boatTrack[root.boatTrack.length-1] : QtPositioning.coordinate()))
                             : (root.vehicle ? root.vehicle.coordinate : QtPositioning.coordinate())
                         visible: coordinate.isValid
                         anchorPoint.x: 18; anchorPoint.y: 18
