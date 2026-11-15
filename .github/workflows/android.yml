@@ -50,6 +50,7 @@ jobs:
       - name: NAVO controller regression tests
         run: |
           node tests/audit-regressions.mjs
+          node tests/kogger-replay/b-compact-raster.mjs
           node tests/route-plan.mjs
           node tests/steering-bottom.mjs
           python3 tests/android/navigation-locator.py
