@@ -902,7 +902,11 @@ test('Compass boat follows actual NAVO hopper state, unverified RC light intents
  assert(dash.includes('root.lightRcDemand(7)') && dash.includes('root.lightRcDemand(16)'));
  assert(dash.includes('virtualRgbState: root.boatVirtualRgbState'));
  assert(dash.includes('virtualRgbState:root.boatVirtualRgbState'));
- assert(h743.includes('return (capabilities() & 1) && _fresh(_headMs) && _fresh(_posMs)'));
+ assert(h743.includes('((capabilities() & 1) && _fresh(_headMs) && _fresh(_posMs))'));
+ assert(h743.includes('relayLightsValid() ||'));
+ assert(h743.includes('relayLightsValid() ? _relayHead : _head'));
+ assert(h743.includes('relayLightsValid() ? _relayPos : _pos'));
+ assert(h743Cpp.includes('NV3RHEAD') && h743Cpp.includes('NV3RPOS'));
  assert(h743.includes('Q_PROPERTY(int leftHopperOutput'));
  assert(h743.includes('Q_PROPERTY(int rightHopperOutput'));
  assert(h743Cpp.includes('MAVLINK_MSG_ID_SERVO_OUTPUT_RAW'));
@@ -918,5 +922,15 @@ test('Compass boat follows actual NAVO hopper state, unverified RC light intents
  assert(lua.indexOf('elseif state.hopper~=0 then',rgb)>rgb);
  assert(boat.includes('LED') || compass.includes('RGB fizic neconfirmat'));
 });
+test('Standalone native G20 readback is passive, optional, and never fabricates OFF',()=>{
+ const script=fs.readFileSync(path.join(dir,'../../ardupilot/scripts/navo_relay_status.lua'),'utf8');
+ const v3=fs.readFileSync(path.join(dir,'../../ardupilot/scripts/navo_v3_service.lua'),'utf8');
+ assert(script.includes('relay:enabled(instance)'));
+ assert(script.includes('relay:get(instance)'));
+ assert(script.includes('NV3RHEAD') && script.includes('NV3RPOS'));
+ assert(!script.includes('relay:on(') && !script.includes('relay:off(') && !script.includes('relay:toggle('));
+ assert(v3.includes('if cfg.lights then'));
+});
+
 console.log(`${passed} regression scenarios passed`);
 
