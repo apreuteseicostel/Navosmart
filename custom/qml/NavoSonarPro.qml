@@ -28,6 +28,28 @@ Rectangle {
     property real koggerDepthRange: 50
     property int koggerInspectorEpoch: -1
     property real koggerInspectorDepth: NaN
+    // Grid affects only depth guidelines, never CHART processing or scale labels.
+    property bool showDepthGrid: true
+    property bool koggerToolsVisible: false
+    function revealKoggerTools() {
+        koggerToolsVisible = true
+        koggerToolsHideTimer.restart()
+    }
+    function toggleKoggerTools() {
+        koggerToolsVisible = !koggerToolsVisible
+        if (koggerToolsVisible) koggerToolsHideTimer.restart()
+        else koggerToolsHideTimer.stop()
+    }
+    Timer {
+        id: koggerToolsHideTimer
+        interval: 1600
+        repeat: false
+        onTriggered: {
+            if (koggerFileSlider.pressed || (koggerToolsHover.hovered && root.koggerToolsVisible))
+                restart()
+            else root.koggerToolsVisible = false
+        }
+    }
     property var samples: []
     property bool connected: false
     readonly property bool replayMode: chartSource ? chartSource.replayMode : false
@@ -374,6 +396,7 @@ Rectangle {
     onReplayActiveChanged: { if(replayActive)history=[]; root.menuOpen=false }
     onKoggerCompensationChanged: { history = []; pushHistory(); repaint() }
     onShowBottomTrackChanged: repaint()
+    onShowDepthGridChanged: repaint()
     // Freeze scale together with the displayed history while paused.
     readonly property real scaleStart: displayedColumn ? displayedColumn.offset : (isFinite(chartOffsetMeters) ? chartOffsetMeters : 0)
     readonly property real scaleRange: displayedColumn ? displayedColumn.range : (isFinite(chartRangeMeters) && chartRangeMeters > 0 ? chartRangeMeters : 0)
@@ -390,6 +413,34 @@ Rectangle {
         ToolTip.text: hint
         background: Rectangle { radius: 8; color: control.checked ? root.selectedMenuColor : "#cc0b1c2e"; opacity: control.enabled ? 1 : .4; border.color: control.checked ? root.selectedMenuBorder : "#31536c"; border.width: control.checked ? 2 : 1 }
         contentItem: Image { source: "qrc:/qml/NavoSmart/icons/" + control.glyph + ".svg"; fillMode: Image.PreserveAspectFit }
+    }
+    component CompactKoggerButton: Button {
+        id: compact
+        property bool selected: false
+        property string hint: ""
+        implicitHeight: 27
+        padding: 3
+        font.pixelSize: 11
+        hoverEnabled: true
+        Accessible.name: hint.length ? hint : text
+        ToolTip.visible: hovered || pressed
+        ToolTip.text: Accessible.name
+        contentItem: Text {
+            text: compact.text
+            font.pixelSize: 11
+            font.bold: compact.selected
+            color: compact.enabled ? "#e5f5fc" : "#607b8e"
+            verticalAlignment: Text.AlignVCenter
+            horizontalAlignment: Text.AlignHCenter
+            elide: Text.ElideRight
+        }
+        background: Rectangle {
+            radius: 5
+            color: compact.down ? "#205a72" : compact.selected ? "#176b86"
+                : compact.hovered ? "#143e54" : "#0e293a"
+            border.color: compact.selected ? "#45d5f5" : "#36576b"
+            border.width: compact.selected ? 2 : 1
+        }
     }
     Row {
         anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
@@ -412,6 +463,7 @@ Rectangle {
                 position:root.koggerPosition
                 depthFrom:0
                 depthRange:root.koggerDepthRange
+                showDepthGrid:root.showDepthGrid
                 palette:root.koggerPalette
                 compensate:root.koggerCompensation
                 MouseArea {
@@ -435,38 +487,121 @@ Rectangle {
                     }
                 }
             }
+            // Touch/hover on the lower edge exposes the compact controls without
+            // blocking panning or inspector touches across the echogram.
+            MouseArea {
+                id: koggerBottomEdge
+                objectName: "sonarProBottomEdgeReveal"
+                z: 10
+                anchors.left: parent.left
+                anchors.right: echoColumn.left
+                anchors.bottom: parent.bottom
+                height: 16
+                enabled: root.useKoggerOriginal && !root.pointPicking
+                hoverEnabled: true
+                onEntered: root.revealKoggerTools()
+                onPressed: root.revealKoggerTools()
+            }
             Rectangle {
                 id:koggerTools
                 objectName:"sonarProOriginalKoggerTools"
-                visible:root.useKoggerOriginal && !root.pointPicking
+                visible:root.useKoggerOriginal && !root.pointPicking && root.koggerToolsVisible
                 z:11
                 anchors.left:parent.left;anchors.right:echoColumn.left
-                anchors.bottom:parent.bottom;anchors.margins:6
-                height:42;radius:7;color:"#df061724";border.color:"#31536c"
+                anchors.bottom:parent.bottom;anchors.margins:5
+                height:34;radius:7;color:"#ed061b2a";border.color:"#31617a"
+                HoverHandler {
+                    id: koggerToolsHover
+                    onHoveredChanged: if (hovered) root.revealKoggerTools()
+                }
                 RowLayout {
-                    anchors.fill:parent;anchors.leftMargin:6;anchors.rightMargin:6;spacing:4
-                    Button {text:"−";implicitWidth:30;enabled:root.koggerZoom>1;onClicked:root.koggerZoom=Math.max(1,Math.floor(root.koggerZoom/2))}
-                    Label {text:root.koggerZoom+"×";color:"#e4f5fc";font.pixelSize:11}
-                    Button {text:"+";implicitWidth:30;enabled:root.koggerZoom<64;onClicked:root.koggerZoom=Math.min(64,root.koggerZoom*2)}
-                    Button {text:"TOT";implicitWidth:38;onClicked:{root.koggerZoom=1;root.koggerPosition=.5}}
+                    anchors.fill:parent;anchors.leftMargin:5;anchors.rightMargin:5;spacing:4
+                    CompactKoggerButton {
+                        text:"−"; Layout.preferredWidth:27
+                        enabled:root.koggerZoom>1
+                        hint:"Micșorează ecograma"
+                        onClicked:{root.koggerZoom=Math.max(1,Math.floor(root.koggerZoom/2));root.revealKoggerTools()}
+                    }
+                    Label {text:root.koggerZoom+"×";color:"#bce1f1";font.pixelSize:10}
+                    CompactKoggerButton {
+                        text:"+";Layout.preferredWidth:27
+                        enabled:root.koggerZoom<64;hint:"Mărește ecograma"
+                        onClicked:{root.koggerZoom=Math.min(64,root.koggerZoom*2);root.revealKoggerTools()}
+                    }
+                    CompactKoggerButton {
+                        text:"TOT";Layout.preferredWidth:37;hint:"Arată tot fișierul"
+                        onClicked:{root.koggerZoom=1;root.koggerPosition=.5;root.revealKoggerTools()}
+                    }
                     Slider {
+                        id: koggerFileSlider
                         objectName:"sonarProKoggerFileTimelineC"
                         Layout.fillWidth:true
+                        Layout.minimumWidth:55
                         from:0;to:1;value:root.koggerPosition
                         enabled:koggerPlot.indexedColumns>1
-                        onMoved:root.koggerPosition=value
+                        onMoved:{root.koggerPosition=value;root.revealKoggerTools()}
                         Accessible.name:"Cursor Kogger pentru întreaga înregistrare"
+                        background: Rectangle {
+                            x: koggerFileSlider.leftPadding
+                            y: koggerFileSlider.topPadding + koggerFileSlider.availableHeight/2-height/2
+                            width: koggerFileSlider.availableWidth
+                            height: 5;radius: 3;color:"#34576d"
+                            Rectangle {
+                                width:koggerFileSlider.visualPosition*parent.width
+                                height:parent.height;radius:3;color:"#25c9e5"
+                            }
+                        }
+                        handle: Rectangle {
+                            x: koggerFileSlider.leftPadding + koggerFileSlider.visualPosition * (koggerFileSlider.availableWidth-width)
+                            y: koggerFileSlider.topPadding + koggerFileSlider.availableHeight/2-height/2
+                            width: 15;height: 15;radius: 8
+                            color: koggerFileSlider.pressed ? "#ffffff" : "#b5f3ff"
+                            border.color:"#087da0";border.width:2
+                        }
                     }
                     Label {
-                        Layout.preferredWidth:70;horizontalAlignment:Text.AlignRight
-                        font.pixelSize:10;color:"#e4f5fc"
+                        Layout.preferredWidth:54;horizontalAlignment:Text.AlignRight
+                        font.pixelSize:10;color:"#d5eefa"
                         text:koggerPlot.indexedColumns>0 ?
                           Math.round(root.koggerPosition*(koggerPlot.indexedColumns-1)+1)+"/"+koggerPlot.indexedColumns : "0/0"
                     }
-                    Button {text:"5m";implicitWidth:32;onClicked:root.koggerDepthRange=5}
-                    Button {text:"20m";implicitWidth:38;onClicked:root.koggerDepthRange=20}
-                    Button {text:"50m";implicitWidth:38;onClicked:root.koggerDepthRange=50}
+                    CompactKoggerButton {
+                        text:"5m";Layout.preferredWidth:31;hint:"Scară adâncime 5 metri"
+                        selected:root.koggerDepthRange===5
+                        onClicked:{root.koggerDepthRange=5;root.revealKoggerTools()}
+                    }
+                    CompactKoggerButton {
+                        text:"20m";Layout.preferredWidth:34;hint:"Scară adâncime 20 metri"
+                        selected:root.koggerDepthRange===20
+                        onClicked:{root.koggerDepthRange=20;root.revealKoggerTools()}
+                    }
+                    CompactKoggerButton {
+                        text:"50m";Layout.preferredWidth:34;hint:"Scară adâncime 50 metri"
+                        selected:root.koggerDepthRange===50
+                        onClicked:{root.koggerDepthRange=50;root.revealKoggerTools()}
+                    }
+                    CompactKoggerButton {
+                        objectName:"sonarProDepthGridToggle"
+                        text:root.showDepthGrid ? "GRID" : "FĂRĂ"
+                        hint:root.showDepthGrid ? "Ascunde liniile orizontale" : "Arată liniile orizontale"
+                        selected:root.showDepthGrid
+                        Layout.preferredWidth:40
+                        onClicked:{root.showDepthGrid=!root.showDepthGrid;root.revealKoggerTools()}
+                    }
                 }
+            }
+            CompactKoggerButton {
+                id: koggerToolsHandle
+                objectName:"sonarProKoggerBottomRevealTab"
+                visible:root.useKoggerOriginal && !root.pointPicking
+                z:12
+                anchors.horizontalCenter:koggerPlot.horizontalCenter
+                anchors.bottom:parent.bottom
+                anchors.bottomMargin:root.koggerToolsVisible ? 40 : 3
+                width:70;height:22
+                text:root.koggerToolsVisible ? "CURSOR ⌄" : "CURSOR ⌃"
+                hint:root.koggerToolsVisible ? "Ascunde meniul inferior" : "Deschide meniul inferior"
+                onClicked:root.toggleKoggerTools()
             }
             Canvas {
                 id: echogram
@@ -513,7 +648,7 @@ Rectangle {
                     ctx.strokeStyle=root.dayPalette?"#bccbd4":"#40536a"; ctx.fillStyle=root.dayPalette?"#18364a":"#d9edf7"; ctx.font="12px sans-serif"
                     for (var n=0;n<=4;n++) {
                         var gy=n*height/4
-                        ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(width,gy);ctx.stroke()
+                        if(root.showDepthGrid){ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(width,gy);ctx.stroke()}
                         {
                             var depthLabel=root.scaleRange > 0 ? (root.scaleStart+n*root.scaleRange/4).toFixed(1)+" m" : "— m"
                             var labelY=Math.max(14,Math.min(height-6,gy+(n===4?-5:14)))
@@ -750,6 +885,12 @@ Rectangle {
                 MenuAction { visible:root.useKoggerOriginal; text:"Paletă Kogger: "+(root.koggerPalette===0?"Classic":root.koggerPalette===1?"Ice":"Sepia"); onClicked:root.koggerPalette=(root.koggerPalette+1)%3 }
                 MenuAction { selected:root.koggerCompensation; text: root.koggerCompensation ? "Ecou brut" : "Compensare Kogger"; onClicked: root.koggerCompensation=!root.koggerCompensation }
                 MenuAction { selected:root.showBottomTrack; text: root.showBottomTrack ? "Ascunde linia fundului" : "Arată linia fundului"; onClicked: root.showBottomTrack=!root.showBottomTrack }
+                MenuAction {
+                    objectName: "sonarProGridMenuToggle"
+                    selected: root.showDepthGrid
+                    text: root.showDepthGrid ? "Ascunde grila orizontală" : "Arată grila orizontală"
+                    onClicked: root.showDepthGrid=!root.showDepthGrid
+                }
                 MenuAction { text: "Reset reglaje"; onClicked: root.resetDisplaySettings() }
             }
         }
