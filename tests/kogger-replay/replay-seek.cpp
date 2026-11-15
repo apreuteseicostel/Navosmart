@@ -78,6 +78,23 @@ int main(int argc,char**argv){
  const int count=replay.indexedColumns();
  if(fixture)require(count>=14000 && count<=20000,"real Kogger fixture index should cover all real columns");
  else require(count==42,"each physical CHART column indexed exactly once");
+ // Historical GPS is indexed separately from live boat GPS and remains usable
+ // when KLF replay is paused at the first frame.
+ const QVariantList geoRoute=replay.indexedGeoTrack();
+ require(geoRoute.size()<=3000,"indexed KLF GPS track exceeded render cap");
+ if(fixture){
+  require(!geoRoute.isEmpty(),"real KLF must expose recorded GNSS points");
+  const QVariantMap midpoint=replay.geoAtFraction(0.5);
+  require(midpoint.contains("latitude")&&midpoint.contains("longitude"),
+          "mid-recording KLF viewport has no selected GPS coordinate");
+  require(std::abs(midpoint.value("latitude").toDouble()-40.16)<.02 &&
+          std::abs(midpoint.value("longitude").toDouble()-44.47)<.02,
+          "KLF viewport coordinate differs from recorded GPS");
+ }else{
+  require(geoRoute.isEmpty(),"CHART-only fixture must not invent GPS route");
+  require(replay.geoAtFraction(0.5).isEmpty(),
+          "CHART-only fixture must not fabricate a selected GPS marker");
+ }
  // Full-file browsing must fetch arbitrary raw columns without changing the
  // reader cursor, even if we jump backwards through the complete recording.
  const qint64 cursorBeforeBrowse=replay.position();
