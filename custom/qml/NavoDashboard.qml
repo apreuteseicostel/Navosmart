@@ -1659,8 +1659,8 @@ Item {
                     active: root.activePage === 0 && root.sonarPipEnabled
                     onClicked: root.toggleSonarPip()
                 }
-                NavButton { text: "PRO"; proBadge: true; badgeLabel: "PRO"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 10; onClicked: root.activePage = 10 }
-                NavButton { text:"PRO KGR";proBadge:true;badgeLabel:"KGR";iconSource:"qrc:/qml/NavoSmart/icons/sonar.svg";active:root.activePage===13;onClicked:root.activePage=13 }
+                NavButton { text: "PRO"; proBadge: true; badgeLabel: "KGR"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 10; onClicked: root.activePage = 10 }
+                NavButton { text:"PRO KGR";proBadge:true;badgeLabel:"PRO";iconSource:"qrc:/qml/NavoSmart/icons/sonar.svg";active:root.activePage===13;onClicked:root.activePage=13 }
                 NavButton { text: "MISIUNI"; iconSource: "qrc:/qml/NavoSmart/icons/scan.svg"; active: root.activePage === 2; onClicked: root.activePage = 2 }
                 NavButton { text: "PUNCTE PESCUIT"; iconSource: "qrc:/qml/NavoSmart/icons/fish.svg"; active: root.activePage === 3; onClicked: root.activePage = 3 }
                 NavButton { text:"HĂRȚI OFFLINE";iconSource:"qrc:/qml/NavoSmart/icons/save.svg";active:root.activePage===12;onClicked:{if(root.mapController)root.offlineRegion=root.mapController.offlineRegion();root.activePage=12} }
