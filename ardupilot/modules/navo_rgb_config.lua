@@ -11,7 +11,7 @@ return {
  order="GRB", -- change to RGB only after testing the physical colour order
  update_ms=250,
  temp_alarm_c=45, -- matches NAVO app default alert; separate SHT31 input
- source_expiry_ms=3500,
+ source_expiry_ms=12000, -- SHT31 sample cadence is 5 seconds; expire on stale streams
  hopper_outputs={9,10}, -- read-only; accepts only SERVOx_FUNCTION=135
  hopper_open_pwm=1900,
  hopper_tolerance_us=100,
