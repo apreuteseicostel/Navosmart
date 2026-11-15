@@ -95,6 +95,11 @@ Rectangle {
             selectedEpoch = Number(hit.epoch)
             selectedDepthM = hit.depthM === undefined ? NaN : Number(hit.depthM)
             selectedCursorY = py
+            // Use the yellow inspector epoch, not just the viewport centre,
+            // for the historical marker shared with both NAVO maps.
+            if (chartSource && chartSource.replayMode && plot.indexedColumns > 1)
+                chartSource.replayViewPosition =
+                    (selectedEpoch - 1) / (plot.indexedColumns - 1)
         }
     }
     function cursorPixel() {
