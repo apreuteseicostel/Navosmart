@@ -52,9 +52,11 @@ public:
     Q_INVOKABLE void setConnectionEndpoint(const QString& host,int port,bool udp) {
         const QUuid previous=linkUuid_;
         const QString name=host.trimmed().toLower();
-        linkUuid_=(name.isEmpty()||port<1||port>65535)?QUuid():QUuid::createUuidV5(
+        // An unbound UDP listener (empty remote host) is a valid live source.
+        const QString identity=(udp&&name.isEmpty())?QStringLiteral("0.0.0.0"):name;
+        linkUuid_=(identity.isEmpty()||port<1||port>65535)?QUuid():QUuid::createUuidV5(
             QUuid("{6ba7b811-9dad-11d1-80b4-00c04fd430c8}"),
-            QString("navo-kogger+%1://%2:%3").arg(udp?"udp":"tcp",name).arg(port).toUtf8());
+            QString("navo-kogger+%1://%2:%3").arg(udp?"udp":"tcp",identity).arg(port).toUtf8());
         if(previous!=linkUuid_)clear();
         emit recordsChanged();
     }
@@ -134,9 +136,9 @@ private:
             const ChannelId channel=(!linkUuid_.isNull()&&address>=0&&address<=255)
                 ?ChannelId(linkUuid_,quint8(address)):ChannelId();
             if(channel.isValid()){
-                if(record.version!=0)++epochFailures_;
-                else if(NavoKoggerService::instance().ingest(record,channel,
+                if(NavoKoggerService::instance().ingest(record,channel,
                             fresh?heading_:qQNaN(),fresh?pitch_:qQNaN(),fresh?roll_:qQNaN()))++datasetColumns_;
+                else ++epochFailures_;
             }
         }
         emit recordsChanged();

@@ -357,16 +357,20 @@ test('Sonar PRO preserves recorded ecogram at EOF and starts a clean new replay'
 });
 test('Sonar PRO displays the Dashboard native bottom-depth fallback',()=>{
  const dashboard=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
- const pro=dashboard.slice(dashboard.indexOf('id: sonarProPage'),dashboard.indexOf('id: sonarProPage')+1800);
- assert.match(pro,/depthM:\s*root\.depthM/);
+ const kgr=dashboard.slice(dashboard.indexOf('id: koggerSonarPage'),dashboard.indexOf('id: koggerSonarPage')+1900);
+ assert.match(kgr,/depthM:\s*root\.depthM/);
  assert.match(dashboard,/processedBottomDepthM/);
 });
 test('Sonar PRO labels the finished recording as replay rather than live input',()=>{
- const c=context('NavoSonarPro.qml',{chartSource:{replayMode:true},replayActive:false,connected:true,paused:false});
+ const c=context('NavoSonarPro.qml',{chartSource:{replayMode:true,dataAlive:false,connected:false},replayActive:false,connected:true,paused:false});
  assert.equal(c.sourceStatusText(),'REPLAY • FINAL');
  c.replayActive=true;assert.equal(c.sourceStatusText(),'REPLAY');
- c.chartSource.replayMode=false;assert.equal(c.sourceStatusText(),'LIVE');
- c.connected=false;assert.equal(c.sourceStatusText(),'OFFLINE');
+ c.chartSource.replayMode=false;c.chartSource.dataAlive=true;
+ assert.equal(c.sourceStatusText(),'LIVE CHART');
+ c.chartSource.dataAlive=false;c.chartSource.connected=true;
+ assert.equal(c.sourceStatusText(),'CONECTAT • aștept CHART');
+ c.chartSource.connected=false;c.connected=false;
+ assert.equal(c.sourceStatusText(),'OFFLINE');
 });
 test('Installed acceptance compares restart with the saved snapshot including late native samples',()=>{
  const late=Array(14486).fill({depth:3}),saved={};let stopped=false;

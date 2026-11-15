@@ -5,11 +5,12 @@ import QtQuick.Dialogs
 import QtPositioning
 import QtLocation
 import QGroundControl.FlightMap
+import NavoSmart.Backend 1.0
 import "NavoBottomAnalysis.js" as BottomAnalysis
 
 Rectangle {
     id: root
-    objectName:"navoSonarPro"
+    objectName:"navoSonarProKgr"
     property int chartResolution: 0
     property int chartAbsoluteOffset: 0
     property int chartVersion: 0
@@ -18,15 +19,46 @@ Rectangle {
     property real chartOffsetMeters: NaN
     property real chartRangeMeters: NaN
     property var chartSource: null
+    // Experiment C: Kogger upstream Epoch::chartTo and 256-colour palette
+    // behind a reversible switch, preserving Sonar PRO actions and map.
+    property bool useKoggerOriginal: true
+    property int koggerZoom: 1
+    property var replayCursorCoordinate: QtPositioning.coordinate()
+    property real koggerPosition: 0.5
+    property bool bottomControlsVisible: true
+    onKoggerPositionChanged: {
+        if (chartSource && chartSource.replayMode)
+            chartSource.replayViewPosition = koggerPosition
+    }
+    function showBottomControls() {
+        bottomControlsVisible = true
+        bottomToolsHide.restart()
+    }
+    property int koggerPalette: 0
+    property real koggerDepthRange: 50
+    property int koggerInspectorEpoch: -1
+    property real koggerInspectorDepth: NaN
+    onKoggerInspectorEpochChanged: {
+        if (chartSource && chartSource.replayMode && koggerInspectorEpoch > 0 &&
+                koggerPlot.indexedColumns > 1)
+            chartSource.replayViewPosition =
+                (koggerInspectorEpoch - 1) / (koggerPlot.indexedColumns - 1)
+    }
     property var samples: []
     property bool connected: false
     readonly property bool replayMode: chartSource ? chartSource.replayMode : false
     readonly property bool replayActive: chartSource ? chartSource.replayActive : false
     function sourceStatusText() {
         if(chartSource && chartSource.replayMode)return replayActive ? "REPLAY" : "REPLAY • FINAL"
-        return connected ? (chartSource && chartSource.recording ? "REC ●" : (paused ? "PAUZĂ" : "LIVE")) : "OFFLINE"
+        return chartSource && chartSource.dataAlive
+            ? (chartSource.recording ? "REC ●" : (paused ? "PAUZĂ" : "LIVE CHART"))
+            : chartSource && chartSource.connected ? "CONECTAT • aștept CHART" : "OFFLINE"
     }
-    FileDialog { id: replayPicker; title: 'Încarcă înregistrare sonar'; nameFilters: ['Sonar NAVO / Kogger (*.navosonar *.klf)', 'Toate fișierele (*)']; onAccepted: { if(root.chartSource) {root.history=[];root.chartSource.startReplay(selectedFile)} } }
+    NavoSonarLiveConnection {
+        id: liveConnection
+        sonar: root.chartSource
+    }
+    FileDialog { id: replayPicker; title: 'Încarcă înregistrare sonar'; nameFilters: ['Sonar NAVO / Kogger (*.navosonar *.klf)', 'Toate fișierele (*)']; onAccepted: { if(root.chartSource) {root.history=[];if(root.chartSource.startReplay(selectedFile)&&root.useKoggerOriginal && typeof root.chartSource.pauseReplay==="function")root.chartSource.pauseReplay(true)} } }
     readonly property var bottomAnalysis: bottomAnalysisDialog.visible && displayedColumn
         ? BottomAnalysis.column(displayedColumn.rawSamples,displayedColumn.offset,displayedColumn.range,displayedColumn.bottom) : ({valid:false})
     readonly property var bottomProfile: bottomAnalysisDialog.visible ? BottomAnalysis.profile(history) : ({valid:false})
@@ -347,7 +379,10 @@ Rectangle {
     Component.onCompleted: Qt.callLater(pushHistory)
     onHistoryChanged: { if (!history.length) rasterCache = []; repaint() }
     onActiveLakeIdChanged: { endPointPick();sonarPointDialog.close();history=[] }
-    onReplayModeChanged: { endPointPick();sonarPointDialog.close();history=[] }
+    onReplayModeChanged: {
+        endPointPick();sonarPointDialog.close();history=[]
+        if(replayMode&&useKoggerOriginal&&chartSource && typeof chartSource.pauseReplay==="function")chartSource.pauseReplay(true)
+    }
     onGainChanged: repaint()
     onNoiseFloorChanged: repaint()
     onNoiseFilterEnabledChanged: repaint()
@@ -372,6 +407,41 @@ Rectangle {
         background: Rectangle { radius: 8; color: control.checked ? root.selectedMenuColor : "#cc0b1c2e"; opacity: control.enabled ? 1 : .4; border.color: control.checked ? root.selectedMenuBorder : "#31536c"; border.width: control.checked ? 2 : 1 }
         contentItem: Image { source: "qrc:/qml/NavoSmart/icons/" + control.glyph + ".svg"; fillMode: Image.PreserveAspectFit }
     }
+    Timer {
+        id: bottomToolsHide
+        interval: 1500
+        running: true
+        repeat: false
+        onTriggered: {
+            if (bottomToolsSlider.pressed || bottomToolsHover.hovered) restart()
+            else root.bottomControlsVisible = false
+        }
+    }
+    component SonarBottomButton: Button {
+        id: bottomButton
+        property bool active: false
+        implicitHeight: 30
+        implicitWidth: 35
+        padding: 3
+        font.pixelSize: 11
+        font.bold: true
+        background: Rectangle {
+            radius: 6
+            color: bottomButton.down ? "#257189" :
+                   bottomButton.active ? "#15536f" :
+                   bottomButton.hovered ? "#194156" : "#0e293a"
+            border.color: bottomButton.active ? "#38e3ff" : "#42748d"
+            border.width: bottomButton.active ? 2 : 1
+        }
+        contentItem: Text {
+            text: bottomButton.text
+            font: bottomButton.font
+            color: bottomButton.enabled ? "#e5f8ff" : "#547185"
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+    }
     Row {
         anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom
         // Keep the scale and echo key below the status/close controls.
@@ -382,8 +452,118 @@ Rectangle {
             width: root.mapEnabled ? Math.floor((parent.width - 2) * 0.55) : parent.width
             height: parent.height
             clip: true
+            NavoKoggerEpochPlotItem {
+                id:koggerPlot
+                objectName:"sonarProUpstreamKoggerEpochPlotC"
+                anchors.left:parent.left;anchors.top:parent.top
+                anchors.bottom:parent.bottom;anchors.right:echoColumn.left
+                visible:root.useKoggerOriginal && !root.pointPicking
+                fileReplay:root.chartSource && root.replayMode ? root.chartSource.replay : null
+                horizontalZoom:root.koggerZoom
+                position:root.koggerPosition
+                depthFrom:0
+                depthRange:root.koggerDepthRange
+                palette:root.koggerPalette
+                compensate:root.koggerCompensation
+                MouseArea {
+                    anchors.fill:parent
+                    property real downX:0
+                    property real downPos:0
+                    property bool dragging:false
+                    onPressed:function(mouse){downX=mouse.x;downPos=root.koggerPosition;dragging=false}
+                    onPositionChanged:function(mouse){
+                        if(!pressed || root.koggerZoom<=1)return
+                        var dx=mouse.x-downX
+                        if(Math.abs(dx)>4)dragging=true
+                        if(dragging)root.koggerPosition=Math.max(0,Math.min(1,
+                            downPos-dx/Math.max(1,width)/root.koggerZoom))
+                    }
+                    onClicked:function(mouse){
+                        if(dragging)return
+                        var hit=koggerPlot.inspectAt(mouse.x,mouse.y)
+                        root.koggerInspectorEpoch=hit.epoch===undefined?-1:Number(hit.epoch)
+                        root.koggerInspectorDepth=hit.depthM===undefined?NaN:Number(hit.depthM)
+                    }
+                }
+            }
+            Rectangle {
+                id:koggerTools
+                objectName:"sonarProOriginalKoggerTools"
+                visible:root.useKoggerOriginal && !root.pointPicking && root.bottomControlsVisible
+                z:11
+                anchors.left:parent.left;anchors.right:echoColumn.left
+                anchors.bottom:parent.bottom;anchors.margins:6
+                height:42;radius:8;color:"#e0081f30";border.color:"#327d94"
+                HoverHandler {
+                    id: bottomToolsHover
+                    onHoveredChanged: {
+                        if(hovered) bottomToolsHide.stop()
+                        else bottomToolsHide.restart()
+                    }
+                }
+                RowLayout {
+                    anchors.fill:parent;anchors.leftMargin:6;anchors.rightMargin:6;spacing:4
+                    SonarBottomButton {text:"−";enabled:root.koggerZoom>1;active:root.koggerZoom>1;onClicked:{root.koggerZoom=Math.max(1,Math.floor(root.koggerZoom/2));root.showBottomControls()}}
+                    Label {text:root.koggerZoom+"×";color:"#c1edfa";font.pixelSize:11;font.bold:true}
+                    SonarBottomButton {text:"+";enabled:root.koggerZoom<64;onClicked:{root.koggerZoom=Math.min(64,root.koggerZoom*2);root.showBottomControls()}}
+                    SonarBottomButton {text:"TOT";implicitWidth:38;onClicked:{root.koggerZoom=1;root.koggerPosition=.5;root.showBottomControls()}}
+                    Slider {
+                        id: bottomToolsSlider
+                        objectName:"sonarProKoggerFileTimelineC"
+                        Layout.fillWidth:true
+                        from:0;to:1;value:root.koggerPosition
+                        enabled:koggerPlot.indexedColumns>1
+                        onMoved:{root.koggerPosition=value;root.showBottomControls()}
+                        Accessible.name:"Cursor Kogger pentru întreaga înregistrare"
+                        background: Rectangle {
+                            x: bottomToolsSlider.leftPadding
+                            y: bottomToolsSlider.topPadding + bottomToolsSlider.availableHeight / 2 - height / 2
+                            width: bottomToolsSlider.availableWidth
+                            height: 6;radius:3;color:"#35556a"
+                            Rectangle {
+                                width:bottomToolsSlider.visualPosition*parent.width
+                                height:parent.height;radius:3;color:"#38badb"
+                            }
+                        }
+                        handle: Rectangle {
+                            x:bottomToolsSlider.leftPadding + bottomToolsSlider.visualPosition*(bottomToolsSlider.availableWidth-width)
+                            y:bottomToolsSlider.topPadding + bottomToolsSlider.availableHeight/2-height/2
+                            width:18;height:18;radius:9
+                            color:bottomToolsSlider.pressed?"#ffffff":"#b9f5ff"
+                            border.width:3;border.color:"#128fac"
+                        }
+                    }
+                    Label {
+                        Layout.preferredWidth:66;horizontalAlignment:Text.AlignRight
+                        font.pixelSize:10;color:"#e4f5fc"
+                        text:koggerPlot.indexedColumns>0 ?
+                          Math.round(root.koggerPosition*(koggerPlot.indexedColumns-1)+1)+"/"+koggerPlot.indexedColumns : "0/0"
+                    }
+                    SonarBottomButton {text:"5m";implicitWidth:32;active:root.koggerDepthRange===5;onClicked:{root.koggerDepthRange=5;root.showBottomControls()}}
+                    SonarBottomButton {text:"20m";implicitWidth:38;active:root.koggerDepthRange===20;onClicked:{root.koggerDepthRange=20;root.showBottomControls()}}
+                    SonarBottomButton {text:"50m";implicitWidth:38;active:root.koggerDepthRange===50;onClicked:{root.koggerDepthRange=50;root.showBottomControls()}}
+                }
+            }
+            MouseArea {
+                objectName: "navoSonarBottomEdgeReveal"
+                visible:root.useKoggerOriginal && !root.pointPicking && !root.bottomControlsVisible
+                z:12
+                anchors.left:parent.left;anchors.right:echoColumn.left
+                anchors.bottom:parent.bottom
+                height:18
+                hoverEnabled:true
+                onEntered:root.showBottomControls()
+                onPressed:root.showBottomControls()
+                Rectangle {
+                    anchors.horizontalCenter:parent.horizontalCenter
+                    anchors.bottom:parent.bottom
+                    width:62;height:5;radius:3;color:"#3fc6eb"
+                    opacity:.7
+                }
+            }
             Canvas {
                 id: echogram
+                visible:!root.useKoggerOriginal || root.pointPicking
                 objectName: "sonarProEchogram"
                 anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
                 anchors.right: echoColumn.left
@@ -451,7 +631,7 @@ Rectangle {
             }
             Label {
                 anchors.centerIn: parent
-                visible: !root.history.length
+                visible:!root.history.length && (!root.useKoggerOriginal || koggerPlot.indexedColumns<=0)
                 text: root.connected ? "Aștept coloane CHART" : "Aștept date Kogger"
                 color: "#9db2c5"
             }
@@ -528,7 +708,9 @@ Rectangle {
                         zoomLevel: 17
                         function followBoat() {
                             if(root.replayMode) {
-                                if(root.boatTrack.length) center=root.boatTrack[root.boatTrack.length-1]
+                                if(root.replayCursorCoordinate && root.replayCursorCoordinate.isValid)
+                                    center=root.replayCursorCoordinate
+                                else if(root.boatTrack.length) center=root.boatTrack[root.boatTrack.length-1]
                                 return
                             }
                             if(root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid)
@@ -536,6 +718,7 @@ Rectangle {
                         }
                         Component.onCompleted: followBoat()
                         Connections { target: root; function onBoatTrackChanged() { if(root.replayMode) liveMap.followBoat() } }
+                        Connections { target: root; function onReplayCursorCoordinateChanged() { if(root.replayMode) liveMap.followBoat() } }
                         Connections { target: root.vehicle; function onCoordinateChanged() { liveMap.followBoat() } }
                     }
                     MapPolyline {
@@ -556,7 +739,11 @@ Rectangle {
                     MapQuickItem {
                         objectName: "sonarProBoatMarker"
                         parent: liveMap
-                        coordinate: root.replayMode ? (root.boatTrack.length ? root.boatTrack[root.boatTrack.length-1] : QtPositioning.coordinate()) : (root.vehicle ? root.vehicle.coordinate : QtPositioning.coordinate())
+                        coordinate: root.replayMode
+                            ? (root.replayCursorCoordinate && root.replayCursorCoordinate.isValid
+                                ? root.replayCursorCoordinate
+                                : (root.boatTrack.length ? root.boatTrack[root.boatTrack.length-1] : QtPositioning.coordinate()))
+                            : (root.vehicle ? root.vehicle.coordinate : QtPositioning.coordinate())
                         visible: coordinate.isValid
                         anchorPoint.x: 18; anchorPoint.y: 18
                         sourceItem: Image {
@@ -584,7 +771,7 @@ Rectangle {
         Label {
             id: telemetry; objectName: "sonarProTelemetry"; font.pixelSize: 14; anchors.fill: parent; anchors.margins: 8; elide: Text.ElideRight
             color: root.connected ? "#21b7ff" : "#9db2c5"
-            text: "PRO  •  " + root.sourceStatusText() + "   " + (isFinite(root.depthM)?root.depthM.toFixed(1)+" m":"— m") + "   " + (isFinite(root.waterTempC)?root.waterTempC.toFixed(1)+" °C":"— °C")
+            text: "NAVO PRO  •  " + root.sourceStatusText() + "   " + (isFinite(root.depthM)?root.depthM.toFixed(1)+" m":"— m") + "   " + (isFinite(root.waterTempC)?root.waterTempC.toFixed(1)+" °C":"— °C")
         }
     }
     IconButton {
@@ -593,7 +780,7 @@ Rectangle {
         anchors.left: parent.left; anchors.top: telemetryBar.bottom; anchors.leftMargin: 10; anchors.topMargin: 18
         implicitWidth: 34; implicitHeight: 34; padding: 6
         z: 100; visible: true; enabled: true
-        glyph: "settings"; hint: "Deschide / închide meniul Sonar PRO"
+        glyph: "settings"; hint: "Deschide / închide meniul Sonar PRO NAVO"
         checkable: true; checked: root.menuOpen
         onClicked: { root.settingsVisible = false; root.menuOpen = !root.menuOpen }
     }
@@ -601,7 +788,7 @@ Rectangle {
         id: closeButton
         objectName: "sonarProCloseButton"
         anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 6
-        z: 102; glyph: "close"; hint: "Ieșire din Sonar PRO"
+        z: 102; glyph: "close"; hint: "Ieșire din Sonar PRO NAVO"
         onClicked: root.closed()
     }
     Rectangle {
@@ -627,6 +814,12 @@ Rectangle {
                     palette.buttonText: selected ? "#ffffff" : "#d7e7f1"
                     background: Rectangle { radius: 5; color: action.selected ? root.selectedMenuColor : (action.hovered ? "#183c51" : "#102435"); border.color: action.selected ? root.selectedMenuBorder : "#31536c"; border.width: action.selected ? 2 : 1 }
                 }
+                MenuAction {
+                    objectName: "sonarKgrLiveConnectionMenu"
+                    text: "Conexiune LIVE • TCP / UDP"
+                    selected: !!(root.chartSource && root.chartSource.dataAlive)
+                    onClicked: { root.menuOpen = false; liveConnection.open() }
+                }
                 MenuAction { visible:!!(root.chartSource && !root.replayMode); enabled:!!(root.chartSource && (root.chartSource.recording || root.chartSource.dataAlive)); selected:!!(root.chartSource && root.chartSource.recording); text:root.chartSource && root.chartSource.recording ? 'Oprește și salvează REC' : 'Înregistrează sesiunea'; onClicked: {root.menuOpen=false;if(root.chartSource.recording)root.chartSource.stopRecording();else recordingDialog.open()} }
                 MenuAction { text:'Analiză fund și ecouri'; enabled:root.history.length>0; onClicked:{root.menuOpen=false;bottomAnalysisDialog.open()} }
                 MenuAction { text:root.pointPicking ? 'Anulează alegerea punctului' : 'Salvează punct din ecogramă'; selected:root.pointPicking
@@ -649,6 +842,12 @@ Rectangle {
                 MenuAction { selected:root.paused; text: root.paused ? "Continuă ecograma" : "Pauză ecogramă"; onClicked: root.paused=!root.paused }
                 MenuAction { selected:root.dayPalette; text: root.dayPalette ? "Paletă NAVO" : "Paletă de zi"; onClicked: root.dayPalette=!root.dayPalette }
                 MenuAction { selected:root.settingsVisible; text: "Sensibilitate și filtre"; onClicked: {root.settingsVisible=!root.settingsVisible;root.menuOpen=false} }
+                MenuAction {
+                    selected:root.useKoggerOriginal
+                    text:root.useKoggerOriginal ? "Motor: Kogger Epoch 256 niveluri" : "Motor: NAVO vechi 4 niveluri"
+                    onClicked:root.useKoggerOriginal=!root.useKoggerOriginal
+                }
+                MenuAction { visible:root.useKoggerOriginal; text:"Paletă Kogger: "+(root.koggerPalette===0?"Classic":root.koggerPalette===1?"Ice":"Sepia"); onClicked:root.koggerPalette=(root.koggerPalette+1)%3 }
                 MenuAction { selected:root.koggerCompensation; text: root.koggerCompensation ? "Ecou brut" : "Compensare Kogger"; onClicked: root.koggerCompensation=!root.koggerCompensation }
                 MenuAction { selected:root.showBottomTrack; text: root.showBottomTrack ? "Ascunde linia fundului" : "Arată linia fundului"; onClicked: root.showBottomTrack=!root.showBottomTrack }
                 MenuAction { text: "Reset reglaje"; onClicked: root.resetDisplaySettings() }
