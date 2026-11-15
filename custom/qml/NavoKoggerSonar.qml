@@ -129,9 +129,9 @@ Rectangle {
             root.selectedDepthM = NaN
             if (root.chartSource.startReplay(selectedFile))
                 root.chartSource.pauseReplay(true)
-            root.revealControls()
+            root.revealLeftPanel()
         }
-        onRejected: root.revealControls()
+        onRejected: root.revealLeftPanel()
     }
 
     NavoKoggerEpochPlotItem {
@@ -185,7 +185,7 @@ Rectangle {
         id: statusBar
         objectName: "koggerBCompactStatus"
         z: 5
-        visible: root.controlsVisible
+        visible: root.leftPanelVisible || root.rightPanelVisible || root.timelineVisible
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
@@ -225,7 +225,7 @@ Rectangle {
         id: leftPanel
         objectName: "koggerBLeftRail"
         z: 5
-        visible: root.controlsVisible
+        visible: root.leftPanelVisible
         width: 116
         height: Math.min(214, parent.height - 45)
         anchors.left: parent.left
@@ -243,14 +243,14 @@ Rectangle {
                 text: "DESCHIDE KLF"
                 Layout.fillWidth: true
                 Layout.preferredHeight: 31
-                onClicked: { root.revealControls(); chooser.open() }
+                onClicked: { root.revealLeftPanel(); chooser.open() }
             }
             SonarRailButton {
                 text: root.replayReady ? "OPREȘTE" : "LIVE"
                 enabled: root.replayReady
                 Layout.fillWidth: true
                 Layout.preferredHeight: 29
-                onClicked: { root.chartSource.stopReplay(); root.revealControls() }
+                onClicked: { root.chartSource.stopReplay(); root.revealLeftPanel() }
             }
             Label {
                 text: "ZOOM  " + plot.horizontalZoom + "×"
@@ -266,20 +266,20 @@ Rectangle {
                     text: "−"
                     Layout.fillWidth: true
                     Layout.preferredHeight: 29
-                    onClicked: { plot.horizontalZoom = Math.max(1, Math.floor(plot.horizontalZoom / 2)); root.revealControls() }
+                    onClicked: { plot.horizontalZoom = Math.max(1, Math.floor(plot.horizontalZoom / 2)); root.revealLeftPanel() }
                 }
                 SonarRailButton {
                     text: "+"
                     Layout.fillWidth: true
                     Layout.preferredHeight: 29
-                    onClicked: { plot.horizontalZoom = Math.min(64, plot.horizontalZoom * 2); root.revealControls() }
+                    onClicked: { plot.horizontalZoom = Math.min(64, plot.horizontalZoom * 2); root.revealLeftPanel() }
                 }
             }
             SonarRailButton {
                 text: "TOT • 1×"
                 Layout.fillWidth: true
                 Layout.preferredHeight: 29
-                onClicked: { plot.horizontalZoom = 1; plot.position = 0.5; root.revealControls() }
+                onClicked: { plot.horizontalZoom = 1; plot.position = 0.5; root.revealLeftPanel() }
             }
             Label {
                 text: "SCARĂ  " + Math.round(plot.depthRange) + " m"
@@ -311,7 +311,7 @@ Rectangle {
         id: rightPanel
         objectName: "koggerBRightRail"
         z: 5
-        visible: root.controlsVisible
+        visible: root.rightPanelVisible
         width: 110
         height: Math.min(162, parent.height - 45)
         anchors.right: parent.right
@@ -329,22 +329,22 @@ Rectangle {
                 text: ["CLASSIC", "ICE", "SEPIA"][plot.palette]
                 Layout.fillWidth: true
                 Layout.preferredHeight: 31
-                onClicked: { plot.palette = (plot.palette + 1) % 3; root.revealControls() }
+                onClicked: { plot.palette = (plot.palette + 1) % 3; root.revealRightPanel() }
             }
             SonarRailButton {
                 text: plot.compensate ? "COMPENSAT" : "BRUT"
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
-                onClicked: { plot.compensate = !plot.compensate; root.revealControls() }
+                onClicked: { plot.compensate = !plot.compensate; root.revealRightPanel() }
             }
             SonarRailButton {
                 text: root.dragToPan ? "PAN" : "INSPECTOR"
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
-                onClicked: { root.dragToPan = !root.dragToPan; root.revealControls() }
+                onClicked: { root.dragToPan = !root.dragToPan; root.revealRightPanel() }
             }
             SonarRailButton {
-                text: "ÎNCHIDE"
+                text: "IEȘIRE"
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
                 onClicked: root.closed()
@@ -361,9 +361,9 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         width: 27
         height: 44
-        text: root.controlsVisible ? "‹" : "›"
-        Accessible.name: root.controlsVisible ? "Ascunde comenzile Kogger" : "Arată comenzile Kogger"
-        onClicked: root.toggleControls()
+        text: root.leftPanelVisible ? "‹" : "›"
+        Accessible.name: root.leftPanelVisible ? "Ascunde meniul stâng Kogger" : "Deschide meniul stâng Kogger"
+        onClicked: root.toggleLeftPanel()
     }
     SonarRailButton {
         id: rightHandle
@@ -373,16 +373,16 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         width: 27
         height: 44
-        text: root.controlsVisible ? "›" : "‹"
-        Accessible.name: root.controlsVisible ? "Ascunde comenzile Kogger" : "Arată comenzile Kogger"
-        onClicked: root.toggleControls()
+        text: root.rightPanelVisible ? "›" : "‹"
+        Accessible.name: root.rightPanelVisible ? "Ascunde meniul drept Kogger" : "Deschide meniul drept Kogger"
+        onClicked: root.toggleRightPanel()
     }
 
     Rectangle {
         id: timelineBar
         objectName: "koggerBCompactTimeline"
         z: 5
-        visible: root.controlsVisible && plot.fileReady
+        visible: root.timelineVisible && plot.fileReady
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
@@ -410,7 +410,7 @@ Rectangle {
                 to: 1
                 value: plot.position
                 enabled: plot.fileReady && plot.indexedColumns > 1
-                onMoved: { plot.position = value; root.revealControls() }
+                onMoved: { plot.position = value; root.revealTimeline() }
                 Accessible.name: "Explorează fișierul Kogger fără a muta replay-ul"
             }
             Label {
@@ -423,5 +423,21 @@ Rectangle {
                 horizontalAlignment: Text.AlignRight
             }
         }
+    }
+    // Bottom reveal tab is independent of both side rails.
+    SonarRailButton {
+        id: timelineHandle
+        objectName: "koggerBTimelineRevealTab"
+        z: 8
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: root.timelineVisible && plot.fileReady ? 36 : 1
+        width: 72
+        height: 24
+        enabled: plot.fileReady
+        text: root.timelineVisible && plot.fileReady ? "CURSOR  ⌄" : "CURSOR  ⌃"
+        Accessible.name: root.timelineVisible && plot.fileReady
+            ? "Ascunde sliderul Kogger" : "Deschide sliderul Kogger"
+        onClicked: root.toggleTimeline()
     }
 }
