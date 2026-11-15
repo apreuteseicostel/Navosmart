@@ -82,20 +82,24 @@ local function monitor(now)
  })do param:set(k,v)end
 end
 monitor(0);tick(250,7) -- green only after valid water + temperature
+assert(telemetry.NV3RGBR==0)
 relays[0]=1;tick(500,4) -- white headlight
 relays[1]=1;tick(750,6) -- yellow both
 relays[0]=0;tick(1000,5) -- cyan positions
 relays[1]=0;pwm[8]=1900;tick(1250,3) -- blue physical cuva
 pwm[8]=1500;param:set("NVLR_HOP",3);param:set("NVLR_HMS",1250)
 tick(1500,3) -- blue via onboard hopper cycle, no PWM feedback required
+assert(telemetry.NV3RGBR==16)
 tick(3250,7) -- stale onboard hopper cycle must not remain blue
 param:set("NVLR_WET",1);param:set("NVLR_WMS",3250)
 tick(3500,1) -- critical RED
+assert(telemetry.NV3RGBR==1 and messages[#messages]:find("WATER",1,true))
 param:set("NVLR_WET",-1);param:set("NVLR_WST",3);param:set("NVLR_WMS",3500)
 tick(3750,2) -- magenta sensor error
 param:set("NVLR_WST",2);param:set("NVLR_WET",0);param:set("NVLR_WMS",3750)
 param:set("NVLR_TV",50);param:set("NVLR_TMS",3750)
 tick(4000,1) -- temperature above NAVO app default 45C
+assert(telemetry.NV3RGBR==2 and messages[#messages]:find("TEMP",1,true))
 param:set("NVLR_TV",25)
 tick(4300,7)
 tick(20000,8) -- expired telemetry must not claim green
