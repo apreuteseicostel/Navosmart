@@ -10,6 +10,14 @@ Item {
     property real pitchDeg: NaN
     property bool headingValid: isFinite(headingDeg)
     property bool expanded: false
+    // Snapshot of NAVO requested states/telemetry; no claim of physical feedback.
+    property bool leftHopperOpen: false
+    property bool rightHopperOpen: false
+    property bool headlightOn: false
+    property bool positionLightsOn: false
+    property bool headlightRequested: false
+    property bool positionLightsRequested: false
+    property string virtualRgbState: "unknown"
     signal toggleRequested()
     property string cardinal: {
         if (!headingValid) return "--"
@@ -86,7 +94,16 @@ Item {
         width: Math.max(22, root.width * (root.expanded ? 0.35 : 0.38)); height: Math.max(36, root.height * (root.expanded ? 0.56 : 0.66)); anchors.centerIn: parent; anchors.horizontalCenterOffset: root.expanded ? 0 : -14
         rotation: root.normalizedHeading
         Behavior on rotation { RotationAnimation { duration: 260; direction: RotationAnimation.Shortest } }
-        NavoBoatVisual { anchors.fill: parent }
+        NavoBoatVisual {
+            anchors.fill: parent
+            leftHopperOpen: root.leftHopperOpen
+            rightHopperOpen: root.rightHopperOpen
+            headlightOn: root.headlightOn
+            positionLightsOn: root.positionLightsOn
+            headlightRequested: root.headlightRequested
+            positionLightsRequested: root.positionLightsRequested
+            virtualRgbState: root.virtualRgbState
+        }
     }
 
     Rectangle {
@@ -125,6 +142,19 @@ Item {
     }
 
     ToolTip.visible: mouse.containsMouse
-    ToolTip.text: root.headingValid ? root.headingSource+" • "+Math.round(root.normalizedHeading)+"° "+root.cardinal+(isFinite(root.courseError)?" • abatere "+Math.round(root.courseError)+"°":"") : "Heading indisponibil"
+    // The coloured dot is the application alarm, NOT physical serialLED ACK.
+    Label {
+        objectName: "compassVirtualRgbExplanation"
+        visible: root.expanded
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 9
+        color: root.virtualRgbState === "critical" ? "#ff7484" : "#9cdbef"
+        font.pixelSize: 9
+        text: "LED APP: " + root.virtualRgbState.toUpperCase() + " • RGB fizic neconfirmat"
+    }
+    ToolTip.text: (root.headingValid ? root.headingSource+" • "+Math.round(root.normalizedHeading)+"° "+root.cardinal+(isFinite(root.courseError)?" • abatere "+Math.round(root.courseError)+"°":"") : "Heading indisponibil")
+        + " • lumini: " + (root.headlightOn || root.positionLightsOn ? "raportate H743" : root.headlightRequested || root.positionLightsRequested ? "RC solicitat, neconfirmat" : "fără confirmare")
+        + " • RGB: stare aplicație, LED fizic neconfirmat"
     MouseArea { id:mouse; anchors.fill:parent; hoverEnabled:true; onClicked: root.toggleRequested() }
 }
