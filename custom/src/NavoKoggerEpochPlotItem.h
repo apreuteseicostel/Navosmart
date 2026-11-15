@@ -6,6 +6,7 @@
 #include <QQueue>
 #include <QTimer>
 #include <QByteArray>
+#include <QImage>
 #include <QVariantMap>
 #include <QVector>
 #include <QtGlobal>
@@ -66,6 +67,7 @@ private:
     QQueue<int> _order;
     qint64 _cachedBytes=0;
     QTimer _loadTimer,_refreshTimer;
+    QImage _lastCompleteFrame; // Previous valid viewport during an indexed KLF pan
     QUuid _sourceUuid;
     double _position=0.5,_from=0,_range=50,_low=10,_high=100;
     int _zoom=1,_palette=0;
