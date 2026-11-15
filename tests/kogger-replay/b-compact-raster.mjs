@@ -22,8 +22,10 @@ assert.doesNotMatch(qml, /component SonarRailButton: SonarRailButton/, 'Button c
 assert.match(qml, /property bool leftPanelVisible: true/, 'Missing left menu visibility')
 assert.match(qml, /property bool rightPanelVisible: true/, 'Missing right menu visibility')
 assert.match(qml, /property bool timelineVisible: true/, 'Missing independent slider visibility')
-assert.equal((qml.match(/interval:\s*4500/g) || []).length, 3,
-  'Expected one 4.5 second auto-hide timer for each panel')
+assert.equal((qml.match(/interval:\s*4500/g) || []).length, 2,
+  'Side rails retain independent 4.5 second auto-hide');
+assert.match(qml,/id: timelineAutoHide\s*\n\s*interval: 1600/,
+  'Bottom cursor auto-hides after 1.6 seconds')
 assert.match(qml, /id: leftAutoHide[\s\S]*?else root\.leftPanelVisible = false/,
   'Left menu must auto-hide independently')
 assert.match(qml, /id: rightAutoHide[\s\S]*?onTriggered: root\.rightPanelVisible = false/,
@@ -52,6 +54,16 @@ assert.doesNotMatch(qml, /controlsVisible|revealControls|toggleControls/,
   'The legacy shared menu state must be removed entirely')
 assert.match(qml, /root\.chartSource\.startReplay\(selectedFile\)/, 'File replay must remain wired')
 assert.match(qml, /root\.chartSource\.stopReplay\(\)/, 'Live/replay control must remain wired')
+assert.match(header,/Q_PROPERTY\(bool showDepthGrid READ showDepthGrid/,
+  'Native renderer must expose depth grid toggle');
+assert.match(cpp,/if\(_showDepthGrid\)p->drawLine/,
+  'Grid visibility must affect native depth line overlay only');
+assert.match(qml,/objectName: "koggerBDepthGridToggle"/,
+  'KGR compact right rail must show grid switch');
+assert.match(qml,/showDepthGrid: root.showDepthGrid/,
+  'KGR must pass grid state to its native renderer');
+assert.match(qml,/selected: root.dragToPan/,
+  'Inspector/PAN active state must be visible');
 assert.match(qml, /root\.dragToPan/, 'Pan/inspector switch missing')
 assert.match(qml, /plot\.position = Math\.max/, 'Pan must move real indexed view')
 assert.match(qml, /onMoved:\s*\{\s*plot\.position = value/, 'Timeline must browse independent of decoder seek')
