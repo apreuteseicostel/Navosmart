@@ -37,7 +37,9 @@ class NavoH743Telemetry : public QObject {
 public:
  explicit NavoH743Telemetry(QObject* p=nullptr);
  int capabilities() const { return connected() && _fresh(_capMs) ? _caps : 0; }
- bool lightsValid() const { return connected() && _fresh(_headMs) && _fresh(_posMs); }
+ // NV3HEAD/NV3POS may be published as zero when cfg.lights=nil. Only
+ // advertise a meaningful light state if the Lua service owns light outputs.
+ bool lightsValid() const { return (capabilities() & 1) && _fresh(_headMs) && _fresh(_posMs); }
  bool hopperStateValid() const { return connected() && _fresh(_hopMs) && _fresh(_requestMs); }
  int hopperMask() const { return _hopperMask; }
  int lastRequest() const { return _request; }
