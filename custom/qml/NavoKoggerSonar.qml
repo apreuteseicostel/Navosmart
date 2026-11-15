@@ -115,7 +115,7 @@ Rectangle {
     }
     Timer {
         id: timelineAutoHide
-        interval: 4500
+        interval: 1600
         repeat: false
         running: true
         onTriggered: {
