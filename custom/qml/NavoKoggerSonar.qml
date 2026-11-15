@@ -20,6 +20,7 @@ Rectangle {
     property bool leftPanelVisible: true
     property bool rightPanelVisible: true
     property bool timelineVisible: true
+    property bool showDepthGrid: true
     readonly property bool replayReady: !!(chartSource && chartSource.replayMode)
     readonly property string statusText: replayReady
         ? (plot.fileReady ? "KLF • " + plot.indexedColumns + " Epoch"
@@ -132,7 +133,7 @@ Rectangle {
     }
     Timer {
         id: timelineAutoHide
-        interval: 4500
+        interval: 1600
         repeat: false
         running: true
         onTriggered: {
@@ -174,6 +175,7 @@ Rectangle {
         anchors.fill: parent
         fileReplay: root.replayReady ? root.chartSource.replay : null
         depthRange: 10
+        showDepthGrid: root.showDepthGrid
         horizontalZoom: 1
         position: 0.5
     }
@@ -378,7 +380,7 @@ Rectangle {
         z: 5
         visible: root.rightPanelVisible
         width: 110
-        height: Math.min(162, parent.height - 45)
+        height: Math.min(205, parent.height - 45)
         anchors.right: parent.right
         anchors.rightMargin: 29
         anchors.top: parent.top
@@ -411,6 +413,17 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
                 onClicked: { root.dragToPan = !root.dragToPan; root.revealRightPanel() }
+            }
+            SonarRailButton {
+                objectName: "koggerBDepthGridToggle"
+                active: root.showDepthGrid
+                text: root.showDepthGrid ? "● GRILĂ" : "GRILĂ OFF"
+                Accessible.name: root.showDepthGrid
+                    ? "Ascunde liniile orizontale de adâncime"
+                    : "Arată liniile orizontale de adâncime"
+                Layout.fillWidth: true
+                Layout.preferredHeight: 30
+                onClicked: { root.showDepthGrid = !root.showDepthGrid; root.revealRightPanel() }
             }
             SonarRailButton {
                 text: "IEȘIRE"
