@@ -15,7 +15,10 @@ Rectangle {
     property int selectedEpoch: -1
     property real selectedDepthM: NaN
     property bool dragToPan: false
-    property bool controlsVisible: true
+    // Each overlay has its own visibility state, timer and reveal tab.
+    property bool leftPanelVisible: true
+    property bool rightPanelVisible: true
+    property bool timelineVisible: true
     readonly property bool replayReady: !!(chartSource && chartSource.replayMode)
     readonly property string statusText: replayReady
         ? (plot.fileReady ? "KLF • " + plot.indexedColumns + " Epoch"
@@ -43,22 +46,39 @@ Rectangle {
         }
     }
 
-    function revealControls() {
-        controlsVisible = true
-        autoHide.restart()
+    function revealLeftPanel() {
+        leftPanelVisible = true
+        leftAutoHide.restart()
     }
-    function toggleControls() {
-        if (controlsVisible) {
-            controlsVisible = false
-            autoHide.stop()
-        } else revealControls()
+    function revealRightPanel() {
+        rightPanelVisible = true
+        rightAutoHide.restart()
+    }
+    function revealTimeline() {
+        timelineVisible = true
+        timelineAutoHide.restart()
+    }
+    function toggleLeftPanel() {
+        leftPanelVisible = !leftPanelVisible
+        if (leftPanelVisible) leftAutoHide.restart()
+        else leftAutoHide.stop()
+    }
+    function toggleRightPanel() {
+        rightPanelVisible = !rightPanelVisible
+        if (rightPanelVisible) rightAutoHide.restart()
+        else rightAutoHide.stop()
+    }
+    function toggleTimeline() {
+        timelineVisible = !timelineVisible
+        if (timelineVisible) timelineAutoHide.restart()
+        else timelineAutoHide.stop()
     }
     function changeDepth(direction) {
         var options = [2, 3, 5, 10, 20, 50, 100, 200]
         var index = options.indexOf(Math.round(plot.depthRange))
         if (index < 0) index = 5
         plot.depthRange = options[Math.max(0, Math.min(options.length - 1, index + direction))]
-        revealControls()
+        revealLeftPanel()
     }
     function cursorPixel() {
         var n = plot.indexedColumns
@@ -72,13 +92,30 @@ Rectangle {
     }
 
     Timer {
-        id: autoHide
+        id: leftAutoHide
         interval: 4500
         repeat: false
         running: true
         onTriggered: {
             if (chooser.visible) restart()
-            else root.controlsVisible = false
+            else root.leftPanelVisible = false
+        }
+    }
+    Timer {
+        id: rightAutoHide
+        interval: 4500
+        repeat: false
+        running: true
+        onTriggered: root.rightPanelVisible = false
+    }
+    Timer {
+        id: timelineAutoHide
+        interval: 4500
+        repeat: false
+        running: true
+        onTriggered: {
+            if (timeline.pressed) restart()
+            else root.timelineVisible = false
         }
     }
 
