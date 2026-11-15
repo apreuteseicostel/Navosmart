@@ -32,9 +32,15 @@ QtObject {
  function stopRecording() { return recorderObject.stop() }
  function refreshRecordings() { recorderObject.refresh() }
  property bool replayMode: false
+ // Single shared selected KLF viewport position for both full-screen views
+ // and dashboard replay map; never moves the real boat/autopilot.
+ property real replayViewPosition: 0.5
+ readonly property var indexedReplayGeoTrack: replayObject.indexedGeoTrack
+ readonly property var replayViewGeo: replayMode && replayObject.indexReady
+     ? replayObject.geoAtFraction(replayViewPosition) : ({})
  function startReplay(url) {
   recorderObject.stop(); transportObject.disconnectEndpoint(); replayObject.stop(); decoderObject.reset()
-  replayMode=true; chartBridge.setConnectionEndpoint('replay:'+String(url),1,false)
+  replayMode=true; replayViewPosition=0.5; chartBridge.setConnectionEndpoint('replay:'+String(url),1,false)
   chartBridge.clear(); chartBridge.setPosition(NaN,NaN,NaN,NaN,NaN)
   var opened=replayObject.open(url)
   if(!opened)stopReplay()
