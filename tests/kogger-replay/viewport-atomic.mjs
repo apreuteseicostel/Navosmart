@@ -9,6 +9,8 @@ const replay=readFileSync('custom/src/NavoKoggerReplay.cc','utf8')
 const decoder=readFileSync('custom/src/NavoKoggerDecoder.cc','utf8')
 
 assert.match(head,/QImage _lastCompleteFrame/, 'Painter must retain last complete viewport')
+assert.match(head,/MaxEntries=32768/, 'Must retain full 15,424-column file with 20MiB budget when possible')
+assert.match(head,/MaxBytes=20\*1024\*1024/, 'Native cache must remain memory-bounded')
 assert.match(cpp,/if\(_file&&!fileReady\(\)\)/, 'KLF indexing must not show the live dataset')
 assert.match(cpp,/QElapsedTimer budget/, 'Bounded adaptive GUI-thread CHART batches missing')
 assert.match(cpp,/added>=96\|\|\(added>=8&&budget\.elapsed\(\)>=7\)/,
