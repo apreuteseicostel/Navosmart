@@ -665,7 +665,7 @@ test('NAVO compact journal and offline layouts wrap narrow-screen actions',()=>{
   assert.match(dashboard,/myLakesPopup\.beginDelete\(modelData\)/);
 });
 
-test('GNSS moving-baseline yaw has explicit GPS1/GPS2 priority without H743 gyro-only fallback',()=>{
+test('NAVO 3-tier heading: GNSS primary, verified EKF3 compass secondary, bounded H743 tertiary',()=>{
   const dirSrc=path.resolve(dir,'../src');
   const header=fs.readFileSync(path.join(dirSrc,'NavoGnssHeading.h'),'utf8');
   const cpp=fs.readFileSync(path.join(dirSrc,'NavoGnssHeading.cc'),'utf8');
@@ -690,9 +690,16 @@ test('GNSS moving-baseline yaw has explicit GPS1/GPS2 priority without H743 gyro
   assert.match(header,/kYawTimeoutMs = 3000/);
   assert.match(cpp,/if \(_available\(_gps1\)\) return &_gps1/);
   assert.match(cpp,/if \(_available\(_gps2\)\) return &_gps2/);
-  assert.match(cpp,/return qQNaN\(\);/);
-  assert.doesNotMatch(cpp,/return _autopilotHeadingDeg;/);
-  assert.match(cpp,/bool NavoGnssHeading::fallbackActive\(\) const \{[\s\S]*?return false;/);
+  assert.match(cpp,/if \(compassFallbackActive\(\)\) return _autopilotHeadingDeg;/);
+  assert.match(cpp,/if \(h743FallbackActive\(\)\) return _autopilotHeadingDeg;/);
+  assert.match(cpp,/if \(const auto\* r = _activeGps\(\)\) return r->yawDeg;/);
+  assert.match(cpp,/kInertialHoldoverMs/);
+  assert.match(cpp,/MAVLINK_MSG_ID_SYS_STATUS/);
+  assert.match(cpp,/MAVLINK_MSG_ID_STATUSTEXT/);
+  assert.match(cpp,/MAVLINK_MSG_ID_PARAM_VALUE/);
+  assert.match(cpp,/yaw fallback active/);
+  assert.match(cpp,/yaw external/);
+  assert.match(cpp,/MAV_SYS_STATUS_SENSOR_3D_MAG/);
   assert.match(cpp,/if \(!alive\) \{/);
   assert.match(cpp,/if \(next == _vehicle\) return/);
   assert.match(dash,/id: gnssHeading/);
@@ -703,7 +710,9 @@ test('GNSS moving-baseline yaw has explicit GPS1/GPS2 priority without H743 gyro
   assert.match(map,/root\.boatHeadingDeg - liveMap\.bearing/);
   assert.match(compass,/headingSource/);
   assert.match(dash,/Heading GNSS dual-antenă/);
-  assert.match(dash,/H743 \/ EKF \(doar diagnostic\)/);
+  assert.match(dash,/Busolă externă \/ IST8310/);
+  assert.match(dash,/H743 \/ EKF \(estimare\)/);
+  assert.match(dash,/gnssHeading\.compassStatus/);
   assert.doesNotMatch(cpp,/setFlightMode|sendCommand|armVehicle|disarmVehicle/);
 });
 function cancellable(options={}) {
