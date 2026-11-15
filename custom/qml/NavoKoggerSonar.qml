@@ -24,7 +24,9 @@ Rectangle {
         ? (plot.fileReady ? "KLF • " + plot.indexedColumns + " Epoch"
            : (chartSource.replayError && chartSource.replayError.length
               ? chartSource.replayError : "Indexare KLF…"))
-        : (chartSource && chartSource.connected ? "LIVE • Kogger Dataset" : "Sonar neconectat")
+        : (chartSource && chartSource.dataAlive ? "LIVE • Kogger CHART"
+           : (chartSource && chartSource.connected ? "CONECTAT • aștept CHART"
+             : "Sonar neconectat"))
     signal closed()
 
     // Reusable Kogger-style dark compact button, with visible press feedback.
@@ -134,6 +136,11 @@ Rectangle {
         onRejected: root.revealLeftPanel()
     }
 
+    NavoSonarLiveConnection {
+        id: liveConnection
+        sonar: root.chartSource
+    }
+
     NavoKoggerEpochPlotItem {
         id: plot
         objectName: "koggerNativeOriginalEpochViewB"
@@ -227,7 +234,7 @@ Rectangle {
         z: 5
         visible: root.leftPanelVisible
         width: 116
-        height: Math.min(214, parent.height - 45)
+        height: Math.min(251, parent.height - 45)
         anchors.left: parent.left
         anchors.leftMargin: 29
         anchors.top: parent.top
@@ -239,6 +246,13 @@ Rectangle {
             anchors.fill: parent
             anchors.margins: 5
             spacing: 3
+            SonarRailButton {
+                objectName: "sonarProBv2LiveConnectionButton"
+                text: "CONECTARE LIVE"
+                Layout.fillWidth: true
+                Layout.preferredHeight: 30
+                onClicked: { root.revealLeftPanel(); liveConnection.open() }
+            }
             SonarRailButton {
                 text: "DESCHIDE KLF"
                 Layout.fillWidth: true
