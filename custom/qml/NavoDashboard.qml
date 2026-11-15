@@ -1712,7 +1712,7 @@ Item {
             sourceComponent: root.activePage === 12 ? offlineMapsPage :
                              root.activePage === 11 ? journalPage :
                              root.activePage === 0 ? mapPage :
-                             (root.activePage === 10 || root.activePage === 13) ? sonarProPage :
+                             root.activePage === 10 ? sonarProPage :
                              root.activePage === 13 ? koggerSonarPage :
                              root.activePage === 2 ? areaPage :
                              root.activePage === 3 ? fishingPage :
