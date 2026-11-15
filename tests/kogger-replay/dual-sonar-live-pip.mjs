@@ -72,4 +72,32 @@ assert.doesNotMatch(service,/record\.version!=0\)return false/,
   'Kogger Dataset must not reject valid v1 live CHART')
 assert.doesNotMatch(dash,/sendCommand\([^\n]*sonarPip/,
   'PiP must never trigger a boat command')
+// S26 Ultra: two sonar views share a native renderer, but each controls its own grid.
+const nativePlot=read('custom/src/NavoKoggerEpochPlotItem.cc')
+const nativeHeader=read('custom/src/NavoKoggerEpochPlotItem.h')
+assert.match(nativeHeader,/Q_PROPERTY\(bool showDepthGrid READ showDepthGrid/,
+  'Depth grid must be switchable on both native renderers')
+assert.match(nativePlot,/if\(_showDepthGrid\)p->drawLine/,
+  'Hiding grid must preserve native depth labels and raster content')
+assert.match(b,/objectName: "koggerBDepthGridToggle"/,
+  'B KGR side rail must expose its grid button')
+assert.match(b,/showDepthGrid: root.showDepthGrid/,
+  'B KGR grid button must control the plot')
+assert.match(kgr,/objectName:"sonarProDepthGridToggle"/,
+  'NAVO Sonar PRO compact bar must expose grid toggle')
+assert.match(kgr,/showDepthGrid:root.showDepthGrid/,
+  'NAVO PRO native plot must use the grid toggle')
+assert.match(kgr,/if\(root.showDepthGrid\)\{ctx.beginPath\(\)/,
+  'NAVO PRO fallback canvas must hide horizontal grid lines too')
+assert.match(kgr,/component CompactKoggerButton: Button/,
+  'Sonar PRO bottom buttons must use compact NAVO styling')
+assert.match(kgr,/id: koggerToolsHideTimer\s*\n\s*interval: 1600/,
+  'Sonar PRO bottom buttons must hide after 1.6 seconds')
+assert.match(kgr,/objectName:"sonarProBottomEdgeReveal"/,
+  'Touch or hover near bottom must reopen the controls')
+assert.match(kgr,/objectName:"sonarProKoggerBottomRevealTab"/,
+  'An always-available cursor reveal tab is required')
+assert.match(kgr,/objectName:"sonarProKoggerFileTimelineC"/,
+  'The original KLF whole-file cursor must remain functional')
+
 console.log('PASS PRO B V2 / PRO KGR / Dashboard PiP shared LIVE controller, v1 and no basic page')
