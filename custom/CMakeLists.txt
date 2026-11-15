@@ -46,6 +46,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoHopperBridge.qml
         qml/NavoSonarCard.qml
         qml/NavoSonarPro.qml
+        qml/NavoKoggerSonar.qml
         qml/NavoAlertAudio.qml
         qml/NavoStealth.qml
         qml/NavoStealthPanel.qml
@@ -178,6 +179,8 @@ set(CUSTOM_SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerDecoder.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerReplay.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerReplay.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerEpochPlotItem.cc
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerEpochPlotItem.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerRecorder.cc
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoKoggerRecorder.h
     ${CMAKE_CURRENT_SOURCE_DIR}/src/NavoSonarArchive.h
