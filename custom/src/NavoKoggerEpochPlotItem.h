@@ -28,6 +28,7 @@ class NavoKoggerEpochPlotItem : public QQuickPaintedItem {
     Q_PROPERTY(double levelLow READ levelLow WRITE setLevelLow NOTIFY viewChanged)
     Q_PROPERTY(double levelHigh READ levelHigh WRITE setLevelHigh NOTIFY viewChanged)
     Q_PROPERTY(bool compensate READ compensate WRITE setCompensate NOTIFY viewChanged)
+    Q_PROPERTY(bool showDepthGrid READ showDepthGrid WRITE setShowDepthGrid NOTIFY viewChanged)
 public:
     explicit NavoKoggerEpochPlotItem(QQuickItem* parent=nullptr);
     QObject* fileReplay() const {return _file;}
@@ -50,6 +51,8 @@ public:
     void setLevelHigh(double v);
     bool compensate() const {return _compensate;}
     void setCompensate(bool v);
+    bool showDepthGrid() const {return _showDepthGrid;}
+    void setShowDepthGrid(bool v) {if(_showDepthGrid==v)return;_showDepthGrid=v;emit viewChanged();update();}
     Q_INVOKABLE QVariantMap inspectAt(double x,double y) const;
     void paint(QPainter* painter) override;
 signals:
@@ -71,7 +74,7 @@ private:
     QUuid _sourceUuid;
     double _position=0.5,_from=0,_range=50,_low=10,_high=100;
     int _zoom=1,_palette=0;
-    bool _compensate=false;
+    bool _compensate=false,_showDepthGrid=true;
     static constexpr int MaxBytes=20*1024*1024;
     // A 15,424-column KLF at ~300 rows needs only ~4.5 MiB of rasters.
     // Keep a hard 20 MiB raster budget, but don't evict after just 4,096 columns.
