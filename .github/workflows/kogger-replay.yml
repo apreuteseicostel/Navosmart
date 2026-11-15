@@ -39,6 +39,8 @@ jobs:
         run: cmake -S tests/kogger-replay -B /tmp/navo-replay && cmake --build /tmp/navo-replay -j2
       - name: Build Sonar display benchmark
         run: cmake -S tests/sonar-performance -B /tmp/navo-sonar-performance && cmake --build /tmp/navo-sonar-performance -j2
+      - name: Verify production standalone Kogger B QML (Qt Quick offscreen)
+        run: /tmp/navo-replay/navo-kogger-standalone-ui custom/qml/NavoKoggerStandalone.qml tests/kogger-replay/mock-imports
       - name: Package runnable Qt test environments
         run: python3 tests/kogger-replay/bundle-runtime.py
       - uses: actions/upload-artifact@v4
@@ -102,6 +104,7 @@ jobs:
             kogger-native-surface.json
             kogger-native-8bit-replay.png
             kogger-native-file-overview.png
+            kogger-b-standalone.png
             kogger-sonar-pro-*.png
             kogger-sonarRecordingDialog-*.png
             kogger-sonarRecordingsDialog-*.png
