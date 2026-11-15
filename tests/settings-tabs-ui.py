@@ -57,6 +57,17 @@ ApplicationWindow {
   function backupRestorePending(){return String(importedFrom).length>0}
  }
  property bool cameraConnected:false
+ property string boatVirtualRgbState:"unknown"
+ QtObject {
+  id:h743Telemetry;objectName:"testH743RgbTelemetry"
+  property bool rgbTelemetryValid:false
+  property int rgbCode:0
+  property int rgbReason:0
+  property bool waterValid:false
+  property bool waterDetected:false
+  property bool interiorValid:false
+  property real interiorTempC:NaN
+ }
  QtObject {id:connectivityController;property var connections:[];property bool autoConnect:false;property bool busy:false;property string status:"Test";property int serialBaud:115200}
  property bool linkAlive:false
  property var vehicle:null
@@ -110,6 +121,17 @@ with tempfile.TemporaryDirectory() as directory:
    QMetaObject.invokeMethod(button,'clicked');QTest.qWait(40)
    assert page.property('selectedTab')==index
    assert forms.property('visible')==(index==2)
+   rgb_diag=window.findChild(QObject,'settingsPhysicalRgbDiagnostics')
+   assert rgb_diag and rgb_diag.property('visible')==(index==1)
+   if index==1:
+    h743=window.findChild(QObject,'testH743RgbTelemetry')
+    assert h743
+    h743.setProperty('rgbCode',1)
+    h743.setProperty('rgbReason',1)
+    h743.setProperty('rgbTelemetryValid',True)
+    QTest.qWait(20)
+    assert 'ROȘU' in window.findChild(QObject,'physicalRgbCommandedColour').property('text')
+    assert 'Apă confirmată' in window.findChild(QObject,'physicalRgbCause').property('text')
    footer=window.findChild(QObject,'settingsSaveFooter')
    assert footer.property('visible')==(index in [0,2])
    pos=button.mapToScene(QPointF(0,0))

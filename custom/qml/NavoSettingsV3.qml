@@ -29,6 +29,32 @@ Rectangle {
     property string cameraDecoder: "hardware"
     property string cameraRtspTransport: "tcp"
     property int selectedTab: 0
+    // These are H743 Lua COMMAND reports, not optical feedback from the LED.
+    property bool rgbTelemetryValid: false
+    property int rgbCode: 0
+    property int rgbReason: 0
+    property string virtualRgbState: "unknown"
+    property bool rgbWaterValid: false
+    property bool rgbWaterDetected: false
+    property bool rgbInteriorValid: false
+    property real rgbInteriorTempC: NaN
+    function rgbColourName() {
+        var names=["—","ROȘU","MOV","ALBASTRU","ALB","TURCOAZ","GALBEN","VERDE","PORTOCALIU"]
+        return rgbTelemetryValid ? (names[rgbCode] || "Necunoscut") : "Fără răspuns RGB de la H743"
+    }
+    function rgbReasonName() {
+        var names=["—","Apă confirmată în cocă","Temperatură SHT31 peste prag",
+          "Eroare sondă apă","Eroare SHT31","Ciclu cuve V3","PWM cuvă",
+          "Comandă cuvă de la G20 (neconfirmată mecanic)","Far Relay1",
+          "Poziții Relay2","Far + poziții","Senzori validați / normal",
+          "Senzori indisponibili","Alarmă apă reținută până la uscare confirmată"]
+        return rgbTelemetryValid ? (names[rgbReason] || "Cauză necunoscută") : "Nu există încă o comandă recentă"
+    }
+    function rgbPreviewColor() {
+        var colors=["#64748b","#ff3d55","#c84cf0","#2b8efd","#f3faff",
+          "#23d1c5","#eabf42","#3be384","#f49e42"]
+        return rgbTelemetryValid ? (colors[rgbCode] || colors[0]) : colors[0]
+    }
     property bool showEnergyHelp: false
     property string statusText: ""
     readonly property color surface: "#061827"
@@ -430,6 +456,65 @@ Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: implicitHeight
                     controller: root.g20
+                }
+                Rectangle {
+                    objectName: "settingsPhysicalRgbDiagnostics"
+                    Layout.fillWidth: true
+                    implicitHeight: rgbDiagnosticBody.implicitHeight + 20
+                    radius: 9
+                    color: root.surface
+                    border.color: root.rgbTelemetryValid ? root.cyan : root.line
+                    ColumnLayout {
+                        id: rgbDiagnosticBody
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.margins: 10
+                        spacing: 5
+                        Label {
+                            text: "DIAGNOSTIC LED FIZIC • H743 LED / PWM13"
+                            color: root.fg; font.bold: true; font.pixelSize: 13
+                            Layout.fillWidth: true
+                        }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Rectangle {
+                                Layout.preferredWidth: 14; Layout.preferredHeight: 14
+                                radius: 7
+                                color: root.rgbPreviewColor()
+                                border.color: "#95b5c5"
+                            }
+                            Label {
+                                objectName: "physicalRgbCommandedColour"
+                                text: "Culoare comandată: " + root.rgbColourName()
+                                color: root.fg; font.pixelSize: 12
+                                Layout.fillWidth: true; wrapMode: Text.WordWrap
+                            }
+                        }
+                        Label {
+                            objectName: "physicalRgbCause"
+                            text: "Motiv: " + root.rgbReasonName()
+                            color: root.rgbCode===1 && root.rgbTelemetryValid ? "#ffacb8" : root.muted
+                            font.pixelSize: 12
+                            Layout.fillWidth: true; wrapMode: Text.WordWrap
+                        }
+                        Label {
+                            text: "Aplicație: " + root.virtualRgbState.toUpperCase() +
+                                  " • apă: " + (root.rgbWaterValid ? (root.rgbWaterDetected ? "DETECTATĂ" : "uscat") : "nevalidată") +
+                                  " • SHT31: " + (root.rgbInteriorValid && isFinite(root.rgbInteriorTempC) ?
+                                        root.rgbInteriorTempC.toFixed(1)+" °C" : "nevalidat")
+                            color: root.muted; font.pixelSize: 11
+                            Layout.fillWidth: true; wrapMode: Text.WordWrap
+                        }
+                        Label {
+                            text: "NV3RGBC/NV3RGBS indică ultima culoare cerută de scriptul Lua. " +
+                                  "Nu confirmă curentul LED-ului fizic. Dacă apare ROȘU, " +
+                                  "verifică motivul de mai sus și alarmele senzorilor."
+                            color: root.muted; font.pixelSize: 10
+                            Layout.fillWidth: true; wrapMode: Text.WordWrap
+                        }
+                    }
                 }
             }
             ColumnLayout {

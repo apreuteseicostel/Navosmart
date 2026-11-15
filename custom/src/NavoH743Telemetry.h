@@ -2,6 +2,7 @@
 #include <QObject>
 #include <QPointer>
 #include <QElapsedTimer>
+#include <array>
 #include "QGCMAVLink.h"
 class Vehicle;
 class NavoH743Telemetry : public QObject {
@@ -9,7 +10,11 @@ class NavoH743Telemetry : public QObject {
  Q_PROPERTY(QObject* vehicle READ vehicle WRITE setVehicle NOTIFY vehicleChanged)
  Q_PROPERTY(int capabilities READ capabilities NOTIFY telemetryChanged)
  Q_PROPERTY(bool lightsValid READ lightsValid NOTIFY telemetryChanged)
+ Q_PROPERTY(bool relayLightsValid READ relayLightsValid NOTIFY telemetryChanged)
  Q_PROPERTY(bool hopperStateValid READ hopperStateValid NOTIFY telemetryChanged)
+ Q_PROPERTY(bool rgbTelemetryValid READ rgbTelemetryValid NOTIFY telemetryChanged)
+ Q_PROPERTY(int rgbCode READ rgbCode NOTIFY telemetryChanged)
+ Q_PROPERTY(int rgbReason READ rgbReason NOTIFY telemetryChanged)
  Q_PROPERTY(int hopperMask READ hopperMask NOTIFY telemetryChanged)
  Q_PROPERTY(int lastRequest READ lastRequest NOTIFY telemetryChanged)
  Q_PROPERTY(bool v3Profile READ v3Profile WRITE setV3Profile NOTIFY telemetryChanged)
@@ -32,13 +37,24 @@ class NavoH743Telemetry : public QObject {
  Q_PROPERTY(bool positionLightsOn READ positionLightsOn NOTIFY telemetryChanged)
  Q_PROPERTY(int hopperLeftUs READ hopperLeftUs NOTIFY telemetryChanged)
  Q_PROPERTY(int hopperRightUs READ hopperRightUs NOTIFY telemetryChanged)
+ Q_PROPERTY(int leftHopperOutput READ leftHopperOutput WRITE setLeftHopperOutput NOTIFY telemetryChanged)
+ Q_PROPERTY(int rightHopperOutput READ rightHopperOutput WRITE setRightHopperOutput NOTIFY telemetryChanged)
  Q_PROPERTY(int rudderUs READ rudderUs NOTIFY telemetryChanged)
  Q_PROPERTY(int alarmMask READ alarmMask NOTIFY telemetryChanged)
 public:
  explicit NavoH743Telemetry(QObject* p=nullptr);
  int capabilities() const { return connected() && _fresh(_capMs) ? _caps : 0; }
- bool lightsValid() const { return connected() && _fresh(_headMs) && _fresh(_posMs); }
+ // Native G20 Relay1/2 can report their *logical* state while the optional
+ // V3 Lua service is disabled. Never interpret a stale/disabled relay as OFF.
+ bool relayLightsValid() const { return _fresh(_relayHeadMs) && _fresh(_relayPosMs); }
+ bool lightsValid() const { return relayLightsValid() ||
+     ((capabilities() & 1) && _fresh(_headMs) && _fresh(_posMs)); }
  bool hopperStateValid() const { return connected() && _fresh(_hopMs) && _fresh(_requestMs); }
+ // Readback reports the colour COMMAND issued by the H743 Lua script.
+ // It is not an electrical/optical acknowledgement from the WS2811 pixel.
+ bool rgbTelemetryValid() const {return _fresh(_rgbCodeMs) && _fresh(_rgbReasonMs);}
+ int rgbCode() const {return rgbTelemetryValid() ? _rgbCode : 0;}
+ int rgbReason() const {return rgbTelemetryValid() ? _rgbReason : 0;}
  int hopperMask() const { return _hopperMask; }
  int lastRequest() const { return _request; }
  bool v3Profile() const { return _v3; }
@@ -59,8 +75,17 @@ public:
  bool waterSensorFault()const{return _waterStandaloneSeen
     ? (waterMonitorStatus()!=2 || !_fresh(_standFaultMs) || _standFault)
     : _waterFault;}
- bool headlightOn()const{return _head;}
- bool positionLightsOn()const{return _pos;} int hopperLeftUs()const{return _hl;} int hopperRightUs()const{return _hr;} int rudderUs()const{return _rud;} int alarmMask()const{return _alarm;}
+ bool headlightOn()const{return relayLightsValid() ? _relayHead : _head;}
+ bool positionLightsOn()const{return relayLightsValid() ? _relayPos : _pos;}
+ // SERVO_OUTPUT_RAW is an autopilot PWM output *command*, never lid feedback.
+ int hopperLeftUs()const{return servoOutputUs(_leftHopperOutput);}
+ int hopperRightUs()const{return servoOutputUs(_rightHopperOutput);}
+ int leftHopperOutput() const{return _leftHopperOutput;}
+ int rightHopperOutput() const{return _rightHopperOutput;}
+ void setLeftHopperOutput(int v){if(v<1||v>16||v==_leftHopperOutput)return;_leftHopperOutput=v;emit telemetryChanged();}
+ void setRightHopperOutput(int v){if(v<1||v>16||v==_rightHopperOutput)return;_rightHopperOutput=v;emit telemetryChanged();}
+ Q_INVOKABLE int servoOutputUs(int output) const;
+ int rudderUs()const{return _rud;} int alarmMask()const{return _alarm;}
 signals:void telemetryChanged();void vehicleChanged();
 private slots:void _mavlink(const mavlink_message_t&);void _timeout();
 private:
@@ -73,6 +98,10 @@ private:
  bool _v3=true; // NAVO V3 only; legacy Nano mode unsupported
  int _caps=0,_hopperMask=0,_request=0;
  qint64 _capMs=-1,_headMs=-1,_posMs=-1,_hopMs=-1,_requestMs=-1;
+ qint64 _relayHeadMs=-1,_relayPosMs=-1;
+ qint64 _rgbCodeMs=-1,_rgbReasonMs=-1;
+ int _rgbCode=0,_rgbReason=0;
+ bool _relayHead=false,_relayPos=false;
  qint64 _tempMs=-1, _waterMs=-1, _faultMs=-1, _heartbeatMs=-1;
  qint64 _waterStatusMs=-1, _waterAdcMs=-1;
  qint64 _standWetMs=-1, _standFaultMs=-1;
@@ -80,6 +109,9 @@ private:
  int _waterStatus=0;
  double _waterAdcV=qQNaN();
  void _set(const char*,float);
- QPointer<Vehicle> _vehicle; qint64 _lastMs=0; double _batteryV=0,_tempC=qQNaN(); bool _water=false,_waterFault=false,_head=false,_pos=false; int _hl=0,_hr=0,_rud=0,_alarm=0;
+ std::array<int,16> _servoOutputs{};
+ std::array<qint64,16> _servoTimes{};
+ int _leftHopperOutput=9,_rightHopperOutput=10;
+ QPointer<Vehicle> _vehicle; qint64 _lastMs=0; double _batteryV=0,_tempC=qQNaN(); bool _water=false,_waterFault=false,_head=false,_pos=false; int _rud=0,_alarm=0;
 };
 
