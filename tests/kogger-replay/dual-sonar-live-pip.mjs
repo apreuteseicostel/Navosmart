@@ -17,7 +17,7 @@ assert.match(dash,/id:\s*sonarProPage\s*\n\s*NavoKoggerSonar\s*\{/,
   'KGR must launch full B V2 Kogger view')
 assert.match(dash,/id:\s*koggerSonarPage\s*\n\s*NavoSonarPro\s*\{/,
   'NAVO PRO must launch advanced C Sonar PRO view')
-assert.match(dash,/badgeLabel:"KGR"/, 'KGR icon badge missing')
+assert.match(dash,/badgeLabel:\s*"KGR"/, 'KGR icon badge missing')
 assert.match(dash,/NavButton \{ text: "KGR"; proBadge: true; badgeLabel: "KGR"/, 'KGR B V2 badge must not read PRO')
 assert.match(dash,/NavButton \{ text:"PRO";proBadge:true;badgeLabel:"PRO"/, 'NAVO PRO badge must not read KGR')
 assert.match(dash,/root\.activePage === 10 \? sonarProPage/,
