@@ -100,6 +100,24 @@ private slots:
   QTest::qWait(2600);QCOMPARE(t.hopperLeftUs(),-1);QCOMPARE(t.hopperRightUs(),-1);
   t.setVehicle(nullptr);QCOMPARE(t.servoOutputUs(9),-1);
  }
+ void physicalRgbCommandDiagnostics(){
+  Vehicle v;NavoH743Telemetry t;t.setVehicle(&v);
+  QVERIFY(!t.rgbTelemetryValid());QCOMPARE(t.rgbCode(),0);
+  send(v,"NV3RGBC",1);QVERIFY(!t.rgbTelemetryValid()); // reason not yet received
+  send(v,"NV3RGBS",1);QVERIFY(t.rgbTelemetryValid());
+  QCOMPARE(t.rgbCode(),1);QCOMPARE(t.rgbReason(),1); // water alarm, red
+  QVERIFY(!t.connected()); // RGB script can run without optional V3 service
+  send(v,"NV3RGBS",2,2);QCOMPARE(t.rgbReason(),1); // reject foreign system
+  send(v,"NV3RGBS",2);QCOMPARE(t.rgbReason(),2); // temperature high
+  send(v,"NV3RGBC",3);send(v,"NV3RGBS",7);
+  QCOMPARE(t.rgbCode(),3);QCOMPARE(t.rgbReason(),7); // G20 hopper request
+  send(v,"NV3RGBC",NAN);QVERIFY(!t.rgbTelemetryValid());
+  send(v,"NV3RGBC",8);send(v,"NV3RGBS",12);
+  QVERIFY(t.rgbTelemetryValid());
+  QTest::qWait(2600);QVERIFY(!t.rgbTelemetryValid());
+  QCOMPARE(t.rgbCode(),0);QCOMPARE(t.rgbReason(),0);
+  t.setVehicle(nullptr);QVERIFY(!t.rgbTelemetryValid());
+ }
  void partialUpdatesExpire(){
   Vehicle v;NavoH743Telemetry t;t.setVehicle(&v);
   send(v,"NV3VER",1);send(v,"NV3TEMP",60);send(v,"NV3WATER",1);send(v,"NV3WFAULT",0);
