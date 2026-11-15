@@ -391,10 +391,23 @@ Item {
             opacity: root.positionFresh && isFinite(root.boatHeadingDeg) ? 1 : 0.45
             Behavior on rotation { RotationAnimation { duration:240; direction:RotationAnimation.Shortest } }
             NavoBoatVisual { anchors.fill: parent }
+            // With no confirmed dual-antenna yaw, the boat marker must not
+            // silently imply NORTH merely because invalid rotation is 0.
+            Label {
+                objectName: "navoHeadingUnavailableMarker"
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.positionFresh && !isFinite(root.boatHeadingDeg)
+                text: "?"
+                font.pixelSize: 24; font.bold: true
+                color: "#ffe28d"
+                rotation: -parent.rotation
+            }
             Label {
                 anchors.top: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter
-                visible: !root.positionFresh
-                text: "GPS vechi"; color: "#ffd166"; font.pixelSize: 10
+                visible: !root.positionFresh || !isFinite(root.boatHeadingDeg)
+                text: !root.positionFresh ? "GPS vechi" : "HEADING --"
+                color: "#ffd166"; font.pixelSize: 10
                 rotation: -parent.rotation
             }
         }

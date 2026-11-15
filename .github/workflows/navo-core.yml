@@ -17,6 +17,7 @@ on:
       - 'tests/firmware/**'
       - 'tests/persistence/**'
       - 'tests/hardware/**'
+      - 'tests/heading/**'
       - 'tests/*.mjs'
       - 'tests/connection-policy.cpp'
       - 'tests/*ui.py'
@@ -36,6 +37,7 @@ on:
       - 'tests/firmware/**'
       - 'tests/persistence/**'
       - 'tests/hardware/**'
+      - 'tests/heading/**'
       - 'tests/*.mjs'
       - 'tests/connection-policy.cpp'
       - 'tests/*ui.py'
@@ -58,12 +60,44 @@ jobs:
         run: cmake -S tests/persistence -B /tmp/navo-persistence && cmake --build /tmp/navo-persistence -j2 && /tmp/navo-persistence/navo-persistence-test
       - name: Test V3 onboard service and bounded hopper cycles
         run: lua5.3 tests/firmware/v3-service.lua
+      - name: Verify read-only native G20 relay state telemetry
+        run: lua5.3 tests/firmware/relay-status.lua
+      - name: Test physical WS2811 RGB on dedicated H743 LED pad
+        run: lua5.3 tests/firmware/rgb-service.lua
+      - name: Package NAVO H743 WS2811 SD files without overwriting sensor calibrations
+        run: |
+          python3 - <<'PY'
+          from zipfile import ZipFile, ZIP_DEFLATED
+          paths = {
+              "ardupilot/scripts/navo_rgb_service.lua": "APM/scripts/navo_rgb_service.lua",
+              "ardupilot/scripts/navo_relay_status.lua": "APM/scripts/navo_relay_status.lua",
+              "ardupilot/scripts/navo_water_service.lua": "APM/scripts/navo_water_service.lua",
+              "ardupilot/scripts/navo_sht31_service.lua": "APM/scripts/navo_sht31_service.lua",
+              "ardupilot/modules/navo_rgb_core.lua": "APM/scripts/modules/navo_rgb_core.lua",
+              "ardupilot/modules/navo_rgb_config.lua": "APM/scripts/modules/navo_rgb_config.lua",
+              "ardupilot/modules/navo_water_core.lua": "APM/scripts/modules/navo_water_core.lua",
+              "ardupilot/modules/navo_sht31.lua": "APM/scripts/modules/navo_sht31.lua",
+              "ardupilot/NAVO_WS2811_PHYSICAL_LED.md": "README-WS2811.md",
+          }
+          with ZipFile("NAVO_H743_WS2811_SD.zip", "w", ZIP_DEFLATED) as output:
+              for original, destination in paths.items():
+                  output.write(original, destination)
+          PY
+      - name: Upload H743 WS2811 SD deployment bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: NAVO-H743-WS2811-SD
+          path: NAVO_H743_WS2811_SD.zip
+          if-no-files-found: error
+
       - name: SHT31 environment CRC and telemetry service
         run: lua5.3 tests/firmware/sht31.lua
       - name: NAVO independent water probe ADC and diagnostic service
         run: lua5.3 tests/firmware/water-only.lua
       - name: Hardware profiles and independent sensor expiry
         run: cmake -S tests/hardware -B /tmp/navo-hardware && cmake --build /tmp/navo-hardware -j2 && /tmp/navo-hardware/navo-hardware-test
+      - name: GNSS-IST8310-H743 heading priority and source-failover runtime tests
+        run: cmake -S tests/heading -B /tmp/navo-heading && cmake --build /tmp/navo-heading -j2 && /tmp/navo-heading/navo-heading-test
       - name: Skydroid SDK bridge lifecycle and duplex regressions
         run: python3 tests/skydroid/bridge-test.py
       - name: FPV SDK adapter lifecycle and decoder policy

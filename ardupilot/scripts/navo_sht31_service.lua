@@ -27,7 +27,19 @@ local function update()
         end
         if status==2 and now-sensor.measured_at>=12000 then status=3 end
     end
-    if now>=publish_at then gcs:send_named_float("NV3ENV",status);publish_at=now+1000 end
+    if now>=publish_at then
+        gcs:send_named_float("NV3ENV",status)
+        -- RAM-only RGB alarm bus: invalid/stale SHT31 data is never treated
+        -- as a real high-temperature value; missing bus is harmless.
+        if param and type(param.set)=="function" then
+            pcall(function()
+                param:set("NVLR_TV",status==2 and sensor and sensor.temperature or -1)
+                param:set("NVLR_TS",status)
+                param:set("NVLR_TMS",raw)
+            end)
+        end
+        publish_at=now+1000
+    end
     return update,20
 end
 return update()
