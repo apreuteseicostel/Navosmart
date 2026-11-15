@@ -14,6 +14,8 @@ for (const name of [
 ]) assert.ok(qml.includes(name), `Missing compact control: ${name}`)
 
 assert.match(qml, /anchors\.fill:\s*parent\s*\n\s*fileReplay:/, 'Plot must fill the viewport')
+assert.match(qml, /component SonarRailButton: Button \\{/, 'Dark Kogger-style component missing')
+assert.doesNotMatch(qml, /component SonarRailButton: SonarRailButton/, 'Button cannot inherit from itself')
 assert.match(qml, /interval:\s*4500/, 'Auto-hide timeout missing')
 assert.match(qml, /else root\.controlsVisible = false/, 'Controls never auto-hide')
 assert.match(qml, /visible:\s*root\.controlsVisible && plot\.fileReady/, 'Timeline must hide with controls')
