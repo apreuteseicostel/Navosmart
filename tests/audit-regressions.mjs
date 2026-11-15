@@ -886,6 +886,7 @@ test('Compass boat follows actual NAVO hopper state, unverified RC light intents
  const compass=fs.readFileSync(path.join(dir,'NavoHeadingCompass.qml'),'utf8');
  const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
  const h743=fs.readFileSync(path.join(dir,'../src/NavoH743Telemetry.h'),'utf8');
+ const h743Cpp=fs.readFileSync(path.join(dir,'../src/NavoH743Telemetry.cc'),'utf8');
  const lua=fs.readFileSync(path.join(dir,'../../ardupilot/scripts/navo_v3_service.lua'),'utf8');
  const cfg=fs.readFileSync(path.join(dir,'../../ardupilot/modules/navo_v3_config.lua'),'utf8');
  assert(boat.includes('id: visualRgbIndicator') && boat.includes('virtualRgbState'));
@@ -902,6 +903,15 @@ test('Compass boat follows actual NAVO hopper state, unverified RC light intents
  assert(dash.includes('virtualRgbState: root.boatVirtualRgbState'));
  assert(dash.includes('virtualRgbState:root.boatVirtualRgbState'));
  assert(h743.includes('return (capabilities() & 1) && _fresh(_headMs) && _fresh(_posMs)'));
+ assert(h743.includes('Q_PROPERTY(int leftHopperOutput'));
+ assert(h743.includes('Q_PROPERTY(int rightHopperOutput'));
+ assert(h743Cpp.includes('MAVLINK_MSG_ID_SERVO_OUTPUT_RAW'));
+ assert(h743Cpp.includes('m.len>21') && h743Cpp.includes('if(raw.port!=0)return'));
+ assert(h743Cpp.includes('_servoTimes[size_t(i)]'));
+ assert(dash.includes('h743Telemetry.hopperLeftUs>0') && dash.includes('h743Telemetry.hopperRightUs>0'));
+ assert(dash.includes('leftHopperOutput: hopperSettings.leftOutput'));
+ assert(dash.includes('rightHopperOutput: hopperSettings.rightOutput'));
+ assert(dash.includes('function outputIndicatesOpen(pwm, closedUs, openUs)'));
  assert(cfg.includes('enabled=false') && cfg.includes('rgb=nil'));
  const rgb=lua.indexOf('local r,g,b=40,0,40');
  assert(rgb>0 && lua.indexOf('water_in and fault==0 and water==1',rgb)>rgb);
