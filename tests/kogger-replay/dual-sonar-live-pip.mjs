@@ -17,7 +17,10 @@ assert.match(dash,/id:\s*sonarProPage\s*\n\s*NavoKoggerSonar\s*\{/,
   'PRO must launch full B V2 view')
 assert.match(dash,/id:\s*koggerSonarPage\s*\n\s*NavoSonarPro\s*\{/,
   'PRO KGR must launch the C native Sonar PRO view')
-assert.match(dash,/badgeLabel:"KGR"/, 'KGR icon badge missing')
+assert.match(dash,/text: "PRO"; proBadge: true; badgeLabel: "KGR"/,
+  'Compact Kogger view must display the KGR badge')
+assert.match(dash,/text:"PRO KGR";proBadge:true;badgeLabel:"PRO"/,
+  'Own NAVO Sonar PRO view must display the PRO badge')
 assert.match(dash,/root\.activePage === 10 \? sonarProPage/,
   'B must use PRO navigation route')
 assert.match(dash,/root\.activePage === 13 \? koggerSonarPage/,
@@ -89,6 +92,8 @@ assert.match(kgr,/showDepthGrid:root.showDepthGrid/,
   'NAVO PRO native plot must use the grid toggle')
 assert.match(kgr,/if\(root.showDepthGrid\)\{ctx.beginPath\(\)/,
   'NAVO PRO fallback canvas must hide horizontal grid lines too')
+assert.match(kgr,/NAVO PRO  •  /,
+  'Own Sonar PRO status must not be misidentified as KGR')
 assert.match(kgr,/component CompactKoggerButton: Button/,
   'Sonar PRO bottom buttons must use compact NAVO styling')
 assert.match(kgr,/id: koggerToolsHideTimer\s*\n\s*interval: 1600/,
