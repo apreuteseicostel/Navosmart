@@ -311,7 +311,7 @@ void NavoKoggerReplay::indexTick() {
   // Keep track data compact; route points always come from valid recorded
   // MAVLink positions associated with actual indexed CHART columns.
   constexpr int MaxGeoSamples=3000;
-  const int stride=std::max(1,(_columns.size()+MaxGeoSamples-1)/MaxGeoSamples);
+  const int stride=std::max(1,(int(_columns.size())+MaxGeoSamples-1)/MaxGeoSamples);
   for(int index=0;index<_columns.size();index+=stride){
    const Pose& p=_columns.at(index).pose;
    if(!p.gpsFix||!std::isfinite(p.lat)||!std::isfinite(p.lon)||
