@@ -34,7 +34,13 @@ Rectangle {
     readonly property bool replayActive: chartSource ? chartSource.replayActive : false
     function sourceStatusText() {
         if(chartSource && chartSource.replayMode)return replayActive ? "REPLAY" : "REPLAY • FINAL"
-        return connected ? (chartSource && chartSource.recording ? "REC ●" : (paused ? "PAUZĂ" : "LIVE")) : "OFFLINE"
+        return chartSource && chartSource.dataAlive
+            ? (chartSource.recording ? "REC ●" : (paused ? "PAUZĂ" : "LIVE CHART"))
+            : chartSource && chartSource.connected ? "CONECTAT • aștept CHART" : "OFFLINE"
+    }
+    NavoSonarLiveConnection {
+        id: liveConnection
+        sonar: root.chartSource
     }
     FileDialog { id: replayPicker; title: 'Încarcă înregistrare sonar'; nameFilters: ['Sonar NAVO / Kogger (*.navosonar *.klf)', 'Toate fișierele (*)']; onAccepted: { if(root.chartSource) {root.history=[];if(root.chartSource.startReplay(selectedFile)&&root.useKoggerOriginal && typeof root.chartSource.pauseReplay==="function")root.chartSource.pauseReplay(true)} } }
     readonly property var bottomAnalysis: bottomAnalysisDialog.visible && displayedColumn
@@ -665,7 +671,7 @@ Rectangle {
         Label {
             id: telemetry; objectName: "sonarProTelemetry"; font.pixelSize: 14; anchors.fill: parent; anchors.margins: 8; elide: Text.ElideRight
             color: root.connected ? "#21b7ff" : "#9db2c5"
-            text: "PRO  •  " + root.sourceStatusText() + "   " + (isFinite(root.depthM)?root.depthM.toFixed(1)+" m":"— m") + "   " + (isFinite(root.waterTempC)?root.waterTempC.toFixed(1)+" °C":"— °C")
+            text: "KGR  •  " + root.sourceStatusText() + "   " + (isFinite(root.depthM)?root.depthM.toFixed(1)+" m":"— m") + "   " + (isFinite(root.waterTempC)?root.waterTempC.toFixed(1)+" °C":"— °C")
         }
     }
     IconButton {
@@ -674,7 +680,7 @@ Rectangle {
         anchors.left: parent.left; anchors.top: telemetryBar.bottom; anchors.leftMargin: 10; anchors.topMargin: 18
         implicitWidth: 34; implicitHeight: 34; padding: 6
         z: 100; visible: true; enabled: true
-        glyph: "settings"; hint: "Deschide / închide meniul Sonar PRO"
+        glyph: "settings"; hint: "Deschide / închide meniul Sonar PRO KGR"
         checkable: true; checked: root.menuOpen
         onClicked: { root.settingsVisible = false; root.menuOpen = !root.menuOpen }
     }
@@ -682,7 +688,7 @@ Rectangle {
         id: closeButton
         objectName: "sonarProCloseButton"
         anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 6
-        z: 102; glyph: "close"; hint: "Ieșire din Sonar PRO"
+        z: 102; glyph: "close"; hint: "Ieșire din Sonar PRO KGR"
         onClicked: root.closed()
     }
     Rectangle {
@@ -707,6 +713,12 @@ Rectangle {
                     padding: 5
                     palette.buttonText: selected ? "#ffffff" : "#d7e7f1"
                     background: Rectangle { radius: 5; color: action.selected ? root.selectedMenuColor : (action.hovered ? "#183c51" : "#102435"); border.color: action.selected ? root.selectedMenuBorder : "#31536c"; border.width: action.selected ? 2 : 1 }
+                }
+                MenuAction {
+                    objectName: "sonarKgrLiveConnectionMenu"
+                    text: "Conexiune LIVE • TCP / UDP"
+                    selected: !!(root.chartSource && root.chartSource.dataAlive)
+                    onClicked: { root.menuOpen = false; liveConnection.open() }
                 }
                 MenuAction { visible:!!(root.chartSource && !root.replayMode); enabled:!!(root.chartSource && (root.chartSource.recording || root.chartSource.dataAlive)); selected:!!(root.chartSource && root.chartSource.recording); text:root.chartSource && root.chartSource.recording ? 'Oprește și salvează REC' : 'Înregistrează sesiunea'; onClicked: {root.menuOpen=false;if(root.chartSource.recording)root.chartSource.stopRecording();else recordingDialog.open()} }
                 MenuAction { text:'Analiză fund și ecouri'; enabled:root.history.length>0; onClicked:{root.menuOpen=false;bottomAnalysisDialog.open()} }
