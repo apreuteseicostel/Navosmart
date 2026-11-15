@@ -186,6 +186,27 @@ Item {
     property string replaySaveStatus: ""
     NavoBathymetryModel { id: replayBathymetryModel }
     NavoSonarMapping { id: replayMapping; visible:false; externalSampleIngestion:true; sonarConnected:true; scanning:true }
+    // Full recorded GPS route from the KLF index, not the current H743 position.
+    function indexedGeoCoordinates() {
+        if (!sonar.replayMode || !sonar.replayIndexReady) return []
+        var records = sonar.indexedReplayGeoTrack
+        var route = []
+        for (var i=0; records && i<records.length; ++i) {
+            var lat=Number(records[i].latitude), lon=Number(records[i].longitude)
+            if (isFinite(lat) && isFinite(lon) && Math.abs(lat)<=90 && Math.abs(lon)<=180)
+                route.push(QtPositioning.coordinate(lat, lon))
+        }
+        return route
+    }
+    readonly property var indexedReplayRoute: indexedGeoCoordinates()
+    readonly property var replaySelectionCoordinate: {
+        var p=sonar.replayViewGeo
+        return sonar.replayMode && p && isFinite(Number(p.latitude)) && isFinite(Number(p.longitude))
+            ? QtPositioning.coordinate(Number(p.latitude), Number(p.longitude))
+            : QtPositioning.coordinate()
+    }
+    readonly property int replaySelectionColumn: sonar.replayMode && sonar.replayViewGeo && sonar.replayViewGeo.column
+        ? Number(sonar.replayViewGeo.column) : 0
     readonly property var displayNativeSurfaceMesh: sonar.replayMode ? sonar.nativeSurfaceMesh : scanCoordinator.nativeSurfaceMesh
     readonly property var displayBathymetryCells: sonar.replayMode ? replayBathymetryModel.cells : scanCoordinator.bathymetryCells
     Timer {
@@ -1821,7 +1842,11 @@ Item {
                 nativeSurfaceBridge: sonar.nativeBridge
                 bathymetryCells: root.displayBathymetryCells
                         replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
-                        replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
+                        replayTrack: sonar.replayMode
+                            ? (root.indexedReplayRoute.length > 1 ? root.indexedReplayRoute : replayMapping.trackCoordinates)
+                            : sonarMapping.trackCoordinates
+                        replayCursorCoordinate: root.replaySelectionCoordinate
+                        replayCursorColumn: root.replaySelectionColumn
                 baitingController: root.mapBaitingController
                 areaScanController: root.mapAreaScanController
                 savedDepthM: root.depthM
@@ -1933,7 +1958,10 @@ Item {
             chartSource: sonar
             vehicle: root.vehicle
             planController: root.planController
-            boatTrack: sonar.replayMode ? replayMapping.trackCoordinates : root.proBoatTrack
+            boatTrack: sonar.replayMode
+                ? (root.indexedReplayRoute.length > 1 ? root.indexedReplayRoute : replayMapping.trackCoordinates)
+                : root.proBoatTrack
+            replayCursorCoordinate: root.replaySelectionCoordinate
             plannedTrack: areaScanController.generatedPoints
             replaySaveStatus: root.replaySaveStatus
             replaySampleCount: replayMapping.rawSamples.length
@@ -2157,7 +2185,11 @@ Item {
                             nativeSurfaceBridge: sonar.nativeBridge
                 bathymetryCells: root.displayBathymetryCells
                         replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
-                        replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
+                        replayTrack: sonar.replayMode
+                            ? (root.indexedReplayRoute.length > 1 ? root.indexedReplayRoute : replayMapping.trackCoordinates)
+                            : sonarMapping.trackCoordinates
+                        replayCursorCoordinate: root.replaySelectionCoordinate
+                        replayCursorColumn: root.replaySelectionColumn
                             baitingController: root.mapBaitingController
                             areaScanController: root.mapAreaScanController
                             savedDepthM: root.depthM
@@ -2325,7 +2357,11 @@ Item {
                         vehicle:root.vehicle; planController:root.planController; waypointNames:root.waypointNames
                         fishModel:fishStore; fishingSpotsModel:fishingSpots; nativeSurfaceMesh:root.displayNativeSurfaceMesh; nativeSurfaceBridge:sonar.nativeBridge; bathymetryCells:root.displayBathymetryCells
                         replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
-                        replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
+                        replayTrack: sonar.replayMode
+                            ? (root.indexedReplayRoute.length > 1 ? root.indexedReplayRoute : replayMapping.trackCoordinates)
+                            : sonarMapping.trackCoordinates
+                        replayCursorCoordinate: root.replaySelectionCoordinate
+                        replayCursorColumn: root.replaySelectionColumn
                         baitingController: root.mapBaitingController; areaScanController: root.mapAreaScanController
                         savedDepthM:root.depthM; savedWaterTempC:root.waterTempC; showStatusHint:false
                         maximized:fishingPageRoot.mapExpanded
@@ -2830,7 +2866,11 @@ Item {
                         nativeSurfaceBridge: sonar.nativeBridge
                 bathymetryCells: root.displayBathymetryCells
                         replayPreview: sonar.replayMode || (!root.vehicle && sonarMapping.trackCoordinates.length>0)
-                        replayTrack: sonar.replayMode ? replayMapping.trackCoordinates : sonarMapping.trackCoordinates
+                        replayTrack: sonar.replayMode
+                            ? (root.indexedReplayRoute.length > 1 ? root.indexedReplayRoute : replayMapping.trackCoordinates)
+                            : sonarMapping.trackCoordinates
+                        replayCursorCoordinate: root.replaySelectionCoordinate
+                        replayCursorColumn: root.replaySelectionColumn
                         baitingController: root.mapBaitingController
                         areaScanController: root.mapAreaScanController
                         savedDepthM: root.depthM
