@@ -23,7 +23,7 @@ private slots:
   send(v,"NV3VER",2);QVERIFY(!t.connected());
   send(v,"NV3VER",1);QVERIFY(t.temperatureValid());QCOMPARE(t.batteryTempC(),24.0);
   send(v,"NV3WATER",0);send(v,"NV3WFAULT",0);QVERIFY(t.waterValid());
-  send(v,"NV3CAP",9);QCOMPARE(t.capabilities(),9);
+  send(v,"NV3CAP",10);QCOMPARE(t.capabilities(),10); // temp+hoppers, NO light capability
   send(v,"NV3HEAD",1);send(v,"NV3POS",0);
   QVERIFY(!t.lightsValid()); // Lua cfg.lights=nil does NOT validate native ArduPilot relays.
   send(v,"NV3CAP",11);QVERIFY(t.lightsValid()); // Bit 1 explicitly owns light outputs.
