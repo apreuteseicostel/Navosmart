@@ -12,6 +12,9 @@ QtObject {
  readonly property double replaySpeed: replayObject.speed
  readonly property double replayPosition: replayObject.position
  readonly property double replaySize: replayObject.size
+ readonly property bool replayIndexReady: replayObject.indexReady
+ readonly property double replayIndexProgress: replayObject.indexProgress
+ readonly property int replayColumnCount: replayObject.indexedColumns
  readonly property string replayError: replayObject.error
  readonly property var replayAnnotationAnchor: replayObject.annotationAnchor
  readonly property var replayAnnotations: replayObject.annotations
@@ -44,6 +47,7 @@ QtObject {
   id: replayObject
   onPositionReady: function(lat,lon,heading,pitch,roll) { chartBridge.setPosition(lat,lon,heading,pitch,roll) }
   onBytesReady: function(data) { decoderObject.feedBytes(data) }
+  onPreviewLastColumnReady: decoderObject.flushPendingChart()
  }
  onNativeCapacityFullChanged: replayObject.setBlocked(nativeCapacityFull)
  readonly property string status: transportObject.status
@@ -141,7 +145,9 @@ QtObject {
   onEchoSamplesChanged: {
    if(!chartRawByteCount){root.lastEchoMs=0;return}
    root.lastEchoMs=Date.now(); root.clockMs=root.lastEchoMs
-   if(root.nativeChannelReady && decoderObject.chartVersion===0)return
+   // The native bridge accepts CHART v0 and v1; don't double-save v1
+   // data through the parallel legacy geoSample path.
+   if(root.nativeChannelReady && decoderObject.chartVersion<=1)return
    // Publish only completed CHART columns paired with recent depth and valid GPS.
    if(root.replayMode || !isFinite(depthM) || depthM<=0 || root.lastDepthMs<=0 ||
       root.lastEchoMs-root.lastDepthMs>1500 || !root.vehicle ||

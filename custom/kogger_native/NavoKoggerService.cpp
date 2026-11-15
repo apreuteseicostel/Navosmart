@@ -77,7 +77,7 @@ void NavoKoggerService::startProcessor(){
     dataset_.setState(Dataset::DatasetState::kConnection);
 }
 bool NavoKoggerService::ingest(const NavoKoggerChartRecord& record,const ChannelId& channel,double heading,double pitch,double roll){
-    if(!record.hasValidChart()||!channel.isValid()||record.version!=0)return false;
+    if(!record.hasValidChart()||!channel.isValid())return false;
     if(channel_.isValid()&&channel_!=channel)clear();
     if(rolling_ || capacityFull_ || dataset_.size()>=3000 || rawBytes_+record.chart.size()>16*1024*1024){
         capacityFull_=true;
@@ -93,7 +93,7 @@ bool NavoKoggerService::ingest(const NavoKoggerChartRecord& record,const Channel
         // Side-scan channels are intentionally unconfigured for DownView.
     }
     if(!NavoKoggerDatasetAdapter::appendToKoggerDataset(record,channel,dataset_))return false;
-    metadata_.insert(dataset_.endIndex(),ColumnMetadata{record.receivedAtMs,record.sequence,heading,record.resolutionMm,record.absoluteOffset,record.version,int(record.chart.size())});
+    metadata_.insert(dataset_.endIndex(),ColumnMetadata{record.receivedAtMs,record.sequence,heading,record.resolutionMm,record.absoluteOffset,record.version,int(record.chart.size()/(record.version==1?2:1))});
     rawBytes_+=record.chart.size();
     if(std::isfinite(heading))dataset_.addAtt(heading,pitch,roll);
     return true;
