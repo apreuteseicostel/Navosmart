@@ -3057,6 +3057,14 @@ Item {
             lanDiagnostics:lanService
             selectedTab:root.settingsStartTab
             cameraLive:root.cameraConnected
+            rgbTelemetryValid: h743Telemetry.rgbTelemetryValid
+            rgbCode: h743Telemetry.rgbCode
+            rgbReason: h743Telemetry.rgbReason
+            virtualRgbState: root.boatVirtualRgbState
+            rgbWaterValid: h743Telemetry.waterValid
+            rgbWaterDetected: h743Telemetry.waterDetected
+            rgbInteriorValid: h743Telemetry.interiorValid
+            rgbInteriorTempC: h743Telemetry.interiorTempC
             sonar: root.sonarController
             camera: cameraEthernet
             alerts: root.settingsAlertsController
