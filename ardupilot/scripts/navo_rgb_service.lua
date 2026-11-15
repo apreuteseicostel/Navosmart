@@ -52,8 +52,10 @@ end
 local function hopper_open()
  if not SRV_Channels then return false end
  for _,out in ipairs(cfg.hopper_outputs) do
-  -- Servo output belongs to timed hopper service only when FUNCTION=135.
-  if param:get("SERVO"..out.."_FUNCTION")==135 then
+  -- Legacy MAV_CMD_DO_SET_SERVO typically uses disabled/available
+  -- FUNCTION=0; V3 timed hopper uses 135. Read both, never write PWM.
+  local fn=param:get("SERVO"..out.."_FUNCTION")
+  if fn==0 or fn==135 then
    local success,pwm=pcall(function()
        return SRV_Channels:get_output_pwm_chan(out-1)
    end)
