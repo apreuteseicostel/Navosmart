@@ -11,13 +11,13 @@
 
 **Configurație nouă exclusiv pentru RGB:**
 - `ardupilot/scripts/navo_rgb_service.lua` — scriptul care **trimite date WS2811 către LED-ul fizic**.
-- `ardupilot/modules/navo_rgb_config.lua` — `enabled=true`, `output=13`, `count=1`, `order="GRB"`, luminozitate maxim 30 %.
+- `ardupilot/modules/navo_rgb_config.lua` — `enabled=true`, `output=13`, `count=1`, `order="RGB"`, luminozitate maxim 30 %.
 - `ardupilot/modules/navo_rgb_core.lua` — culorile și prioritatea evenimentelor.
 
 **Instalare pe SD (APM/scripts):**
 1. Copiază scriptul principal în `APM/scripts/` și cele două module în `APM/scripts/modules/`.
 2. În configurația ArduPilot verifică ieșirea fizică **LED/PWM13**, apoi setează **`SERVO13_FUNCTION=94`** (ScriptOut1). Implicit producătorul poate folosi `SERVO13_FUNCTION=120` pentru NeoPixel controlat de notificările ArduPilot; acesta nu se poate folosi concomitent pentru acest script.
-3. Verifică `SCR_ENABLE=1`, restart, iar în Messages caută `NAVO RGB: ...`; verifică obligatoriu ordinea fizică a culorilor. Dacă LED-ul alb/verde nu afișează corect, se ajustează `order` după test.
+3. Verifică `SCR_ENABLE=1`, restart, iar în Messages caută `NAVO RGB: STARE / MOTIV`. După testul pe H743 din 15 noiembrie (ALB la far, MOV la poziții deși codul cerea TURCOAZ), ordinea **GRB era suspectă de inversarea R/G**; revizia actuală testează `order="RGB"` cu `set_num_neopixel_rgb`. Verifică pe LED-ul fizic roșu, verde, albastru și turcoaz.
 4. LED-ul WS2811 se alimentează **din 5 V**, cu masă comună și DATA din LED/H743 (sau prin bufferul din PCB V3). Nu alimenta WS2811 din 12 V și nu folosi ieșirea GPIO direct ca alimentare.
 5. **Nu activa** simultan `cfg.rgb` din `navo_v3_config.lua`, pentru că ar crea doi controlori serialLED pentru același pixel. Serviciul principal V3 poate rămâne `enabled=false` până la verificarea cuvelor/senzorilor: acest serviciu RGB este **independent și activat deja**.
 6. Serviciul RGB refuză explicit ieșirea dacă `SERVO13_FUNCTION` nu este 94; **nu schimbă automat parametrii autopilotului** și nu activează alte ieșiri.
@@ -28,14 +28,25 @@
 | --- | --- |
 | **Apă în cocă confirmată** sau **SHT31 temperatură ≥45 °C** | ROȘU, prioritate maximă |
 | Eroare de senzor de apă / SHT31 | MOV |
-| Cuva/cuve în mișcare (telemetrie V3 sau PWM verificat S9/S10) | ALBASTRU |
+| Cuva/cuve în mișcare (V3/PWM verificat S9/S10); fallback la L1/R1 după apăsare lungă | ALBASTRU |
 | Far ON (Relay1/L2 G20) | ALB |
 | Poziții ON (Relay2/R2 G20) | TURCOAZ |
 | Far + poziții ON | GALBEN |
 | Senzor apă + temperatură valide, fără alarmă și fără acțiuni | VERDE |
 | Senzorii nu sunt ambii confirmați | PORTOCALIU (nu declarăm fals „normal”) |
 
-LED-ul **nu măsoară curentul prin far**, ci citește starea logică ArduPilot Relay1/2. Dacă firmware-ul nu expune `relay:get` sau releele nu sunt active, nu va putea reflecta far/poziții până la verificarea firmware-ului. Cuvele sunt urmărite prin `NVLR_HOP` transmis de serviciul de cuve configurat sau prin PWM pentru ieșirile configurate `SERVO9/10_FUNCTION=135`; acestea indică o comandă PWM, **nu contact de limită fizic**.
+LED-ul **nu măsoară curentul prin far**, ci citește starea logică ArduPilot Relay1/2. Dacă firmware-ul nu expune `relay:get` sau releele nu sunt active, nu va putea reflecta far/poziții până la verificarea firmware-ului. Cuvele sunt urmărite prin `NVLR_HOP` transmis de serviciul V3, citirea pasivă PWM a ieșirilor dedicate S9/S10 dacă `SERVOx_FUNCTION` este 0 sau 135 sau, ca fallback, prin `rc:get_pwm(11/15)` (L1/R1 ținut ≥1,4 s), cu impuls albastru scurt. Verifică **ieșirile reale configurate în aplicație și H743**: datele de cuvă reflectă o comandă sau o apăsare RC, **nu confirmă mecanic bascularea**.
+
+### Diagnostic real în aplicație (PR #106)
+
+Textul „LED APP NORMAL” a fost scos de sub barca din busolă. Deschide **Setări → Avansat → Diagnostic LED fizic** pentru ultima stare comandată de scriptul H743 și motivul ei:
+
+- `NV3RGBC`: 1 roșu; 2 mov; 3 albastru; 4 alb; 5 turcoaz; 6 galben; 7 verde; 8 portocaliu.
+- `NV3RGBS`: 1 apă detectată, 2 temperatură SHT31 ≥45°C, 3 senzor apă defect, 4 eroare SHT31, 5 ciclu cuve V3, 6 PWM cuvă, 7 apăsare lungă G20 L1/R1, 8 far, 9 poziții, 10 far+poziții, 11 normal, 12 fără senzori, 13 alarmă apă reținută.
+- Ambele sunt transmise imediat la schimbarea stării și repetate aproximativ la 1 s; expiră în aplicație dacă telemetria devine veche. Reprezintă **culoarea comandată**, nu dovada că LED-ul fizic s-a aprins.
+- După o alarmă de apă validă, ROȘUL rămâne activ până la **3 secunde consecutive de uscat valid**, pentru a evita alternarea rapidă cu verde la prag.
+
+Dacă LED-ul rămâne roșu, verifică motivul din acest meniu, apoi `NV3WADC` / statusul sondei și `NV3ITMP` / `NV3ENV`. Nu presupune că senzorii sunt buni doar pentru că se aprinde verde.
 
 ### Alarme din serviciile de senzori
 
