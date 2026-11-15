@@ -74,7 +74,7 @@ double NavoKoggerReplay::indexProgress() const {
 QVariantMap NavoKoggerReplay::geoAtFraction(double fraction) const {
  if(!_indexReady||_columns.isEmpty()||!std::isfinite(fraction))return {};
  const int idx=std::clamp(int(std::round(std::clamp(fraction,0.0,1.0)
-                           *double(_columns.size()-1))),0,_columns.size()-1);
+                           *double(_columns.size()-1))),0,int(_columns.size())-1);
  const Pose& p=_columns.at(idx).pose;
  if(!p.gpsFix||!std::isfinite(p.lat)||!std::isfinite(p.lon)||
     std::abs(p.lat)>90.0||std::abs(p.lon)>180.0)return {};
