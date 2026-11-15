@@ -885,5 +885,21 @@ test('Sonar freshness watchdog only runs on a live transport, not while offline 
   const sonar=fs.readFileSync(path.join(dir,'NavoSonarEthernet.qml'),'utf8');
   assert.match(sonar,/property Timer freshness:\s*Timer\s*\{[^}]*running:\s*transportObject\.connected\s*&&\s*!root\.replayMode/);
 });
+test('Map side controls reveal independently from edge touch/hover and hide after one second',()=>{
+ const map=fs.readFileSync(path.join(dir,'NavoMap.qml'),'utf8');
+ for(const side of ['Left','Right']) {
+  assert(map.includes('property bool map'+side+'ControlsVisible: false'));
+  assert(map.includes('id: map'+side+'Edge'));
+  assert(map.includes('id: map'+side+'HideTimer'));
+  assert(map.includes('visible: root.map'+side+'ControlsVisible'));
+  assert(map.includes('onEntered: root.revealMap'+side+'Controls()'));
+  assert(map.includes('onPressed: root.revealMap'+side+'Controls()'));
+ }
+ assert.equal((map.match(/interval: 1000/g)||[]).length >= 2,true);
+ assert(map.includes('id: mapLeftButtonsHover'));
+ assert(map.includes('id: mapRightButtonsHover'));
+ assert(map.includes('layersPopup.visible'));
+ assert(map.includes('parent.checked ? 2 : 1'));
+});
 console.log(`${passed} regression scenarios passed`);
 
