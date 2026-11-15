@@ -881,5 +881,21 @@ test('Sonar freshness watchdog only runs on a live transport, not while offline 
   const sonar=fs.readFileSync(path.join(dir,'NavoSonarEthernet.qml'),'utf8');
   assert.match(sonar,/property Timer freshness:\s*Timer\s*\{[^}]*running:\s*transportObject\.connected\s*&&\s*!root\.replayMode/);
 });
+test('Both heading compass boat visuals use H743 light and hopper states',()=>{
+ const dashboard=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+ const compass=fs.readFileSync(path.join(dir,'NavoHeadingCompass.qml'),'utf8');
+ const visual=fs.readFileSync(path.join(dir,'NavoBoatVisual.qml'),'utf8');
+ for(const key of ['leftHopperOpen','rightHopperOpen','headlightOn','positionLightsOn']){
+   assert.match(compass,new RegExp(key+': root\\.'+key));
+   assert.match(dashboard,new RegExp(key+': root\\.visual'));
+   assert.match(visual,new RegExp('property bool '+key+': false'));
+ }
+ assert.match(dashboard,/h743Telemetry\.hopperStateValid && \(h743Telemetry\.hopperMask & 1\)/);
+ assert.match(dashboard,/h743Telemetry\.hopperStateValid && \(h743Telemetry\.hopperMask & 2\)/);
+ assert.match(dashboard,/h743Telemetry\.lightsValid && h743Telemetry\.headlightOn/);
+ assert.match(dashboard,/h743Telemetry\.lightsValid && h743Telemetry\.positionLightsOn/);
+ assert.match(compass,/NavoBoatVisual \{/);
+});
+
 console.log(`${passed} regression scenarios passed`);
 
