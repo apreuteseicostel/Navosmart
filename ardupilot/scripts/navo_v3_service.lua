@@ -126,6 +126,14 @@ local function update()
             gcs:send_named_float("NV3HEAD",state.head);gcs:send_named_float("NV3POS",state.pos)
         end
         gcs:send_named_float("NV3HOP",state.hopper);gcs:send_named_float("NV3REQ",state.last_request)
+        -- Share an ACTIVE hopper cycle with independent physical WS2811 LED.
+        -- Never publish a hopper status if this service has no verified hoppers.
+        if cfg.hoppers and param and type(param.set)=="function" then
+            pcall(function()
+                param:set("NVLR_HOP",state.hopper)
+                param:set("NVLR_HMS",millis():tofloat())
+            end)
+        end
         if cfg.rgb then
             -- An actual *valid* wet/critical reading outranks a missing other
             -- sensor. Never treat an unconfigured probe as a known fault, and
