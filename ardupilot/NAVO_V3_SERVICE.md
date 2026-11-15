@@ -75,3 +75,49 @@ SHT31/water telemetry scripts do not control lights.
 If native relays were ever replaced by the optional Lua lighting backend,
 that would require an explicit separate migration and bench review;
 it is **not** part of PR #73.
+
+
+## Read-only native G20 light feedback (optional)
+
+The current boat uses native ArduPilot Relay1/Relay2 (L2/RC7 and R2/RC16).
+The optional `navo_v3_service.lua` light backend **must remain disabled** on
+these existing pins. Without it, `NV3HEAD` and `NV3POS` are intentionally
+**not** published: zero would incorrectly mean the physical RC switch is OFF.
+
+After confirming the installed H743 firmware supports
+`relay:enabled(instance)` and `relay:get(instance)`, you may **separately**
+copy `ardupilot/scripts/navo_relay_status.lua` to `APM/scripts/`.
+It reads the configured logical states and publishes `NV3RHEAD` for Relay1
+(far) and `NV3RPOS` for Relay2 (positions) every 500 ms, only when each relay
+is enabled and the returned value is exactly 0 or 1. It performs **no**
+`relay:on/off/toggle`, GPIO writes or autopilot parameter modifications.
+
+NAVO's H743 telemetry parser expires these fields after 2.5 seconds, reads
+them independently of the V3 service heartbeat, and prefers them to
+`NV3HEAD/NV3POS` for the boat icon in both compass views. When unavailable,
+the visual cannot claim a confirmed ON state. These values describe the
+**relay's logical state**, not bulb current, working MOSFETs or measured light.
+
+## Physical RGB LED: validation gates and alarm priority
+
+The RGB output is **not configured or activated by the app/this PR**.
+`cfg.rgb=nil` remains the default. Do not assume an analog/high-power RGB LED
+is WS2811/NeoPixel-compatible. Before provisioning it, identify its actual
+driver/interface, supply voltage, ground and permissible H743 output, and
+verify the existing boat configuration for pin ownership.
+
+For an explicitly configured, supported `serialLED` pixel, the service uses:
+1. **RED** for detected water with a valid local wet sample or local NTC
+   critical temperature (>=55°C).
+2. **MAGENTA** for an invalid *configured* local sensor, when no confirmed
+   red alarm is present.
+3. **BLUE** for active onboard hopper cycle.
+4. **AMBER** when neither local environmental input has been configured;
+   **GREEN** for otherwise observed normal conditions.
+
+The app's 45°C warning setting and a *separately-running* interior SHT31
+or water-monitor service do **not** automatically reach this RGB routine.
+Their readings cannot yet cause physical RED without a verified shared
+read-only alarm bridge and real RGB driver. Never interpret LED GREEN as
+proof of overall boat safety, only that the locally configured inputs have
+no current alarm. Bench-test each condition and loss-of-sensor behaviour.

@@ -9,6 +9,7 @@ QObject* NavoH743Telemetry::vehicle()const{return _vehicle.data();}
 void NavoH743Telemetry::setVehicle(QObject*o){Vehicle*v=qobject_cast<Vehicle*>(o);if(v==_vehicle)return;if(_vehicle)disconnect(_vehicle,nullptr,this,nullptr);_vehicle=v;if(_vehicle)connect(_vehicle,&Vehicle::mavlinkMessageReceived,this,&NavoH743Telemetry::_mavlink);_reset();emit vehicleChanged();emit telemetryChanged();}
 void NavoH743Telemetry::_reset(){
  _capMs=_headMs=_posMs=_hopMs=_requestMs=-1;_caps=_hopperMask=_request=0;
+ _relayHeadMs=_relayPosMs=-1;_relayHead=_relayPos=false;
  _interiorTemp=_humidity=qQNaN();_interiorTempMs=_humidityMs=_environmentMs=-1;_environmentStatus=0;
  _lastMs=0; _batteryV=0; _tempC=qQNaN();
  _water=_waterFault=_head=_pos=false; _hl=_hr=_rud=_alarm=0;
@@ -55,6 +56,8 @@ void NavoH743Telemetry::_set(const char*n,float v){
  if(_v3){
   if(!strcmp(n,"NV3VER")){_heartbeatMs=v==1.0f?now:-1;}
   else if(!strcmp(n,"NV3CAP")){_caps=std::isfinite(v)&&v>=0&&v<=31&&std::floor(v)==v?int(v):0;_capMs=now;}
+  else if(!strcmp(n,"NV3RHEAD")){_relayHead=v==1;_relayHeadMs=(v==0||v==1)?now:-1;}
+  else if(!strcmp(n,"NV3RPOS")){_relayPos=v==1;_relayPosMs=(v==0||v==1)?now:-1;}
   else if(!strcmp(n,"NV3HEAD")){_head=v==1;_headMs=(v==0||v==1)?now:-1;}
   else if(!strcmp(n,"NV3POS")){_pos=v==1;_posMs=(v==0||v==1)?now:-1;}
   else if(!strcmp(n,"NV3HOP")){_hopperMask=std::isfinite(v)&&v>=0&&v<=3&&std::floor(v)==v?int(v):-1;_hopMs=_hopperMask>=0?now:-1;}

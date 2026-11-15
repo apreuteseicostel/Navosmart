@@ -73,7 +73,26 @@ now=99;update();assert(excitation==1)
 now=100;update();assert(excitation==0)
 now=500;update();assert(pub.NV3WATER==1 and pub.NV3WFAULT==0 and rgb[1]==80)
 adc_values[8]=0;now=1000;update();assert(pub.NV3TEMP==-32768)
+assert(rgb[1]==80 and rgb[2]==0 and rgb[3]==0,
+    'Confirmed water alarm must remain RED even when NTC is invalid')
+-- The water ADC is excited at 500 and read at 1000. The next pulse
+-- starts at 1500, settles at 1600 and publishes the new fault at 2000.
+adc_values[7]=0/0;now=1100;update()
+now=1500;update();assert(pub.NV3WFAULT==0,
+    'Stale last valid sample persists until the next settled ADC read')
+now=1600;update()
+now=2000;update();assert(pub.NV3WFAULT==1 and rgb[1]==40 and rgb[3]==40,
+    'Invalid configured water+NTC must report MAGENTA after ADC settling')
 -- RGB runtime failure withdraws the heartbeat and removes excitation.
 serialLED.send=function()error('driver failed')end
-now=1500;assert(update()==nil and excitation==0)
-print('PASS actual V3 sensor/RGB adapter: settling, wet detection, NTC open circuit and safe runtime shutdown')
+now=2500;assert(update()==nil and excitation==0)
+-- Native G20 relays are separate: optional lights=nil must not publish OFF.
+-- Absent optional temperature/water inputs must not force the RGB fault colour.
+cfg.temperature=nil;cfg.water=nil;serialLED.send=function()return true end
+pub.NV3HEAD=nil;pub.NV3POS=nil
+now=0;update=dofile('ardupilot/scripts/navo_v3_service.lua')
+assert(pub.NV3HEAD==nil and pub.NV3POS==nil,
+    'V3 must not impersonate the independent native Relay1/Relay2 state')
+assert(rgb[1]==40 and rgb[2]==24 and rgb[3]==0,
+    'Unmonitored environment must be AMBER instead of falsely healthy green')
+print('PASS actual V3 sensor/RGB adapter: wet-red priority, faults, absent probes and runtime shutdown')

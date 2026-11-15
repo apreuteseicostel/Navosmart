@@ -654,6 +654,17 @@ Item {
     property string boatId: "NAV0001"
     property int activePage: 0
     property bool showHomeCredit: false
+    // Never infer physical light/servo state from a sent MAVLink command.
+    // The hopper bridge reports requested state on legacy paths; on V3 use
+    // only fresh NV3HOP telemetry to animate the actual onboard cycle.
+    readonly property bool visualLeftHopperOpen: h743Telemetry.v3Profile
+        ? (h743Telemetry.hopperStateValid && (h743Telemetry.hopperMask & 1) !== 0)
+        : hopperBridge.leftOpen
+    readonly property bool visualRightHopperOpen: h743Telemetry.v3Profile
+        ? (h743Telemetry.hopperStateValid && (h743Telemetry.hopperMask & 2) !== 0)
+        : hopperBridge.rightOpen
+    readonly property bool visualHeadlightOn: h743Telemetry.lightsValid && h743Telemetry.headlightOn
+    readonly property bool visualPositionLightsOn: h743Telemetry.lightsValid && h743Telemetry.positionLightsOn
     property bool hopperStatusExpanded: false
     property bool mapFullscreen: false
     property bool headingOverlayOpen: false
@@ -1436,6 +1447,10 @@ Item {
                 Layout.preferredHeight: header.compassWidth
                 headingDeg: root.headingDeg
                 headingSource: root.headingSource
+                leftHopperOpen: root.visualLeftHopperOpen
+                rightHopperOpen: root.visualRightHopperOpen
+                headlightOn: root.visualHeadlightOn
+                positionLightsOn: root.visualPositionLightsOn
                 waypointBearingDeg: root.waypointBearingDeg
                 rollDeg: root.rollDeg
                 pitchDeg: root.pitchDeg
@@ -1625,7 +1640,7 @@ Item {
         }
     }
 
-    NavoHeadingCompass { id:headingCompassOverlay; visible:root.headingOverlayOpen && root.activePage !== 10; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; headingSource:root.headingSource; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; onToggleRequested:root.headingOverlayOpen=false }
+    NavoHeadingCompass { id:headingCompassOverlay; visible:root.headingOverlayOpen && root.activePage !== 10; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; headingSource:root.headingSource; leftHopperOpen:root.visualLeftHopperOpen; rightHopperOpen:root.visualRightHopperOpen; headlightOn:root.visualHeadlightOn; positionLightsOn:root.visualPositionLightsOn; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; onToggleRequested:root.headingOverlayOpen=false }
 
     Rectangle {
         id: sidebar

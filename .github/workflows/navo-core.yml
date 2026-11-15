@@ -58,6 +58,8 @@ jobs:
         run: cmake -S tests/persistence -B /tmp/navo-persistence && cmake --build /tmp/navo-persistence -j2 && /tmp/navo-persistence/navo-persistence-test
       - name: Test V3 onboard service and bounded hopper cycles
         run: lua5.3 tests/firmware/v3-service.lua
+      - name: Verify read-only native G20 relay state telemetry
+        run: lua5.3 tests/firmware/relay-status.lua
       - name: SHT31 environment CRC and telemetry service
         run: lua5.3 tests/firmware/sht31.lua
       - name: NAVO independent water probe ADC and diagnostic service
