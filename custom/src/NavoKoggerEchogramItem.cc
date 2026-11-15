@@ -2,6 +2,7 @@
 #include "NavoKoggerReplay.h"
 #include "../kogger_native/navo_kogger_echogram_palette.h"
 #include "../kogger_native/navo_kogger_echogram_sampling.h"
+#include "../kogger_native/NavoKoggerOriginalRaster.h"
 #include <QPainter>
 #include <QPainterPath>
 #include <QImage>
@@ -242,6 +243,14 @@ void NavoKoggerEchogramItem::setFrozen(bool v) {
     if(_frozen==v)return;
     _frozen=v;emit frozenChanged();
 }
+void NavoKoggerEchogramItem::setUpstreamRaster(bool v) {
+    if(_upstreamRaster==v)return;
+    _upstreamRaster=v;emit displayChanged();requestFrame();
+}
+void NavoKoggerEchogramItem::setUpstreamCompensated(bool v) {
+    if(_upstreamCompensated==v)return;
+    _upstreamCompensated=v;emit displayChanged();requestFrame();
+}
 void NavoKoggerEchogramItem::setShowBottomTrack(bool v) {
     if(_showBottom==v)return;
     _showBottom=v;emit displayChanged();requestFrame();
@@ -269,8 +278,16 @@ QVariantMap NavoKoggerEchogramItem::inspectAt(qreal x,qreal y) const {
     const double resolution=c.resolutionMm*0.001;
     const double offset=c.absoluteOffset*resolution;
     const double pixelDepth=_range/qMax(1.0,height());
-    const quint8 signal=NavoKoggerSampling::atDisplayDepth(
-        c.bytes,c.version,offset,resolution,selectedDepth,pixelDepth);
+    const QByteArray upstream=_upstreamRaster?
+        NavoKoggerOriginalRaster::column(c.bytes,c.version,resolution,offset,
+                                          _from,_range,
+                                          std::clamp(int(std::ceil(height())),1,1600),
+                                          _upstreamCompensated):QByteArray();
+    const int sampleY=std::clamp(int(y*std::clamp(int(std::ceil(height())),1,1600)/height()),0,
+                                  std::clamp(int(std::ceil(height())),1,1600)-1);
+    const quint8 signal=!upstream.isEmpty()?quint8(upstream.at(sampleY)):
+        NavoKoggerSampling::atDisplayDepth(
+            c.bytes,c.version,offset,resolution,selectedDepth,pixelDepth);
     return QVariantMap{
         {"column",epoch+1},{"sequence",_fileTotalColumns>0?QVariant():QVariant::fromValue(c.sequence)},
         {"selectedDepthM",selectedDepth},{"bottomDepthM",c.bottom},
@@ -312,6 +329,17 @@ void NavoKoggerEchogramItem::paint(QPainter* p) {
         if(col.bytes.isEmpty() || col.resolutionMm==0)continue;
         const double resolution=col.resolutionMm*0.001;
         const double offset=col.absoluteOffset*resolution;
+        const QByteArray upstream=_upstreamRaster ?
+            NavoKoggerOriginalRaster::column(col.bytes,col.version,resolution,offset,
+                                              from,range,imageH,_upstreamCompensated) : QByteArray();
+        if(!upstream.isEmpty()){
+            for(int y=0;y<imageH;++y){
+                const auto raw=quint8(upstream.at(y));
+                const int value=std::clamp(qRound((double(raw)/255.0-_noiseFloor)*_gain*255.0),0,255);
+                image.scanLine(y)[x]=quint8(value);
+            }
+            continue;
+        }
         for(int y=0;y<imageH;++y) {
             const double depth=from+(double(y)+0.5)*range/double(imageH);
             const auto raw=NavoKoggerSampling::atDisplayDepth(
