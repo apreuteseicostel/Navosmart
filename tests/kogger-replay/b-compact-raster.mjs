@@ -65,5 +65,5 @@ for (let index = 0; index < 65536; index += 620) {
     }
   }
 }
-assert.ok(evictions > 0 && cache.has(15423), 'Far end of KLF must remain accessible after eviction')
+assert.ok(evictions > 0 && cache.has(65535), 'Far end of KLF must remain accessible after eviction')
 console.log('PASS Kogger B auto-hide rails, file isolation, 8-bit raster caching, bounded eviction')
