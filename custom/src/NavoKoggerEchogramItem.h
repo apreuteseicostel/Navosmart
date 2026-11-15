@@ -27,6 +27,9 @@ class NavoKoggerEchogramItem : public QQuickPaintedItem {
     Q_PROPERTY(qreal noiseFloor READ noiseFloor WRITE setNoiseFloor NOTIFY displayChanged)
     Q_PROPERTY(bool frozen READ frozen WRITE setFrozen NOTIFY frozenChanged)
     Q_PROPERTY(bool showBottomTrack READ showBottomTrack WRITE setShowBottomTrack NOTIFY displayChanged)
+    // Experiment C — upstream Kogger Epoch::chartTo pixel rules.
+    Q_PROPERTY(bool upstreamRaster READ upstreamRaster WRITE setUpstreamRaster NOTIFY displayChanged)
+    Q_PROPERTY(bool upstreamCompensated READ upstreamCompensated WRITE setUpstreamCompensated NOTIFY displayChanged)
     Q_PROPERTY(int columnCount READ columnCount NOTIFY columnsChanged)
     // Full-file KLF viewer: independent of the decoder's rolling live ring.
     Q_PROPERTY(QObject* fileReplay READ fileReplay WRITE setFileReplay NOTIFY fileReplayChanged)
@@ -46,6 +49,8 @@ public:
     qreal noiseFloor() const {return _noiseFloor;}
     bool frozen() const {return _frozen;}
     bool showBottomTrack() const {return _showBottom;}
+    bool upstreamRaster() const {return _upstreamRaster;}
+    bool upstreamCompensated() const {return _upstreamCompensated;}
     int columnCount() const;
     QObject* fileReplay() const { return _fileReplay; }
     void setFileReplay(QObject* replay);
@@ -64,6 +69,8 @@ public:
     void setNoiseFloor(qreal v);
     void setFrozen(bool v);
     void setShowBottomTrack(bool v);
+    void setUpstreamRaster(bool v);
+    void setUpstreamCompensated(bool v);
     Q_INVOKABLE void resetColumns();
     Q_INVOKABLE void setBottomDepth(quint64 sequence, double depth);
     Q_INVOKABLE QVariantMap inspectAt(qreal x, qreal y) const;
@@ -108,6 +115,7 @@ private:
     qreal _from=0, _range=50, _low=0, _high=100, _gain=1, _noiseFloor=0;
     int _palette=0;
     bool _frozen=false, _showBottom=true;
+    bool _upstreamRaster=false, _upstreamCompensated=false;
     static constexpr int MaxRetainedColumns=4096;
     static constexpr int MaxRawCacheBytes=24*1024*1024;
     int _rawCacheBytes=0;
