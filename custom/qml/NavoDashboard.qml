@@ -884,7 +884,7 @@ Item {
         if(action==="CUVA_STANGA") { openHopper("stanga"); return }
         if(action==="CUVA_DREAPTA") { openHopper("dreapta"); return }
         if(action==="CUVE_AMBELE") { openHopper("ambele"); return }
-        if(action==="SONAR") { activePage=1; lastNavigationStatus="G20 "+control+" • SONAR"; return }
+        if(action==="SONAR") { root.toggleSonarPip(); lastNavigationStatus="G20 "+control+" • SONAR PiP"; return }
         if(action==="CAMERA") { activePage=5; cameraFullscreen=!cameraFullscreen; lastNavigationStatus="G20 "+control+" • CAMERA FAȚĂ"; return }
         if(action==="HOLD") { holdMission(); lastNavigationStatus="G20 "+control+" • HOLD"; return }
         if(action==="RTL") { homeRtlConfirm.open(); lastNavigationStatus="G20 "+control+" • confirmă RTL / ACASĂ"; return }
@@ -1375,7 +1375,7 @@ Item {
         readonly property real compassWidth: root.activePage===2 ? 40 : 46
         readonly property real telemetryScale: Math.max(0.76, Math.min(1,
             (width - 2*sideMargin - brandWidth - compassWidth - 8*itemGap - 8) / 570))
-        visible: root.activePage !== 10 && !(root.activePage===2 && root.mapMaximized)
+        visible: root.activePage !== 10 && root.activePage !== 13 && !(root.activePage===2 && root.mapMaximized)
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
         height: root.activePage===2 ? (root.mapMaximized ? 0 : 48) : 64
         color: "#071926"; border.color: "#13617a"; z: 2000
@@ -1679,9 +1679,9 @@ Item {
     NavoMissionStatus {
         id:missionStrip
         visible:root.actionActive || root.activePage===2
-        anchors.left:root.mapMaximized || root.activePage===10 ? parent.left : sidebar.right
+        anchors.left:root.mapMaximized || root.activePage===10 || root.activePage===13 ? parent.left : sidebar.right
         anchors.right:parent.right
-        anchors.top:root.activePage===10 ? parent.top : header.bottom
+        anchors.top:root.activePage===10 || root.activePage===13 ? parent.top : header.bottom
         height:visible ? implicitHeight : 0
         z:6001
         active:root.actionActive
