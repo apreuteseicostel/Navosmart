@@ -156,6 +156,13 @@ Rectangle {
         sonar: root.chartSource
     }
 
+    Connections {
+        target: plot
+        function onViewChanged() {
+            if (root.chartSource && root.chartSource.replayMode)
+                root.chartSource.replayViewPosition = plot.position
+        }
+    }
     NavoKoggerEpochPlotItem {
         id: plot
         objectName: "koggerNativeOriginalEpochViewB"
