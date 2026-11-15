@@ -12,5 +12,6 @@ Item {
  property real levelLow:10
  property real levelHigh:100
  property bool compensate:false
+ property bool showDepthGrid:true
  function inspectAt(x,y){return ({})}
 }
