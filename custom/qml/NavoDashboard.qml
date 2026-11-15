@@ -1746,6 +1746,35 @@ Item {
     }
 
 
+    // SONAR PiP stays on the map, below the camera PiP on the right.
+    // Loader.active=false destroys the native plot when closed: zero hidden
+    // timers/raster work and no duplicate TCP/UDP connection or decoder.
+    Loader {
+        id: persistentSonarPip
+        objectName: "dashboardSonarPipLoader"
+        parent: root
+        z: 901
+        active: root.activePage === 0 && root.sonarPipEnabled
+        visible: active
+        anchors.right: parent.right
+        anchors.rightMargin: root.activePage === 0 ? 88 : 16
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 13
+        width: persistentCameraPip.visible ? persistentCameraPip.width
+            : Math.max(168, Math.min(215, root.width * 0.16))
+        height: Math.min(135, Math.max(100, root.height * 0.18))
+        sourceComponent: Component {
+            NavoSonarPip {
+                anchors.fill: parent
+                sonar: sonar
+                onCloseRequested: {
+                    root.sonarPipEnabled = false
+                    root.lastNavigationStatus = "Sonar PiP ascuns"
+                }
+            }
+        }
+    }
+
     Component {
         id: mapPage
         Item {
