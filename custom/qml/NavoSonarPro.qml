@@ -112,6 +112,11 @@ Rectangle {
     property bool mapEnabled: false
     property bool settingsVisible: false
     property bool menuOpen: false
+    // Experimental C — original KoggerApp Epoch::chartTo column raster
+    // and original-style 2D AIM/PAN controls, opt-out to baseline NAVO.
+    property bool koggerOriginalMode: true
+    property bool koggerOriginalCompensated: false
+    property bool koggerAimMode: true
     property bool paused: false
     property var history: []
     // Auto window is view-only, never a rewrite of the CHART/Dataset samples.
@@ -499,6 +504,8 @@ Rectangle {
                 noiseFloor:root.noiseFloor
                 frozen:root.paused
                 showBottomTrack:root.showBottomTrack
+                upstreamRaster:root.koggerOriginalMode
+                upstreamCompensated:root.koggerOriginalMode && root.koggerOriginalCompensated
                 MouseArea {
                     anchors.fill:parent
                     cursorShape:Qt.CrossCursor
@@ -507,9 +514,19 @@ Rectangle {
                     property bool moved:false
                     onPressed:function(mouse){
                         startX=mouse.x;startColumn=root.fileCenterColumn;moved=false
+                        if(root.koggerOriginalMode && root.koggerAimMode && !root.pointPicking){
+                            root.inspectedColumn=nativeEchogram.inspectAt(mouse.x,mouse.y)
+                        }
                     }
                     onPositionChanged:function(mouse){
-                        if(!pressed || !root.fileBrowserActive || root.fileZoom===1)return
+                        if(!pressed)return
+                        if(root.koggerOriginalMode && root.koggerAimMode){
+                            // Upstream Plot2D.qml-style aim: moving one finger inspects
+                            // the Epoch under it; no change to timeline or playback.
+                            if(!root.pointPicking)root.inspectedColumn=nativeEchogram.inspectAt(mouse.x,mouse.y)
+                            return
+                        }
+                        if(!root.fileBrowserActive || root.fileZoom===1)return
                         var dx=mouse.x-startX
                         if(Math.abs(dx)>4)moved=true
                         if(moved)root.fileCenterColumn=Math.max(0,Math.min(root.chartSource.replayColumnCount-1,
@@ -523,6 +540,34 @@ Rectangle {
                         if(root.fileBrowserActive && selected && isFinite(selected.column))
                             root.fileCenterColumn=Math.max(0,Math.min(root.chartSource.replayColumnCount-1,selected.column-1))
                     }
+                }
+            }
+            NavoKoggerOriginalControls {
+                id: koggerOriginalControls
+                objectName: "sonarProKoggerOriginalControls"
+                visible:root.koggerOriginalMode && root.useNativeRenderer
+                z:250
+                anchors.right:echoPanel.right
+                anchors.rightMargin:8
+                anchors.top:echoPanel.top
+                anchors.topMargin:6
+                width:Math.min(implicitWidth,Math.max(0,echoPanel.width-16))
+                inspectMode:root.koggerAimMode
+                compensated:root.koggerOriginalCompensated
+                paletteMode:root.paletteMode
+                depthWindow:root.depthScaleMode==="fixed" ? root.manualDepthRangeM : 15
+                epoch:root.inspectedColumn && isFinite(root.inspectedColumn.column) ?
+                    root.inspectedColumn.column : root.fileCenterColumn+1
+                epochCount:root.fileBrowserActive ? root.chartSource.replayColumnCount : 0
+                onInspectModeRequested:function(enabled){root.koggerAimMode=enabled}
+                onCompensationRequested:function(enabled){root.koggerOriginalCompensated=enabled}
+                onPaletteRequested:function(value) {
+                    root.dayPalette=value===1
+                    root.amberPalette=value===2
+                }
+                onDepthWindowRequested:function(value) {
+                    root.depthScaleMode="fixed"
+                    root.manualDepthRangeM=value
                 }
             }
             Canvas {
@@ -916,6 +961,16 @@ Rectangle {
                 MenuAction { selected:root.paletteMode!==0; text: "Paletă: " + ["NAVO", "ZI", "AMBRĂ"][root.paletteMode]; onClicked: root.selectPalette((root.paletteMode+1)%3) }
                 MenuAction { selected:root.settingsVisible; text: "Reglaje Kogger 2D"; onClicked: {root.settingsVisible=!root.settingsVisible;root.menuOpen=false} }
                 MenuAction { visible:!root.useNativeRenderer; selected:root.koggerCompensation; text: root.koggerCompensation ? "Ecou brut" : "Compensare Kogger"; onClicked: root.koggerCompensation=!root.koggerCompensation }
+                MenuAction {
+                    selected:root.koggerOriginalMode
+                    text:root.koggerOriginalMode ? "Kogger original C: ACTIV" : "Kogger original C: INACTIV"
+                    onClicked:{
+                        root.koggerOriginalMode=!root.koggerOriginalMode
+                        if(root.koggerOriginalMode)root.useNativeRenderer=true
+                        root.inspectedColumn=({})
+                        root.menuOpen=false
+                    }
+                }
                 MenuAction {
                     selected:root.useNativeRenderer
                     text:root.useNativeRenderer ? "Motor: Kogger nativ 256 niveluri" : "Motor: NAVO vechi 4 niveluri"
