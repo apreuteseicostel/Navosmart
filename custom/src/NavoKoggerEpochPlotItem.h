@@ -2,6 +2,7 @@
 #include <QQuickPaintedItem>
 #include <QPointer>
 #include <QHash>
+#include <QMutex>
 #include <QQueue>
 #include <QTimer>
 #include <QByteArray>
@@ -59,6 +60,7 @@ protected:
 private:
     struct FileColumn {QByteArray bytes;quint16 resolution=0,offset=0;quint8 version=0;};
     QPointer<NavoKoggerReplay> _file;
+    mutable QMutex _cacheMutex;
     QHash<int,FileColumn> _cache;
     QQueue<int> _order;
     qint64 _cachedBytes=0;
