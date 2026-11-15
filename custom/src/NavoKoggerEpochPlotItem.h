@@ -73,7 +73,9 @@ private:
     int _zoom=1,_palette=0;
     bool _compensate=false;
     static constexpr int MaxBytes=20*1024*1024;
-    static constexpr int MaxEntries=4096;
+    // A 15,424-column KLF at ~300 rows needs only ~4.5 MiB of rasters.
+    // Keep a hard 20 MiB raster budget, but don't evict after just 4,096 columns.
+    static constexpr int MaxEntries=32768;
     int sourceColumn(int screenX,int columns,int screenWidth) const;
     void clearFileCache();
     void loadVisibleBatch();
