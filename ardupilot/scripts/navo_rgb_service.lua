@@ -49,27 +49,73 @@ local function relay_state(index)
  if state==0 or state==false then return false end
  return nil
 end
-local function hopper_open()
+-- Three independent, passive ways to discover a hopper operation:
+-- (1) confirmed onboard V3 cycle, (2) read-only output PWM when API exists,
+-- (3) G20 L1/R1 hold (fallback when the firmware cannot read per-channel PWM).
+-- RC detects an operator request, not proof the mechanical lid moved.
+local function hopper_pwm()
  if not SRV_Channels then return false end
  for _,out in ipairs(cfg.hopper_outputs) do
-  -- Servo output belongs to timed hopper service only when FUNCTION=135.
-  if param:get("SERVO"..out.."_FUNCTION")==135 then
-   local success,pwm=pcall(function()
-       return SRV_Channels:get_output_pwm_chan(out-1)
-   end)
-   if success and finite(pwm) and
-      math.abs(pwm-cfg.hopper_open_pwm)<=cfg.hopper_tolerance_us then
-      return true
+  local fn=param:get("SERVO"..out.."_FUNCTION")
+  if cfg.hopper_servo_functions[fn] then
+   local ok,pwm=pcall(function()return SRV_Channels:get_output_pwm_chan(out-1)end)
+   if ok and finite(pwm) and
+       math.abs(pwm-cfg.hopper_open_pwm)<=cfg.hopper_tolerance_us then
+       return true
    end
   end
  end
- return false
+ -- Stock ArduPilot Lua exposes get_output_pwm(function), not necessarily
+ -- get_output_pwm_chan(channel). This only observes the FIRST output 135.
+ local ok,pwm=pcall(function()return SRV_Channels:get_output_pwm(135)end)
+ return ok and finite(pwm) and
+     math.abs(pwm-cfg.hopper_open_pwm)<=cfg.hopper_tolerance_us
+end
+local rcHighSince={}
+local lastRcHopper=-1
+local function hopper_rc(now)
+ if not rc then return false end
+ for _,channel in ipairs(cfg.hopper_rc_channels) do
+  local ok,pwm=pcall(function()return rc:get_pwm(channel)end)
+  if ok and finite(pwm) and pwm>=cfg.hopper_rc_high_us then
+   if rcHighSince[channel]==nil then rcHighSince[channel]=now end
+   if ((now-rcHighSince[channel]+4294967296)%4294967296)>=cfg.hopper_rc_hold_ms then
+      lastRcHopper=now
+   end
+  else
+   rcHighSince[channel]=nil
+  end
+ end
+ return fresh(lastRcHopper,now,cfg.hopper_blue_hold_ms)
+end
+-- Confirmed wet is latched until a continuously valid DRY state lasts 3s:
+-- no misleading red/green flicker if the probe drifts near its threshold.
+local wetLatched=false
+local drySince=nil
+local function wet_state(now,valid,wet)
+ if valid and wet==1 then wetLatched=true;drySince=nil end
+ if wetLatched and valid and wet==0 then
+  if drySince==nil then drySince=now
+  elseif ((now-drySince+4294967296)%4294967296)>=3000 then
+    wetLatched=false;drySince=nil
+  end
+ else
+  drySince=nil
+ end
+ return wetLatched
 end
 local colourCodes={
  ALARM=1,FAULT=2,HOPPER=3,HEADLIGHT=4,POSITIONS=5,
  BOTH_LIGHTS=6,NORMAL=7,UNMONITORED=8,
 }
-local last,previous,now=nil,nil,0
+-- NV3RGBS gives the exact origin of the commanded physical colour.
+local reasonCodes={
+ WATER=1,HOT=2,WATER_FAULT=3,TEMP_FAULT=4,
+ HOPPER_V3=5,HOPPER_PWM=6,HOPPER_RC=7,
+ FAR=8,POZITII=9,BOTH=10,NORMAL=11,MISSING=12,WATER_LATCH=13,
+}
+local last,lastReason,previous,now=nil,nil,nil,0
+local nextPublish=0
 local function update()
  local raw=millis():tofloat()
  if previous~=nil then now=now+(raw-previous)%4294967296 end
@@ -85,28 +131,39 @@ local function update()
  local tempAlive=fresh(tms,raw)
  local validWater=waterAlive and wts==2 and (wet==0 or wet==1)
  local validTemp=tempAlive and ts==2 and finite(temp) and temp>=-40 and temp<=125
- local status,color=core.select({
-     wet=validWater and wet==1,
+ local wetAlarm=wet_state(raw,validWater,wet)
+ local hopperSource=nil
+ if fresh(onboardHopperTime,raw,cfg.hopper_expiry_ms)
+     and finite(onboardHopper) and onboardHopper>0 then
+    hopperSource="HOPPER_V3"
+ elseif hopper_pwm() then hopperSource="HOPPER_PWM"
+ elseif hopper_rc(raw) then hopperSource="HOPPER_RC" end
+ local status,color,reason=core.select({
+     wet=wetAlarm,
+     water_latched=wetAlarm and not (validWater and wet==1),
      water_valid=validWater,
      water_fault=waterAlive and wts==3,
      temperature_valid=validTemp,
      temperature_c=validTemp and temp or -1000,
      temperature_fault=tempAlive and ts==3,
      temp_alarm_c=cfg.temp_alarm_c,
-     hopper_open=(fresh(onboardHopperTime,raw,cfg.hopper_expiry_ms)
-                  and finite(onboardHopper) and onboardHopper>0)
-                  or hopper_open(),
+     hopper_open=hopperSource~=nil,
+     hopper_source=hopperSource,
      headlight=relay_state(0),
      positions=relay_state(1),
  })
  local c=core.scale(color,cfg.brightness)
  assert(serialLED:set_RGB(chan,-1,c[1],c[2],c[3]),"set_RGB failed")
  assert(serialLED:send(chan),"serialLED send failed")
- if status~=last then
-     gcs:send_text(6,"NAVO RGB: "..status)
-     last=status
+ if status~=last or reason~=lastReason then
+     gcs:send_text(6,"NAVO RGB: "..status.." / "..reason)
+     last=status;lastReason=reason
  end
- gcs:send_named_float("NV3RGBC",colourCodes[status] or 0)
+ if now>=nextPublish then
+     gcs:send_named_float("NV3RGBC",colourCodes[status] or 0)
+     gcs:send_named_float("NV3RGBS",reasonCodes[reason] or 0)
+     nextPublish=now+1000
+ end
  return update,cfg.update_ms
 end
 local function protected()
