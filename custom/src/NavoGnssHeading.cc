@@ -2,6 +2,7 @@
 #include "Vehicle.h"
 
 #include <QTimer>
+#include <QByteArray>
 #include <cmath>
 
 NavoGnssHeading::NavoGnssHeading(QObject* parent) : QObject(parent) {
@@ -38,6 +39,13 @@ void NavoGnssHeading::_reset() {
     _gps1 = Receiver{};
     _gps2 = Receiver{};
     _autopilotHeadingDeg = qQNaN();
+    _lastAbsoluteYawMs = -1;
+    _magStatusMs = -1;
+    _magHealthy = false;
+    _ekfCompassFallback = false;
+    _ekfYawMode = -1;
+    _compassUse = -1;
+    _compassDevIdPresent = -1;
 }
 
 void NavoGnssHeading::setLinkAlive(bool alive) {
@@ -45,8 +53,7 @@ void NavoGnssHeading::setLinkAlive(bool alive) {
     _linkAlive = alive;
     if (!alive) {
         // A reconnect must supply a *new* valid GPS-yaw MAVLink packet.
-        _gps1 = Receiver{};
-        _gps2 = Receiver{};
+        _reset(); // no stale magnetic fallback or gyro holdover after link loss
     }
     emit headingChanged();
 }
@@ -78,6 +85,8 @@ void NavoGnssHeading::_observe(Receiver& receiver, uint8_t fix,
     }
     receiver.yawDeg = rawYaw == 36000 ? 0.0 : double(rawYaw) / 100.0;
     receiver.lastYawMs = receiver.lastPacketMs;
+    _lastAbsoluteYawMs = receiver.lastYawMs;
+    _ekfCompassFallback = false; // fresh UM982 yaw outranks previous fallback event
 }
 
 void NavoGnssHeading::_mavlink(const mavlink_message_t& message) {
@@ -99,6 +108,50 @@ void NavoGnssHeading::_mavlink(const mavlink_message_t& message) {
         mavlink_gps2_raw_t gps{};
         mavlink_msg_gps2_raw_decode(&message, &gps);
         _observe(_gps2, gps.fix_type, gps.satellites_visible, gps.yaw);
+        emit headingChanged();
+        break;
+    }
+    case MAVLINK_MSG_ID_SYS_STATUS: {
+        mavlink_sys_status_t status{};
+        mavlink_msg_sys_status_decode(&message, &status);
+        constexpr uint32_t mag = MAV_SYS_STATUS_SENSOR_3D_MAG;
+        _magHealthy = (status.onboard_control_sensors_present & mag)
+            && (status.onboard_control_sensors_enabled & mag)
+            && (status.onboard_control_sensors_health & mag);
+        _magStatusMs = _clock.elapsed();
+        if (compassFallbackActive()) _lastAbsoluteYawMs = _magStatusMs;
+        emit headingChanged();
+        break;
+    }
+    case MAVLINK_MSG_ID_PARAM_VALUE: {
+        mavlink_param_value_t paramValue{};
+        mavlink_msg_param_value_decode(&message, &paramValue);
+        // Fixed 16-byte MAVLink name can lack NUL terminator.
+        const QByteArray key = QByteArray(paramValue.param_id, sizeof(paramValue.param_id))
+                                   .split('\0').first();
+        if (key == "EK3_SRC1_YAW") _ekfYawMode = std::isfinite(paramValue.param_value)
+            ? int(paramValue.param_value) : -1;
+        else if (key == "COMPASS_USE") _compassUse = std::isfinite(paramValue.param_value)
+            ? int(paramValue.param_value) : -1;
+        else if (key == "COMPASS_DEV_ID") _compassDevIdPresent =
+            std::isfinite(paramValue.param_value) && paramValue.param_value > 0 ? 1 : 0;
+        else break;
+        emit headingChanged();
+        break;
+    }
+    case MAVLINK_MSG_ID_STATUSTEXT: {
+        mavlink_statustext_t status{};
+        mavlink_msg_statustext_decode(&message, &status);
+        const QString line = QString::fromLatin1(status.text, sizeof(status.text));
+        // EKF3 reports an actual GPS->magnetic transition; merely receiving
+        // vehicle.heading or a magnetometer health flag cannot prove its source.
+        if (!line.startsWith(QStringLiteral("EKF3 IMU"))) break;
+        if (line.contains(QStringLiteral("yaw fallback active"))) {
+            _ekfCompassFallback = true;
+            if (compassHealthy()) _lastAbsoluteYawMs = _clock.elapsed();
+        } else if (line.contains(QStringLiteral("yaw external"))) {
+            _ekfCompassFallback = false;
+        } else break;
         emit headingChanged();
         break;
     }
@@ -135,36 +188,81 @@ double NavoGnssHeading::gpsYawDeg() const {
     return r ? r->yawDeg : qQNaN();
 }
 
+bool NavoGnssHeading::compassHealthy() const {
+    return _linkAlive && _vehicle && _magHealthy && _magStatusMs >= 0
+        && _clock.elapsed()-_magStatusMs >= 0
+        && _clock.elapsed()-_magStatusMs < kMagTimeoutMs;
+}
+
+bool NavoGnssHeading::compassFallbackActive() const {
+    // All four gates are necessary: a configured external compass, EKF3 GPS
+    // with compass fallback, fresh magnetometer health, and an explicit EKF3
+    // "yaw fallback active" event. This does not prove the sensor model.
+    return _linkAlive && _vehicle && !_activeGps() && _ekfCompassFallback
+        && _ekfYawMode == 3 && _compassUse == 1
+        && _compassDevIdPresent == 1 && compassHealthy()
+        && std::isfinite(_autopilotHeadingDeg);
+}
+
+bool NavoGnssHeading::h743FallbackActive() const {
+    // Tertiary: only short H743/EKF holdover after a known absolute yaw.
+    // An unaided gyro integrates drift; never start an unanchored heading.
+    return _linkAlive && _vehicle && !_activeGps() && !compassFallbackActive()
+        && std::isfinite(_autopilotHeadingDeg)
+        && _lastAbsoluteYawMs >= 0
+        && _clock.elapsed()-_lastAbsoluteYawMs >= 0
+        && _clock.elapsed()-_lastAbsoluteYawMs < kInertialHoldoverMs;
+}
+
 double NavoGnssHeading::selectedHeadingDeg() const {
     if (!_linkAlive || !_vehicle) return qQNaN();
     if (const auto* r = _activeGps()) return r->yawDeg;
-    // No physical compass has been commissioned. Never render an unaudited
-    // H743 gyro/EKF estimate as the boat's absolute north heading.
-    // This controls NAVO UI only; it does NOT modify ArduPilot EKF yaw.
+    if (compassFallbackActive()) return _autopilotHeadingDeg;
+    if (h743FallbackActive()) return _autopilotHeadingDeg;
     return qQNaN();
 }
 
 bool NavoGnssHeading::fallbackActive() const {
-    // No implicit H743 visual fallback until a real external compass is
-    // detected, calibrated and deliberately enabled in a separate revision.
-    return false;
+    return compassFallbackActive() || h743FallbackActive();
 }
 
 QString NavoGnssHeading::headingSource() const {
-    if (_activeGps() == &_gps1) return QStringLiteral("GNSS GPS1");
+    if (_activeGps() == &_gps1) return QStringLiteral("GNSS GPS1 / UM982");
     if (_activeGps() == &_gps2) return QStringLiteral("GNSS GPS2");
-    return QStringLiteral("GNSS yaw indisponibil");
+    if (compassFallbackActive()) return QStringLiteral("Busolă externă / EKF3");
+    if (h743FallbackActive()) return QStringLiteral("H743 / EKF (temporar)");
+    return QStringLiteral("HEADING --");
+}
+
+QString NavoGnssHeading::compassStatus() const {
+    if (!_linkAlive || !_vehicle) return QStringLiteral("H743 deconectat");
+    if (_compassDevIdPresent != 1)
+        return QStringLiteral("Busolă fără ID verificat; confirmă IST8310 pe I2C1");
+    if (_compassUse != 1)
+        return QStringLiteral("COMPASS_USE trebuie verificat (1 = activ)");
+    if (_ekfYawMode != 3)
+        return QStringLiteral("EK3_SRC1_YAW nu confirmă GPS cu rezervă busolă (3)");
+    if (!compassHealthy())
+        return QStringLiteral("Magnetometrul nu este HEALTHY sau telemetria este veche");
+    if (_activeGps()) return QStringLiteral("Busolă disponibilă; GNSS are prioritate");
+    if (_ekfCompassFallback)
+        return QStringLiteral("EKF3 a anunțat fallback magnetic; modelul IST8310 se verifică fizic");
+    return QStringLiteral("Aștept mesaj EKF3 yaw fallback active; H743 doar estimativ");
 }
 
 QString NavoGnssHeading::headingDetail() const {
-    if (_activeGps()) return QStringLiteral("GPS yaw dual-antenă din MAVLink, nu COG");
+    if (_activeGps()) return QStringLiteral(
+        "1/3 UM982: yaw GNSS dual-antenă valid; nu este COG.");
+    if (compassFallbackActive()) return QStringLiteral(
+        "2/3 Busolă: EKF3 confirmă fallback magnetic și magnetometru sănătos. "
+        "Sursa fizică IST8310 necesită verificare I2C1 și calibrare.");
+    if (h743FallbackActive()) return QStringLiteral(
+        "3/3 H743/EKF: estimare temporară până la 12s după ultimul yaw "
+        "absolut. Poate deriva; nu este busolă și nu confirmă navigație sigură.");
     if (!_linkAlive || !_vehicle) return QStringLiteral("Legătura cu H743 este indisponibilă");
-    if (_diagnosticGps()) return QStringLiteral(
-        "GPS poate avea fix 3D, dar yaw dual-antenă lipsește. "
-        "Barca afișează --; H743 doar pentru diagnostic.");
     return QStringLiteral(
-        "Fără yaw GNSS proaspăt. Orientarea rămâne indisponibilă "
-        "până la validarea UM982 sau a unei busole externe.");
+        "HEADING indisponibil: fără yaw GNSS, fallback magnetic confirmat "
+        "sau estimare H743 suficient de recentă. Nu confunda GPS fix cu GPS yaw.");
 }
 
 int NavoGnssHeading::gpsFixType() const {
