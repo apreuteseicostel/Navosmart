@@ -46,6 +46,7 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoHopperBridge.qml
         qml/NavoSonarCard.qml
         qml/NavoSonarPro.qml
+        qml/NavoKoggerStandalone.qml
         qml/NavoOfflineLab.qml
         qml/NavoSonar2DLevels.qml
         qml/NavoAlertAudio.qml
