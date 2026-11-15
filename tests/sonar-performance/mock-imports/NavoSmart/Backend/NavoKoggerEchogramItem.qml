@@ -15,6 +15,8 @@ Item {
  property real noiseFloor:0
  property bool frozen:false
  property bool showBottomTrack:true
+ property bool upstreamRaster:false
+ property bool upstreamCompensated:false
  property int columnCount:0
  function resetColumns(){columnCount=0}
  function setBottomDepth(sequence,depth){}
