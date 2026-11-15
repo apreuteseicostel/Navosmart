@@ -120,12 +120,22 @@ local function update()
             gcs:send_named_float("NV3WATER",water)
             gcs:send_named_float("NV3WFAULT",fault)
         end
-        gcs:send_named_float("NV3HEAD",state.head);gcs:send_named_float("NV3POS",state.pos)
+        -- When lights=nil, native Relay1/2 owns GPIO55/56. Zero-valued
+        -- NV3HEAD/NV3POS would be false telemetry about the G20 switches.
+        -- Relay state is published independently by navo_relay_status.lua.
+        if cfg.lights then
+            gcs:send_named_float("NV3HEAD",state.head);gcs:send_named_float("NV3POS",state.pos)
+        end
         gcs:send_named_float("NV3HOP",state.hopper);gcs:send_named_float("NV3REQ",state.last_request)
         if cfg.rgb then
             local r,g,b=0,40,0
-            if fault~=0 or temperature<=-1000 then r,g,b=40,0,40
-            elseif water==1 or temperature>=55 then r,g,b=80,0,0
+            -- RED (confirmed wet / critical temperature) outranks diagnostic
+            -- faults, then MAGENTA (configured invalid sensor), then BLUE.
+            -- Absent optional inputs must not count as failing sensors.
+            if (temp_in and temperature>=55) or (water_in and fault==0 and water==1) then
+                r,g,b=80,0,0
+            elseif (temp_in and temperature<=-1000) or (water_in and fault~=0) then
+                r,g,b=40,0,40
             elseif state.hopper~=0 then r,g,b=0,0,50 end
             assert(serialLED:set_RGB(cfg.rgb.output,-1,r,g,b),"RGB write failed");assert(serialLED:send(cfg.rgb.output),"RGB send failed")
         end
