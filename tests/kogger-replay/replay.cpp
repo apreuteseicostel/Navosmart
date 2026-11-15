@@ -481,7 +481,7 @@ static void nativeLiveVersionOne(){
     Dataset dataset;
     require(NavoKoggerDatasetAdapter::appendToKoggerDataset(v1,channel,dataset),
             "CHART v1 failed native Dataset ingestion");
-    const Epoch stored=dataset.fromIndexCopy(dataset.endIndex());
+    Epoch stored=dataset.fromIndexCopy(dataset.endIndex());
     const auto* storedChart=stored.chart(channel,0);
     require(storedChart && storedChart->amplitude==chart->amplitude,
             "Native v1 Dataset disagrees with Epoch");
