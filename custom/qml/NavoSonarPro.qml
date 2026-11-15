@@ -36,7 +36,7 @@ Rectangle {
         if(chartSource && chartSource.replayMode)return replayActive ? "REPLAY" : "REPLAY • FINAL"
         return connected ? (chartSource && chartSource.recording ? "REC ●" : (paused ? "PAUZĂ" : "LIVE")) : "OFFLINE"
     }
-    FileDialog { id: replayPicker; title: 'Încarcă înregistrare sonar'; nameFilters: ['Sonar NAVO / Kogger (*.navosonar *.klf)', 'Toate fișierele (*)']; onAccepted: { if(root.chartSource) {root.history=[];if(root.chartSource.startReplay(selectedFile)&&root.useKoggerOriginal)root.chartSource.pauseReplay(true)} } }
+    FileDialog { id: replayPicker; title: 'Încarcă înregistrare sonar'; nameFilters: ['Sonar NAVO / Kogger (*.navosonar *.klf)', 'Toate fișierele (*)']; onAccepted: { if(root.chartSource) {root.history=[];if(root.chartSource.startReplay(selectedFile)&&root.useKoggerOriginal && typeof root.chartSource.pauseReplay==="function")root.chartSource.pauseReplay(true)} } }
     readonly property var bottomAnalysis: bottomAnalysisDialog.visible && displayedColumn
         ? BottomAnalysis.column(displayedColumn.rawSamples,displayedColumn.offset,displayedColumn.range,displayedColumn.bottom) : ({valid:false})
     readonly property var bottomProfile: bottomAnalysisDialog.visible ? BottomAnalysis.profile(history) : ({valid:false})
@@ -359,7 +359,7 @@ Rectangle {
     onActiveLakeIdChanged: { endPointPick();sonarPointDialog.close();history=[] }
     onReplayModeChanged: {
         endPointPick();sonarPointDialog.close();history=[]
-        if(replayMode&&useKoggerOriginal&&chartSource)chartSource.pauseReplay(true)
+        if(replayMode&&useKoggerOriginal&&chartSource && typeof chartSource.pauseReplay==="function")chartSource.pauseReplay(true)
     }
     onGainChanged: repaint()
     onNoiseFloorChanged: repaint()
