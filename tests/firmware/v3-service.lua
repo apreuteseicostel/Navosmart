@@ -88,6 +88,6 @@ pub.NV3HEAD=nil;pub.NV3POS=nil
 now=0;update=dofile('ardupilot/scripts/navo_v3_service.lua')
 assert(pub.NV3HEAD==nil and pub.NV3POS==nil,
     'V3 must not impersonate the independent native Relay1/Relay2 state')
-assert(rgb[1]==0 and rgb[2]==40 and rgb[3]==0,
-    'Absent optional sensors are not defective sensors')
+assert(rgb[1]==40 and rgb[2]==24 and rgb[3]==0,
+    'Unmonitored environment must be AMBER instead of falsely healthy green')
 print('PASS actual V3 sensor/RGB adapter: wet-red priority, faults, absent probes and runtime shutdown')
