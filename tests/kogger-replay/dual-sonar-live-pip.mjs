@@ -98,7 +98,7 @@ assert.match(kgr,/component CompactKoggerButton: Button/,
   'Sonar PRO bottom buttons must use compact NAVO styling')
 assert.match(kgr,/id: koggerToolsHideTimer\s*\n\s*interval: 1600/,
   'Sonar PRO bottom buttons must hide after 1.6 seconds')
-assert.match(kgr,/objectName:"sonarProBottomEdgeReveal"/,
+assert.match(kgr,/objectName:\s*"sonarProBottomEdgeReveal"/,
   'Touch or hover near bottom must reopen the controls')
 assert.match(kgr,/objectName:"sonarProKoggerBottomRevealTab"/,
   'An always-available cursor reveal tab is required')
