@@ -17,6 +17,7 @@ on:
       - 'tests/firmware/**'
       - 'tests/persistence/**'
       - 'tests/hardware/**'
+      - 'tests/heading/**'
       - 'tests/*.mjs'
       - 'tests/connection-policy.cpp'
       - 'tests/*ui.py'
@@ -36,6 +37,7 @@ on:
       - 'tests/firmware/**'
       - 'tests/persistence/**'
       - 'tests/hardware/**'
+      - 'tests/heading/**'
       - 'tests/*.mjs'
       - 'tests/connection-policy.cpp'
       - 'tests/*ui.py'
@@ -94,6 +96,8 @@ jobs:
         run: lua5.3 tests/firmware/water-only.lua
       - name: Hardware profiles and independent sensor expiry
         run: cmake -S tests/hardware -B /tmp/navo-hardware && cmake --build /tmp/navo-hardware -j2 && /tmp/navo-hardware/navo-hardware-test
+      - name: GNSS-IST8310-H743 heading priority and source-failover runtime tests
+        run: cmake -S tests/heading -B /tmp/navo-heading && cmake --build /tmp/navo-heading -j2 && /tmp/navo-heading/navo-heading-test
       - name: Skydroid SDK bridge lifecycle and duplex regressions
         run: python3 tests/skydroid/bridge-test.py
       - name: FPV SDK adapter lifecycle and decoder policy
