@@ -1,7 +1,7 @@
 package.path="ardupilot/modules/?.lua;"..package.path
 local core=require("navo_rgb_core")
 local config=require("navo_rgb_config")
-assert(config.enabled==true and config.output==13 and config.required_servo_function==94,
+assert(config.enabled==true and config.output==13 and config.required_servo_function==94 and config.order=="RGB",
  "H743 LED pad must map to PWM13 with scripting function 94")
 local function choose(t)
  local status,rgb=core.select(t)
@@ -50,14 +50,19 @@ relay={
  get=function(_,index)return relays[index]end,
 }
 local pwm={[8]=1500,[9]=1500}
-SRV_Channels={get_output_pwm_chan=function(_,idx)return pwm[idx]end}
+SRV_Channels={
+ get_output_pwm_chan=function(_,idx)return pwm[idx]end,
+ get_output_pwm=function(_,fn)assert(fn==135);return pwm[8]end,
+}
+local rcPwm={[11]=1000,[15]=1000}
+rc={get_pwm=function(_,ch)return rcPwm[ch]end}
 local emitted,initCount,sendCount=nil,0,0
 serialLED={
- set_num_neopixel=function(_,out,count)
+ set_num_neopixel=function()error("GRB path must NOT be used after R/G swap diagnosis")end,
+ set_num_neopixel_rgb=function(_,out,count)
   assert(out==13 and count==1,"unexpected hardware LED output")
   initCount=initCount+1;return true
  end,
- set_num_neopixel_rgb=function()error("GRB module must use GRB path")end,
  set_RGB=function(_,out,index,r,g,b)
   assert(out==13 and index==-1)
   assert(r>=0 and r<=128 and g>=0 and g<=128 and b>=0 and b<=128,
@@ -87,15 +92,30 @@ pwm[8]=1500;param:set("NVLR_HOP",3);param:set("NVLR_HMS",1250)
 tick(1500,3) -- blue via onboard hopper cycle, no PWM feedback required
 tick(3250,7) -- stale onboard hopper cycle must not remain blue
 param:set("NVLR_WET",1);param:set("NVLR_WMS",3250)
-tick(3500,1) -- critical RED
+tick(3500,1) -- critical RED with confirmed water
+assert(telemetry.NV3RGBS==11 or telemetry.NV3RGBS==1,
+       "Commanded red should include a source code (published each second)")
 param:set("NVLR_WET",-1);param:set("NVLR_WST",3);param:set("NVLR_WMS",3500)
-tick(3750,2) -- magenta sensor error
+tick(3750,1) -- WATER RED is latched across transient fault, not green
 param:set("NVLR_WST",2);param:set("NVLR_WET",0);param:set("NVLR_WMS",3750)
-param:set("NVLR_TV",50);param:set("NVLR_TMS",3750)
-tick(4000,1) -- temperature above NAVO app default 45C
-param:set("NVLR_TV",25)
-tick(4300,7)
-tick(20000,8) -- expired telemetry must not claim green
+param:set("NVLR_TV",25);param:set("NVLR_TMS",3750)
+tick(4300,1) -- require 3 seconds continuously valid dry
+tick(7350,7) -- wet latch clears only after confirmed dry interval
+param:set("NVLR_TV",50);param:set("NVLR_TMS",7350)
+tick(7600,1) -- HOT alarm now has distinct reason
+assert(telemetry.NV3RGBS==2 or telemetry.NV3RGBS==13,
+       "Alarm reason must be sent separately from colour")
+param:set("NVLR_TV",25);tick(7850,7)
+-- An isolated, confirmed fault is MAGENTA (not confused with a wet latch).
+param:set("NVLR_WST",3);param:set("NVLR_WET",-1);param:set("NVLR_WMS",7850)
+tick(8100,2)
+param:set("NVLR_WST",2);param:set("NVLR_WET",0);param:set("NVLR_WMS",8100)
+-- G20 fallback when firmware lacks per-channel PWM readback:
+rcPwm[11]=1900;tick(9000,7) -- long press not confirmed yet
+tick(10450,3) -- now blue for hopper request L1 / CH11
+rcPwm[11]=1000;tick(11000,3) -- keeps blue briefly after release
+tick(12900,7) -- expiry of request colour
+tick(25000,8) -- stale sensor status must not claim healthy green
 assert(sendCount>8,"physical output must have been written")
 -- The LED pad often ships configured as ArduPilot notification output 120:
 -- refuse a second controller until SERVO13_FUNCTION is explicitly 94.
