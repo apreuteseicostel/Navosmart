@@ -12,6 +12,9 @@ class NavoH743Telemetry : public QObject {
  Q_PROPERTY(bool lightsValid READ lightsValid NOTIFY telemetryChanged)
  Q_PROPERTY(bool relayLightsValid READ relayLightsValid NOTIFY telemetryChanged)
  Q_PROPERTY(bool hopperStateValid READ hopperStateValid NOTIFY telemetryChanged)
+ Q_PROPERTY(bool rgbTelemetryValid READ rgbTelemetryValid NOTIFY telemetryChanged)
+ Q_PROPERTY(int rgbCode READ rgbCode NOTIFY telemetryChanged)
+ Q_PROPERTY(int rgbReason READ rgbReason NOTIFY telemetryChanged)
  Q_PROPERTY(int hopperMask READ hopperMask NOTIFY telemetryChanged)
  Q_PROPERTY(int lastRequest READ lastRequest NOTIFY telemetryChanged)
  Q_PROPERTY(bool v3Profile READ v3Profile WRITE setV3Profile NOTIFY telemetryChanged)
@@ -47,6 +50,11 @@ public:
  bool lightsValid() const { return relayLightsValid() ||
      ((capabilities() & 1) && _fresh(_headMs) && _fresh(_posMs)); }
  bool hopperStateValid() const { return connected() && _fresh(_hopMs) && _fresh(_requestMs); }
+ // Readback reports the colour COMMAND issued by the H743 Lua script.
+ // It is not an electrical/optical acknowledgement from the WS2811 pixel.
+ bool rgbTelemetryValid() const {return _fresh(_rgbCodeMs) && _fresh(_rgbReasonMs);}
+ int rgbCode() const {return rgbTelemetryValid() ? _rgbCode : 0;}
+ int rgbReason() const {return rgbTelemetryValid() ? _rgbReason : 0;}
  int hopperMask() const { return _hopperMask; }
  int lastRequest() const { return _request; }
  bool v3Profile() const { return _v3; }
@@ -91,6 +99,8 @@ private:
  int _caps=0,_hopperMask=0,_request=0;
  qint64 _capMs=-1,_headMs=-1,_posMs=-1,_hopMs=-1,_requestMs=-1;
  qint64 _relayHeadMs=-1,_relayPosMs=-1;
+ qint64 _rgbCodeMs=-1,_rgbReasonMs=-1;
+ int _rgbCode=0,_rgbReason=0;
  bool _relayHead=false,_relayPos=false;
  qint64 _tempMs=-1, _waterMs=-1, _faultMs=-1, _heartbeatMs=-1;
  qint64 _waterStatusMs=-1, _waterAdcMs=-1;
