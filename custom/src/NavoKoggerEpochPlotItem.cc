@@ -309,7 +309,7 @@ void NavoKoggerEpochPlotItem::paint(QPainter* p){
     for(int i=0;i<=4;++i){
         const double depth=_from+i*_range/4;
         const double yy=i*height()/4;
-        p->drawLine(QPointF(0,yy),QPointF(width(),yy));
+        if(_showDepthGrid)p->drawLine(QPointF(0,yy),QPointF(width(),yy));
         p->drawText(QPointF(5,std::clamp(yy+14.0,14.0,height()-4)),
                     QString::number(depth,'f',1)+" m");
     }
