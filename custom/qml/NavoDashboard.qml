@@ -1880,20 +1880,22 @@ Item {
         }
     }
 
+    // B V2: clean full-screen Epoch view and independent Kogger-style rails.
     Component {
-        id: koggerSonarPage
+        id: sonarProPage
         NavoKoggerSonar {
-            chartSource:sonar
-            onClosed:root.activePage=0
+            chartSource: sonar
+            onClosed: root.activePage = 0
         }
     }
 
+    // KGR: advanced Sonar PRO functions on the exact same shared live controller.
     Component {
-        id: sonarProPage
+        id: koggerSonarPage
         NavoSonarPro {
-            id:sonarProView
+            id:sonarKgrView
             activeLakeId:scanCoordinator.lakeId
-            onSonarPointRequested:function(entry,name,note,prepareMission){root.saveSonarPoint(sonarProView,entry,name,note,prepareMission)}
+            onSonarPointRequested:function(entry,name,note,prepareMission){root.saveSonarPoint(sonarKgrView,entry,name,note,prepareMission)}
             chartSource: sonar
             vehicle: root.vehicle
             planController: root.planController
@@ -1916,85 +1918,6 @@ Item {
             chartOffsetMeters: sonar.chartOffsetMeters
             chartRangeMeters: sonar.chartRangeMeters
             chartRawByteCount: sonar.chartRawByteCount
-        }
-    }
-
-    Component {
-        id: sonarPage
-        Item {
-            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
-            ColumnLayout {
-                anchors.fill: parent; anchors.margins: 12; spacing: 8
-                Label { text: "KOGGER SONAR"; color: root.text; font.pixelSize: 18; font.bold: true }
-                NavoSonarCard {
-                    Layout.fillWidth: true; Layout.preferredHeight: 150
-                    connected: root.sonarConnected; depthM: root.depthM; waterTempC: root.waterTempC
-                    echoSamples: sonar.echoSamples
-                    onOpenFullSonar: fullSonar.open()
-                }
-                Label {
-                    Layout.fillWidth: true
-                    text: root.sonarConnected ? "Sonar conectat • apasă MĂREȘTE pentru ecogramă" : "Kogger offline • apasă MĂREȘTE pentru ecogramă și conexiune"
-                    color: root.muted
-                    wrapMode: Text.WordWrap
-                }
-                Item { Layout.fillHeight: true }
-            }
-            NavoSonarFullScreen {
-                    id: fullSonar
-                    parent: Overlay.overlay
-                    connected: root.sonarConnected; depthM: root.depthM; waterTempC: root.waterTempC
-                    echoSamples: sonar.echoSamples
-                    transport: sonar
-                    fishHotspots: fishStore.hotspots
-                    speedMps: root.vehicle && root.vehicle.groundSpeed ? root.vehicle.groundSpeed.rawValue : NaN
-                    latitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.latitude : NaN
-                    longitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.longitude : NaN
-                    onSaveWaypointRequested: function(latitude, longitude, depth, temp) {
-                        if(!root.requireActiveLakeForPointSave()) return
-                        var spot=fishingSpots.saveSpot(QtPositioning.coordinate(latitude,longitude),depth,temp,"","",null)
-                        if(spot){scanCoordinator.checkpoint("sonar-fishing-spot");root.lastNavigationStatus="Punct sonar salvat: "+spot.name}
-                    }
-                    onRecordingRequested: function(start) {
-                        if(start) {
-                            if(!scanCoordinator.lakeId.length) {
-                                fullSonar.recording=false
-                                root.lastNavigationStatus="Înregistrare sonar blocată: selectează o baltă"
-                                return
-                            }
-                            if(scanCoordinator.state==="SCANNING") {
-                                fullSonar.recording=false
-                                root.lastNavigationStatus="Area Scan înregistrează deja datele sonar"
-                                return
-                            }
-                            sonarMapping.startScan()
-                            if(!sonarMapping.scanning) fullSonar.recording=false
-                            else {
-                                scanCoordinator.state="MANUAL_SONAR"
-                                scanCoordinator.checkpoint("manual-sonar-start")
-                                root.lastNavigationStatus="Înregistrare sonar pornită • GPS + adâncime + temperatură"
-                            }
-                        } else {
-                            if(scanCoordinator.state==="MANUAL_SONAR" && sonarMapping.scanning) {
-                                sonarMapping.finishAndBuild()
-                                var manualBathyOk=false
-                                if(sonarMapping.rawSamples.length>=3 && bathymetryModel && bathymetryModel.rebuild) {
-                                    var manualCells=bathymetryModel.rebuild(sonarMapping.rawSamples)
-                                    if(manualCells!==undefined && manualCells!==null) {
-                                        scanCoordinator.bathymetryCells=manualCells
-                                        manualBathyOk=true
-                                    }
-                                }
-                                sonarMapping.markBathymetrySaved(manualBathyOk)
-                                scanCoordinator.state="IDLE"
-                                var manualSaved=scanCoordinator.checkpoint("manual-sonar-stop")
-                                root.lastNavigationStatus=manualSaved
-                                        ? ("Înregistrare sonar oprită • "+sonarMapping.rawSamples.length+" măsurători salvate"+(manualBathyOk?" • batimetrie generată":" • batimetrie indisponibilă"))
-                                        : "Înregistrare sonar oprită • EROARE la salvarea sesiunii"
-                            }
-                        }
-                    }
-                }
         }
     }
 
