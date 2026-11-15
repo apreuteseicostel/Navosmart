@@ -239,6 +239,7 @@ void NavoKoggerEpochPlotItem::paint(QPainter* p){
     const int n=indexedColumns();
     const bool onFile=bool(_file);
     int invalidColumns=0;
+    QImage previousComplete;
     if(onFile){
         // CHART is decoded in bounded batches outside paint. Do not publish
         // half-loaded viewports (the stripes/black frames in videos 33088/33091).
@@ -266,13 +267,14 @@ void NavoKoggerEpochPlotItem::paint(QPainter* p){
                     image.scanLine(y)[x]=quint8(column.at(y));
             }
             if(!waitingColumns)_lastCompleteFrame=image;
+            else previousComplete=_lastCompleteFrame; // Shared-image snapshot while mutex held
         }
         if(waitingColumns){
             // Previous viewport is explicitly dimmed and marked as loading;
             // never pretend that old CHART data belongs to the new position.
             p->fillRect(boundingRect(),QColor("#050d17"));
-            if(!_lastCompleteFrame.isNull()&&_lastCompleteFrame.size()==image.size()){
-                QImage previous=_lastCompleteFrame;
+            if(!previousComplete.isNull()&&previousComplete.size()==image.size()){
+                QImage previous=previousComplete;
                 previous.setColorTable(colors());
                 p->drawImage(QRectF(0,0,width(),height()),previous);
                 p->fillRect(boundingRect(),QColor(0,0,0,135));
