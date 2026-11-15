@@ -44,9 +44,10 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoMissionStatus.qml
         qml/NavoBaitingPanel.qml
         qml/NavoHopperBridge.qml
-        qml/NavoSonarCard.qml
         qml/NavoSonarPro.qml
         qml/NavoKoggerSonar.qml
+        qml/NavoSonarLiveConnection.qml
+        qml/NavoSonarPip.qml
         qml/NavoAlertAudio.qml
         qml/NavoStealth.qml
         qml/NavoStealthPanel.qml
@@ -55,7 +56,6 @@ qt_add_qml_module(NavoSmartModule
         qml/NavoOfflineMaps.qml
         qml/NavoFishingJournal.qml
         qml/NavoReplayNotes.qml
-        qml/NavoSonarFullScreen.qml
         qml/NavoCameraPip.qml
         qml/NavoSafetyCard.qml
         qml/NavoFailsafeController.qml
