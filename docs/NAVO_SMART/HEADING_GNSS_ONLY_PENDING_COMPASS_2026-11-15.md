@@ -1,4 +1,6 @@
 # NAVO SMART — heading policy pending external compass validation
+
+> **Historical policy from PR #108. Superseded on 2026-11-15 by PR #109:** current UI preference is valid UM982 GNSS yaw → EKF3-confirmed healthy external compass fallback (nominal IST8310) → bounded 12-second H743/EKF estimate, then HEADING --. See [three-source priority](HEADING_GNSS_IST8310_H743_PRIORITY_2026-11-15.md). No autopilot parameters have been changed automatically.
 Date: 2026-11-15
 
 ## Hardware verified from public manufacturer/ArduPilot docs
