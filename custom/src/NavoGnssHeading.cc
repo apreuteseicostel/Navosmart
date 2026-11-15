@@ -138,25 +138,33 @@ double NavoGnssHeading::gpsYawDeg() const {
 double NavoGnssHeading::selectedHeadingDeg() const {
     if (!_linkAlive || !_vehicle) return qQNaN();
     if (const auto* r = _activeGps()) return r->yawDeg;
-    return _autopilotHeadingDeg;    // Only display fallback; EKF is untouched.
+    // No physical compass has been commissioned. Never render an unaudited
+    // H743 gyro/EKF estimate as the boat's absolute north heading.
+    // This controls NAVO UI only; it does NOT modify ArduPilot EKF yaw.
+    return qQNaN();
 }
 
 bool NavoGnssHeading::fallbackActive() const {
-    return _linkAlive && _vehicle && !_activeGps() && std::isfinite(_autopilotHeadingDeg);
+    // No implicit H743 visual fallback until a real external compass is
+    // detected, calibrated and deliberately enabled in a separate revision.
+    return false;
 }
 
 QString NavoGnssHeading::headingSource() const {
     if (_activeGps() == &_gps1) return QStringLiteral("GNSS GPS1");
     if (_activeGps() == &_gps2) return QStringLiteral("GNSS GPS2");
-    if (fallbackActive()) return QStringLiteral("H743 (rezervă)");
-    return QStringLiteral("Indisponibil");
+    return QStringLiteral("GNSS yaw indisponibil");
 }
 
 QString NavoGnssHeading::headingDetail() const {
     if (_activeGps()) return QStringLiteral("GPS yaw dual-antenă din MAVLink, nu COG");
     if (!_linkAlive || !_vehicle) return QStringLiteral("Legătura cu H743 este indisponibilă");
-    if (_diagnosticGps()) return QStringLiteral("Poziția GPS poate fi validă, dar yaw GNSS lipsește sau este invalid");
-    return QStringLiteral("H743 furnizează heading; GPS yaw neconfirmat sau expirat");
+    if (_diagnosticGps()) return QStringLiteral(
+        "GPS poate avea fix 3D, dar yaw dual-antenă lipsește. "
+        "Barca afișează --; H743 doar pentru diagnostic.");
+    return QStringLiteral(
+        "Fără yaw GNSS proaspăt. Orientarea rămâne indisponibilă "
+        "până la validarea UM982 sau a unei busole externe.");
 }
 
 int NavoGnssHeading::gpsFixType() const {
