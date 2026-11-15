@@ -65,18 +65,26 @@ public:
         records_.append(record);
         return true;
     }
+    // Mirror the existing decoder's v1 amplitude semantics: in two-byte
+    // samples the first byte is the 8-bit echogram amplitude. Keep original
+    // CHART bytes unchanged for recording and integrity checks.
+    static QVector<uint8_t> displayAmplitudes(const NavoKoggerChartRecord& record) {
+        QVector<uint8_t> amplitude;
+        if (!record.hasValidChart()) return amplitude;
+        const int step = record.version == 1 ? 2 : 1;
+        amplitude.reserve(record.chart.size() / step);
+        for (qsizetype i = 0; i + step - 1 < record.chart.size(); i += step)
+            amplitude.append(quint8(record.chart.at(i)));
+        return amplitude;
+    }
+
     // Construct an upstream Epoch without inventing a device timestamp or
     // channel UUID. Caller supplies the real connection/channel identity.
-    // Kogger CHART v1 contains two-byte samples: decoding its amplitude
-    // semantics must be validated before it can enter an 8-bit Echogram.
     static bool toKoggerEpoch(const NavoKoggerChartRecord& record,
                               const ChannelId& channel, Epoch& epoch) {
-        if (!record.hasValidChart() || !channel.isValid() || record.version != 0)
-            return false;
-        QVector<uint8_t> amplitude;
-        amplitude.reserve(record.chart.size());
-        for (const char byte : record.chart)
-            amplitude.append(static_cast<uint8_t>(byte));
+        if (!record.hasValidChart() || !channel.isValid()) return false;
+        const QVector<uint8_t> amplitude = displayAmplitudes(record);
+        if (amplitude.isEmpty()) return false;
         const float resolutionM = float(record.resolutionMm) * 0.001f;
         const float offsetM = float(record.absoluteOffset) * resolutionM;
         epoch.setChart(channel, QVector<QVector<uint8_t>>{amplitude},
@@ -91,15 +99,12 @@ public:
     }
     // Use the original Dataset ingestion API, which handles channel setup,
     // Epoch allocation and downstream DataProcessor notifications itself.
-    // Only v0 is accepted until v1 amplitude encoding has been verified.
+    // CHART v0/v1 share the decoder's amplitude interpretation.
     static bool appendToKoggerDataset(const NavoKoggerChartRecord& record,
                                      const ChannelId& channel, Dataset& dataset) {
-        if (!record.hasValidChart() || !channel.isValid() || record.version != 0)
-            return false;
-        QVector<uint8_t> amplitude;
-        amplitude.reserve(record.chart.size());
-        for (const char byte : record.chart)
-            amplitude.append(static_cast<uint8_t>(byte));
+        if (!record.hasValidChart() || !channel.isValid()) return false;
+        const QVector<uint8_t> amplitude = displayAmplitudes(record);
+        if (amplitude.isEmpty()) return false;
         const float resolutionM = float(record.resolutionMm) * 0.001f;
         const float offsetM = float(record.absoluteOffset) * resolutionM;
         dataset.addChart(channel, ChartParameters{},
