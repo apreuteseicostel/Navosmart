@@ -142,19 +142,8 @@ Item {
     }
 
     ToolTip.visible: mouse.containsMouse
-    // The coloured dot is the application alarm, NOT physical serialLED ACK.
-    Label {
-        objectName: "compassVirtualRgbExplanation"
-        visible: root.expanded
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: 9
-        color: root.virtualRgbState === "critical" ? "#ff7484" : "#9cdbef"
-        font.pixelSize: 9
-        text: "LED APP: " + root.virtualRgbState.toUpperCase() + " • RGB fizic neconfirmat"
-    }
     ToolTip.text: (root.headingValid ? root.headingSource+" • "+Math.round(root.normalizedHeading)+"° "+root.cardinal+(isFinite(root.courseError)?" • abatere "+Math.round(root.courseError)+"°":"") : "Heading indisponibil")
         + " • lumini: " + (root.headlightOn || root.positionLightsOn ? "raportate H743" : root.headlightRequested || root.positionLightsRequested ? "RC solicitat, neconfirmat" : "fără confirmare")
-        + " • RGB: stare aplicație, LED fizic neconfirmat"
+        + " • Diagnostic RGB în Setări → Avansat"
     MouseArea { id:mouse; anchors.fill:parent; hoverEnabled:true; onClicked: root.toggleRequested() }
 }
