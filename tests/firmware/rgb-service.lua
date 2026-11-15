@@ -123,4 +123,11 @@ values.SERVO13_FUNCTION=120
 assert(dofile("ardupilot/scripts/navo_rgb_service.lua")==nil)
 assert(initCount==1 and messages[#messages]:find("SERVO13_FUNCTION=94",1,true),
        "unverified pin must be rejected rather than changed")
+-- Two Lua services must never race to control the same physical LED output.
+values.SERVO13_FUNCTION=94
+package.loaded.navo_v3_config={enabled=true,rgb={output=13}}
+assert(dofile("ardupilot/scripts/navo_rgb_service.lua")==nil)
+assert(initCount==1 and messages[#messages]:find("duplicate RGB owners",1,true),
+       "script must block two WS2811 owners, not alternate colours")
+package.loaded.navo_v3_config=nil
 print("PASS physical 5V WS2811 on LED/PWM13: priority, SHT31/water, relay, cuva, stale expiry and output gate")
