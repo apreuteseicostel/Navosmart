@@ -136,7 +136,10 @@ local function update()
                 r,g,b=80,0,0
             elseif (temp_in and temperature<=-1000) or (water_in and fault~=0) then
                 r,g,b=40,0,40
-            elseif state.hopper~=0 then r,g,b=0,0,50 end
+            elseif state.hopper~=0 then r,g,b=0,0,50
+            elseif not temp_in and not water_in then
+                r,g,b=40,24,0 -- amber: no configured environmental monitoring
+            end
             assert(serialLED:set_RGB(cfg.rgb.output,-1,r,g,b),"RGB write failed");assert(serialLED:send(cfg.rgb.output),"RGB send failed")
         end
         publish_at=now+500
