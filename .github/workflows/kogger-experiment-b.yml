@@ -1,0 +1,20 @@
+name: Experiment B Kogger standalone integration
+on:
+  pull_request:
+    paths:
+      - 'custom/qml/NavoKoggerStandalone.qml'
+      - 'custom/qml/NavoDashboard.qml'
+      - 'custom/CMakeLists.txt'
+      - 'tests/kogger-experiment-b.mjs'
+  push:
+    paths:
+      - 'tests/kogger-experiment-b.mjs'
+      - 'custom/qml/NavoKoggerStandalone.qml'
+jobs:
+  isolation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify standalone Kogger integration and isolation
+        run: node tests/kogger-experiment-b.mjs
