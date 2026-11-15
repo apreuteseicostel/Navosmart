@@ -42,6 +42,7 @@ bool NavoKoggerReplay::open(const QUrl& url) {
 void NavoKoggerReplay::stop() {
  _timer.stop();_indexTimer.stop();_indexFile.close();_viewFile.close();_indexBuffer.clear();_columns.clear();
  _indexBufferOffset=0;_indexProcessed=0;_indexReady=false;_haveChart=false;
+ _indexedGeoTrack.clear();
  _scanPacketCount=0;_scanPose=Pose();_lastSeqEnd=0;_lastAddress=-1;
  _previewStopOffset=-1;_previewFlushLast=false;
  _lastResolution=0;_lastAbsoluteOffset=0;_lastVersion=0;
@@ -69,6 +70,16 @@ double NavoKoggerReplay::indexProgress() const {
  if(_indexReady)return 1.0;
  return _indexFile.isOpen() && _indexFile.size()>0
    ?std::clamp(double(_indexFile.pos())/double(_indexFile.size()),0.0,1.0):0.0;
+}
+QVariantMap NavoKoggerReplay::geoAtFraction(double fraction) const {
+ if(!_indexReady||_columns.isEmpty()||!std::isfinite(fraction))return {};
+ const int idx=std::clamp(int(std::round(std::clamp(fraction,0.0,1.0)
+                           *double(_columns.size()-1))),0,_columns.size()-1);
+ const Pose& p=_columns.at(idx).pose;
+ if(!p.gpsFix||!std::isfinite(p.lat)||!std::isfinite(p.lon)||
+    std::abs(p.lat)>90.0||std::abs(p.lon)>180.0)return {};
+ // This is the selected historical KLF position, NOT the boat's live GPS.
+ return {{"latitude",p.lat},{"longitude",p.lon},{"column",idx+1}};
 }
 int NavoKoggerReplay::currentColumn() const {
  if(_columns.isEmpty())return 0;
@@ -295,7 +306,20 @@ void NavoKoggerReplay::indexTick() {
  _indexBuffer.remove(0,i);_indexBufferOffset+=i;
  _indexProcessed=_indexFile.pos();
  if(_indexFile.atEnd()){
-  _indexTimer.stop();_indexFile.close();_indexBuffer.clear();_indexReady=true;
+  _indexTimer.stop();_indexFile.close();_indexBuffer.clear();
+  _indexedGeoTrack.clear();
+  // Keep track data compact; route points always come from valid recorded
+  // MAVLink positions associated with actual indexed CHART columns.
+  constexpr int MaxGeoSamples=3000;
+  const int stride=std::max(1,(_columns.size()+MaxGeoSamples-1)/MaxGeoSamples);
+  for(int index=0;index<_columns.size();index+=stride){
+   const Pose& p=_columns.at(index).pose;
+   if(!p.gpsFix||!std::isfinite(p.lat)||!std::isfinite(p.lon)||
+      std::abs(p.lat)>90.0||std::abs(p.lon)>180.0)continue;
+   _indexedGeoTrack.append(QVariantMap{{"latitude",p.lat},{"longitude",p.lon},
+                                      {"column",index+1}});
+  }
+  _indexReady=true;
  }
  emit indexChanged();
 }
