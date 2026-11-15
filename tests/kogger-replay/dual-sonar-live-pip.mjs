@@ -1,4 +1,4 @@
-// Routing and shared-transport safety contract for PRO B V2, PRO KGR, PiP.
+// Routing and shared-transport safety contract for KGR B V2, NAVO PRO, PiP.
 // Run: node tests/kogger-replay/dual-sonar-live-pip.mjs
 import assert from 'node:assert/strict'
 import {readFileSync, existsSync} from 'node:fs'
@@ -14,14 +14,16 @@ const bridge=read('custom/src/NavoKoggerChartBridge.h')
 const service=read('custom/kogger_native/NavoKoggerService.cpp')
 
 assert.match(dash,/id:\s*sonarProPage\s*\n\s*NavoKoggerSonar\s*\{/,
-  'PRO must launch full B V2 view')
+  'KGR must launch full B V2 Kogger view')
 assert.match(dash,/id:\s*koggerSonarPage\s*\n\s*NavoSonarPro\s*\{/,
-  'PRO KGR must launch the C native Sonar PRO view')
+  'NAVO PRO must launch advanced C Sonar PRO view')
 assert.match(dash,/badgeLabel:"KGR"/, 'KGR icon badge missing')
+assert.match(dash,/NavButton \{ text: "KGR"; proBadge: true; badgeLabel: "KGR"/, 'KGR B V2 badge must not read PRO')
+assert.match(dash,/NavButton \{ text:"PRO";proBadge:true;badgeLabel:"PRO"/, 'NAVO PRO badge must not read KGR')
 assert.match(dash,/root\.activePage === 10 \? sonarProPage/,
-  'B must use PRO navigation route')
+  'KGR B V2 must keep page 10 route')
 assert.match(dash,/root\.activePage === 13 \? koggerSonarPage/,
-  'KGR must use dedicated route')
+  'NAVO PRO must keep page 13 route')
 assert.doesNotMatch(dash,/id:\s*sonarPage\b/,
   'Legacy Kogger basic page must be removed')
 assert.doesNotMatch(dash,/NavoSonarFullScreen|NavoSonarCard/,
@@ -61,7 +63,7 @@ assert.match(connection,/saved\.setValue\("sonarUdp", udpChoice\)/)
 assert.match(connection,/root\.sonar\.dataAlive/,
   'Connection state must not label TCP-only transport as LIVE')
 assert.match(kgr,/chartSource && chartSource\.dataAlive/,
-  'KGR must not report LIVE without fresh CHART')
+  'PRO must not report LIVE without fresh CHART')
 assert.match(b,/chartSource && chartSource\.dataAlive/,
   'B V2 must not report LIVE without fresh CHART')
 assert.match(nativeAdapter,/const int step = record\.version == 1 \? 2 : 1/,
@@ -72,4 +74,4 @@ assert.doesNotMatch(service,/record\.version!=0\)return false/,
   'Kogger Dataset must not reject valid v1 live CHART')
 assert.doesNotMatch(dash,/sendCommand\([^\n]*sonarPip/,
   'PiP must never trigger a boat command')
-console.log('PASS PRO B V2 / PRO KGR / Dashboard PiP shared LIVE controller, v1 and no basic page')
+console.log('PASS KGR B V2 / NAVO PRO / Dashboard PiP shared LIVE controller, v1 and no basic page')
