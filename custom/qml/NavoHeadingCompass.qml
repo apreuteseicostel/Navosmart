@@ -10,6 +10,11 @@ Item {
     property real pitchDeg: NaN
     property bool headingValid: isFinite(headingDeg)
     property bool expanded: false
+    // Visual states are read-only telemetry/command feedback, never servo commands.
+    property bool leftHopperOpen: false
+    property bool rightHopperOpen: false
+    property bool headlightOn: false
+    property bool positionLightsOn: false
     signal toggleRequested()
     property string cardinal: {
         if (!headingValid) return "--"
@@ -86,7 +91,13 @@ Item {
         width: Math.max(22, root.width * (root.expanded ? 0.35 : 0.38)); height: Math.max(36, root.height * (root.expanded ? 0.56 : 0.66)); anchors.centerIn: parent; anchors.horizontalCenterOffset: root.expanded ? 0 : -14
         rotation: root.normalizedHeading
         Behavior on rotation { RotationAnimation { duration: 260; direction: RotationAnimation.Shortest } }
-        NavoBoatVisual { anchors.fill: parent }
+        NavoBoatVisual {
+            anchors.fill: parent
+            leftHopperOpen: root.leftHopperOpen
+            rightHopperOpen: root.rightHopperOpen
+            headlightOn: root.headlightOn
+            positionLightsOn: root.positionLightsOn
+        }
     }
 
     Rectangle {
