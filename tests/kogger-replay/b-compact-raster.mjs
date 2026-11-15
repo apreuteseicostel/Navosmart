@@ -10,16 +10,46 @@ const header = readFileSync('custom/src/NavoKoggerEpochPlotItem.h', 'utf8')
 for (const name of [
   'koggerBCompactStatus', 'koggerBLeftRail', 'koggerBRightRail',
   'koggerBLeftRevealTab', 'koggerBRightRevealTab',
-  'koggerBCompactTimeline', 'koggerNativeOriginalEpochViewB'
+  'koggerBCompactTimeline', 'koggerBTimelineRevealTab',
+  'koggerNativeOriginalEpochViewB'
 ]) assert.ok(qml.includes(name), `Missing compact control: ${name}`)
 
 assert.match(qml, /anchors\.fill:\s*parent\s*\n\s*fileReplay:/, 'Plot must fill the viewport')
 assert.match(qml, /component SonarRailButton: Button \{/, 'Dark Kogger-style component missing')
 assert.doesNotMatch(qml, /component SonarRailButton: SonarRailButton/, 'Button cannot inherit from itself')
-assert.match(qml, /interval:\s*4500/, 'Auto-hide timeout missing')
-assert.match(qml, /else root\.controlsVisible = false/, 'Controls never auto-hide')
-assert.match(qml, /visible:\s*root\.controlsVisible && plot\.fileReady/, 'Timeline must hide with controls')
-assert.match(qml, /onClicked: root\.toggleControls\(\)/, 'Side reveal tabs must work')
+// Each overlay must have independent open/close and inactivity state.
+// Side controls may stay hidden while the KLF timeline remains visible.
+assert.match(qml, /property bool leftPanelVisible: true/, 'Missing left menu visibility')
+assert.match(qml, /property bool rightPanelVisible: true/, 'Missing right menu visibility')
+assert.match(qml, /property bool timelineVisible: true/, 'Missing independent slider visibility')
+assert.equal((qml.match(/interval:\s*4500/g) || []).length, 3,
+  'Expected one 4.5 second auto-hide timer for each panel')
+assert.match(qml, /id: leftAutoHide[\s\S]*?else root\.leftPanelVisible = false/,
+  'Left menu must auto-hide independently')
+assert.match(qml, /id: rightAutoHide[\s\S]*?onTriggered: root\.rightPanelVisible = false/,
+  'Right menu must auto-hide independently')
+assert.match(qml, /id: timelineAutoHide[\s\S]*?else root\.timelineVisible = false/,
+  'Bottom slider must auto-hide independently')
+assert.match(qml, /visible: root\.leftPanelVisible\s*\n\s*width: 116/,
+  'Left menu must obey only left visibility state')
+assert.match(qml, /visible: root\.rightPanelVisible\s*\n\s*width: 110/,
+  'Right menu must obey only right visibility state')
+assert.match(qml, /visible: root\.timelineVisible && plot\.fileReady/,
+  'Bottom slider must obey only its own visibility state')
+for (const panel of ['LeftPanel', 'RightPanel', 'Timeline']) {
+  assert.match(qml, new RegExp('function toggle' + panel + '\\\\(\\\\)'),
+    'Missing independent toggle for ' + panel)
+  assert.match(qml, new RegExp('onClicked: root\\\\.toggle' + panel + '\\\\(\\\\)'),
+    'Missing dedicated reveal tab for ' + panel)
+}
+assert.match(qml, /onMoved: \{ plot\.position = value; root\.revealTimeline\(\) \}/,
+  'Using the KLF slider must reset only its own auto-hide timer')
+assert.match(qml, /onClicked: \{ plot\.palette = \(plot\.palette \+ 1\) % 3; root\.revealRightPanel\(\) \}/,
+  'Right menu actions must refresh the right timer, not the left timer')
+assert.match(qml, /onClicked: \{ plot\.horizontalZoom = Math\.min\(64, plot\.horizontalZoom \* 2\); root\.revealLeftPanel\(\) \}/,
+  'Left menu actions must refresh the left timer only')
+assert.doesNotMatch(qml, /controlsVisible|revealControls|toggleControls/,
+  'The legacy shared menu state must be removed entirely')
 assert.match(qml, /root\.chartSource\.startReplay\(selectedFile\)/, 'File replay must remain wired')
 assert.match(qml, /root\.chartSource\.stopReplay\(\)/, 'Live/replay control must remain wired')
 assert.match(qml, /root\.dragToPan/, 'Pan/inspector switch missing')
