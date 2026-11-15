@@ -120,13 +120,28 @@ local function update()
             gcs:send_named_float("NV3WATER",water)
             gcs:send_named_float("NV3WFAULT",fault)
         end
-        gcs:send_named_float("NV3HEAD",state.head);gcs:send_named_float("NV3POS",state.pos)
+        -- Native Relay1/2 own the G20 lights while cfg.lights=nil.
+        -- Do not publish fabricated OFF states for relays controlled elsewhere.
+        if cfg.lights then
+            gcs:send_named_float("NV3HEAD",state.head);gcs:send_named_float("NV3POS",state.pos)
+        end
         gcs:send_named_float("NV3HOP",state.hopper);gcs:send_named_float("NV3REQ",state.last_request)
         if cfg.rgb then
-            local r,g,b=0,40,0
-            if fault~=0 or temperature<=-1000 then r,g,b=40,0,40
-            elseif water==1 or temperature>=55 then r,g,b=80,0,0
-            elseif state.hopper~=0 then r,g,b=0,0,50 end
+            -- An actual *valid* wet/critical reading outranks a missing other
+            -- sensor. Never treat an unconfigured probe as a known fault, and
+            -- never show green unless BOTH V3 probe channels are valid.
+            local r,g,b=40,0,40 -- magenta: sensor unavailable or fault
+            if (water_in and fault==0 and water==1)
+                    or (temp_in and temperature>=55) then
+                r,g,b=80,0,0 -- red: critical water / battery NTC
+            elseif (water_in and fault~=0)
+                    or (temp_in and temperature<=-1000) then
+                r,g,b=40,0,40
+            elseif state.hopper~=0 then
+                r,g,b=0,0,50 -- blue: hopper command cycle
+            elseif water_in and temp_in then
+                r,g,b=0,40,0 -- green ONLY with two usable channels
+            end
             assert(serialLED:set_RGB(cfg.rgb.output,-1,r,g,b),"RGB write failed");assert(serialLED:send(cfg.rgb.output),"RGB send failed")
         end
         publish_at=now+500

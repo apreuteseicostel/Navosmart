@@ -7,6 +7,11 @@ Item {
     property bool rightHopperOpen: false
     property bool headlightOn: false
     property bool positionLightsOn: false
+    // RC switch demand is *not* relay/bulb feedback. Render it amber, not ON white.
+    property bool headlightRequested: false
+    property bool positionLightsRequested: false
+    // App-only indication: NEVER proof of a physical RGB LED output.
+    property string virtualRgbState: "unknown" // critical / warning / hopper / normal / unknown
     property real rudderNormalized: 0
     property bool showLabel: false
 
@@ -54,18 +59,41 @@ Item {
             c.fill()
 
             // Front light.
-            c.fillStyle = root.headlightOn ? "#fff3a6" : "#4c5a64"
+            c.fillStyle = root.headlightOn ? "#fff3a6" : root.headlightRequested ? "#e9aa46" : "#4c5a64"
             c.beginPath()
             c.roundedRect(width*0.43, height*0.08, width*0.14, height*0.045, 3, 3)
             c.fill()
 
-            // Position lights.
-            c.fillStyle = root.positionLightsOn ? "#e8f8ff" : "#4c5a64"
-            c.beginPath(); c.arc(width*0.20, height*0.84, width*0.035, 0, Math.PI*2); c.fill()
-            c.beginPath(); c.arc(width*0.80, height*0.84, width*0.035, 0, Math.PI*2); c.fill()
+            // Port red / starboard green when telemetry confirms an ON command.
+            // Amber means only an active G20 RC input, not confirmed lamp power.
+            c.fillStyle = root.positionLightsOn ? "#ff4e5a"
+                : root.positionLightsRequested ? "#e9aa46" : "#4c5a64"
+            c.beginPath(); c.arc(width*0.20, height*0.84, Math.max(2,width*0.049), 0, Math.PI*2); c.fill()
+            c.fillStyle = root.positionLightsOn ? "#46f29a"
+                : root.positionLightsRequested ? "#e9aa46" : "#4c5a64"
+            c.beginPath(); c.arc(width*0.80, height*0.84, Math.max(2,width*0.049), 0, Math.PI*2); c.fill()
         }
     }
 
+    // The virtual RGB alarm is derived from NAVO sensor/command data; it
+    // does not drive or confirm the physical serialLED on the V3 PCB.
+    Rectangle {
+        id: visualRgbIndicator
+        objectName: "boatVirtualRgbIndicator"
+        width: Math.max(6, root.width * 0.13)
+        height: width
+        radius: width / 2
+        x: root.width / 2 - width / 2
+        y: root.height * 0.39
+        z: 6
+        color: root.virtualRgbState === "critical" ? "#ff354e"
+            : root.virtualRgbState === "warning" ? "#ffa43b"
+            : root.virtualRgbState === "hopper" ? "#24aaff"
+            : root.virtualRgbState === "normal" ? "#3be48d" : "#8850a4"
+        border.color: "#e0edfa"
+        border.width: 1
+        opacity: root.virtualRgbState === "unknown" ? 0.55 : 1
+    }
     Rectangle {
         id: leftHopper
         width: root.width * 0.31
@@ -76,6 +104,14 @@ Item {
         color: "#111820"
         border.color: "#4e6070"
         border.width: 1
+        Rectangle {
+            anchors.centerIn: parent
+            width: Math.max(5,parent.width*0.33)
+            height: width
+            radius: width/2
+            color: root.leftHopperOpen ? "#28b5ff" : "#394955"
+            border.color: root.leftHopperOpen ? "#d0f6ff" : "#566775"
+        }
         transform: Rotation {
             origin.x: 0
             origin.y: leftHopper.height
@@ -94,6 +130,14 @@ Item {
         color: "#111820"
         border.color: "#4e6070"
         border.width: 1
+        Rectangle {
+            anchors.centerIn: parent
+            width: Math.max(5,parent.width*0.33)
+            height: width
+            radius: width/2
+            color: root.rightHopperOpen ? "#28b5ff" : "#394955"
+            border.color: root.rightHopperOpen ? "#d0f6ff" : "#566775"
+        }
         transform: Rotation {
             origin.x: rightHopper.width
             origin.y: rightHopper.height
@@ -121,6 +165,8 @@ Item {
         target: root
         function onHeadlightOnChanged() { hull.requestPaint() }
         function onPositionLightsOnChanged() { hull.requestPaint() }
+        function onHeadlightRequestedChanged() { hull.requestPaint() }
+        function onPositionLightsRequestedChanged() { hull.requestPaint() }
     }
 
     Label {
