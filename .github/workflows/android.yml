@@ -50,6 +50,7 @@ jobs:
       - name: NAVO controller regression tests
         run: |
           node tests/audit-regressions.mjs
+          node tests/kogger-replay/dual-sonar-live-pip.mjs
           node tests/kogger-replay/viewport-atomic.mjs
           node tests/kogger-replay/b-compact-raster.mjs
           node tests/route-plan.mjs
