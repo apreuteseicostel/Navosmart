@@ -77,7 +77,7 @@ Item {
         if((!automatic || root.sonarStartupEnabled) && !sonar.replayMode && !sonar.connected && sonar.port>0 && sonar.port<=65535 && (sonar.udp || sonar.host.length))sonar.connectSonar()
         if(!cameraEthernet.connected && cameraEthernet.port>0 && cameraEthernet.port<=65535 && (cameraEthernet.udp || cameraEthernet.host.length))cameraEthernet.connectCamera()
     }
-    readonly property string activePageName: ["HARTA","SONAR","MISIUNI","PUNCTE PESCUIT","BALȚILE MELE","CAMERA","SETARI","3D","NĂDIRE","SIGURANȚĂ","SONAR PRO","JURNAL","HĂRȚI OFFLINE","REZERVAT","OFFLINE LAB"][activePage] || "HARTA"
+    readonly property string activePageName: ["HARTA","SONAR","MISIUNI","PUNCTE PESCUIT","BALȚILE MELE","CAMERA","SETARI","3D","NĂDIRE","SIGURANȚĂ","SONAR PRO","JURNAL","HĂRȚI OFFLINE","REZERVAT","OFFLINE LAB","KOGGER SONAR"][activePage] || "HARTA"
     implicitWidth: 1280
     implicitHeight: 720
 
@@ -1671,6 +1671,7 @@ Item {
                 NavButton { text: "HARTA"; iconSource: "qrc:/qml/NavoSmart/icons/map.svg"; active: root.activePage === 0; onClicked: root.activePage = 0 }
                 NavButton { text: "SONAR"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 1; onClicked: root.activePage = 1 }
                 NavButton { text: "SONAR PRO"; proBadge: true; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 10; onClicked: root.activePage = 10 }
+                NavButton { text: "KOGGER SONAR"; proBadge: true; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 15; onClicked: root.activePage = 15 }
                 NavButton { text: "MISIUNI"; iconSource: "qrc:/qml/NavoSmart/icons/scan.svg"; active: root.activePage === 2; onClicked: root.activePage = 2 }
                 NavButton { text: "PUNCTE PESCUIT"; iconSource: "qrc:/qml/NavoSmart/icons/fish.svg"; active: root.activePage === 3; onClicked: root.activePage = 3 }
                 NavButton { text:"HĂRȚI OFFLINE";iconSource:"qrc:/qml/NavoSmart/icons/save.svg";active:root.activePage===12;onClicked:{if(root.mapController)root.offlineRegion=root.mapController.offlineRegion();root.activePage=12} }
@@ -1725,6 +1726,7 @@ Item {
                              root.activePage === 0 ? mapPage :
                              root.activePage === 1 ? sonarPage :
                              root.activePage === 10 ? sonarProPage :
+                             root.activePage === 15 ? koggerIndependentPage :
                              root.activePage === 2 ? areaPage :
                              root.activePage === 3 ? fishingPage :
                              root.activePage === 4 ? lakesPage :
@@ -1880,6 +1882,15 @@ Item {
                     }
                 }
             }
+        }
+    }
+
+    // Experiment B: independent Kogger test workspace. Do not mutate SONAR PRO.
+    Component {
+        id: koggerIndependentPage
+        NavoKoggerStandalone {
+            navoSonarBusy: sonar.connected && !sonar.replayMode
+            onClosed: root.activePage = 0
         }
     }
 
