@@ -657,6 +657,47 @@ Item {
     property bool hopperStatusExpanded: false
     property bool mapFullscreen: false
     property bool headingOverlayOpen: false
+    // Onboard NV3HOP is a *commanded* mask; no mechanical end switches exist.
+    // Do not let default NV3HOP=0 override an independently commanded fallback
+    // unless the V3 hopper capability was actually advertised.
+    readonly property bool visualLeftHopperOpen: root.linkAlive && !sonar.replayMode &&
+        ((h743Telemetry.hopperStateValid && (h743Telemetry.capabilities & 8))
+         ? (h743Telemetry.hopperMask & 1) !== 0 : hopperBridge.leftOpen)
+    readonly property bool visualRightHopperOpen: root.linkAlive && !sonar.replayMode &&
+        ((h743Telemetry.hopperStateValid && (h743Telemetry.capabilities & 8))
+         ? (h743Telemetry.hopperMask & 2) !== 0 : hopperBridge.rightOpen)
+    // On this G20 setup RC7/RC16 signal native ArduPilot relays. Their PWM
+    // reports switch intent, not Relay contact position or lamp current.
+    function lightRcDemand(channel) {
+        if (!root.linkAlive || sonar.replayMode || !g20Controller.lastFrameMs
+                || !g20Controller.channels || g20Controller.channels.length < channel)
+            return false
+        var pwm = Number(g20Controller.channels[channel - 1])
+        return isFinite(pwm) && pwm >= 1800 && pwm <= 2100
+    }
+    readonly property bool visualHeadlightRequest:
+        !h743Telemetry.lightsValid && root.lightRcDemand(7)
+    readonly property bool visualPositionLightsRequest:
+        !h743Telemetry.lightsValid && root.lightRcDemand(16)
+    readonly property bool visualHeadlightReported:
+        root.linkAlive && !sonar.replayMode && h743Telemetry.lightsValid && h743Telemetry.headlightOn
+    readonly property bool visualPositionLightsReported:
+        root.linkAlive && !sonar.replayMode && h743Telemetry.lightsValid && h743Telemetry.positionLightsOn
+    // This is a display-only warning policy, NOT the physical RGB output.
+    readonly property bool visualWaterAlarm: root.linkAlive && !sonar.replayMode
+        && h743Telemetry.waterValid && h743Telemetry.waterDetected
+    readonly property bool visualTemperatureCritical: root.linkAlive && !sonar.replayMode
+        && ((h743Telemetry.temperatureValid && h743Telemetry.batteryTempC >= safetyManager.criticalTempC)
+            || (environmentSettings.alertsEnabled && h743Telemetry.interiorValid
+                && h743Telemetry.interiorTempC >= environmentSettings.temperatureLimit))
+    readonly property bool visualTemperatureWarning: root.linkAlive && !sonar.replayMode
+        && h743Telemetry.temperatureValid && h743Telemetry.batteryTempC >= safetyManager.warningTempC
+    readonly property string boatVirtualRgbState:
+        (visualWaterAlarm || visualTemperatureCritical) ? "critical"
+        : visualTemperatureWarning ? "warning"
+        : (visualLeftHopperOpen || visualRightHopperOpen) ? "hopper"
+        : (root.linkAlive && h743Telemetry.waterValid && h743Telemetry.temperatureValid)
+            ? "normal" : "unknown"
     property var offlineRegion: ({})
     property var offlineViewRequest: null
     function openOfflineMaps(region) { offlineRegion=region;mapMaximized=false;activePage=12 }
@@ -1440,6 +1481,13 @@ Item {
                 rollDeg: root.rollDeg
                 pitchDeg: root.pitchDeg
                 expanded: false
+                leftHopperOpen: root.visualLeftHopperOpen
+                rightHopperOpen: root.visualRightHopperOpen
+                headlightOn: root.visualHeadlightReported
+                positionLightsOn: root.visualPositionLightsReported
+                headlightRequested: root.visualHeadlightRequest
+                positionLightsRequested: root.visualPositionLightsRequest
+                virtualRgbState: root.boatVirtualRgbState
                 onToggleRequested: root.headingOverlayOpen = !root.headingOverlayOpen
             }
         }
@@ -1625,7 +1673,7 @@ Item {
         }
     }
 
-    NavoHeadingCompass { id:headingCompassOverlay; visible:root.headingOverlayOpen && root.activePage !== 10; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; headingSource:root.headingSource; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; onToggleRequested:root.headingOverlayOpen=false }
+    NavoHeadingCompass { id:headingCompassOverlay; visible:root.headingOverlayOpen && root.activePage !== 10; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; headingSource:root.headingSource; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; leftHopperOpen:root.visualLeftHopperOpen; rightHopperOpen:root.visualRightHopperOpen; headlightOn:root.visualHeadlightReported; positionLightsOn:root.visualPositionLightsReported; headlightRequested:root.visualHeadlightRequest; positionLightsRequested:root.visualPositionLightsRequest; virtualRgbState:root.boatVirtualRgbState; onToggleRequested:root.headingOverlayOpen=false }
 
     Rectangle {
         id: sidebar
