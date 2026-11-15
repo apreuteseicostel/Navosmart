@@ -58,7 +58,8 @@ signals:
 protected:
     void geometryChange(const QRectF& next,const QRectF& previous) override;
 private:
-    struct FileColumn {QByteArray bytes;quint16 resolution=0,offset=0;quint8 version=0;};
+    // Screen-height indexed amplitudes, not raw KLF payloads. Bounded on-device raster cache.
+    struct FileColumn {QByteArray raster;};
     QPointer<NavoKoggerReplay> _file;
     mutable QMutex _cacheMutex;
     QHash<int,FileColumn> _cache;
