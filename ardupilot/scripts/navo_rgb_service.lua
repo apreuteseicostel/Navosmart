@@ -70,6 +70,7 @@ local colourCodes={
  BOTH_LIGHTS=6,NORMAL=7,UNMONITORED=8,
 }
 local last,previous,now=nil,nil,0
+local lastReportMs=-100000
 local function update()
  local raw=millis():tofloat()
  if previous~=nil then now=now+(raw-previous)%4294967296 end
@@ -85,28 +86,58 @@ local function update()
  local tempAlive=fresh(tms,raw)
  local validWater=waterAlive and wts==2 and (wet==0 or wet==1)
  local validTemp=tempAlive and ts==2 and finite(temp) and temp>=-40 and temp<=125
+ local hopperActive=(fresh(onboardHopperTime,raw,cfg.hopper_expiry_ms)
+                  and finite(onboardHopper) and onboardHopper>0)
+                  or hopper_open()
+ local far=relay_state(0)
+ local pos=relay_state(1)
+ local alarmWater=validWater and wet==1
+ local alarmTemp=validTemp and temp>=cfg.temp_alarm_c
  local status,color=core.select({
-     wet=validWater and wet==1,
+     wet=alarmWater,
      water_valid=validWater,
      water_fault=waterAlive and wts==3,
      temperature_valid=validTemp,
      temperature_c=validTemp and temp or -1000,
      temperature_fault=tempAlive and ts==3,
      temp_alarm_c=cfg.temp_alarm_c,
-     hopper_open=(fresh(onboardHopperTime,raw,cfg.hopper_expiry_ms)
-                  and finite(onboardHopper) and onboardHopper>0)
-                  or hopper_open(),
-     headlight=relay_state(0),
-     positions=relay_state(1),
+     hopper_open=hopperActive,
+     headlight=far,
+     positions=pos,
  })
  local c=core.scale(color,cfg.brightness)
  assert(serialLED:set_RGB(chan,-1,c[1],c[2],c[3]),"set_RGB failed")
  assert(serialLED:send(chan),"serialLED send failed")
  if status~=last then
-     gcs:send_text(6,"NAVO RGB: "..status)
+     local why=status
+     if status=="ALARM" then
+         why=alarmWater and alarmTemp and "ALARM WATER+TEMP"
+              or alarmWater and "ALARM WATER" or "ALARM TEMP"
+     elseif status=="FAULT" then
+         why=(waterAlive and wts==3 and "FAULT WATER" or "")
+            ..(tempAlive and ts==3 and " FAULT TEMP" or "")
+     elseif status=="HOPPER" then
+         why="HOPPER PWM/ONBOARD"
+     elseif status=="POSITIONS" then why="POSITIONS RELAY2"
+     elseif status=="HEADLIGHT" then why="HEADLIGHT RELAY1"
+     elseif status=="BOTH_LIGHTS" then why="HEADLIGHT+POSITIONS"
+     end
+     gcs:send_text(6,"NAVO RGB: "..why)
      last=status
  end
+ -- Explicit reason bits; no false claim of electrical LED feedback.
+ -- 1=water alarm, 2=temperature alarm, 4=water sensor fault,
+ -- 8=temp sensor fault, 16=hopper cycle, 32=far, 64=positions.
+ local reason=(alarmWater and 1 or 0)+(alarmTemp and 2 or 0)
+     +(waterAlive and wts==3 and 4 or 0)
+     +(tempAlive and ts==3 and 8 or 0)
+     +(hopperActive and 16 or 0)+(far==true and 32 or 0)
+     +(pos==true and 64 or 0)
  gcs:send_named_float("NV3RGBC",colourCodes[status] or 0)
+ if now-lastReportMs>=1000 then
+     gcs:send_named_float("NV3RGBR",reason)
+     lastReportMs=now
+ end
  return update,cfg.update_ms
 end
 local function protected()
