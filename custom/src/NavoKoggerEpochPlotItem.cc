@@ -7,6 +7,7 @@
 #include <QPainter>
 #include <QMutexLocker>
 #include <QImage>
+#include <QElapsedTimer>
 #include <QFont>
 #include <QColor>
 #include <QTimer>
@@ -39,7 +40,7 @@ void NavoKoggerEpochPlotItem::geometryChange(const QRectF& next,const QRectF& ol
 void NavoKoggerEpochPlotItem::clearFileCache(){
     _loadTimer.stop();
     QMutexLocker lock(&_cacheMutex);
-    _cache.clear();_order.clear();_cachedBytes=0;
+    _cache.clear();_order.clear();_cachedBytes=0;_lastCompleteFrame=QImage();
 }
 void NavoKoggerEpochPlotItem::setFileReplay(QObject* source){
     auto* value=qobject_cast<NavoKoggerReplay*>(source);
@@ -114,25 +115,40 @@ void NavoKoggerEpochPlotItem::loadVisibleBatch(){
     const ChannelId fileChannel(_sourceUuid,1);
     int added=0;
     bool pending=false;
+    int previousColumn=-1;
+    QElapsedTimer budget;
+    budget.start();
     for(int x=0;x<w;++x){
         const int idx=sourceColumn(x,n,w);
-        if(idx<0)continue;
+        if(idx<0||idx==previousColumn)continue;
+        previousColumn=idx;
         {QMutexLocker lock(&_cacheMutex);if(_cache.contains(idx))continue;}
-        if(added>=12){pending=true;break;}
+        // Avoid a long GUI-thread stall, but load more than twelve columns
+        // per event on a fast phone. Resume from the visible cache next tick.
+        if(added>=96||(added>=8&&budget.elapsed()>=7)){pending=true;break;}
         FileColumn c;
         NavoKoggerReplay::ChartColumn raw;
-        if(_file->readChartColumn(idx,&raw)&&raw.resolutionMm>0&&raw.version==0){
+        if(_file->readChartColumn(idx,&raw)&&raw.resolutionMm>0&&raw.version<=1){
+            // The decoder accepts both Kogger CHART v0 and v1. v1 stores
+            // two bytes per amplitude sample; the existing decoder uses
+            // the first byte of each pair. Mirror that here or v1 columns
+            // become permanent gaps in the native viewport.
+            const int step=raw.version==1?2:1;
             QVector<uint8_t> samples;
-            samples.reserve(raw.bytes.size());
-            for(const char sample:raw.bytes)samples.append(quint8(sample));
-            Epoch epoch;
-            epoch.setChart(fileChannel,{samples},float(raw.resolutionMm)*.001f,
-                           float(raw.absoluteOffset)*float(raw.resolutionMm)*.001f);
-            QVector<int16_t> scan(h);
-            if(epoch.chartTo(fileChannel,0,float(_from),float(_from+_range),
-                             scan.data(),h,_compensate?1:0)){
-                c.raster.resize(h);
-                for(int y=0;y<h;++y)c.raster[y]=char(std::clamp(int(scan[y]),0,255));
+            samples.reserve((raw.bytes.size()+step-1)/step);
+            for(qsizetype i=0;i+step-1<raw.bytes.size();i+=step)
+                samples.append(quint8(raw.bytes.at(i)));
+            if(!samples.isEmpty()){
+                Epoch epoch;
+                epoch.setChart(fileChannel,{samples},float(raw.resolutionMm)*.001f,
+                               float(raw.absoluteOffset)*float(raw.resolutionMm)*.001f);
+                QVector<int16_t> scan(h);
+                if(epoch.chartTo(fileChannel,0,float(_from),float(_from+_range),
+                                 scan.data(),h,_compensate?1:0)){
+                    c.raster.resize(h);
+                    for(int y=0;y<h;++y)
+                        c.raster[y]=char(std::clamp(int(scan[y]),0,255));
+                }
             }
         }
         {
@@ -151,7 +167,10 @@ void NavoKoggerEpochPlotItem::loadVisibleBatch(){
         }
         ++added;
     }
-    if(added)update();
+    // Publish the *whole* requested view, not a fresh picture after every
+    // 8–96-column batch. Showing incomplete buffers caused the visible
+    // vertical stripes in the fast-scrolling Android recordings.
+    if(added&&!pending)update();
     // Do not stop loading when cache reaches its bound: each newly visible
     // column evicts an old one. The previous capacity gate caused black strips
     // after panning through a large KLF (stale offscreen entries filled the cache).
@@ -219,19 +238,49 @@ void NavoKoggerEpochPlotItem::paint(QPainter* p){
 
     const int n=indexedColumns();
     const bool onFile=bool(_file);
+    int invalidColumns=0;
     if(onFile){
-        // Rasterization of each CHART column happens ONCE in small GUI-thread
-        // batches. Paint only composites cached 8-bit pixels; palettes are
-        // remapped through the QImage colour table without recalculating Epoch.
-        QMutexLocker lock(&_cacheMutex);
-        for(int x=0;x<w;++x){
-            const int idx=sourceColumn(x,n,w);
-            if(idx<0)continue;
-            const auto it=_cache.constFind(idx);
-            if(it==_cache.cend()||it.value().raster.size()!=h)continue;
-            const QByteArray& column=it.value().raster;
-            for(int y=0;y<h;++y)
-                image.scanLine(y)[x]=quint8(column.at(y));
+        // CHART is decoded in bounded batches outside paint. Do not publish
+        // half-loaded viewports (the stripes/black frames in videos 33088/33091).
+        int waitingColumns=0;
+        {
+            QMutexLocker lock(&_cacheMutex);
+            int previousColumn=-1;
+            for(int x=0;x<w;++x){
+                const int idx=sourceColumn(x,n,w);
+                if(idx<0)continue;
+                const auto it=_cache.constFind(idx);
+                if(it==_cache.cend()){
+                    if(idx!=previousColumn)++waitingColumns;
+                    previousColumn=idx;
+                    continue;
+                }
+                if(it.value().raster.size()!=h){
+                    if(idx!=previousColumn)++invalidColumns;
+                    previousColumn=idx;
+                    continue;
+                }
+                previousColumn=idx;
+                const QByteArray& column=it.value().raster;
+                for(int y=0;y<h;++y)
+                    image.scanLine(y)[x]=quint8(column.at(y));
+            }
+            if(!waitingColumns)_lastCompleteFrame=image;
+        }
+        if(waitingColumns){
+            // Previous viewport is explicitly dimmed and marked as loading;
+            // never pretend that old CHART data belongs to the new position.
+            p->fillRect(boundingRect(),QColor("#050d17"));
+            if(!_lastCompleteFrame.isNull()&&_lastCompleteFrame.size()==image.size()){
+                QImage previous=_lastCompleteFrame;
+                previous.setColorTable(colors());
+                p->drawImage(QRectF(0,0,width(),height()),previous);
+                p->fillRect(boundingRect(),QColor(0,0,0,135));
+            }
+            p->setPen(QColor("#e8f4fc"));
+            p->drawText(boundingRect(),Qt::AlignCenter,
+                        QStringLiteral("Se încarcă %1 coloane CHART…").arg(waitingColumns));
+            return;
         }
     }else{
         Dataset* dataset=&NavoKoggerService::instance().dataset();
@@ -249,6 +298,11 @@ void NavoKoggerEpochPlotItem::paint(QPainter* p){
         }
     }
     p->drawImage(QRectF(0,0,width(),height()),image);
+    if(invalidColumns>0){
+        p->setPen(QColor("#ffba80"));
+        p->drawText(QPointF(10,std::max(24.0,height()-14.0)),
+                    QStringLiteral("CHART invalide: %1").arg(invalidColumns));
+    }
     p->setPen(QColor("#a9d5ea"));
     for(int i=0;i<=4;++i){
         const double depth=_from+i*_range/4;
