@@ -4,160 +4,368 @@ import QtQuick.Layouts
 import QtQuick.Dialogs
 import NavoSmart.Backend 1.0
 
-// Standalone Kogger Sonar experimental panel. Does not instantiate another
-// Android activity/Core nor command the autopilot. Uses original Epoch::chartTo.
+// Experiment B only: Kogger Epoch plot with transient side controls.
+// This page owns no H743/MAVLink commands. Sonar PRO is untouched.
 Rectangle {
     id: root
     objectName: "navoKoggerSonarExperimentB"
     color: "#050d17"
+
     property var chartSource: null
     property int selectedEpoch: -1
     property real selectedDepthM: NaN
     property bool dragToPan: false
+    property bool controlsVisible: true
+    readonly property bool replayReady: !!(chartSource && chartSource.replayMode)
+    readonly property string statusText: replayReady
+        ? (plot.fileReady ? "KLF • " + plot.indexedColumns + " Epoch"
+           : (chartSource.replayError && chartSource.replayError.length
+              ? chartSource.replayError : "Indexare KLF…"))
+        : (chartSource && chartSource.connected ? "LIVE • Kogger Dataset" : "Sonar neconectat")
     signal closed()
 
-    readonly property bool replayReady: chartSource && chartSource.replayMode
-    readonly property string statusText: replayReady
-        ? (plot.fileReady ? "KLF • " + plot.indexedColumns + " Epoch" : "Indexare .klf…")
-        : (chartSource && chartSource.connected ? "LIVE • Kogger Dataset" : "Sonar neconectat")
+    function revealControls() {
+        controlsVisible = true
+        autoHide.restart()
+    }
+    function toggleControls() {
+        if (controlsVisible) {
+            controlsVisible = false
+            autoHide.stop()
+        } else revealControls()
+    }
+    function changeDepth(direction) {
+        var options = [2, 3, 5, 10, 20, 50, 100, 200]
+        var index = options.indexOf(Math.round(plot.depthRange))
+        if (index < 0) index = 5
+        plot.depthRange = options[Math.max(0, Math.min(options.length - 1, index + direction))]
+        revealControls()
+    }
+    function cursorPixel() {
+        var n = plot.indexedColumns
+        if (selectedEpoch <= 0 || n <= 0 || plot.width <= 0) return -1
+        var count = Math.max(1, Math.min(n, Math.ceil(n / plot.horizontalZoom)))
+        var center = Math.max(0, Math.min(n - 1, Math.round(plot.position * (n - 1))))
+        var begin = Math.max(0, Math.min(n - count, center - Math.floor(count / 2)))
+        var idx = selectedEpoch - 1
+        if (idx < begin || idx >= begin + count) return -1
+        return ((idx - begin + 0.5) / count) * plot.width
+    }
+
+    Timer {
+        id: autoHide
+        interval: 4500
+        repeat: false
+        running: true
+        onTriggered: {
+            if (chooser.visible) restart()
+            else root.controlsVisible = false
+        }
+    }
+
     FileDialog {
         id: chooser
         title: "Deschide înregistrare Kogger .klf"
         nameFilters: ["Kogger recording (*.klf)", "Toate fișierele (*)"]
         onAccepted: {
-            if(!root.chartSource)return
-            if(root.chartSource.startReplay(selectedFile))
+            if (!root.chartSource) return
+            root.selectedEpoch = -1
+            root.selectedDepthM = NaN
+            if (root.chartSource.startReplay(selectedFile))
                 root.chartSource.pauseReplay(true)
+            root.revealControls()
+        }
+        onRejected: root.revealControls()
+    }
+
+    NavoKoggerEpochPlotItem {
+        id: plot
+        objectName: "koggerNativeOriginalEpochViewB"
+        anchors.fill: parent
+        fileReplay: root.replayReady ? root.chartSource.replay : null
+        depthRange: 10
+        horizontalZoom: 1
+        position: 0.5
+    }
+    MouseArea {
+        id: sonarTouch
+        anchors.fill: plot
+        z: 1
+        acceptedButtons: Qt.LeftButton
+        property real dragStartX: 0
+        property real dragStartPosition: 0
+        function inspect(mouse) {
+            var hit = plot.inspectAt(mouse.x, mouse.y)
+            root.selectedEpoch = hit.epoch === undefined ? -1 : Number(hit.epoch)
+            root.selectedDepthM = hit.depthM === undefined ? NaN : Number(hit.depthM)
+        }
+        onPressed: function(mouse) {
+            dragStartX = mouse.x
+            dragStartPosition = plot.position
+            if (!root.dragToPan) inspect(mouse)
+        }
+        onPositionChanged: function(mouse) {
+            if (!pressed) return
+            if (root.dragToPan) {
+                plot.position = Math.max(0, Math.min(1,
+                    dragStartPosition - (mouse.x - dragStartX) / Math.max(1, width) / plot.horizontalZoom))
+            } else inspect(mouse)
+        }
+        onClicked: function(mouse) { if (!root.dragToPan) inspect(mouse) }
+    }
+    Rectangle {
+        id: cursor
+        z: 2
+        visible: !root.dragToPan && root.selectedEpoch > 0 && root.cursorPixel() >= 0
+        width: 1
+        height: parent.height
+        x: root.cursorPixel()
+        color: "#fbc04d"
+        opacity: .8
+    }
+
+    // A single compact status overlay replaces the two permanent toolbar rows.
+    Rectangle {
+        id: statusBar
+        objectName: "koggerBCompactStatus"
+        z: 5
+        visible: root.controlsVisible
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.leftMargin: 34
+        anchors.rightMargin: 34
+        height: 27
+        radius: 5
+        color: "#d9091a28"
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 7
+            anchors.rightMargin: 7
+            spacing: 6
+            Label {
+                text: "KOGGER B"
+                color: "#eafaff"
+                font.pixelSize: 11
+                font.bold: true
+            }
+            Label {
+                text: root.statusText
+                color: "#a9cada"
+                font.pixelSize: 10
+                elide: Text.ElideRight
+                Layout.fillWidth: true
+            }
+            Label {
+                visible: root.selectedEpoch > 0 && isFinite(root.selectedDepthM)
+                text: root.selectedEpoch + " • " + root.selectedDepthM.toFixed(2) + " m"
+                color: "#e8edf7"
+                font.pixelSize: 10
+            }
         }
     }
 
-    ColumnLayout {
-        anchors.fill:parent
-        anchors.margins:8
-        spacing:6
-        RowLayout {
-            Layout.fillWidth:true
-            spacing:7
+    Rectangle {
+        id: leftPanel
+        objectName: "koggerBLeftRail"
+        z: 5
+        visible: root.controlsVisible
+        width: 116
+        height: Math.min(214, parent.height - 45)
+        anchors.left: parent.left
+        anchors.leftMargin: 29
+        anchors.top: parent.top
+        anchors.topMargin: 32
+        radius: 7
+        color: "#df071827"
+        border.color: "#31536c"
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 5
+            spacing: 3
+            Button {
+                text: "DESCHIDE KLF"
+                Layout.fillWidth: true
+                Layout.preferredHeight: 31
+                onClicked: { root.revealControls(); chooser.open() }
+            }
+            Button {
+                text: root.replayReady ? "OPREȘTE" : "LIVE"
+                enabled: root.replayReady
+                Layout.fillWidth: true
+                Layout.preferredHeight: 29
+                onClicked: { root.chartSource.stopReplay(); root.revealControls() }
+            }
             Label {
-                text:"KOGGER SONAR • B"
-                color:"#eafaff";font.pixelSize:16;font.bold:true
+                text: "ZOOM  " + plot.horizontalZoom + "×"
+                color: "#aed4e4"
+                font.pixelSize: 11
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 3
+                Button {
+                    text: "−"
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 29
+                    onClicked: { plot.horizontalZoom = Math.max(1, Math.floor(plot.horizontalZoom / 2)); root.revealControls() }
+                }
+                Button {
+                    text: "+"
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 29
+                    onClicked: { plot.horizontalZoom = Math.min(64, plot.horizontalZoom * 2); root.revealControls() }
+                }
+            }
+            Button {
+                text: "TOT • 1×"
+                Layout.fillWidth: true
+                Layout.preferredHeight: 29
+                onClicked: { plot.horizontalZoom = 1; plot.position = 0.5; root.revealControls() }
             }
             Label {
-                text:root.statusText
-                color:"#91c6df";font.pixelSize:11
-                Layout.fillWidth:true;elide:Text.ElideRight
+                text: "SCARĂ  " + Math.round(plot.depthRange) + " m"
+                color: "#aed4e4"
+                font.pixelSize: 11
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
             }
-            Button {text:"DESCHIDE .KLF";onClicked:chooser.open()}
-            Button {
-                text:root.chartSource && root.chartSource.replayMode ? "OPREȘTE REPLAY" : "LIVE"
-                enabled:root.chartSource && root.chartSource.replayMode
-                onClicked:root.chartSource.stopReplay()
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 3
+                Button {
+                    text: "−"
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 29
+                    onClicked: root.changeDepth(-1)
+                }
+                Button {
+                    text: "+"
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 29
+                    onClicked: root.changeDepth(1)
+                }
             }
-            Button {text:"ÎNCHIDE";onClicked:root.closed()}
         }
+    }
+
+    Rectangle {
+        id: rightPanel
+        objectName: "koggerBRightRail"
+        z: 5
+        visible: root.controlsVisible
+        width: 110
+        height: Math.min(162, parent.height - 45)
+        anchors.right: parent.right
+        anchors.rightMargin: 29
+        anchors.top: parent.top
+        anchors.topMargin: 32
+        radius: 7
+        color: "#df071827"
+        border.color: "#31536c"
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 5
+            spacing: 3
+            Button {
+                text: ["CLASSIC", "ICE", "SEPIA"][plot.palette]
+                Layout.fillWidth: true
+                Layout.preferredHeight: 31
+                onClicked: { plot.palette = (plot.palette + 1) % 3; root.revealControls() }
+            }
+            Button {
+                text: plot.compensate ? "COMPENSAT" : "BRUT"
+                Layout.fillWidth: true
+                Layout.preferredHeight: 30
+                onClicked: { plot.compensate = !plot.compensate; root.revealControls() }
+            }
+            Button {
+                text: root.dragToPan ? "PAN" : "INSPECTOR"
+                Layout.fillWidth: true
+                Layout.preferredHeight: 30
+                onClicked: { root.dragToPan = !root.dragToPan; root.revealControls() }
+            }
+            Button {
+                text: "ÎNCHIDE"
+                Layout.fillWidth: true
+                Layout.preferredHeight: 30
+                onClicked: root.closed()
+            }
+        }
+    }
+
+    // Narrow side tabs remain visible even when panels have disappeared.
+    Button {
+        id: leftHandle
+        objectName: "koggerBLeftRevealTab"
+        z: 8
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+        width: 27
+        height: 44
+        text: root.controlsVisible ? "‹" : "›"
+        Accessible.name: root.controlsVisible ? "Ascunde comenzile Kogger" : "Arată comenzile Kogger"
+        onClicked: root.toggleControls()
+    }
+    Button {
+        id: rightHandle
+        objectName: "koggerBRightRevealTab"
+        z: 8
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        width: 27
+        height: 44
+        text: root.controlsVisible ? "›" : "‹"
+        Accessible.name: root.controlsVisible ? "Ascunde comenzile Kogger" : "Arată comenzile Kogger"
+        onClicked: root.toggleControls()
+    }
+
+    Rectangle {
+        id: timelineBar
+        objectName: "koggerBCompactTimeline"
+        z: 5
+        visible: root.controlsVisible && plot.fileReady
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.leftMargin: 34
+        anchors.rightMargin: 34
+        anchors.bottomMargin: 3
+        height: 32
+        radius: 6
+        color: "#e5081828"
         RowLayout {
-            Layout.fillWidth:true
-            spacing:8
-            Label {text:"Adâncime";color:"#b3d6e7"}
-            SpinBox {
-                id:depthSpin
-                from:1;to:200;value:50;editable:true
-                onValueModified:plot.depthRange=value
+            anchors.fill: parent
+            anchors.leftMargin: 9
+            anchors.rightMargin: 9
+            spacing: 7
+            Label {
+                text: plot.horizontalZoom + "×"
+                color: "#c9e3ef"
+                font.pixelSize: 11
             }
-            Label {text:"m";color:"#b3d6e7"}
-            Label {text:"Paletă";color:"#b3d6e7"}
-            ComboBox {
-                id:palette
-                model:["Kogger Classic","Kogger Ice","Kogger Sepia"]
-                onActivated:plot.palette=currentIndex
-            }
-            Button {
-                text:plot.compensate ? "COMPENSAT" : "BRUT"
-                checkable:true
-                checked:plot.compensate
-                onClicked:plot.compensate=checked
-            }
-            Button {
-                text:root.dragToPan?"PAN":"INSPECTOR"
-                checkable:true;checked:root.dragToPan
-                onClicked:root.dragToPan=checked
-            }
-            Item {Layout.fillWidth:true}
-            Label {text:root.selectedEpoch>=0 ? "Epoch: "+root.selectedEpoch+"  •  "+root.selectedDepthM.toFixed(2)+" m" : "Atinge ecograma pentru inspector";color:"#dceefa";font.pixelSize:11}
-        }
-        Item {
-            Layout.fillWidth:true;Layout.fillHeight:true
-            clip:true
-            NavoKoggerEpochPlotItem {
-                id:plot
-                objectName:"koggerNativeOriginalEpochViewB"
-                anchors.fill:parent
-                fileReplay:root.chartSource && root.chartSource.replayMode ? root.chartSource.replay : null
-                depthRange:50
-                horizontalZoom:1
-                position:0.5
-            }
-            MouseArea {
-                anchors.fill:plot
-                acceptedButtons:Qt.LeftButton
-                property real dragStartX:0
-                property real dragStartPosition:0
-                onPressed:function(mouse){
-                    dragStartX=mouse.x;dragStartPosition=plot.position
-                }
-                onPositionChanged:function(mouse){
-                    if(!pressed)return
-                    if(root.dragToPan){
-                        plot.position=Math.max(0,Math.min(1,dragStartPosition-(mouse.x-dragStartX)/Math.max(1,width)/plot.horizontalZoom))
-                    }else{
-                        var hit=plot.inspectAt(mouse.x,mouse.y)
-                        root.selectedEpoch=hit.epoch===undefined?-1:Number(hit.epoch)
-                        root.selectedDepthM=hit.depthM===undefined?NaN:Number(hit.depthM)
-                    }
-                }
-                onClicked:function(mouse){
-                    var hit=plot.inspectAt(mouse.x,mouse.y)
-                    root.selectedEpoch=hit.epoch===undefined?-1:Number(hit.epoch)
-                    root.selectedDepthM=hit.depthM===undefined?NaN:Number(hit.depthM)
-                }
-            }
-            Rectangle {
-                visible:root.selectedEpoch>0 && !root.dragToPan
-                width:1;height:parent.height
-                x:plot.indexedColumns>0
-                    ? Math.max(0,Math.min(parent.width-1,((root.selectedEpoch-1)/plot.indexedColumns)*parent.width)) : 0
-                color:"#fbc04d";opacity:.7
-            }
-        }
-        RowLayout {
-            Layout.fillWidth:true;spacing:8
-            Button {text:"−";onClicked:plot.horizontalZoom=Math.max(1,Math.floor(plot.horizontalZoom/2))}
-            Label {text:plot.horizontalZoom+"×";color:"#dceefa"}
-            Button {text:"+";onClicked:plot.horizontalZoom=Math.min(64,plot.horizontalZoom*2)}
-            Button {text:"TOT";onClicked:{plot.horizontalZoom=1;plot.position=0.5}}
             Slider {
-                id:timeline
-                objectName:"koggerFileTimelineB"
-                Layout.fillWidth:true
-                from:0;to:1
-                value:plot.position
-                enabled:plot.indexedColumns>1
-                onMoved:plot.position=value
-                Accessible.name:"Explorează fișierul Kogger fără a muta replay-ul"
+                id: timeline
+                objectName: "koggerFileTimelineB"
+                Layout.fillWidth: true
+                from: 0
+                to: 1
+                value: plot.position
+                enabled: plot.fileReady && plot.indexedColumns > 1
+                onMoved: { plot.position = value; root.revealControls() }
+                Accessible.name: "Explorează fișierul Kogger fără a muta replay-ul"
             }
             Label {
-                text:plot.indexedColumns>0
-                  ? Math.round(plot.position*(plot.indexedColumns-1)+1)+" / "+plot.indexedColumns
-                  : "0 / 0"
-                color:"#dceefa";font.pixelSize:12
-                Layout.preferredWidth:110;horizontalAlignment:Text.AlignRight
+                text: plot.indexedColumns > 0
+                    ? Math.round(plot.position * (plot.indexedColumns - 1) + 1) + "/" + plot.indexedColumns
+                    : "0/0"
+                color: "#e2f3fb"
+                font.pixelSize: 11
+                Layout.preferredWidth: 85
+                horizontalAlignment: Text.AlignRight
             }
-        }
-        Label {
-            Layout.fillWidth:true
-            color:"#7193a5";font.pixelSize:10
-            text:"Experiment B • motor Kogger Epoch::chartTo • ecran separat • nu controlează H743 • fișierul .klf este indexat pe disc"
-            elide:Text.ElideRight
         }
     }
 }
