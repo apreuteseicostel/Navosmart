@@ -3053,6 +3053,8 @@ Item {
             backupAllowed: !root.actionActive && !(root.vehicle && root.vehicle.armed) && !sonar.recording
             backupStartupStatus: typeof navoBackupStartupStatus === "undefined" ? "" : navoBackupStartupStatus
             vehicleConnected:root.linkAlive && !!root.vehicle
+            virtualRgbStatus: root.boatVirtualRgbState
+            physicalRgbDiagnostic: "Citește NAVO RGB în MAVLink Messages; nu există feedback electric de la WS2811."
             connectivity:connectivityController
             lanDiagnostics:lanService
             selectedTab:root.settingsStartTab
