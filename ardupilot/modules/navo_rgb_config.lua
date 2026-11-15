@@ -9,12 +9,13 @@ return {
  output=13,
  required_servo_function=94,
  count=1,
- order="GRB", -- change to RGB only after testing the physical colour order
+ order="RGB", -- physical positions showed purple for requested cyan: test RGB instead of GRB
  update_ms=250,
  temp_alarm_c=45, -- matches NAVO app default alert; separate SHT31 input
  source_expiry_ms=12000, -- SHT31 sample cadence is 5 seconds; expire on stale streams
  hopper_expiry_ms=1750, -- reject stale commanded onboard hopper movement
- hopper_outputs={9,10}, -- read-only; accepts only SERVOx_FUNCTION=135
+ hopper_outputs={9,10}, -- verify against actual calibrated hopper outputs in NAVO settings
+ -- A fallback only; V3 service remains disabled until calibrated and enabled.
  hopper_open_pwm=1900,
  hopper_tolerance_us=100,
  -- brightness-capped to avoid driving the 3W LED continuously at full power
