@@ -24,6 +24,25 @@ Rectangle {
         : (chartSource && chartSource.connected ? "LIVE • Kogger Dataset" : "Sonar neconectat")
     signal closed()
 
+    // Reusable Kogger-style dark compact button, with visible press feedback.
+    component SonarRailButton: SonarRailButton {
+        font.pixelSize: 11
+        background: Rectangle {
+            radius: 5
+            color: parent.down ? "#215b72" : parent.hovered ? "#194257" : "#102b3d"
+            border.color: parent.enabled ? "#407087" : "#263e4b"
+            border.width: 1
+        }
+        contentItem: Text {
+            text: parent.text
+            color: parent.enabled ? "#e4f5fc" : "#668396"
+            font: parent.font
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+    }
+
     function revealControls() {
         controlsVisible = true
         autoHide.restart()
@@ -183,13 +202,13 @@ Rectangle {
             anchors.fill: parent
             anchors.margins: 5
             spacing: 3
-            Button {
+            SonarRailButton {
                 text: "DESCHIDE KLF"
                 Layout.fillWidth: true
                 Layout.preferredHeight: 31
                 onClicked: { root.revealControls(); chooser.open() }
             }
-            Button {
+            SonarRailButton {
                 text: root.replayReady ? "OPREȘTE" : "LIVE"
                 enabled: root.replayReady
                 Layout.fillWidth: true
@@ -206,20 +225,20 @@ Rectangle {
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 3
-                Button {
+                SonarRailButton {
                     text: "−"
                     Layout.fillWidth: true
                     Layout.preferredHeight: 29
                     onClicked: { plot.horizontalZoom = Math.max(1, Math.floor(plot.horizontalZoom / 2)); root.revealControls() }
                 }
-                Button {
+                SonarRailButton {
                     text: "+"
                     Layout.fillWidth: true
                     Layout.preferredHeight: 29
                     onClicked: { plot.horizontalZoom = Math.min(64, plot.horizontalZoom * 2); root.revealControls() }
                 }
             }
-            Button {
+            SonarRailButton {
                 text: "TOT • 1×"
                 Layout.fillWidth: true
                 Layout.preferredHeight: 29
@@ -235,13 +254,13 @@ Rectangle {
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 3
-                Button {
+                SonarRailButton {
                     text: "−"
                     Layout.fillWidth: true
                     Layout.preferredHeight: 29
                     onClicked: root.changeDepth(-1)
                 }
-                Button {
+                SonarRailButton {
                     text: "+"
                     Layout.fillWidth: true
                     Layout.preferredHeight: 29
@@ -269,25 +288,25 @@ Rectangle {
             anchors.fill: parent
             anchors.margins: 5
             spacing: 3
-            Button {
+            SonarRailButton {
                 text: ["CLASSIC", "ICE", "SEPIA"][plot.palette]
                 Layout.fillWidth: true
                 Layout.preferredHeight: 31
                 onClicked: { plot.palette = (plot.palette + 1) % 3; root.revealControls() }
             }
-            Button {
+            SonarRailButton {
                 text: plot.compensate ? "COMPENSAT" : "BRUT"
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
                 onClicked: { plot.compensate = !plot.compensate; root.revealControls() }
             }
-            Button {
+            SonarRailButton {
                 text: root.dragToPan ? "PAN" : "INSPECTOR"
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
                 onClicked: { root.dragToPan = !root.dragToPan; root.revealControls() }
             }
-            Button {
+            SonarRailButton {
                 text: "ÎNCHIDE"
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
@@ -297,7 +316,7 @@ Rectangle {
     }
 
     // Narrow side tabs remain visible even when panels have disappeared.
-    Button {
+    SonarRailButton {
         id: leftHandle
         objectName: "koggerBLeftRevealTab"
         z: 8
@@ -309,7 +328,7 @@ Rectangle {
         Accessible.name: root.controlsVisible ? "Ascunde comenzile Kogger" : "Arată comenzile Kogger"
         onClicked: root.toggleControls()
     }
-    Button {
+    SonarRailButton {
         id: rightHandle
         objectName: "koggerBRightRevealTab"
         z: 8
