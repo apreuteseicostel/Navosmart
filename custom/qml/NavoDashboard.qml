@@ -852,9 +852,9 @@ Item {
         leftHopperOutput: hopperSettings.leftOutput
         rightHopperOutput: hopperSettings.rightOutput
     }
-    // Only fresh GPS_RAW_INT / GPS2_RAW moving-baseline yaw can orient the NAVO boat.
-    // H743 heading is for diagnostics, never an unverified gyro-only fallback.
-    // This UI policy does not change EKF, navigation modes, or failsafes.
+    // UI priority: valid UM982 GNSS yaw -> EKF3-confirmed IST8310 compass
+    // fallback -> time-limited H743/EKF estimate (<=12s after absolute yaw).
+    // This selector does not alter EKF configuration, modes or failsafes.
     NavoGnssHeading {
         id: gnssHeading
         vehicle: root.vehicle
@@ -1612,7 +1612,11 @@ Item {
                     GnssLine { name: "Sursă orientare"; value: gnssHeading.headingSource }
                     Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
                     GnssLine { name: "Heading GNSS dual-antenă"; value: gnssHeading.gpsYawValid ? Number(gnssHeading.gpsYawDeg).toFixed(2) + "°" : "--" }
-                    GnssLine { name: "H743 / EKF (doar diagnostic)"; value: root.vehicle && root.vehicle.heading && root.linkAlive && isFinite(Number(root.vehicle.heading.rawValue)) ? Number(root.vehicle.heading.rawValue).toFixed(2) + "°" : "--" }
+                    GnssLine { name: "Busolă externă / IST8310"; value: gnssHeading.compassFallbackActive ? Number(gnssHeading.selectedHeadingDeg).toFixed(2) + "° (EKF3)" : "--" }
+                    GnssLine { name: "H743 / EKF (estimare)"; value: root.vehicle && root.vehicle.heading && root.linkAlive && isFinite(Number(root.vehicle.heading.rawValue)) ? Number(root.vehicle.heading.rawValue).toFixed(2) + "°" : "--" }
+                    GnssLine { name: "Rezervă magnetică"; value: gnssHeading.compassHealthy ? "Magnetometru HEALTHY" : "Indisponibil / nevalidat" }
+                    GnssLine { name: "EKF3 yaw source"; value: gnssHeading.ekfYawMode >= 0 ? String(gnssHeading.ekfYawMode) + (gnssHeading.ekfYawMode === 3 ? " • GPS + busolă" : "") : "Parametru necitit" }
+                    Label { Layout.fillWidth: true; text: gnssHeading.compassStatus; color: gnssHeading.compassFallbackActive ? "#31d6a5" : "#ffd166"; font.pixelSize: 11; wrapMode: Text.WordWrap }
                     GnssLine { name: "Vechime orientare GNSS"; value: gnssHeading.gpsYawValid ? String(gnssHeading.gpsYawAgeMs) + " ms" : "--" }
                     Label { Layout.fillWidth: true; text: gnssHeading.headingDetail; color: gnssHeading.gpsYawValid ? "#31d6a5" : "#ffd166"; wrapMode: Text.WordWrap; font.pixelSize: 11 }
                     Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
@@ -1643,7 +1647,7 @@ Item {
                                 if (!root.vehicle) gnssDiagnostic.checkResult = "H743 nu este conectat. Verifică MAVLink."
                                 else if (!root.vehicle.gps) gnssDiagnostic.checkResult = "H743 conectat, dar nu raportează GPS. Verifică UART, alimentarea UM982 și SERIALx_PROTOCOL."
                                 else if (Number(root.vehicle.gps.lock.rawValue) < 3) gnssDiagnostic.checkResult = "GPS raportat, fără fix 3D. Verifică antenele și vizibilitatea cerului."
-                                else if (!gnssHeading.gpsYawValid) gnssDiagnostic.checkResult = "GPS are fix, dar yaw GNSS dual-antenă este invalid. Orientarea NAVO rămâne --; H743 apare numai în diagnostic. Verifică GPS1_TYPE=25, EK3_SRC1_YAW și antenele."
+                                else if (!gnssHeading.gpsYawValid) gnssDiagnostic.checkResult = "Yaw GNSS dual-antenă invalid. Sursă curentă: " + gnssHeading.headingSource + ". " + gnssHeading.compassStatus + ". Verifică GPS1_TYPE=25 și antenele."
                                 else gnssDiagnostic.checkResult = "Orientare GNSS validă (" + gnssHeading.headingSource + "): " + Number(gnssHeading.gpsYawDeg).toFixed(2) + "°. Identitatea fizică UM982 se validează separat."
                             }
                             background: Rectangle { radius: 9; color: "#103044"; border.color: "#20d9ed" }
