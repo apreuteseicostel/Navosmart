@@ -185,7 +185,7 @@ Rectangle {
         id: statusBar
         objectName: "koggerBCompactStatus"
         z: 5
-        visible: root.leftPanelVisible || root.rightPanelVisible || root.timelineVisible
+        visible: root.leftPanelVisible || root.rightPanelVisible
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
