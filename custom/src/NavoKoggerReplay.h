@@ -5,6 +5,7 @@
 #include <QElapsedTimer>
 #include <QUrl>
 #include <QVariantList>
+#include <QVariantMap>
 #include <QVector>
 #include <QByteArray>
 #include <memory>
@@ -22,6 +23,8 @@ class NavoKoggerReplay : public QObject {
  Q_PROPERTY(double indexProgress READ indexProgress NOTIFY indexChanged)
  Q_PROPERTY(int indexedColumns READ indexedColumns NOTIFY indexChanged)
  Q_PROPERTY(int currentColumn READ currentColumn NOTIFY progressChanged)
+ // Valid GPS locations indexed from the complete KLF (not live autopilot data).
+ Q_PROPERTY(QVariantList indexedGeoTrack READ indexedGeoTrack NOTIFY indexChanged)
  Q_PROPERTY(QString error READ error NOTIFY stateChanged)
  Q_PROPERTY(QVariantMap annotationAnchor READ annotationAnchor NOTIFY annotationAnchorChanged)
  Q_PROPERTY(QVariantList annotations READ annotations NOTIFY annotationsChanged)
@@ -39,6 +42,8 @@ public:
  double indexProgress() const;
  int indexedColumns() const { return _columns.size(); }
  int currentColumn() const;
+ QVariantList indexedGeoTrack() const {return _indexedGeoTrack;}
+ Q_INVOKABLE QVariantMap geoAtFraction(double fraction) const;
  // Random-access, read-only viewport source. Independent of the replay decoder,
  // live GPS and playback cursor; return raw bytes, never palette-filtered samples.
  struct ChartColumn {
@@ -80,6 +85,7 @@ private:
  QByteArray _indexBuffer;
  qint64 _indexBufferOffset=0;
  QVector<ColumnOffset> _columns;
+ QVariantList _indexedGeoTrack; // <= 3000 sampled, real recorded GPS points
  Pose _scanPose;
  qint64 _scanPacketCount=0;
  qint64 _indexProcessed=0;
