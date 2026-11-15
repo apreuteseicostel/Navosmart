@@ -43,7 +43,8 @@ test('Raw input unchanged and visual binding isolated from controllers',()=>{
  assert.match(map,/id: navoBoatMarker[\s\S]*?coordinate: root.displayCoordinate/);
  assert.match(map,/boatCoordinate:root.vehicle \? root.vehicle.coordinate : null/);
  assert.match(map,/center: visible \? root.vehicle.coordinate : QtPositioning.coordinate\(\)/);
- assert.match(map,/text: "GPS vechi"/);
+ assert.match(map,/text: !root\.positionFresh \? "GPS vechi" : "HEADING --"/);
+ assert.match(map,/objectName: "navoHeadingUnavailableMarker"/);
 });
 
 // Keep native mesh geometry reusable when only map.center moves. Zoom,
