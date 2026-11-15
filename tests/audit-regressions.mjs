@@ -932,5 +932,29 @@ test('Standalone native G20 readback is passive, optional, and never fabricates 
  assert(v3.includes('if cfg.lights then'));
 });
 
+test('Physical WS2811 diagnosis in advanced settings replaces under-boat LED APP text',()=>{
+ const compass=fs.readFileSync(path.join(dir,'NavoHeadingCompass.qml'),'utf8');
+ const settings=fs.readFileSync(path.join(dir,'NavoSettingsV3.qml'),'utf8');
+ const dashboard=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+ const header=fs.readFileSync(path.join(dir,'../src/NavoH743Telemetry.h'),'utf8');
+ const decoder=fs.readFileSync(path.join(dir,'../src/NavoH743Telemetry.cc'),'utf8');
+ const rgb=fs.readFileSync(path.join(dir,'../../ardupilot/scripts/navo_rgb_service.lua'),'utf8');
+ const rgbConfig=fs.readFileSync(path.join(dir,'../../ardupilot/modules/navo_rgb_config.lua'),'utf8');
+ assert(!compass.includes('LED APP:'),'Remove distracting caption beneath the compass boat');
+ assert(!compass.includes('compassVirtualRgbExplanation'),'Do not overlay explanatory text on boat');
+ assert(settings.includes('settingsPhysicalRgbDiagnostics'),'Move diagnostic into Settings Advanced');
+ assert(settings.includes('physicalRgbCause'),'Expose alarm source, not just RGB colour');
+ assert(settings.includes('root.rgbReasonName()'),'Show physical command reason');
+ assert(dashboard.includes('rgbTelemetryValid: h743Telemetry.rgbTelemetryValid'));
+ assert(dashboard.includes('rgbReason: h743Telemetry.rgbReason'));
+ assert(header.includes('Q_PROPERTY(int rgbReason'));
+ assert(header.includes('Q_PROPERTY(int rgbCode'));
+ assert(decoder.includes('NV3RGBC') && decoder.includes('NV3RGBS'));
+ assert(rgbConfig.includes('order="RGB"'),'R/G reversed on physical WS2811 when using GRB');
+ assert(rgb.includes('serialLED:set_num_neopixel_rgb(chan,1)'));
+ assert(rgb.includes('HOPPER_RC') && rgb.includes('hopper_pwm()'));
+ assert(rgb.includes('WATER_LATCH') && rgb.includes('wet_state('));
+ assert(rgb.includes('gcs:send_named_float("NV3RGBS"'));
+});
 console.log(`${passed} regression scenarios passed`);
 
