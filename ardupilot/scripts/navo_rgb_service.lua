@@ -155,11 +155,13 @@ local function update()
  local c=core.scale(color,cfg.brightness)
  assert(serialLED:set_RGB(chan,-1,c[1],c[2],c[3]),"set_RGB failed")
  assert(serialLED:send(chan),"serialLED send failed")
- if status~=last or reason~=lastReason then
+ local changed=status~=last or reason~=lastReason
+ if changed then
      gcs:send_text(6,"NAVO RGB: "..status.." / "..reason)
      last=status;lastReason=reason
  end
- if now>=nextPublish then
+ -- Publish every transition immediately; repeat only at 1Hz while steady.
+ if changed or now>=nextPublish then
      gcs:send_named_float("NV3RGBC",colourCodes[status] or 0)
      gcs:send_named_float("NV3RGBS",reasonCodes[reason] or 0)
      nextPublish=now+1000
