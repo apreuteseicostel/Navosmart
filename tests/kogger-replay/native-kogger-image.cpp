@@ -1,5 +1,6 @@
 #include "../../custom/kogger_native/navo_kogger_echogram_palette.h"
 #include "../../custom/kogger_native/navo_kogger_echogram_sampling.h"
+#include "../../custom/kogger_native/NavoKoggerOriginalRaster.h"
 #include "../../custom/src/NavoKoggerEchogramItem.h"
 #include "../../custom/src/NavoKoggerReplay.h"
 #include "../../custom/src/NavoKoggerDecoder.h"
@@ -51,9 +52,25 @@ int main(int argc,char**argv) {
     version1.append(char(32));version1.append(char(0));
     version1.append(char(220));version1.append(char(0));
     require(atDisplayDepth(version1,1,0,1,1,0.1)==220,"CHART version 1 stride changed");
+    // Original KoggerApp Epoch::chartTo whole-column path, separate from
+    // NAVO's per-pixel approximation. Source amplitudes must be unmodified.
+    const QByteArray originalRaw=QByteArray::fromHex("0a141e28");
+    const auto rawRaster=NavoKoggerOriginalRaster::column(originalRaw,0,1,0,0,4,4,false);
+    require(rawRaster.size()==4 && rawRaster==originalRaw,
+            "original Kogger whole-column resample changed one-to-one amplitudes");
+    const auto enlarged=NavoKoggerOriginalRaster::column(originalRaw,0,1,0,0,4,8,false);
+    require(enlarged.size()==8 && quint8(enlarged.at(0))==15 &&
+            quint8(enlarged.at(2))==25,"upstream Epoch::chartTo interpolation differs");
+    require(NavoKoggerOriginalRaster::column(originalRaw,1,1,0,0,4,4,false).isEmpty(),
+            "unverified CHART v1 must not be fed to upstream v0 algorithm");
+    require(originalRaw==QByteArray::fromHex("0a141e28"),
+            "source CHART was modified by display processing");
     NavoKoggerEchogramItem item;
     item.setWidth(256);item.setHeight(180);
     item.setPaletteMode(1);item.setLowLevel(15);item.setHighLevel(90);
+    item.setUpstreamRaster(true);
+    require(item.upstreamRaster() && !item.upstreamCompensated(),
+            "experiment C upstream renderer flag did not activate");
     item.setDepthRange(12);item.setNoiseFloor(.04);
     QImage target(256,180,QImage::Format_ARGB32_Premultiplied);
     target.fill(Qt::transparent);
@@ -67,6 +84,8 @@ int main(int argc,char**argv) {
         item.resetColumns();
         item.setWidth(960);item.setHeight(540);
         item.setPaletteMode(0);item.setLowLevel(0);item.setHighLevel(100);
+        item.setUpstreamRaster(true);
+        item.setUpstreamCompensated(true);
         item.setDepthFrom(0);item.setDepthRange(50);
         item.setNoiseFloor(0);item.setGain(1);
         item.setDecoder(&decoder);
