@@ -1,0 +1,20 @@
+name: Experiment C Kogger-in-Sonar-PRO integration
+on:
+  pull_request:
+    paths:
+      - 'custom/qml/NavoSonarPro.qml'
+      - 'custom/qml/NavoKoggerOriginalControls.qml'
+      - 'custom/src/NavoKoggerEchogramItem.*'
+      - 'custom/kogger_native/NavoKoggerOriginalRaster.h'
+      - 'tests/kogger-experiment-c.mjs'
+  push:
+    paths:
+      - 'tests/kogger-experiment-c.mjs'
+jobs:
+  upstream:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify Kogger original raster and UI integration
+        run: node tests/kogger-experiment-c.mjs

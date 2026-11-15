@@ -1,6 +1,7 @@
 #pragma once
 #include <QObject>
 #include <QVariantList>
+#include <QVariantMap>
 #include <QVector3D>
 
 class NavoBathymetryMesh : public QObject {
@@ -18,6 +19,9 @@ class NavoBathymetryMesh : public QObject {
 public:
     explicit NavoBathymetryMesh(QObject* parent=nullptr);
     Q_INVOKABLE bool build(const QVariantList& samples, double gridSizeM=2.0, double maxGapM=6.0, int lodLevel=0);
+    // Reuse the exact native Kogger triangulation already supplied by the bathymetry bridge.
+    // This does not interpolate unknown areas or persist derived data.
+    Q_INVOKABLE bool loadNativeSurface(const QVariantMap& surface);
     Q_INVOKABLE bool buildCached(const QVariantList& samples, double gridSizeM=2.0, double maxGapM=6.0, int lodLevel=0);
     Q_INVOKABLE bool saveCache(const QString& path) const;
     Q_INVOKABLE bool loadCache(const QString& path, const QString& expectedKey=QString());
