@@ -25,7 +25,7 @@ Rectangle {
     signal closed()
 
     // Reusable Kogger-style dark compact button, with visible press feedback.
-    component SonarRailButton: SonarRailButton {
+    component SonarRailButton: Button {
         font.pixelSize: 11
         background: Rectangle {
             radius: 5
