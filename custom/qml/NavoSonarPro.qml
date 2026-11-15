@@ -23,6 +23,7 @@ Rectangle {
     // behind a reversible switch, preserving Sonar PRO actions and map.
     property bool useKoggerOriginal: true
     property int koggerZoom: 1
+    property var replayCursorCoordinate: QtPositioning.coordinate()
     property real koggerPosition: 0.5
     property bool bottomControlsVisible: true
     onKoggerPositionChanged: {
@@ -701,7 +702,9 @@ Rectangle {
                         zoomLevel: 17
                         function followBoat() {
                             if(root.replayMode) {
-                                if(root.boatTrack.length) center=root.boatTrack[root.boatTrack.length-1]
+                                if(root.replayCursorCoordinate && root.replayCursorCoordinate.isValid)
+                                    center=root.replayCursorCoordinate
+                                else if(root.boatTrack.length) center=root.boatTrack[root.boatTrack.length-1]
                                 return
                             }
                             if(root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid)
@@ -709,6 +712,7 @@ Rectangle {
                         }
                         Component.onCompleted: followBoat()
                         Connections { target: root; function onBoatTrackChanged() { if(root.replayMode) liveMap.followBoat() } }
+                        Connections { target: root; function onReplayCursorCoordinateChanged() { if(root.replayMode) liveMap.followBoat() } }
                         Connections { target: root.vehicle; function onCoordinateChanged() { liveMap.followBoat() } }
                     }
                     MapPolyline {
@@ -729,7 +733,8 @@ Rectangle {
                     MapQuickItem {
                         objectName: "sonarProBoatMarker"
                         parent: liveMap
-                        coordinate: root.replayMode ? (root.boatTrack.length ? root.boatTrack[root.boatTrack.length-1] : QtPositioning.coordinate()) : (root.vehicle ? root.vehicle.coordinate : QtPositioning.coordinate())
+                        coordinate: root.replayMode ? root.replayCursorCoordinate
+                            : (root.vehicle ? root.vehicle.coordinate : QtPositioning.coordinate())
                         visible: coordinate.isValid
                         anchorPoint.x: 18; anchorPoint.y: 18
                         sourceItem: Image {
@@ -757,7 +762,7 @@ Rectangle {
         Label {
             id: telemetry; objectName: "sonarProTelemetry"; font.pixelSize: 14; anchors.fill: parent; anchors.margins: 8; elide: Text.ElideRight
             color: root.connected ? "#21b7ff" : "#9db2c5"
-            text: "KGR  •  " + root.sourceStatusText() + "   " + (isFinite(root.depthM)?root.depthM.toFixed(1)+" m":"— m") + "   " + (isFinite(root.waterTempC)?root.waterTempC.toFixed(1)+" °C":"— °C")
+            text: "NAVO PRO  •  " + root.sourceStatusText() + "   " + (isFinite(root.depthM)?root.depthM.toFixed(1)+" m":"— m") + "   " + (isFinite(root.waterTempC)?root.waterTempC.toFixed(1)+" °C":"— °C")
         }
     }
     IconButton {
@@ -766,7 +771,7 @@ Rectangle {
         anchors.left: parent.left; anchors.top: telemetryBar.bottom; anchors.leftMargin: 10; anchors.topMargin: 18
         implicitWidth: 34; implicitHeight: 34; padding: 6
         z: 100; visible: true; enabled: true
-        glyph: "settings"; hint: "Deschide / închide meniul Sonar PRO KGR"
+        glyph: "settings"; hint: "Deschide / închide meniul Sonar PRO NAVO"
         checkable: true; checked: root.menuOpen
         onClicked: { root.settingsVisible = false; root.menuOpen = !root.menuOpen }
     }
@@ -774,7 +779,7 @@ Rectangle {
         id: closeButton
         objectName: "sonarProCloseButton"
         anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 6
-        z: 102; glyph: "close"; hint: "Ieșire din Sonar PRO KGR"
+        z: 102; glyph: "close"; hint: "Ieșire din Sonar PRO NAVO"
         onClicked: root.closed()
     }
     Rectangle {
