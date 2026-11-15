@@ -86,7 +86,7 @@ assert(telemetry.NV3RGBR==0)
 relays[0]=1;tick(500,4) -- white headlight
 relays[1]=1;tick(750,6) -- yellow both
 relays[0]=0;tick(1000,5) -- cyan positions
-relays[1]=0;pwm[8]=1900;tick(1250,3) -- blue physical cuva
+relays[1]=0;values.SERVO9_FUNCTION=0;pwm[8]=1900;tick(1250,3) -- legacy DO_SET_SERVO cuva blue
 pwm[8]=1500;param:set("NVLR_HOP",3);param:set("NVLR_HMS",1250)
 tick(1500,3) -- blue via onboard hopper cycle, no PWM feedback required
 assert(telemetry.NV3RGBR==16)
