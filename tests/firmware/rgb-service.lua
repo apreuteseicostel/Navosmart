@@ -103,8 +103,8 @@ tick(4300,1) -- require 3 seconds continuously valid dry
 tick(7350,7) -- wet latch clears only after confirmed dry interval
 param:set("NVLR_TV",50);param:set("NVLR_TMS",7350)
 tick(7600,1) -- HOT alarm now has distinct reason
-assert(telemetry.NV3RGBS==2 or telemetry.NV3RGBS==13,
-       "Alarm reason must be sent separately from colour")
+assert(messages[#messages]:find("ALARM / HOT",1,true),
+       "HOT reason must be distinguishable from water in H743 diagnostics")
 param:set("NVLR_TV",25);tick(7850,7)
 -- An isolated, confirmed fault is MAGENTA (not confused with a wet latch).
 param:set("NVLR_WST",3);param:set("NVLR_WET",-1);param:set("NVLR_WMS",7850)
