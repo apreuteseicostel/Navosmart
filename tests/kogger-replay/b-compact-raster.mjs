@@ -50,13 +50,13 @@ assert.match(filePath, /column\.at\(y\)/, 'Paint must use existing 8-bit column'
 assert.doesNotMatch(filePath, /chartTo|readChartColumn|setChart/,
     'File-mode paint must not decode or rasterize CHART again')
 
-// A 4096-entry cache must still admit newly visible columns after many pans;
+// Full 15,424-column KLF fits the new entry cap. Beyond it, LRU still evicts.
 // a full cache evicts old entries before rendering the new window.
-const limit = 4096
+const limit = 32768
 const cache = new Map()
 let evictions = 0
-for (let index = 0; index < 15424; index += 620) {
-  for (let column = index; column < Math.min(index + 620, 15424); ++column) {
+for (let index = 0; index < 65536; index += 620) {
+  for (let column = index; column < Math.min(index + 620, 65536); ++column) {
     if (cache.has(column)) continue
     cache.set(column, 1)
     if (cache.size > limit) {
