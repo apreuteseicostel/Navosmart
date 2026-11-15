@@ -23,8 +23,10 @@ private slots:
   send(v,"NV3VER",2);QVERIFY(!t.connected());
   send(v,"NV3VER",1);QVERIFY(t.temperatureValid());QCOMPARE(t.batteryTempC(),24.0);
   send(v,"NV3WATER",0);send(v,"NV3WFAULT",0);QVERIFY(t.waterValid());
-  send(v,"NV3CAP",9);QCOMPARE(t.capabilities(),9);
-  send(v,"NV3HEAD",1);send(v,"NV3POS",0);QVERIFY(t.lightsValid());
+  send(v,"NV3CAP",10);QCOMPARE(t.capabilities(),10); // temp+hoppers, NO light capability
+  send(v,"NV3HEAD",1);send(v,"NV3POS",0);
+  QVERIFY(!t.lightsValid()); // Lua cfg.lights=nil does NOT validate native ArduPilot relays.
+  send(v,"NV3CAP",11);QVERIFY(t.lightsValid()); // Bit 1 explicitly owns light outputs.
   send(v,"NV3HOP",3);send(v,"NV3REQ",42);QVERIFY(t.hopperStateValid());QCOMPARE(t.hopperMask(),3);QCOMPARE(t.lastRequest(),42);
   send(v,"NV3HOP",0.5f);QVERIFY(!t.hopperStateValid());
   send(v,"NV3CAP",NAN);QCOMPARE(t.capabilities(),0);
@@ -76,6 +78,27 @@ private slots:
   QVERIFY(!t.waterValid());QCOMPARE(t.waterMonitorStatus(),0);
   t.setVehicle(nullptr);QVERIFY(!t.waterValid());
   QCOMPARE(t.waterMonitorStatus(),0);
+ }
+ void servoOutputObserver(){
+  Vehicle v;NavoH743Telemetry t;t.setVehicle(&v);
+  // Read-only output monitor works independently from a disabled NV3 Lua service.
+  mavlink_message_t m;
+  m.msgid=MAVLINK_MSG_ID_SERVO_OUTPUT_RAW;m.servo_payload.port=0;
+  m.servo_payload.servo9_raw=1900;m.servo_payload.servo10_raw=1500;
+  m.len=21;v.send(m); // old MAVLink packet lacks extended 9/10 values
+  QCOMPARE(t.hopperLeftUs(),-1);QCOMPARE(t.hopperRightUs(),-1);
+  m.len=25;
+  m.sysid=2;v.send(m);QCOMPARE(t.hopperLeftUs(),-1); // foreign H743
+  m.sysid=1;m.compid=2;v.send(m);QCOMPARE(t.hopperLeftUs(),-1); // foreign component
+  m.compid=1;m.servo_payload.port=1;v.send(m);QCOMPARE(t.hopperLeftUs(),-1); // do not guess ports
+  m.servo_payload.port=0;v.send(m);
+  QCOMPARE(t.hopperLeftUs(),1900);QCOMPARE(t.hopperRightUs(),1500);
+  QCOMPARE(t.servoOutputUs(9),1900);QCOMPARE(t.servoOutputUs(17),-1);
+  t.setRightHopperOutput(9);QCOMPARE(t.hopperRightUs(),1900);
+  t.setRightHopperOutput(10);QCOMPARE(t.hopperRightUs(),1500);
+  t.setLeftHopperOutput(17);QCOMPARE(t.leftHopperOutput(),9); // reject invalid map
+  QTest::qWait(2600);QCOMPARE(t.hopperLeftUs(),-1);QCOMPARE(t.hopperRightUs(),-1);
+  t.setVehicle(nullptr);QCOMPARE(t.servoOutputUs(9),-1);
  }
  void partialUpdatesExpire(){
   Vehicle v;NavoH743Telemetry t;t.setVehicle(&v);

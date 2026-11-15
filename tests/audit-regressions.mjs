@@ -665,7 +665,7 @@ test('NAVO compact journal and offline layouts wrap narrow-screen actions',()=>{
   assert.match(dashboard,/myLakesPopup\.beginDelete\(modelData\)/);
 });
 
-test('GNSS moving-baseline yaw has explicit GPS1/GPS2 priority and H743 fallback',()=>{
+test('GNSS moving-baseline yaw has explicit GPS1/GPS2 priority without H743 gyro-only fallback',()=>{
   const dirSrc=path.resolve(dir,'../src');
   const header=fs.readFileSync(path.join(dirSrc,'NavoGnssHeading.h'),'utf8');
   const cpp=fs.readFileSync(path.join(dirSrc,'NavoGnssHeading.cc'),'utf8');
@@ -690,7 +690,9 @@ test('GNSS moving-baseline yaw has explicit GPS1/GPS2 priority and H743 fallback
   assert.match(header,/kYawTimeoutMs = 3000/);
   assert.match(cpp,/if \(_available\(_gps1\)\) return &_gps1/);
   assert.match(cpp,/if \(_available\(_gps2\)\) return &_gps2/);
-  assert.match(cpp,/return _autopilotHeadingDeg;\s*\/\/ Only display fallback/);
+  assert.match(cpp,/return qQNaN\(\);/);
+  assert.doesNotMatch(cpp,/return _autopilotHeadingDeg;/);
+  assert.match(cpp,/bool NavoGnssHeading::fallbackActive\(\) const \{[\s\S]*?return false;/);
   assert.match(cpp,/if \(!alive\) \{/);
   assert.match(cpp,/if \(next == _vehicle\) return/);
   assert.match(dash,/id: gnssHeading/);
@@ -701,7 +703,7 @@ test('GNSS moving-baseline yaw has explicit GPS1/GPS2 priority and H743 fallback
   assert.match(map,/root\.boatHeadingDeg - liveMap\.bearing/);
   assert.match(compass,/headingSource/);
   assert.match(dash,/Heading GNSS dual-antenă/);
-  assert.match(dash,/Heading H743 \(rezervă\)/);
+  assert.match(dash,/H743 \/ EKF \(doar diagnostic\)/);
   assert.doesNotMatch(cpp,/setFlightMode|sendCommand|armVehicle|disarmVehicle/);
 });
 function cancellable(options={}) {
@@ -881,5 +883,56 @@ test('Sonar freshness watchdog only runs on a live transport, not while offline 
   const sonar=fs.readFileSync(path.join(dir,'NavoSonarEthernet.qml'),'utf8');
   assert.match(sonar,/property Timer freshness:\s*Timer\s*\{[^}]*running:\s*transportObject\.connected\s*&&\s*!root\.replayMode/);
 });
+test('Compass boat follows actual NAVO hopper state, unverified RC light intents and virtual RGB alarms',()=>{
+ const boat=fs.readFileSync(path.join(dir,'NavoBoatVisual.qml'),'utf8');
+ const compass=fs.readFileSync(path.join(dir,'NavoHeadingCompass.qml'),'utf8');
+ const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+ const h743=fs.readFileSync(path.join(dir,'../src/NavoH743Telemetry.h'),'utf8');
+ const h743Cpp=fs.readFileSync(path.join(dir,'../src/NavoH743Telemetry.cc'),'utf8');
+ const lua=fs.readFileSync(path.join(dir,'../../ardupilot/scripts/navo_v3_service.lua'),'utf8');
+ const cfg=fs.readFileSync(path.join(dir,'../../ardupilot/modules/navo_v3_config.lua'),'utf8');
+ assert(boat.includes('id: visualRgbIndicator') && boat.includes('virtualRgbState'));
+ assert(boat.includes('root.leftHopperOpen ? "#28b5ff"'));
+ assert(boat.includes('root.rightHopperOpen ? "#28b5ff"'));
+ assert(boat.includes('root.positionLightsRequested ? "#e9aa46"'));
+ assert(compass.includes('leftHopperOpen: root.leftHopperOpen'));
+ assert(compass.includes('rightHopperOpen: root.rightHopperOpen'));
+ assert(compass.includes('virtualRgbState: root.virtualRgbState'));
+ assert(dash.includes('readonly property bool visualLeftHopperOpen:'));
+ assert(dash.includes('readonly property bool visualRightHopperOpen:'));
+ assert(dash.includes('function lightRcDemand(channel)'));
+ assert(dash.includes('root.lightRcDemand(7)') && dash.includes('root.lightRcDemand(16)'));
+ assert(dash.includes('virtualRgbState: root.boatVirtualRgbState'));
+ assert(dash.includes('virtualRgbState:root.boatVirtualRgbState'));
+ assert(h743.includes('((capabilities() & 1) && _fresh(_headMs) && _fresh(_posMs))'));
+ assert(h743.includes('relayLightsValid() ||'));
+ assert(h743.includes('relayLightsValid() ? _relayHead : _head'));
+ assert(h743.includes('relayLightsValid() ? _relayPos : _pos'));
+ assert(h743Cpp.includes('NV3RHEAD') && h743Cpp.includes('NV3RPOS'));
+ assert(h743.includes('Q_PROPERTY(int leftHopperOutput'));
+ assert(h743.includes('Q_PROPERTY(int rightHopperOutput'));
+ assert(h743Cpp.includes('MAVLINK_MSG_ID_SERVO_OUTPUT_RAW'));
+ assert(h743Cpp.includes('m.len>21') && h743Cpp.includes('if(raw.port!=0)return'));
+ assert(h743Cpp.includes('_servoTimes[size_t(i)]'));
+ assert(dash.includes('h743Telemetry.hopperLeftUs>0') && dash.includes('h743Telemetry.hopperRightUs>0'));
+ assert(dash.includes('leftHopperOutput: hopperSettings.leftOutput'));
+ assert(dash.includes('rightHopperOutput: hopperSettings.rightOutput'));
+ assert(dash.includes('function outputIndicatesOpen(pwm, closedUs, openUs)'));
+ assert(cfg.includes('enabled=false') && cfg.includes('rgb=nil'));
+ const rgb=lua.indexOf('local r,g,b=40,0,40');
+ assert(rgb>0 && lua.indexOf('water_in and fault==0 and water==1',rgb)>rgb);
+ assert(lua.indexOf('elseif state.hopper~=0 then',rgb)>rgb);
+ assert(boat.includes('LED') || compass.includes('RGB fizic neconfirmat'));
+});
+test('Standalone native G20 readback is passive, optional, and never fabricates OFF',()=>{
+ const script=fs.readFileSync(path.join(dir,'../../ardupilot/scripts/navo_relay_status.lua'),'utf8');
+ const v3=fs.readFileSync(path.join(dir,'../../ardupilot/scripts/navo_v3_service.lua'),'utf8');
+ assert(script.includes('relay:enabled(instance)'));
+ assert(script.includes('relay:get(instance)'));
+ assert(script.includes('NV3RHEAD') && script.includes('NV3RPOS'));
+ assert(!script.includes('relay:on(') && !script.includes('relay:off(') && !script.includes('relay:toggle('));
+ assert(v3.includes('if cfg.lights then'));
+});
+
 console.log(`${passed} regression scenarios passed`);
 
