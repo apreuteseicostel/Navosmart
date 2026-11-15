@@ -897,5 +897,23 @@ test('Both heading compass boat visuals use H743 light and hopper states',()=>{
  assert.match(compass,/NavoBoatVisual \{/);
 });
 
+test('Native G20 Relay1/2 state does not depend on the optional V3 Lua light service',()=>{
+ const header=fs.readFileSync(path.join(dir,'../src/NavoH743Telemetry.h'),'utf8');
+ const cpp=fs.readFileSync(path.join(dir,'../src/NavoH743Telemetry.cc'),'utf8');
+ const lua=fs.readFileSync(path.join(dir,'../../ardupilot/scripts/navo_relay_status.lua'),'utf8');
+ const v3=fs.readFileSync(path.join(dir,'../../ardupilot/scripts/navo_v3_service.lua'),'utf8');
+ assert(header.includes('bool relayLightsValid() const'));
+ assert(header.includes('return relayLightsValid() ||'));
+ assert(header.includes('(_caps&1)!=0'));
+ assert(header.includes('relayLightsValid() ? _relayHead : _head'));
+ assert(header.includes('relayLightsValid() ? _relayPos : _pos'));
+ assert(cpp.includes('NV3RHEAD') && cpp.includes('NV3RPOS'));
+ assert(cpp.includes('_relayHeadMs=_relayPosMs=-1'));
+ assert(lua.includes('relay:enabled(instance)') && lua.includes('relay:get(instance)'));
+ assert(!lua.includes('relay:toggle(') && !lua.includes('relay:on(') && !lua.includes('relay:off('));
+ assert(v3.includes('if cfg.lights then'));
+ assert(v3.includes('elseif not temp_in and not water_in then'));
+});
+
 console.log(`${passed} regression scenarios passed`);
 
