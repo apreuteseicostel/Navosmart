@@ -11,7 +11,7 @@
 #include <QUuid>
 #include "NavoKoggerReplay.h"
 
-class NavoKoggerEpochPlotItem final : public QQuickPaintedItem {
+class NavoKoggerEpochPlotItem : public QQuickPaintedItem {
     Q_OBJECT
     // Native Kogger Epoch::chartTo sampling and original 256-shade palette.
     // This is a focused plot adapter, NOT the upstream KoggerApp process/Core.
