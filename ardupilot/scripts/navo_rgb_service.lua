@@ -10,6 +10,12 @@ local function fail(reason)
  return nil
 end
 local chan=cfg.output
+-- A legacy V3 script must never own the same WS2811 output simultaneously.
+-- A duplicate owner would alternate colours in real hardware.
+local legacyOk,legacy=pcall(require,"navo_v3_config")
+if legacyOk and legacy and legacy.enabled and legacy.rgb and legacy.rgb.output==chan then
+ return fail("duplicate RGB owners: set navo_v3_config.rgb=nil and restart")
+end
 if type(chan)~="number" or chan%1~=0 or chan<1 or chan>16 then
  return fail("invalid output")
 end
