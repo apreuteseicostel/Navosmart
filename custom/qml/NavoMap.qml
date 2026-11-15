@@ -61,6 +61,8 @@ Item {
     readonly property bool nativeSurfaceReady: !!nativeSurfaceMesh && nativeSurfaceMesh.version===1 && !!nativeSurfaceMesh.indices && nativeSurfaceMesh.indices.length>=3 && nativeSurfaceMesh.indices.length<=49152 && !!nativeSurfaceMesh.vertices && nativeSurfaceMesh.vertices.length<=8192
     property bool replayPreview: false
     property var replayTrack: []
+    property var replayCursorCoordinate: QtPositioning.coordinate()
+    property int replayCursorColumn: 0
     property bool routeActive: false
     property var routeStops: []
     property bool routeReturnsHome: true
@@ -71,14 +73,19 @@ Item {
         property bool fishVisible:true
     }
     function followReplay() {
-        if (!replayPreview || !replayTrack.length) return
+        if (!replayPreview) return
+        var selection = replayCursorCoordinate && replayCursorCoordinate.isValid
+            ? replayCursorCoordinate
+            : (replayTrack.length ? replayTrack[replayTrack.length-1] : QtPositioning.coordinate())
+        if (!selection.isValid) return
         if (!initialCenterApplied || autoFollowBoat) {
-            liveMap.center = replayTrack[replayTrack.length-1]
+            liveMap.center = selection
             if (!initialCenterApplied) liveMap.zoomLevel = lakeZoomLevel
             initialCenterApplied = true
         }
     }
     onReplayTrackChanged: followReplay()
+    onReplayCursorCoordinateChanged: followReplay()
     onReplayPreviewChanged: { resetVisualPosition(); initialCenterApplied=false; if(replayPreview) followReplay(); else centerOnBoatOnce() }
     property bool bathymetryHDEnabled: false
     property var baitingController
@@ -418,9 +425,34 @@ Item {
     }
     MapPolyline {
         parent: liveMap
-        visible: root.replayPreview && layerSettings.trackVisible
+        objectName: "navoIndexedKlfGpsRoute"
+        visible: root.replayPreview && layerSettings.trackVisible && root.replayTrack.length > 1
         path: root.replayTrack
         line.width: 3; line.color: "#21b7ff"
+        Component.onCompleted: liveMap.addMapItem(this)
+        Component.onDestruction: liveMap.removeMapItem(this)
+    }
+    MapQuickItem {
+        objectName: "navoIndexedKlfSelectedGps"
+        parent: liveMap
+        visible: root.replayPreview && root.replayCursorCoordinate &&
+                 root.replayCursorCoordinate.isValid
+        coordinate: visible ? root.replayCursorCoordinate : QtPositioning.coordinate()
+        z: 950
+        anchorPoint.x: 17; anchorPoint.y: 17
+        sourceItem: Rectangle {
+            width: 34; height: 34; radius: 17
+            color: "#a10b2839"
+            border.color: "#ffd34e"; border.width: 2
+            Label {
+                anchors.centerIn: parent
+                text: "▶"; font.pixelSize: 15; color: "#ffd34e"
+            }
+            ToolTip.visible: selectedHover.hovered
+            ToolTip.text: "Poziție GPS din KLF" +
+                (root.replayCursorColumn > 0 ? " • cadru " + root.replayCursorColumn : "")
+            HoverHandler { id: selectedHover }
+        }
         Component.onCompleted: liveMap.addMapItem(this)
         Component.onDestruction: liveMap.removeMapItem(this)
     }
