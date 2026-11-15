@@ -33,9 +33,9 @@ assert.equal((map.match(/interval: 1000/g)||[]).length,2,
   'Map rails must each auto-hide in one second')
 assert.ok(map.includes('border.color: parent.checked ? "#30dcff"'),
   'Right rail active controls must have visible selected border')
-assert.ok(map.includes('checked:root.headingUp') &&
-          map.includes('checked:root.rulerMode') &&
-          map.includes('checked:root.bathymetryHDEnabled'),
+assert.ok(/checked:\s*root\.headingUp/.test(map) &&
+          /checked:\s*root\.rulerMode/.test(map) &&
+          /checked:\s*root\.bathymetryHDEnabled/.test(map),
   'Map North/ruler/bathymetry selection must stay indicated')
 
 assert.ok(kgr.includes('koggerBDraggableInspectorCursor'),
