@@ -25,6 +25,7 @@ int main(int argc,char** argv){
  require(argc>=3,"usage: sonar-performance source.qml mock-imports [columns.json]");
  QQuickView view;view.engine()->addImportPath(argv[2]);view.setResizeMode(QQuickView::SizeRootObjectToView);view.resize(960,540);view.setSource(QUrl::fromLocalFile(argv[1]));require(view.status()==QQuickView::Ready,"QML load failed");auto* root=view.rootObject();
  auto evaluate=[&](const QString& s){QQmlExpression x(view.engine()->rootContext(),root,s);auto v=x.evaluate();if(x.hasError())throw std::runtime_error(x.error().toString().toStdString());return v;};
+ root->setProperty("useNativeRenderer",false); // Benchmark baseline remains comparable with previous Canvas CI.
  root->setProperty("connected",true);root->setProperty("chartOffsetMeters",0);root->setProperty("chartRangeMeters",50);
  if(argc==4){QFile f(argv[3]);require(f.open(QIODevice::ReadOnly),"fixture missing");root->setProperty("history",QJsonDocument::fromJson(f.readAll()).array().toVariantList());evaluate("history=Array.from(history,function(e){return {samples:Array.from(e.samples),offset:e.offset,range:e.range,bottom:e.bottom,sequence:e.sequence}})");}
  else evaluate("(function(){var h=[];for(var c=0;c<240;c++){var s=[];for(var i=0;i<5000;i++)s.push(((i*37+c*11)%256)/255);h.push({samples:s,offset:0,range:50,bottom:35,sequence:c+1})}history=h})()");

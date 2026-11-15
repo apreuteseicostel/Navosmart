@@ -39,6 +39,8 @@ jobs:
         run: cmake -S tests/kogger-replay -B /tmp/navo-replay && cmake --build /tmp/navo-replay -j2
       - name: Build Sonar display benchmark
         run: cmake -S tests/sonar-performance -B /tmp/navo-sonar-performance && cmake --build /tmp/navo-sonar-performance -j2
+      - name: Verify production standalone Kogger B QML (Qt Quick offscreen)
+        run: /tmp/navo-replay/navo-kogger-standalone-ui custom/qml/NavoKoggerStandalone.qml tests/kogger-replay/mock-imports
       - name: Package runnable Qt test environments
         run: python3 tests/kogger-replay/bundle-runtime.py
       - uses: actions/upload-artifact@v4
@@ -51,12 +53,23 @@ jobs:
           path: /tmp/navo-qt-runtime/ui.tar.gz
       - name: Test native surface geometry
         run: /tmp/navo-replay/navo-native-surface
+      - name: Test Kogger native isobaths NED to GPS conversion
+        run: /tmp/navo-replay/navo-native-isobaths
+      - name: Verify native Kogger 3D terrain conversion and sample fallback
+        run: /tmp/navo-replay/navo-native-3d
+      - name: Verify original Kogger echogram palette and native 8-bit renderer
+        run: /tmp/navo-replay/navo-native-kogger-image
       - name: Test production H743 servo feedback wiring
         run: /tmp/navo-replay/navo-servo-feedback custom/qml/NavoHopperBridge.qml
       - name: Test installed acceptance scene ownership
         run: /tmp/navo-replay/navo-acceptance-scene
       - name: Test bounded elapsed replay pacing
         run: /tmp/navo-replay/navo-replay-pacing
+
+      - name: Verify Kogger-style full-file viewport contracts
+        run: node tests/kogger-file-viewport.mjs
+      - name: Verify indexed KLF direct seek on synthetic columns
+        run: /tmp/navo-replay/navo-replay-seek
       - name: Test offline NAVO recording roundtrip and corruption handling
         run: /tmp/navo-replay/navo-sonar-recording
       - name: Test protocol regressions
@@ -69,8 +82,12 @@ jobs:
       - name: Fetch original Kogger recording
         if: steps.fixture-cache.outputs.cache-hit != 'true' 
         run: curl --fail --location --retry 3 --max-time 180 https://kogger.tech/wp-content/uploads/00028_DownView.klf -o /tmp/00028_DownView.klf
+      - name: Verify direct seek on original 00028_DownView.klf
+        run: /tmp/navo-replay/navo-replay-seek /tmp/00028_DownView.klf
       - name: Replay verified fixture through actual NAVO decoder
         run: /tmp/navo-replay/navo-kogger-replay /tmp/00028_DownView.klf custom/qml/NavoSonarEthernet.qml
+      - name: Render original DownView recording with native Kogger 256-shade view
+        run: /tmp/navo-replay/navo-native-kogger-image /tmp/00028_DownView.klf
 
       - name: Render production native surface Canvas
         run: /tmp/navo-replay/navo-native-surface-view tests/kogger-replay/native-surface-view.qml kogger-native-surface.json
@@ -85,6 +102,9 @@ jobs:
           path: |
             kogger-native-surface*.png
             kogger-native-surface.json
+            kogger-native-8bit-replay.png
+            kogger-native-file-overview.png
+            kogger-b-standalone.png
             kogger-sonar-pro-*.png
             kogger-sonarRecordingDialog-*.png
             kogger-sonarRecordingsDialog-*.png

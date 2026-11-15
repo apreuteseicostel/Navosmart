@@ -1,0 +1,5 @@
+module NavoSmart.Backend
+NavoKoggerEchogramItem 1.0 NavoKoggerEchogramItem.qml
+NavoKoggerReplay 1.0 NavoKoggerReplay.qml
+NavoKoggerDecoder 1.0 NavoKoggerDecoder.qml
+NavoEthernetTransport 1.0 NavoEthernetTransport.qml

@@ -33,6 +33,30 @@ Item {
     readonly property bool verifiedLanOnline: lanService.online || root.cameraConnected
         || (sonar.connected && (!sonar.udp || sonar.dataAlive))
     property int settingsStartTab: 0
+    // Safety: the virtual lab must never take over a running boat operation.
+    readonly property bool offlineLabAllowed: !root.actionActive && !root.missionBusy &&
+        !root.awaitingMissionStart && !sonar.recording &&
+        !(root.vehicle && root.vehicle.armed)
+    function openOfflineLab() {
+        if (!offlineLabAllowed) {
+            root.lastNavigationStatus="Offline Lab indisponibil: oprește operațiunile active și dezarmează H743."
+            return false
+        }
+        root.activePage=14
+        root.lastNavigationStatus="LAB SIMULAT • datele nu sunt salvate în Bălțile mele."
+        return true
+    }
+    function openLabRecording(url) {
+        if (!offlineLabAllowed || !url || !String(url).length) return false
+        // Reuse the proven read-only production replay path. It disconnects
+        // the sonar transport and prevents live controls while replayMode=true.
+        var opened=sonar.startReplay(url)
+        if (opened) {
+            root.activePage=10
+            root.lastNavigationStatus="OFFLINE • Replay Kogger, fără comenzi H743."
+        } else root.lastNavigationStatus="Nu am putut deschide înregistrarea .klf."
+        return opened
+    }
     property bool networkStartupLoaded: false
     property bool sonarStartupEnabled: true
     NavoConnectivity {
@@ -53,7 +77,7 @@ Item {
         if((!automatic || root.sonarStartupEnabled) && !sonar.replayMode && !sonar.connected && sonar.port>0 && sonar.port<=65535 && (sonar.udp || sonar.host.length))sonar.connectSonar()
         if(!cameraEthernet.connected && cameraEthernet.port>0 && cameraEthernet.port<=65535 && (cameraEthernet.udp || cameraEthernet.host.length))cameraEthernet.connectCamera()
     }
-    readonly property string activePageName: ["HARTA","SONAR","MISIUNI","PUNCTE PESCUIT","BALȚILE MELE","CAMERA","SETARI","3D","NĂDIRE","SIGURANȚĂ","SONAR PRO","JURNAL","HĂRȚI OFFLINE"][activePage] || "HARTA"
+    readonly property string activePageName: ["HARTA","SONAR","MISIUNI","PUNCTE PESCUIT","BALȚILE MELE","CAMERA","SETARI","3D","NĂDIRE","SIGURANȚĂ","SONAR PRO","JURNAL","HĂRȚI OFFLINE","REZERVAT","OFFLINE LAB","KOGGER SONAR"][activePage] || "HARTA"
     implicitWidth: 1280
     implicitHeight: 720
 
@@ -1647,6 +1671,7 @@ Item {
                 NavButton { text: "HARTA"; iconSource: "qrc:/qml/NavoSmart/icons/map.svg"; active: root.activePage === 0; onClicked: root.activePage = 0 }
                 NavButton { text: "SONAR"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 1; onClicked: root.activePage = 1 }
                 NavButton { text: "SONAR PRO"; proBadge: true; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 10; onClicked: root.activePage = 10 }
+                NavButton { text: "KOGGER SONAR"; proBadge: true; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 15; onClicked: root.activePage = 15 }
                 NavButton { text: "MISIUNI"; iconSource: "qrc:/qml/NavoSmart/icons/scan.svg"; active: root.activePage === 2; onClicked: root.activePage = 2 }
                 NavButton { text: "PUNCTE PESCUIT"; iconSource: "qrc:/qml/NavoSmart/icons/fish.svg"; active: root.activePage === 3; onClicked: root.activePage = 3 }
                 NavButton { text:"HĂRȚI OFFLINE";iconSource:"qrc:/qml/NavoSmart/icons/save.svg";active:root.activePage===12;onClicked:{if(root.mapController)root.offlineRegion=root.mapController.offlineRegion();root.activePage=12} }
@@ -1695,11 +1720,13 @@ Item {
             Accessible.role: Accessible.Pane
             Accessible.name: status === Loader.Ready ? "Pagina " + root.activePageName : "Se încarcă pagina"
             anchors.fill: parent; anchors.margins: root.activePage === 10 ? 0 : 10
-            sourceComponent: root.activePage === 12 ? offlineMapsPage :
+            sourceComponent: root.activePage === 14 ? offlineLabPage :
+                             root.activePage === 12 ? offlineMapsPage :
                              root.activePage === 11 ? journalPage :
                              root.activePage === 0 ? mapPage :
                              root.activePage === 1 ? sonarPage :
                              root.activePage === 10 ? sonarProPage :
+                             root.activePage === 15 ? koggerIndependentPage :
                              root.activePage === 2 ? areaPage :
                              root.activePage === 3 ? fishingPage :
                              root.activePage === 4 ? lakesPage :
@@ -1855,6 +1882,15 @@ Item {
                     }
                 }
             }
+        }
+    }
+
+    // Experiment B: independent Kogger test workspace. Do not mutate SONAR PRO.
+    Component {
+        id: koggerIndependentPage
+        NavoKoggerStandalone {
+            navoSonarBusy: sonar.connected && !sonar.replayMode
+            onClosed: root.activePage = 0
         }
     }
 
@@ -2946,6 +2982,9 @@ Item {
         Item {
             NavoBathymetry3D {
                 anchors.fill: parent
+                // Same selected lake/replay data contract as 2D native bathymetry.
+                // Native 3D rendering remains operator opt-in (K3D), OFF on opening.
+                nativeSurfaceMesh: root.displayNativeSurfaceMesh
                 // Use the active/restored lake session, not the global sonar history.
                 // restoreLake() repopulates rawSamples from the selected lake checkpoint.
                 samples: sonar.replayMode ? replayMapping.rawSamples : sonarMapping.rawSamples
@@ -2986,10 +3025,21 @@ Item {
     }
 
     Component {
+        id: offlineLabPage
+        NavoOfflineLab {
+            anchors.fill:parent
+            onReplayFileSelected:function(fileUrl){root.openLabRecording(fileUrl)}
+            onCloseRequested:{root.settingsStartTab=1;root.activePage=6}
+        }
+    }
+
+    Component {
         id: settingsPage
         NavoSettingsV3 {
             anchors.fill: parent
             backupStore: persistence
+            offlineLabAllowed:root.offlineLabAllowed
+            onOfflineLabRequested:root.openOfflineLab()
             backupAllowed: !root.actionActive && !(root.vehicle && root.vehicle.armed) && !sonar.recording
             backupStartupStatus: typeof navoBackupStartupStatus === "undefined" ? "" : navoBackupStartupStatus
             vehicleConnected:root.linkAlive && !!root.vehicle

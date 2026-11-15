@@ -29,6 +29,11 @@ target_link_libraries(navo-kogger-replay PRIVATE Qt6::Core Qt6::Gui Qt6::Concurr
 find_package(Qt6 REQUIRED COMPONENTS Quick Qml Test)
 add_executable(navo-sonar-ui-replay ui-replay.cpp)
 target_link_libraries(navo-sonar-ui-replay PRIVATE Qt6::Quick Qt6::Qml Qt6::Test)
+# Experiment B: smoke-test the actual new KOGGER SONAR QML page, rather than
+# relying only on source-string checks.
+add_executable(navo-kogger-standalone-ui standalone-ui.cpp)
+target_link_libraries(navo-kogger-standalone-ui PRIVATE Qt6::Quick Qt6::Qml Qt6::Test)
+
 file(GLOB NAVO_TEST_ICONS "../../custom/icons/*.svg")
 qt_add_resources(navo-sonar-ui-replay navo-test-icons PREFIX "/qml/NavoSmart" BASE "../../custom" FILES ${NAVO_TEST_ICONS})
 
@@ -40,6 +45,22 @@ target_link_libraries(navo-native-surface PRIVATE Qt6::Core Qt6::Gui)
 add_executable(navo-native-surface-view native-surface-view.cpp)
 target_link_libraries(navo-native-surface-view PRIVATE Qt6::Quick Qt6::Qml)
 
+add_executable(navo-native-isobaths native-isobaths.cpp)
+target_link_libraries(navo-native-isobaths PRIVATE Qt6::Core Qt6::Gui)
+
+add_executable(navo-native-3d native-3d.cpp ../../custom/src/NavoBathymetryMesh.cc ../../custom/src/NavoBathymetryMesh.h)
+target_link_libraries(navo-native-3d PRIVATE Qt6::Core Qt6::Gui)
+
+# Native Qt Quick echogram, original Kogger 8-bit palette and resampling.
+add_executable(navo-native-kogger-image native-kogger-image.cpp
+    ../../custom/src/NavoKoggerEchogramItem.cc
+    ../../custom/src/NavoKoggerEchogramItem.h
+    ../../custom/src/NavoKoggerDecoder.cc
+    ../../custom/src/NavoKoggerDecoder.h
+    ../../custom/src/NavoKoggerReplay.cc
+    ../../custom/src/NavoKoggerReplay.h)
+target_link_libraries(navo-native-kogger-image PRIVATE Qt6::Quick Qt6::Gui Qt6::Core)
+
 add_executable(navo-servo-feedback servo-feedback.cpp)
 target_link_libraries(navo-servo-feedback PRIVATE Qt6::Gui Qt6::Qml)
 
@@ -48,6 +69,12 @@ target_link_libraries(navo-acceptance-scene PRIVATE Qt6::Quick Qt6::Qml)
 
 add_executable(navo-replay-pacing replay-pacing.cpp ../../custom/src/NavoKoggerReplay.cc ../../custom/src/NavoKoggerReplay.h)
 target_link_libraries(navo-replay-pacing PRIVATE Qt6::Core)
+
+add_executable(navo-replay-seek replay-seek.cpp
+    ../../custom/src/NavoKoggerReplay.cc ../../custom/src/NavoKoggerReplay.h
+    ../../custom/src/NavoKoggerDecoder.cc ../../custom/src/NavoKoggerDecoder.h)
+target_link_libraries(navo-replay-seek PRIVATE Qt6::Core)
+
 
 add_executable(navo-sonar-recording recording.cpp ../../custom/src/NavoKoggerRecorder.cc ../../custom/src/NavoKoggerRecorder.h ../../custom/src/NavoKoggerReplay.cc ../../custom/src/NavoKoggerReplay.h)
 target_link_libraries(navo-sonar-recording PRIVATE Qt6::Core)
