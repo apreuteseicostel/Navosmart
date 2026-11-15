@@ -62,6 +62,32 @@ jobs:
         run: lua5.3 tests/firmware/relay-status.lua
       - name: Test physical WS2811 RGB on dedicated H743 LED pad
         run: lua5.3 tests/firmware/rgb-service.lua
+      - name: Package NAVO H743 WS2811 SD files without overwriting sensor calibrations
+        run: |
+          python3 - <<'PY'
+          from zipfile import ZipFile, ZIP_DEFLATED
+          paths = {
+              "ardupilot/scripts/navo_rgb_service.lua": "APM/scripts/navo_rgb_service.lua",
+              "ardupilot/scripts/navo_relay_status.lua": "APM/scripts/navo_relay_status.lua",
+              "ardupilot/scripts/navo_water_service.lua": "APM/scripts/navo_water_service.lua",
+              "ardupilot/scripts/navo_sht31_service.lua": "APM/scripts/navo_sht31_service.lua",
+              "ardupilot/modules/navo_rgb_core.lua": "APM/scripts/modules/navo_rgb_core.lua",
+              "ardupilot/modules/navo_rgb_config.lua": "APM/scripts/modules/navo_rgb_config.lua",
+              "ardupilot/modules/navo_water_core.lua": "APM/scripts/modules/navo_water_core.lua",
+              "ardupilot/modules/navo_sht31.lua": "APM/scripts/modules/navo_sht31.lua",
+              "ardupilot/NAVO_WS2811_PHYSICAL_LED.md": "README-WS2811.md",
+          }
+          with ZipFile("NAVO_H743_WS2811_SD.zip", "w", ZIP_DEFLATED) as output:
+              for original, destination in paths.items():
+                  output.write(original, destination)
+          PY
+      - name: Upload H743 WS2811 SD deployment bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: NAVO-H743-WS2811-SD
+          path: NAVO_H743_WS2811_SD.zip
+          if-no-files-found: error
+
       - name: SHT31 environment CRC and telemetry service
         run: lua5.3 tests/firmware/sht31.lua
       - name: NAVO independent water probe ADC and diagnostic service
