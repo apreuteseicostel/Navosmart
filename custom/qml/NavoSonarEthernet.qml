@@ -145,7 +145,9 @@ QtObject {
   onEchoSamplesChanged: {
    if(!chartRawByteCount){root.lastEchoMs=0;return}
    root.lastEchoMs=Date.now(); root.clockMs=root.lastEchoMs
-   if(root.nativeChannelReady && decoderObject.chartVersion===0)return
+   // The native bridge accepts CHART v0 and v1; don't double-save v1
+   // data through the parallel legacy geoSample path.
+   if(root.nativeChannelReady && decoderObject.chartVersion<=1)return
    // Publish only completed CHART columns paired with recent depth and valid GPS.
    if(root.replayMode || !isFinite(depthM) || depthM<=0 || root.lastDepthMs<=0 ||
       root.lastEchoMs-root.lastDepthMs>1500 || !root.vehicle ||
