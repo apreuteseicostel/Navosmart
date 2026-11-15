@@ -14,7 +14,7 @@ return {
  temp_alarm_c=45, -- matches NAVO app default alert; separate SHT31 input
  source_expiry_ms=12000, -- SHT31 sample cadence is 5 seconds; expire on stale streams
  hopper_expiry_ms=1750, -- reject stale commanded onboard hopper movement
- hopper_outputs={9,10}, -- verify against actual calibrated hopper outputs in NAVO settings
+ hopper_outputs={9,10}, -- verify calibrated outputs in NAVO; read FUNCTION=0 or 135
  -- A fallback only; V3 service remains disabled until calibrated and enabled.
  hopper_open_pwm=1900,
  hopper_tolerance_us=100,
