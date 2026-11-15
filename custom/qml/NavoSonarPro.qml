@@ -36,6 +36,7 @@ Rectangle {
     }
     property int koggerPalette: 0
     property real koggerDepthRange: 50
+    property bool showDepthGrid: true
     property int koggerInspectorEpoch: -1
     property real koggerInspectorDepth: NaN
     onKoggerInspectorEpochChanged: {
@@ -390,6 +391,7 @@ Rectangle {
     onReplayActiveChanged: { if(replayActive)history=[]; root.menuOpen=false }
     onKoggerCompensationChanged: { history = []; pushHistory(); repaint() }
     onShowBottomTrackChanged: repaint()
+    onShowDepthGridChanged: repaint()
     // Freeze scale together with the displayed history while paused.
     readonly property real scaleStart: displayedColumn ? displayedColumn.offset : (isFinite(chartOffsetMeters) ? chartOffsetMeters : 0)
     readonly property real scaleRange: displayedColumn ? displayedColumn.range : (isFinite(chartRangeMeters) && chartRangeMeters > 0 ? chartRangeMeters : 0)
@@ -420,8 +422,8 @@ Rectangle {
     component SonarBottomButton: Button {
         id: bottomButton
         property bool active: false
-        implicitHeight: 30
-        implicitWidth: 35
+        implicitHeight: 27
+        implicitWidth: 32
         padding: 3
         font.pixelSize: 11
         font.bold: true
@@ -463,6 +465,7 @@ Rectangle {
                 position:root.koggerPosition
                 depthFrom:0
                 depthRange:root.koggerDepthRange
+                showDepthGrid:root.showDepthGrid
                 palette:root.koggerPalette
                 compensate:root.koggerCompensation
                 MouseArea {
@@ -493,7 +496,7 @@ Rectangle {
                 z:11
                 anchors.left:parent.left;anchors.right:echoColumn.left
                 anchors.bottom:parent.bottom;anchors.margins:6
-                height:42;radius:8;color:"#e0081f30";border.color:"#327d94"
+                height:34;radius:7;color:"#e0081f30";border.color:"#327d94"
                 HoverHandler {
                     id: bottomToolsHover
                     onHoveredChanged: {
@@ -541,7 +544,15 @@ Rectangle {
                     }
                     SonarBottomButton {text:"5m";implicitWidth:32;active:root.koggerDepthRange===5;onClicked:{root.koggerDepthRange=5;root.showBottomControls()}}
                     SonarBottomButton {text:"20m";implicitWidth:38;active:root.koggerDepthRange===20;onClicked:{root.koggerDepthRange=20;root.showBottomControls()}}
-                    SonarBottomButton {text:"50m";implicitWidth:38;active:root.koggerDepthRange===50;onClicked:{root.koggerDepthRange=50;root.showBottomControls()}}
+                    SonarBottomButton {text:"50m";implicitWidth:34;active:root.koggerDepthRange===50;onClicked:{root.koggerDepthRange=50;root.showBottomControls()}}
+                    SonarBottomButton {
+                        objectName:"sonarProDepthGridToggle"
+                        text:root.showDepthGrid ? "GRD" : "OFF"
+                        active:root.showDepthGrid
+                        implicitWidth:37
+                        Accessible.name:root.showDepthGrid ? "Ascunde liniile orizontale" : "Arată liniile orizontale"
+                        onClicked:{root.showDepthGrid=!root.showDepthGrid;root.showBottomControls()}
+                    }
                 }
             }
             MouseArea {
@@ -606,7 +617,7 @@ Rectangle {
                     ctx.strokeStyle=root.dayPalette?"#bccbd4":"#40536a"; ctx.fillStyle=root.dayPalette?"#18364a":"#d9edf7"; ctx.font="12px sans-serif"
                     for (var n=0;n<=4;n++) {
                         var gy=n*height/4
-                        ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(width,gy);ctx.stroke()
+                        if(root.showDepthGrid){ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(width,gy);ctx.stroke()}
                         {
                             var depthLabel=root.scaleRange > 0 ? (root.scaleStart+n*root.scaleRange/4).toFixed(1)+" m" : "— m"
                             var labelY=Math.max(14,Math.min(height-6,gy+(n===4?-5:14)))
@@ -850,6 +861,12 @@ Rectangle {
                 MenuAction { visible:root.useKoggerOriginal; text:"Paletă Kogger: "+(root.koggerPalette===0?"Classic":root.koggerPalette===1?"Ice":"Sepia"); onClicked:root.koggerPalette=(root.koggerPalette+1)%3 }
                 MenuAction { selected:root.koggerCompensation; text: root.koggerCompensation ? "Ecou brut" : "Compensare Kogger"; onClicked: root.koggerCompensation=!root.koggerCompensation }
                 MenuAction { selected:root.showBottomTrack; text: root.showBottomTrack ? "Ascunde linia fundului" : "Arată linia fundului"; onClicked: root.showBottomTrack=!root.showBottomTrack }
+                MenuAction {
+                    objectName:"sonarProGridMenuToggle"
+                    selected:root.showDepthGrid
+                    text:root.showDepthGrid ? "Ascunde grila orizontală" : "Arată grila orizontală"
+                    onClicked:root.showDepthGrid=!root.showDepthGrid
+                }
                 MenuAction { text: "Reset reglaje"; onClicked: root.resetDisplaySettings() }
             }
         }
