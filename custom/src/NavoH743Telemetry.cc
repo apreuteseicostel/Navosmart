@@ -10,6 +10,7 @@ void NavoH743Telemetry::setVehicle(QObject*o){Vehicle*v=qobject_cast<Vehicle*>(o
 void NavoH743Telemetry::_reset(){
  _capMs=_headMs=_posMs=_hopMs=_requestMs=-1;_caps=_hopperMask=_request=0;
  _relayHeadMs=_relayPosMs=-1;_relayHead=_relayPos=false;
+ _rgbCodeMs=_rgbReasonMs=-1;_rgbCode=_rgbReason=0;
  _interiorTemp=_humidity=qQNaN();_interiorTempMs=_humidityMs=_environmentMs=-1;_environmentStatus=0;
  _lastMs=0; _batteryV=0; _tempC=qQNaN();
  _water=_waterFault=_head=_pos=false; _rud=_alarm=0;
@@ -61,6 +62,14 @@ void NavoH743Telemetry::_set(const char*n,float v){
  if(_v3){
   if(!strcmp(n,"NV3VER")){_heartbeatMs=v==1.0f?now:-1;}
   else if(!strcmp(n,"NV3CAP")){_caps=std::isfinite(v)&&v>=0&&v<=31&&std::floor(v)==v?int(v):0;_capMs=now;}
+  else if(!strcmp(n,"NV3RGBC")){
+   const bool valid=std::isfinite(v) && v>=1 && v<=8 && std::floor(v)==v;
+   _rgbCode=valid ? int(v) : 0;_rgbCodeMs=valid ? now : -1;
+  }
+  else if(!strcmp(n,"NV3RGBS")){
+   const bool valid=std::isfinite(v) && v>=1 && v<=13 && std::floor(v)==v;
+   _rgbReason=valid ? int(v) : 0;_rgbReasonMs=valid ? now : -1;
+  }
   else if(!strcmp(n,"NV3RHEAD")){_relayHead=v==1;_relayHeadMs=(v==0||v==1)?now:-1;}
   else if(!strcmp(n,"NV3RPOS")){_relayPos=v==1;_relayPosMs=(v==0||v==1)?now:-1;}
   else if(!strcmp(n,"NV3HEAD")){_head=v==1;_headMs=(v==0||v==1)?now:-1;}
