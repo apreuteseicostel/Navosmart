@@ -5,6 +5,7 @@
 #include "../kogger_native/NavoKoggerService.h"
 #include "../../third_party/KoggerApp/src/epoch.h"
 #include <QPainter>
+#include <QMutexLocker>
 #include <QImage>
 #include <QFont>
 #include <QColor>
@@ -34,7 +35,9 @@ void NavoKoggerEpochPlotItem::geometryChange(const QRectF& next,const QRectF& ol
     if(next.size()!=old.size())queueVisible();
 }
 void NavoKoggerEpochPlotItem::clearFileCache(){
-    _loadTimer.stop();_cache.clear();_order.clear();_cachedBytes=0;
+    _loadTimer.stop();
+    QMutexLocker lock(&_cacheMutex);
+    _cache.clear();_order.clear();_cachedBytes=0;
 }
 void NavoKoggerEpochPlotItem::setFileReplay(QObject* source){
     auto* value=qobject_cast<NavoKoggerReplay*>(source);
@@ -107,7 +110,8 @@ void NavoKoggerEpochPlotItem::loadVisibleBatch(){
     int added=0;bool pending=false;
     for(int x=0;x<w;++x){
         const int idx=sourceColumn(x,n,w);
-        if(idx<0||_cache.contains(idx))continue;
+        if(idx<0)continue;
+        {QMutexLocker lock(&_cacheMutex);if(_cache.contains(idx))continue;}
         if(added>=12){pending=true;break;}
         NavoKoggerReplay::ChartColumn raw;
         FileColumn c;
@@ -115,21 +119,28 @@ void NavoKoggerEpochPlotItem::loadVisibleBatch(){
             c.bytes=raw.bytes;c.resolution=raw.resolutionMm;
             c.offset=raw.absoluteOffset;c.version=raw.version;
         }
-        _cachedBytes+=c.bytes.size();
-        _cache.insert(idx,std::move(c));_order.enqueue(idx);
-        while(_order.size()>MaxEntries||_cachedBytes>MaxBytes){
-            const int discard=_order.dequeue();
-            auto it=_cache.find(discard);
-            if(it!=_cache.end()){
-                _cachedBytes-=it.value().bytes.size();
-                _cache.erase(it);
+        {
+            QMutexLocker lock(&_cacheMutex);
+            _cachedBytes+=c.bytes.size();
+            _cache.insert(idx,std::move(c));_order.enqueue(idx);
+            while(_order.size()>MaxEntries||_cachedBytes>MaxBytes){
+                const int discard=_order.dequeue();
+                auto it=_cache.find(discard);
+                if(it!=_cache.end()){
+                    _cachedBytes-=it.value().bytes.size();
+                    _cache.erase(it);
+                }
             }
         }
         ++added;
     }
     if(added)update();
     // Bounded cache: do not loop forever if the visible set is larger than the budget.
-    if(pending && _cache.size()<MaxEntries && _cachedBytes<MaxBytes)_loadTimer.start();
+    bool canContinue=false;
+    {QMutexLocker lock(&_cacheMutex);
+        canContinue=_cache.size()<MaxEntries && _cachedBytes<MaxBytes;
+    }
+    if(pending && canContinue)_loadTimer.start();
 }
 QVector<QRgb> NavoKoggerEpochPlotItem::colors() const{
     // Original KoggerApp Plot2DEchogram Classic, Ice, Sepia colour stops.
@@ -188,9 +199,14 @@ void NavoKoggerEpochPlotItem::paint(QPainter* p){
         Epoch epoch;
         ChannelId channel;
         if(onFile){
-            const auto it=_cache.constFind(idx);
-            if(it==_cache.cend()||it.value().resolution==0||it.value().version!=0)continue;
-            const auto& c=it.value();
+            FileColumn c;
+            {
+                QMutexLocker lock(&_cacheMutex);
+                const auto it=_cache.constFind(idx);
+                if(it==_cache.cend())continue;
+                c=it.value(); // implicit-shared QByteArray snapshot
+            }
+            if(c.resolution==0||c.version!=0)continue;
             QVector<uint8_t> samples;
             samples.reserve(c.bytes.size());
             for(const auto b:c.bytes)samples.append(quint8(b));
