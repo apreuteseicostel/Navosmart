@@ -36,12 +36,12 @@ assert.match(qml, /visible: root\.rightPanelVisible\s*\n\s*width: 110/,
   'Right menu must obey only right visibility state')
 assert.match(qml, /visible: root\.timelineVisible && plot\.fileReady/,
   'Bottom slider must obey only its own visibility state')
-for (const panel of ['LeftPanel', 'RightPanel', 'Timeline']) {
-  assert.match(qml, new RegExp('function toggle' + panel + '\\\\(\\\\)'),
-    'Missing independent toggle for ' + panel)
-  assert.match(qml, new RegExp('onClicked: root\\\\.toggle' + panel + '\\\\(\\\\)'),
-    'Missing dedicated reveal tab for ' + panel)
-}
+assert.match(qml, /function toggleLeftPanel\(\)/, 'Left menu must have its own toggle')
+assert.match(qml, /function toggleRightPanel\(\)/, 'Right menu must have its own toggle')
+assert.match(qml, /function toggleTimeline\(\)/, 'Bottom slider must have its own toggle')
+assert.match(qml, /onClicked: root\.toggleLeftPanel\(\)/, 'Left tab must toggle only left')
+assert.match(qml, /onClicked: root\.toggleRightPanel\(\)/, 'Right tab must toggle only right')
+assert.match(qml, /onClicked: root\.toggleTimeline\(\)/, 'Slider tab must toggle only timeline')
 assert.match(qml, /onMoved: \{ plot\.position = value; root\.revealTimeline\(\) \}/,
   'Using the KLF slider must reset only its own auto-hide timer')
 assert.match(qml, /onClicked: \{ plot\.palette = \(plot\.palette \+ 1\) % 3; root\.revealRightPanel\(\) \}/,
