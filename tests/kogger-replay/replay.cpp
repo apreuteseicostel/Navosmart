@@ -457,6 +457,42 @@ static void qmlRecordedReplay(const QString& source,const QString& fixture) {
     std::cout<<"PASS actual file replay -> recorded GPS -> production QML bridge -> native bottom/tiles -> mapping/persistence/HD; pause, EOF and stop\n";
 }
 
+// CHART v1 live data must reach the same original Dataset/Epoch used by
+// PRO B V2, PRO KGR and the dashboard PiP (no replay-only renderer path).
+static void nativeLiveVersionOne(){
+    NavoKoggerChartRecord v1;
+    v1.version=1;
+    v1.resolutionMm=10;
+    v1.absoluteOffset=4;
+    // Three paired bytes: first byte is the display amplitude, as in
+    // NavoKoggerDecoder::publishChart(). Second byte is retained only raw.
+    v1.chart=QByteArray::fromHex("201180ff4022");
+    const ChannelId channel(QUuid("{68c3a8a5-7c10-4419-a4ad-c05817e65ec1}"),1);
+    require(v1.hasValidChart(),"valid CHART v1 rejected");
+    Epoch epoch;
+    require(NavoKoggerDatasetAdapter::toKoggerEpoch(v1,channel,epoch),
+            "CHART v1 did not convert into the native Epoch");
+    const auto* chart=epoch.chart(channel,0);
+    require(chart && chart->amplitude.size()==3 &&
+            chart->amplitude[0]==0x20 && chart->amplitude[1]==0x80 &&
+            chart->amplitude[2]==0x40,
+            "CHART v1 amplitudes differ from the live decoder stride");
+    require(std::abs(chart->resolution-0.01f)<1e-6f,"CHART v1 scale changed");
+    Dataset dataset;
+    require(NavoKoggerDatasetAdapter::appendToKoggerDataset(v1,channel,dataset),
+            "CHART v1 failed native Dataset ingestion");
+    const Epoch stored=dataset.fromIndexCopy(dataset.endIndex());
+    const auto* storedChart=stored.chart(channel,0);
+    require(storedChart && storedChart->amplitude==chart->amplitude,
+            "Native v1 Dataset disagrees with Epoch");
+    NavoKoggerChartRecord malformed=v1;
+    malformed.chart.chop(1);
+    require(!malformed.hasValidChart() &&
+            !NavoKoggerDatasetAdapter::toKoggerEpoch(malformed,channel,epoch),
+            "Truncated CHART v1 must fail safely");
+    std::cout<<"PASS native LIVE v1 Kogger Epoch/Dataset, sample pairs and malformed fragments\n";
+}
+
 int main(int argc,char**argv) {
     qputenv("QT_QPA_PLATFORM","offscreen");
     QGuiApplication app(argc,argv);
@@ -464,6 +500,7 @@ int main(int argc,char**argv) {
         if(argc==3 && QString::fromLocal8Bit(argv[1])==QStringLiteral("--transport")){
             qmlTransportRoundTrip(QString::fromLocal8Bit(argv[2]));NavoKoggerService::instance().shutdown();return 0;
         }
+        nativeLiveVersionOne();
         synthetic();
         if(argc>=2) {
             QFile file(QString::fromLocal8Bit(argv[1])); require(file.open(QIODevice::ReadOnly),"cannot open KLF");
