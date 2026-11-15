@@ -53,7 +53,7 @@ Item {
         if((!automatic || root.sonarStartupEnabled) && !sonar.replayMode && !sonar.connected && sonar.port>0 && sonar.port<=65535 && (sonar.udp || sonar.host.length))sonar.connectSonar()
         if(!cameraEthernet.connected && cameraEthernet.port>0 && cameraEthernet.port<=65535 && (cameraEthernet.udp || cameraEthernet.host.length))cameraEthernet.connectCamera()
     }
-    readonly property string activePageName: ["HARTA","SONAR PiP","MISIUNI","PUNCTE PESCUIT","BALȚILE MELE","CAMERA","SETARI","3D","NĂDIRE","SIGURANȚĂ","SONAR PRO B V2","JURNAL","HĂRȚI OFFLINE","SONAR PRO KGR"][activePage] || "HARTA"
+    readonly property string activePageName: ["HARTA","SONAR PiP","MISIUNI","PUNCTE PESCUIT","BALȚILE MELE","CAMERA","SETARI","3D","NĂDIRE","SIGURANȚĂ","KOGGER B V2","JURNAL","HĂRȚI OFFLINE","SONAR PRO NAVO"][activePage] || "HARTA"
     implicitWidth: 1280
     implicitHeight: 720
 
@@ -1659,8 +1659,8 @@ Item {
                     active: root.activePage === 0 && root.sonarPipEnabled
                     onClicked: root.toggleSonarPip()
                 }
-                NavButton { text: "PRO"; proBadge: true; badgeLabel: "PRO"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 10; onClicked: root.activePage = 10 }
-                NavButton { text:"PRO KGR";proBadge:true;badgeLabel:"KGR";iconSource:"qrc:/qml/NavoSmart/icons/sonar.svg";active:root.activePage===13;onClicked:root.activePage=13 }
+                NavButton { text: "KGR"; proBadge: true; badgeLabel: "KGR"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 10; onClicked: root.activePage = 10 }
+                NavButton { text:"PRO";proBadge:true;badgeLabel:"PRO";iconSource:"qrc:/qml/NavoSmart/icons/sonar.svg";active:root.activePage===13;onClicked:root.activePage=13 }
                 NavButton { text: "MISIUNI"; iconSource: "qrc:/qml/NavoSmart/icons/scan.svg"; active: root.activePage === 2; onClicked: root.activePage = 2 }
                 NavButton { text: "PUNCTE PESCUIT"; iconSource: "qrc:/qml/NavoSmart/icons/fish.svg"; active: root.activePage === 3; onClicked: root.activePage = 3 }
                 NavButton { text:"HĂRȚI OFFLINE";iconSource:"qrc:/qml/NavoSmart/icons/save.svg";active:root.activePage===12;onClicked:{if(root.mapController)root.offlineRegion=root.mapController.offlineRegion();root.activePage=12} }
@@ -1760,9 +1760,14 @@ Item {
         anchors.rightMargin: root.activePage === 0 ? 88 : 16
         anchors.bottom: parent.bottom
         anchors.bottomMargin: 13
-        width: persistentCameraPip.visible ? persistentCameraPip.width
-            : Math.max(168, Math.min(215, root.width * 0.16))
-        height: Math.min(135, Math.max(100, root.height * 0.18))
+        // Slightly larger than the old 170×100 preview on S26 landscape.
+        // Leave the area below camera PiP free; the native renderer scales to
+        // the remaining vertical space instead of covering the camera.
+        width: Math.max(208, Math.min(252, root.width * 0.22))
+        height: Math.max(76, Math.min(156, root.height * 0.34,
+            persistentCameraPip.visible
+                ? root.height - (persistentCameraPip.y + persistentCameraPip.height) - 24
+                : root.height * 0.34))
         sourceComponent: Component {
             NavoSonarPip {
                 anchors.fill: parent
@@ -1909,7 +1914,7 @@ Item {
         }
     }
 
-    // B V2: clean full-screen Epoch view and independent Kogger-style rails.
+    // KGR B V2: independent original Kogger Epoch view and compact rails.
     Component {
         id: sonarProPage
         NavoKoggerSonar {
@@ -1918,7 +1923,7 @@ Item {
         }
     }
 
-    // KGR: advanced Sonar PRO functions on the exact same shared live controller.
+    // PRO NAVO: advanced NAVO sonar functions with integrated Kogger modules.
     Component {
         id: koggerSonarPage
         NavoSonarPro {
