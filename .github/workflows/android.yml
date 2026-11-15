@@ -91,15 +91,15 @@ jobs:
           gradle = Path("qgc/android/build.gradle")
           source = gradle.read_text()
           before = '    defaultConfig {\n        resConfig "en"'
-          after = '    defaultConfig {\n        applicationId "ro.pescarullupeste.navosmart.sonardual"\n        resConfig "en"'
+          after = '    defaultConfig {\n        applicationId "ro.pescarullupeste.navosmart.sonarpolish"\n        resConfig "en"'
           assert source.count(before) == 1, "QGC v5.0.7 Gradle defaultConfig layout changed"
           gradle.write_text(source.replace(before, after, 1))
           manifest = Path("qgc/android/AndroidManifest.xml")
           source = manifest.read_text()
           old_label = '-- %%INSERT_APP_NAME%% --'
           assert source.count(old_label) == 2, "QGC Android application labels changed"
-          manifest.write_text(source.replace(old_label, "NAVO SONAR DUAL"))
-          print("NAVO experiment Android applicationId: ro.pescarullupeste.navosmart.sonardual")
+          manifest.write_text(source.replace(old_label, "NAVO SONAR POLISH"))
+          print("NAVO experiment Android applicationId: ro.pescarullupeste.navosmart.sonarpolish")
           PY
           # NAVO Android lifecycle guard. QGC v5.0.7 dereferences
           # _mainRootWindow on QEvent::Quit even when it is still null. Current
@@ -217,8 +217,8 @@ jobs:
           else cp "$APK" build/NAVO_SMART.apk; fi
           "$APKSIGNER" verify --verbose --print-certs build/NAVO_SMART.apk
           "$AAPT" dump badging build/NAVO_SMART.apk | head -n 8
-          "$AAPT" dump badging build/NAVO_SMART.apk | grep -F "package: name='ro.pescarullupeste.navosmart.sonardual'"
-          "$AAPT" dump badging build/NAVO_SMART.apk | grep -F "application-label:'NAVO SONAR DUAL'"
+          "$AAPT" dump badging build/NAVO_SMART.apk | grep -F "package: name='ro.pescarullupeste.navosmart.sonarpolish'"
+          "$AAPT" dump badging build/NAVO_SMART.apk | grep -F "application-label:'NAVO SONAR POLISH'"
       - name: Compiler cache statistics
         if: always()
         run: ccache --show-stats
