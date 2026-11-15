@@ -23,8 +23,8 @@ end
 -- Use an isolated table (key 173) shared with the independent sensor scripts.
 -- Never call set_and_save; no flash wear from high-rate sensor telemetry.
 local KEY=173
-assert(param:add_table(KEY,"NVLR_",6),"NVLR param table conflict")
-for i,name in ipairs({"WST","WET","WMS","TS","TMS","TV"}) do
+assert(param:add_table(KEY,"NVLR_",8),"NVLR param table conflict")
+for i,name in ipairs({"WST","WET","WMS","TS","TMS","TV","HOP","HMS"}) do
  assert(param:add_param(KEY,i,name,-1),"NVLR parameter conflict: "..name)
  assert(param:set("NVLR_"..name,-1),"NVLR reset failed")
 end
@@ -35,9 +35,9 @@ if not ok then return fail("serialLED unsupported on output "..chan) end
 local function finite(x)
  return type(x)=="number" and x==x and math.abs(x)<math.huge
 end
-local function fresh(time,now)
+local function fresh(time,now,expiry)
  return finite(time) and time>=0 and
-     ((now-time+4294967296)%4294967296)<=cfg.source_expiry_ms
+     ((now-time+4294967296)%4294967296)<=(expiry or cfg.source_expiry_ms)
 end
 local function relay_state(index)
  if not relay then return nil end
@@ -78,6 +78,8 @@ local function update()
  local ts,tms=param:get("NVLR_TS"),param:get("NVLR_TMS")
  local wet=param:get("NVLR_WET")
  local temp=param:get("NVLR_TV")
+ local onboardHopper=param:get("NVLR_HOP")
+ local onboardHopperTime=param:get("NVLR_HMS")
  -- Source times are raw millis(); use raw for rollover-safe freshness.
  local waterAlive=fresh(wms,raw)
  local tempAlive=fresh(tms,raw)
@@ -91,7 +93,9 @@ local function update()
      temperature_c=validTemp and temp or -1000,
      temperature_fault=tempAlive and ts==3,
      temp_alarm_c=cfg.temp_alarm_c,
-     hopper_open=hopper_open(),
+     hopper_open=(fresh(onboardHopperTime,raw,cfg.hopper_expiry_ms)
+                  and finite(onboardHopper) and onboardHopper>0)
+                  or hopper_open(),
      headlight=relay_state(0),
      positions=relay_state(1),
  })
