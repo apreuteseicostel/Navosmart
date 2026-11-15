@@ -38,7 +38,7 @@ int main(int argc,char**argv){
                 item->y()+item->height()<=view.height()+1,"close/menu control outside viewport");
       }
   };
-  root->setProperty("connected",true);root->setProperty("history",columns.toVariantList());
+  root->setProperty("useKoggerOriginal",false);root->setProperty("connected",true);root->setProperty("history",columns.toVariantList());
   // Delayed depth must update its own completed column, not the newest one.
   auto associationColumns=columns.toVariantList();
   for(int i=0;i<associationColumns.size();++i){auto entry=associationColumns[i].toMap();entry["sequence"]=i+1;associationColumns[i]=entry;}
