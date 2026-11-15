@@ -97,6 +97,16 @@ Item {
     property bool rulerMode: false
     property bool mapLayerMenuOpen: false
     property bool showStatusHint: true
+    // Both map tool rails auto-hide independently on touch devices.
+    // Edge hotspots reopen them without obstructing map pinch/pan gestures.
+    property bool leftMapRailVisible: true
+    property bool rightMapRailVisible: true
+    property bool leftMapRailHeld: false
+    property bool rightMapRailHeld: false
+    function revealMapRail(side) {
+        if (side === "left") { leftMapRailVisible = true; leftMapAutoHide.restart() }
+        else if (side === "right") { rightMapRailVisible = true; rightMapAutoHide.restart() }
+    }
     property var rulerPoints: []
     // Inject the same GNSS-first visual heading used by Dashboard, including
     // in Heading Up and Area Scan. Default remains compatible with standalone maps.
@@ -679,12 +689,87 @@ Item {
     }
 
     // Each control owns its compact popup; no map-wide help banner.
+    Timer {
+        id: leftMapAutoHide
+        interval: 1000
+        repeat: false
+        running: true
+        onTriggered: {
+            if (root.leftMapRailHeld || leftRailHover.hovered || layersPopup.visible
+                    || root.areaDrawMode !== "none") restart()
+            else root.leftMapRailVisible = false
+        }
+    }
+    Timer {
+        id: rightMapAutoHide
+        interval: 1000
+        repeat: false
+        running: true
+        onTriggered: {
+            if (root.rightMapRailHeld || rightRailHover.hovered) restart()
+            else root.rightMapRailVisible = false
+        }
+    }
+    // A narrow touch-sensitive edge is kept while the full rail is hidden.
+    // These areas do not cover the map center or the fishing markers.
+    MouseArea {
+        id: revealLeftEdge
+        objectName: "navoMapLeftEdgeReveal"
+        z: 201
+        visible: !root.leftMapRailVisible
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        width: 20
+        hoverEnabled: true
+        onEntered: root.revealMapRail("left")
+        onPressed: root.revealMapRail("left")
+        Rectangle {
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            width: 4; height: 55; radius: 2
+            color: "#3eb7d7"; opacity: .65
+        }
+    }
+    MouseArea {
+        id: revealRightEdge
+        objectName: "navoMapRightEdgeReveal"
+        z: 201
+        visible: !root.rightMapRailVisible
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        width: 20
+        hoverEnabled: true
+        onEntered: root.revealMapRail("right")
+        onPressed: root.revealMapRail("right")
+        Rectangle {
+            anchors.right: parent.right
+            anchors.verticalCenter: parent.verticalCenter
+            width: 4; height: 55; radius: 2
+            color: "#3eb7d7"; opacity: .65
+        }
+    }
     property var activeHelpButton: null
     Timer { id:toolHelpTimer;interval:1400;onTriggered:root.activeHelpButton=null }
     component HelpTool: Button {
         id: helpButton
         hoverEnabled:true
-        onPressed: { root.activeHelpButton=helpButton;toolHelpTimer.restart() }
+        property string railSide: ""
+        onPressed: {
+            root.activeHelpButton=helpButton; toolHelpTimer.restart()
+            if (railSide === "left") root.leftMapRailHeld = true
+            if (railSide === "right") root.rightMapRailHeld = true
+            if (railSide.length) root.revealMapRail(railSide)
+        }
+        onReleased: {
+            if (railSide === "left") { root.leftMapRailHeld = false; leftMapAutoHide.restart() }
+            if (railSide === "right") { root.rightMapRailHeld = false; rightMapAutoHide.restart() }
+        }
+        onCanceled: {
+            root.leftMapRailHeld = false; root.rightMapRailHeld = false
+            leftMapAutoHide.restart(); rightMapAutoHide.restart()
+        }
         ToolTip {
             id: localHelp
             parent: helpButton
@@ -727,10 +812,20 @@ Item {
     }
     Column {
         id: mapControls
+        objectName: "navoMapLeftToolRail"
+        visible: root.leftMapRailVisible
+        HoverHandler {
+            id: leftRailHover
+            onHoveredChanged: {
+                if (hovered) leftMapAutoHide.stop()
+                else leftMapAutoHide.restart()
+            }
+        }
         anchors.left:parent.left; anchors.top:parent.top; anchors.margins:10
         spacing:5; z:200
         property int controlSize:44
         component MapTool: HelpTool {
+            railSide: "left"
             Accessible.name: ToolTip.text
             property url iconSource: ""
             width:44;height:44;padding:0
@@ -745,13 +840,30 @@ Item {
         MapTool { objectName:"mapFitMission";text:"CTR"; iconSource:root.canFitMission ? "qrc:/qml/NavoSmart/icons/route.svg" : "qrc:/qml/NavoSmart/icons/center.svg";font.pixelSize:10;Accessible.name:root.canFitMission ? "Încadrează întregul traseu" : "Resetează vederea hărții";ToolTip.text:Accessible.name;onClicked:root.canFitMission ? root.fitMission() : root.resetView() }
     }
     Column {
+        id: rightMapControls
+        objectName: "navoMapRightToolRail"
+        visible: root.rightMapRailVisible
+        HoverHandler {
+            id: rightRailHover
+            onHoveredChanged: {
+                if (hovered) rightMapAutoHide.stop()
+                else rightMapAutoHide.restart()
+            }
+        }
         anchors.right:parent.right; anchors.top:parent.top; anchors.rightMargin:10; anchors.topMargin:10; spacing:5; z:200
         property int controlSize:44
         component RightTool: HelpTool {
+            railSide: "right"
             Accessible.name: ToolTip.text
             property url iconSource: ""
             width:44;height:44;padding:0;font.pixelSize:18;font.bold:true
-            background:Rectangle { radius:8;color:"#800d1722";border.color:"#8027394b" }
+            background:Rectangle {
+                radius:8
+                color: parent.checked ? "#b015647b" : parent.down ? "#aa164963"
+                    : parent.hovered ? "#a51b4154" : "#800d1722"
+                border.color: parent.checked ? "#30dcff" : parent.hovered ? "#38badb" : "#8027394b"
+                border.width: parent.checked ? 2 : 1
+            }
             contentItem:Image { anchors.centerIn:parent;width:23;height:23;source:parent.iconSource;fillMode:Image.PreserveAspectFit }
         }
         RightTool { text:"MAP"; iconSource:"qrc:/qml/NavoSmart/icons/map.svg";font.pixelSize:11;checkable:true;checked:root.bathymetryHDEnabled;ToolTip.text:root.bathymetryHDEnabled?"Ascunde batimetria HD":"Afișează batimetria HD";onClicked:root.toggleMapLayer() }
@@ -773,7 +885,7 @@ Item {
             }
         }
         RightTool { text:"RUL"; iconSource:"qrc:/qml/NavoSmart/icons/ruler.svg";font.pixelSize:11;checkable:true;checked:root.rulerMode;ToolTip.text:root.rulerMode?root.rulerDistanceText():"Măsoară distanța între două puncte";onClicked:root.toggleRuler() }
-        RightTool { text:root.maximized?"MIN":"MAX"; iconSource:"qrc:/qml/NavoSmart/icons/fullscreen.svg";font.pixelSize:10;ToolTip.text:root.maximized?"Revino la dashboard":"Hartă pe tot ecranul";onClicked:root.maximizeRequested() }
+        RightTool { text:root.maximized?"MIN":"MAX"; iconSource:"qrc:/qml/NavoSmart/icons/fullscreen.svg";font.pixelSize:10;checkable:true;checked:root.maximized;ToolTip.text:root.maximized?"Revino la dashboard":"Hartă pe tot ecranul";onClicked:root.maximizeRequested() }
     }
     Popup {
         id:layersPopup; parent:Overlay.overlay; anchors.centerIn:parent
