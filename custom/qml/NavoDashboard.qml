@@ -657,15 +657,25 @@ Item {
     property bool hopperStatusExpanded: false
     property bool mapFullscreen: false
     property bool headingOverlayOpen: false
-    // Onboard NV3HOP is a *commanded* mask; no mechanical end switches exist.
-    // Do not let default NV3HOP=0 override an independently commanded fallback
-    // unless the V3 hopper capability was actually advertised.
+    // First prefer measured PWM *outputs* from the H743 SERVO_OUTPUT_RAW
+    // stream: these reflect actual actuator drive, but not hatch position.
+    // The Lua hopper mask and app request are display-only fallbacks.
+    function outputIndicatesOpen(pwm, closedUs, openUs) {
+        var v=Number(pwm), closed=Number(closedUs), opened=Number(openUs)
+        if (!isFinite(v) || v<800 || v>2200 || !isFinite(closed)
+                || !isFinite(opened) || Math.abs(opened-closed)<80) return false
+        return opened>closed ? v>=(opened+closed)/2 : v<=(opened+closed)/2
+    }
     readonly property bool visualLeftHopperOpen: root.linkAlive && !sonar.replayMode &&
-        ((h743Telemetry.hopperStateValid && (h743Telemetry.capabilities & 8))
-         ? (h743Telemetry.hopperMask & 1) !== 0 : hopperBridge.leftOpen)
+        (h743Telemetry.hopperLeftUs>0
+         ? root.outputIndicatesOpen(h743Telemetry.hopperLeftUs,hopperSettings.leftClosed,hopperSettings.leftOpen)
+         : (h743Telemetry.hopperStateValid && (h743Telemetry.capabilities & 8))
+            ? (h743Telemetry.hopperMask & 1)!==0 : hopperBridge.leftOpen)
     readonly property bool visualRightHopperOpen: root.linkAlive && !sonar.replayMode &&
-        ((h743Telemetry.hopperStateValid && (h743Telemetry.capabilities & 8))
-         ? (h743Telemetry.hopperMask & 2) !== 0 : hopperBridge.rightOpen)
+        (h743Telemetry.hopperRightUs>0
+         ? root.outputIndicatesOpen(h743Telemetry.hopperRightUs,hopperSettings.rightClosed,hopperSettings.rightOpen)
+         : (h743Telemetry.hopperStateValid && (h743Telemetry.capabilities & 8))
+            ? (h743Telemetry.hopperMask & 2)!==0 : hopperBridge.rightOpen)
     // On this G20 setup RC7/RC16 signal native ArduPilot relays. Their PWM
     // reports switch intent, not Relay contact position or lamp current.
     function lightRcDemand(channel) {
@@ -838,7 +848,9 @@ Item {
     NavoH743Telemetry {
         id: h743Telemetry
         vehicle: root.vehicle
-        v3Profile: true // NAVO V3 receives only NV3* messages from H743
+        v3Profile: true // NAVO V3 receives NV3* sensors and passive SERVO_OUTPUT_RAW
+        leftHopperOutput: hopperSettings.leftOutput
+        rightHopperOutput: hopperSettings.rightOutput
     }
     // Display-only priority: GPS_RAW_INT / GPS2_RAW yaw when valid and fresh;
     // otherwise the H743's normal vehicle.heading. EKF/mode/failsafes untouched.
