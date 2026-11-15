@@ -19,6 +19,7 @@ Rectangle {
     property bool leftPanelVisible: true
     property bool rightPanelVisible: true
     property bool timelineVisible: true
+    property bool showDepthGrid: true
     readonly property bool replayReady: !!(chartSource && chartSource.replayMode)
     readonly property string statusText: replayReady
         ? (plot.fileReady ? "KLF • " + plot.indexedColumns + " Epoch"
@@ -31,11 +32,13 @@ Rectangle {
 
     // Reusable Kogger-style dark compact button, with visible press feedback.
     component SonarRailButton: Button {
+        property bool selected: false
         font.pixelSize: 11
         background: Rectangle {
             radius: 5
-            color: parent.down ? "#215b72" : parent.hovered ? "#194257" : "#102b3d"
-            border.color: parent.enabled ? "#407087" : "#263e4b"
+            color: parent.down ? "#215b72" : parent.selected ? "#176b86"
+                : parent.hovered ? "#194257" : "#102b3d"
+            border.color: parent.selected ? "#45d5f5" : parent.enabled ? "#407087" : "#263e4b"
             border.width: 1
         }
         contentItem: Text {
@@ -147,6 +150,7 @@ Rectangle {
         anchors.fill: parent
         fileReplay: root.replayReady ? root.chartSource.replay : null
         depthRange: 10
+        showDepthGrid: root.showDepthGrid
         horizontalZoom: 1
         position: 0.5
     }
@@ -192,7 +196,7 @@ Rectangle {
         id: statusBar
         objectName: "koggerBCompactStatus"
         z: 5
-        visible: root.leftPanelVisible || root.rightPanelVisible
+        visible: root.leftPanelVisible || root.rightPanelVisible || (root.selectedEpoch > 0 && !root.dragToPan)
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
@@ -327,7 +331,7 @@ Rectangle {
         z: 5
         visible: root.rightPanelVisible
         width: 110
-        height: Math.min(162, parent.height - 45)
+        height: Math.min(204, parent.height - 45)
         anchors.right: parent.right
         anchors.rightMargin: 29
         anchors.top: parent.top
@@ -346,16 +350,27 @@ Rectangle {
                 onClicked: { plot.palette = (plot.palette + 1) % 3; root.revealRightPanel() }
             }
             SonarRailButton {
+                selected: plot.compensate
                 text: plot.compensate ? "COMPENSAT" : "BRUT"
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
                 onClicked: { plot.compensate = !plot.compensate; root.revealRightPanel() }
             }
             SonarRailButton {
+                selected: root.dragToPan
                 text: root.dragToPan ? "PAN" : "INSPECTOR"
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
                 onClicked: { root.dragToPan = !root.dragToPan; root.revealRightPanel() }
+            }
+            SonarRailButton {
+                objectName: "koggerBDepthGridToggle"
+                selected: root.showDepthGrid
+                text: root.showDepthGrid ? "GRILĂ ON" : "GRILĂ OFF"
+                Accessible.name: "Arată sau ascunde liniile orizontale de adâncime"
+                Layout.fillWidth: true
+                Layout.preferredHeight: 30
+                onClicked: { root.showDepthGrid = !root.showDepthGrid; root.revealRightPanel() }
             }
             SonarRailButton {
                 text: "IEȘIRE"
