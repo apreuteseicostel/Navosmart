@@ -9,6 +9,7 @@ class NavoH743Telemetry : public QObject {
  Q_PROPERTY(QObject* vehicle READ vehicle WRITE setVehicle NOTIFY vehicleChanged)
  Q_PROPERTY(int capabilities READ capabilities NOTIFY telemetryChanged)
  Q_PROPERTY(bool lightsValid READ lightsValid NOTIFY telemetryChanged)
+ Q_PROPERTY(bool relayLightsValid READ relayLightsValid NOTIFY telemetryChanged)
  Q_PROPERTY(bool hopperStateValid READ hopperStateValid NOTIFY telemetryChanged)
  Q_PROPERTY(int hopperMask READ hopperMask NOTIFY telemetryChanged)
  Q_PROPERTY(int lastRequest READ lastRequest NOTIFY telemetryChanged)
@@ -37,7 +38,11 @@ class NavoH743Telemetry : public QObject {
 public:
  explicit NavoH743Telemetry(QObject* p=nullptr);
  int capabilities() const { return connected() && _fresh(_capMs) ? _caps : 0; }
- bool lightsValid() const { return connected() && _fresh(_headMs) && _fresh(_posMs); }
+ // Relay1/2 can be operated directly from G20 while NAVO V3 service is disabled.
+ // Separate NV3RHEAD/NV3RPOS status is fresh without an NV3VER heartbeat.
+ bool relayLightsValid() const { return _fresh(_relayHeadMs) && _fresh(_relayPosMs); }
+ bool lightsValid() const { return relayLightsValid() ||
+     (connected() && (_caps&1)!=0 && _fresh(_capMs) && _fresh(_headMs) && _fresh(_posMs)); }
  bool hopperStateValid() const { return connected() && _fresh(_hopMs) && _fresh(_requestMs); }
  int hopperMask() const { return _hopperMask; }
  int lastRequest() const { return _request; }
@@ -59,8 +64,8 @@ public:
  bool waterSensorFault()const{return _waterStandaloneSeen
     ? (waterMonitorStatus()!=2 || !_fresh(_standFaultMs) || _standFault)
     : _waterFault;}
- bool headlightOn()const{return _head;}
- bool positionLightsOn()const{return _pos;} int hopperLeftUs()const{return _hl;} int hopperRightUs()const{return _hr;} int rudderUs()const{return _rud;} int alarmMask()const{return _alarm;}
+ bool headlightOn()const{return relayLightsValid() ? _relayHead : _head;}
+ bool positionLightsOn()const{return relayLightsValid() ? _relayPos : _pos;} int hopperLeftUs()const{return _hl;} int hopperRightUs()const{return _hr;} int rudderUs()const{return _rud;} int alarmMask()const{return _alarm;}
 signals:void telemetryChanged();void vehicleChanged();
 private slots:void _mavlink(const mavlink_message_t&);void _timeout();
 private:
@@ -73,6 +78,8 @@ private:
  bool _v3=true; // NAVO V3 only; legacy Nano mode unsupported
  int _caps=0,_hopperMask=0,_request=0;
  qint64 _capMs=-1,_headMs=-1,_posMs=-1,_hopMs=-1,_requestMs=-1;
+ qint64 _relayHeadMs=-1,_relayPosMs=-1;
+ bool _relayHead=false,_relayPos=false;
  qint64 _tempMs=-1, _waterMs=-1, _faultMs=-1, _heartbeatMs=-1;
  qint64 _waterStatusMs=-1, _waterAdcMs=-1;
  qint64 _standWetMs=-1, _standFaultMs=-1;
