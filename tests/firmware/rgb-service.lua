@@ -57,7 +57,10 @@ serialLED={
   assert(out==13 and count==1,"unexpected hardware LED output")
   initCount=initCount+1;return true
  end,
- set_num_neopixel_rgb=function()error("GRB module must use GRB path")end,
+ set_num_neopixel_rgb=function(_,out,count)
+  assert(out==13 and count==1,"RGB physical pin mismatch")
+  initCount=initCount+1;return true
+ end,
  set_RGB=function(_,out,index,r,g,b)
   assert(out==13 and index==-1)
   assert(r>=0 and r<=128 and g>=0 and g<=128 and b>=0 and b<=128,
