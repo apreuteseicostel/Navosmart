@@ -38,6 +38,12 @@ Rectangle {
     property real koggerDepthRange: 50
     property int koggerInspectorEpoch: -1
     property real koggerInspectorDepth: NaN
+    onKoggerInspectorEpochChanged: {
+        if (chartSource && chartSource.replayMode && koggerInspectorEpoch > 0 &&
+                koggerPlot.indexedColumns > 1)
+            chartSource.replayViewPosition =
+                (koggerInspectorEpoch - 1) / (koggerPlot.indexedColumns - 1)
+    }
     property var samples: []
     property bool connected: false
     readonly property bool replayMode: chartSource ? chartSource.replayMode : false
