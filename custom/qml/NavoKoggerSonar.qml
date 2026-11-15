@@ -14,6 +14,7 @@ Rectangle {
     property var chartSource: null
     property int selectedEpoch: -1
     property real selectedDepthM: NaN
+    property real selectedCursorY: 0
     property bool dragToPan: false
     // Each overlay has its own visibility state, timer and reveal tab.
     property bool leftPanelVisible: true
@@ -31,17 +32,21 @@ Rectangle {
 
     // Reusable Kogger-style dark compact button, with visible press feedback.
     component SonarRailButton: Button {
+        id: railButton
+        property bool active: false
+        property color activeColor: "#155b73"
         font.pixelSize: 11
         background: Rectangle {
             radius: 5
-            color: parent.down ? "#215b72" : parent.hovered ? "#194257" : "#102b3d"
-            border.color: parent.enabled ? "#407087" : "#263e4b"
-            border.width: 1
+            color: railButton.down ? "#257b96" : railButton.active ? railButton.activeColor
+                : railButton.hovered ? "#194257" : "#102b3d"
+            border.color: railButton.active ? "#3ee5ff" : railButton.enabled ? "#407087" : "#263e4b"
+            border.width: railButton.active ? 2 : 1
         }
         contentItem: Text {
-            text: parent.text
-            color: parent.enabled ? "#e4f5fc" : "#668396"
-            font: parent.font
+            text: railButton.text
+            color: railButton.active ? "#ffffff" : railButton.enabled ? "#e4f5fc" : "#668396"
+            font: railButton.font
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
@@ -81,6 +86,16 @@ Rectangle {
         if (index < 0) index = 5
         plot.depthRange = options[Math.max(0, Math.min(options.length - 1, index + direction))]
         revealLeftPanel()
+    }
+    function inspectScreenAt(x, y) {
+        var px = Math.max(0, Math.min(plot.width - 1, x))
+        var py = Math.max(0, Math.min(plot.height - 1, y))
+        var hit = plot.inspectAt(px, py)
+        if (hit.epoch !== undefined) {
+            selectedEpoch = Number(hit.epoch)
+            selectedDepthM = hit.depthM === undefined ? NaN : Number(hit.depthM)
+            selectedCursorY = py
+        }
     }
     function cursorPixel() {
         var n = plot.indexedColumns
@@ -158,9 +173,7 @@ Rectangle {
         property real dragStartX: 0
         property real dragStartPosition: 0
         function inspect(mouse) {
-            var hit = plot.inspectAt(mouse.x, mouse.y)
-            root.selectedEpoch = hit.epoch === undefined ? -1 : Number(hit.epoch)
-            root.selectedDepthM = hit.depthM === undefined ? NaN : Number(hit.depthM)
+            root.inspectScreenAt(mouse.x, mouse.y)
         }
         onPressed: function(mouse) {
             dragStartX = mouse.x
@@ -179,12 +192,37 @@ Rectangle {
     Rectangle {
         id: cursor
         z: 2
-        visible: !root.dragToPan && root.selectedEpoch > 0 && root.cursorPixel() >= 0
+        visible: root.selectedEpoch > 0 && root.cursorPixel() >= 0
         width: 1
         height: parent.height
         x: root.cursorPixel()
         color: "#fbc04d"
         opacity: .8
+    }
+    // A 26px touch target makes the 1px yellow selection line draggable.
+    // Only enabled in inspector mode; PAN gestures remain owned by sonarTouch.
+    MouseArea {
+        id: cursorDrag
+        objectName: "koggerBDraggableInspectorCursor"
+        visible: cursor.visible && !root.dragToPan
+        z: 4
+        x: root.cursorPixel() - width / 2
+        width: 26
+        height: plot.height
+        acceptedButtons: Qt.LeftButton
+        property bool dragging: false
+        onPressed: function(mouse) {
+            dragging = true
+            var hit = mapToItem(plot, mouse.x, mouse.y)
+            root.inspectScreenAt(hit.x, hit.y)
+        }
+        onPositionChanged: function(mouse) {
+            if (!pressed) return
+            var hit = mapToItem(plot, mouse.x, mouse.y)
+            root.inspectScreenAt(hit.x, hit.y)
+        }
+        onReleased: dragging = false
+        onCanceled: dragging = false
     }
 
     // A single compact status overlay replaces the two permanent toolbar rows.
@@ -192,7 +230,8 @@ Rectangle {
         id: statusBar
         objectName: "koggerBCompactStatus"
         z: 5
-        visible: root.leftPanelVisible || root.rightPanelVisible
+        // Selection data remains readable even with BOTH rails hidden.
+        visible: root.leftPanelVisible || root.rightPanelVisible || root.selectedEpoch > 0
         anchors.top: parent.top
         anchors.left: parent.left
         anchors.right: parent.right
@@ -207,7 +246,7 @@ Rectangle {
             anchors.rightMargin: 7
             spacing: 6
             Label {
-                text: "KOGGER B"
+                text: "KGR • KOGGER"
                 color: "#eafaff"
                 font.pixelSize: 11
                 font.bold: true
@@ -341,18 +380,22 @@ Rectangle {
             spacing: 3
             SonarRailButton {
                 text: ["CLASSIC", "ICE", "SEPIA"][plot.palette]
+                active: plot.palette !== 0
                 Layout.fillWidth: true
                 Layout.preferredHeight: 31
                 onClicked: { plot.palette = (plot.palette + 1) % 3; root.revealRightPanel() }
             }
             SonarRailButton {
-                text: plot.compensate ? "COMPENSAT" : "BRUT"
+                text: plot.compensate ? "● COMPENSAT" : "BRUT"
+                active: plot.compensate
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
                 onClicked: { plot.compensate = !plot.compensate; root.revealRightPanel() }
             }
             SonarRailButton {
-                text: root.dragToPan ? "PAN" : "INSPECTOR"
+                text: root.dragToPan ? "● PAN" : "● INSPECTOR"
+                active: true
+                activeColor: root.dragToPan ? "#756128" : "#155b73"
                 Layout.fillWidth: true
                 Layout.preferredHeight: 30
                 onClicked: { root.dragToPan = !root.dragToPan; root.revealRightPanel() }
