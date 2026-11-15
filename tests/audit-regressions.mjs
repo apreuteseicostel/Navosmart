@@ -881,5 +881,32 @@ test('Sonar freshness watchdog only runs on a live transport, not while offline 
   const sonar=fs.readFileSync(path.join(dir,'NavoSonarEthernet.qml'),'utf8');
   assert.match(sonar,/property Timer freshness:\s*Timer\s*\{[^}]*running:\s*transportObject\.connected\s*&&\s*!root\.replayMode/);
 });
+test('Compass boat follows actual NAVO hopper state, unverified RC light intents and virtual RGB alarms',()=>{
+ const boat=fs.readFileSync(path.join(dir,'NavoBoatVisual.qml'),'utf8');
+ const compass=fs.readFileSync(path.join(dir,'NavoHeadingCompass.qml'),'utf8');
+ const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+ const h743=fs.readFileSync(path.join(dir,'../src/NavoH743Telemetry.h'),'utf8');
+ const lua=fs.readFileSync(path.join(dir,'../../ardupilot/scripts/navo_v3_service.lua'),'utf8');
+ const cfg=fs.readFileSync(path.join(dir,'../../ardupilot/modules/navo_v3_config.lua'),'utf8');
+ assert(boat.includes('id: visualRgbIndicator') && boat.includes('virtualRgbState'));
+ assert(boat.includes('root.leftHopperOpen ? "#28b5ff"'));
+ assert(boat.includes('root.rightHopperOpen ? "#28b5ff"'));
+ assert(boat.includes('root.positionLightsRequested ? "#e9aa46"'));
+ assert(compass.includes('leftHopperOpen: root.leftHopperOpen'));
+ assert(compass.includes('rightHopperOpen: root.rightHopperOpen'));
+ assert(compass.includes('virtualRgbState: root.virtualRgbState'));
+ assert(dash.includes('readonly property bool visualLeftHopperOpen:'));
+ assert(dash.includes('readonly property bool visualRightHopperOpen:'));
+ assert(dash.includes('function lightRcDemand(channel)'));
+ assert(dash.includes('root.lightRcDemand(7)') && dash.includes('root.lightRcDemand(16)'));
+ assert(dash.includes('virtualRgbState: root.boatVirtualRgbState'));
+ assert(dash.includes('virtualRgbState:root.boatVirtualRgbState'));
+ assert(h743.includes('return (capabilities() & 1) && _fresh(_headMs) && _fresh(_posMs)'));
+ assert(cfg.includes('enabled=false') && cfg.includes('rgb=nil'));
+ const rgb=lua.indexOf('local r,g,b=40,0,40');
+ assert(rgb>0 && lua.indexOf('water_in and fault==0 and water==1',rgb)>rgb);
+ assert(lua.indexOf('elseif state.hopper~=0 then',rgb)>rgb);
+ assert(boat.includes('LED') || compass.includes('RGB fizic neconfirmat'));
+});
 console.log(`${passed} regression scenarios passed`);
 
