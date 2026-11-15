@@ -108,7 +108,8 @@ local function update()
  local c=core.scale(color,cfg.brightness)
  assert(serialLED:set_RGB(chan,-1,c[1],c[2],c[3]),"set_RGB failed")
  assert(serialLED:send(chan),"serialLED send failed")
- if status~=last then
+ local changed=status~=last
+ if changed then
      local why=status
      if status=="ALARM" then
          why=alarmWater and alarmTemp and "ALARM WATER+TEMP"
@@ -134,7 +135,7 @@ local function update()
      +(hopperActive and 16 or 0)+(far==true and 32 or 0)
      +(pos==true and 64 or 0)
  gcs:send_named_float("NV3RGBC",colourCodes[status] or 0)
- if now-lastReportMs>=1000 then
+ if changed or now-lastReportMs>=1000 then
      gcs:send_named_float("NV3RGBR",reason)
      lastReportMs=now
  end
