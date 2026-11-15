@@ -64,6 +64,15 @@ local function update()
     end
     if time>=publish_at then
         gcs:send_named_float("NV3WSTAT",status)
+        -- Physical WS2811 alarm bus, RAM-only. Do not send wet=true unless
+        -- probe state is confirmed and calibrated. Missing RGB service is OK.
+        if param and type(param.set)=="function" then
+            pcall(function()
+                param:set("NVLR_WET",status==2 and (state.wet and 1 or 0) or -1)
+                param:set("NVLR_WST",status)
+                param:set("NVLR_WMS",millis():tofloat())
+            end)
+        end
         publish_at=time+1000
     end
     return update,20

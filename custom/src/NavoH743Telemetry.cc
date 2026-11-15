@@ -4,14 +4,16 @@
 #include <QTimer>
 #include <cstring>
 #include <cmath>
-NavoH743Telemetry::NavoH743Telemetry(QObject*p):QObject(p){_clock.start();auto*t=new QTimer(this);t->setInterval(1000);connect(t,&QTimer::timeout,this,&NavoH743Telemetry::_timeout);t->start();}
+NavoH743Telemetry::NavoH743Telemetry(QObject*p):QObject(p){_clock.start();_servoOutputs.fill(-1);_servoTimes.fill(-1);auto*t=new QTimer(this);t->setInterval(1000);connect(t,&QTimer::timeout,this,&NavoH743Telemetry::_timeout);t->start();}
 QObject* NavoH743Telemetry::vehicle()const{return _vehicle.data();}
 void NavoH743Telemetry::setVehicle(QObject*o){Vehicle*v=qobject_cast<Vehicle*>(o);if(v==_vehicle)return;if(_vehicle)disconnect(_vehicle,nullptr,this,nullptr);_vehicle=v;if(_vehicle)connect(_vehicle,&Vehicle::mavlinkMessageReceived,this,&NavoH743Telemetry::_mavlink);_reset();emit vehicleChanged();emit telemetryChanged();}
 void NavoH743Telemetry::_reset(){
  _capMs=_headMs=_posMs=_hopMs=_requestMs=-1;_caps=_hopperMask=_request=0;
+ _relayHeadMs=_relayPosMs=-1;_relayHead=_relayPos=false;
  _interiorTemp=_humidity=qQNaN();_interiorTempMs=_humidityMs=_environmentMs=-1;_environmentStatus=0;
  _lastMs=0; _batteryV=0; _tempC=qQNaN();
- _water=_waterFault=_head=_pos=false; _hl=_hr=_rud=_alarm=0;
+ _water=_waterFault=_head=_pos=false; _rud=_alarm=0;
+ _servoOutputs.fill(-1);_servoTimes.fill(-1);
  _tempMs=_waterMs=_faultMs=_heartbeatMs=-1;
  _waterStatusMs=_waterAdcMs=-1;_waterStatus=0;_waterAdcV=qQNaN();
  _standWetMs=_standFaultMs=-1;_standWet=false;_standFault=true;_waterStandaloneSeen=false;
@@ -25,6 +27,10 @@ bool NavoH743Telemetry::_fresh(qint64 timestamp)const{
  return timestamp>=0 && _clock.elapsed()-timestamp<2500;
 }
 bool NavoH743Telemetry::connected()const{return _fresh(_heartbeatMs);}
+int NavoH743Telemetry::servoOutputUs(int output) const {
+ if(output<1 || output>16 || !_fresh(_servoTimes[size_t(output-1)]))return -1;
+ return _servoOutputs[size_t(output-1)];
+}
 int NavoH743Telemetry::interiorStatus()const{
  // Environment telemetry is read-only and independent of the V3 actuator-service heartbeat.
  return _fresh(_environmentMs) ? _environmentStatus : 0;
@@ -55,6 +61,8 @@ void NavoH743Telemetry::_set(const char*n,float v){
  if(_v3){
   if(!strcmp(n,"NV3VER")){_heartbeatMs=v==1.0f?now:-1;}
   else if(!strcmp(n,"NV3CAP")){_caps=std::isfinite(v)&&v>=0&&v<=31&&std::floor(v)==v?int(v):0;_capMs=now;}
+  else if(!strcmp(n,"NV3RHEAD")){_relayHead=v==1;_relayHeadMs=(v==0||v==1)?now:-1;}
+  else if(!strcmp(n,"NV3RPOS")){_relayPos=v==1;_relayPosMs=(v==0||v==1)?now:-1;}
   else if(!strcmp(n,"NV3HEAD")){_head=v==1;_headMs=(v==0||v==1)?now:-1;}
   else if(!strcmp(n,"NV3POS")){_pos=v==1;_posMs=(v==0||v==1)?now:-1;}
   else if(!strcmp(n,"NV3HOP")){_hopperMask=std::isfinite(v)&&v>=0&&v<=3&&std::floor(v)==v?int(v):-1;_hopMs=_hopperMask>=0?now:-1;}
@@ -91,5 +99,37 @@ void NavoH743Telemetry::_set(const char*n,float v){
 
  _lastMs=QDateTime::currentMSecsSinceEpoch();emit telemetryChanged();
 }
-void NavoH743Telemetry::_mavlink(const mavlink_message_t&m){if(!_vehicle || m.sysid!=_vehicle->id() || m.compid!=MAV_COMP_ID_AUTOPILOT1 || m.msgid!=MAVLINK_MSG_ID_NAMED_VALUE_FLOAT)return;mavlink_named_value_float_t p{};mavlink_msg_named_value_float_decode(&m,&p);char n[11]{};memcpy(n,p.name,10);_set(n,p.value);}
+void NavoH743Telemetry::_mavlink(const mavlink_message_t&m){
+ if(!_vehicle || m.sysid!=_vehicle->id() || m.compid!=MAV_COMP_ID_AUTOPILOT1)return;
+ if(m.msgid==MAVLINK_MSG_ID_SERVO_OUTPUT_RAW){
+  // MAVLink2 extends port-0 SERVO_OUTPUT_RAW with outputs 9..16. Read
+  // ONLY the fields carried in this packet (missing extensions are not 0 PWM).
+  // No MAVLink output/servo command is ever sent by this observer.
+  mavlink_servo_output_raw_t raw{};
+  mavlink_msg_servo_output_raw_decode(&m,&raw);
+  if(raw.port!=0)return; // Port remapping is firmware-specific: never guess.
+  const int values[16]={
+    raw.servo1_raw,raw.servo2_raw,raw.servo3_raw,raw.servo4_raw,
+    raw.servo5_raw,raw.servo6_raw,raw.servo7_raw,raw.servo8_raw,
+    raw.servo9_raw,raw.servo10_raw,raw.servo11_raw,raw.servo12_raw,
+    raw.servo13_raw,raw.servo14_raw,raw.servo15_raw,raw.servo16_raw
+  };
+  const int extra=m.len>21 ? (int(m.len)-21)/2 : 0;
+  const int count=8+(extra>8?8:extra);
+  const qint64 now=_clock.elapsed();
+  for(int i=0;i<count;++i){
+   const int pwm=values[i];
+   _servoOutputs[size_t(i)]=(pwm>=800 && pwm<=2200)?pwm:-1;
+   _servoTimes[size_t(i)]=pwm>=800 && pwm<=2200?now:-1;
+  }
+  emit telemetryChanged();
+  return;
+ }
+ if(m.msgid!=MAVLINK_MSG_ID_NAMED_VALUE_FLOAT)return;
+ mavlink_named_value_float_t p{};
+ mavlink_msg_named_value_float_decode(&m,&p);
+ char n[11]{};
+ memcpy(n,p.name,10);
+ _set(n,p.value);
+}
 
