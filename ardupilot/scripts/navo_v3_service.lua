@@ -120,7 +120,11 @@ local function update()
             gcs:send_named_float("NV3WATER",water)
             gcs:send_named_float("NV3WFAULT",fault)
         end
-        gcs:send_named_float("NV3HEAD",state.head);gcs:send_named_float("NV3POS",state.pos)
+        -- Native Relay1/2 own the G20 lights while cfg.lights=nil.
+        -- Do not publish fabricated OFF states for relays controlled elsewhere.
+        if cfg.lights then
+            gcs:send_named_float("NV3HEAD",state.head);gcs:send_named_float("NV3POS",state.pos)
+        end
         gcs:send_named_float("NV3HOP",state.hopper);gcs:send_named_float("NV3REQ",state.last_request)
         if cfg.rgb then
             -- An actual *valid* wet/critical reading outranks a missing other
