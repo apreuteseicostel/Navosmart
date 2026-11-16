@@ -88,6 +88,9 @@ QtObject {
  onVehicleChanged: updateNativePosition()
  // No chart/map point may inherit a stale QGC coordinate without a valid
  // live GPS fix and MAVLink link. This tests validity, not GNSS timestamp age.
+ // Read-only UI indicator; re-evaluates when QGC fix, coordinate or link changes.
+ // A valid fix is not proof of transducer-time synchronization or HD accuracy.
+ readonly property bool liveGpsUsable: root.liveGpsReady()
  function liveGpsReady() {
   var v=root.vehicle
   var fix=v && v.gps && v.gps.lock ? Number(v.gps.lock.rawValue) : NaN
