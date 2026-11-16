@@ -98,6 +98,7 @@ jobs:
           /tmp/navo-ui-env/bin/python tests/connectivity-ui.py
           /tmp/navo-ui-env/bin/python tests/lakes-manager-ui.py
           /tmp/navo-ui-env/bin/python tests/mode-indicator-ui.py
+          /tmp/navo-ui-env/bin/python tests/battery-voltage-pill-ui.py
           /tmp/navo-ui-env/bin/python tests/steering-ui.py
           /tmp/navo-ui-env/bin/python tests/sonar-recording-ui.py
           /tmp/navo-ui-env/bin/python tests/replay-notes-ui.py

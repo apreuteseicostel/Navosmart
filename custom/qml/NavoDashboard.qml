@@ -578,6 +578,13 @@ Item {
         }
     }
     property var battery: vehicle && vehicle.batteries.count > 0 ? vehicle.batteries.get(0) : null
+    // Dashboard 4S pack voltage is measured H743/QGC telemetry, never an
+    // inferred state-of-charge percentage or an estimate from current.
+    readonly property real batteryVoltage: battery && battery.voltage
+        && battery.voltage.rawValue !== undefined && battery.voltage.rawValue !== null
+        ? Number(battery.voltage.rawValue) : NaN
+    readonly property bool batteryVoltageValid: root.linkAlive
+        && isFinite(root.batteryVoltage) && root.batteryVoltage > 0 && root.batteryVoltage <= 20
     property var waypointNames: persistence.waypointNames
     readonly property real depthM: isFinite(sonar.depthM) ? sonar.depthM : ((sonar.echoFresh || sonar.replayMode) ? sonar.processedBottomDepthM : NaN)
     readonly property real waterTempC: sonar.waterTempC
@@ -1420,7 +1427,7 @@ Item {
             }
             StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/speed.svg"; title: "VITEZĂ"; value: vehicle && vehicle.groundSpeed ? Number(vehicle.groundSpeed.rawValue * 3.6).toFixed(1) + " km/h" : "--"; good: root.linkAlive && vehicle.groundSpeed && isFinite(Number(vehicle.groundSpeed.rawValue)) }
             StatusPill { iconSource:"qrc:/qml/NavoSmart/icons/target.svg"; title: "ȚINTĂ"; value: root.distanceToTarget > 0 ? Number(root.distanceToTarget).toFixed(0) + " m" : "--"; good: root.linkAlive && isFinite(root.distanceToTarget) && root.distanceToTarget > 0 }
-            StatusPill { pillWidth:82; iconSource:"qrc:/qml/NavoSmart/icons/battery.svg"; title: "BATERIE"; value: root.linkAlive && battery && battery.percentRemaining && isFinite(Number(battery.percentRemaining.rawValue)) && Number(battery.percentRemaining.rawValue)>=0 ? Number(battery.percentRemaining.rawValue).toFixed(0) + "%" : "--"; good: root.linkAlive && battery && battery.percentRemaining && Number(battery.percentRemaining.rawValue)>20; interactive:true; onClicked:dashboardDetails.showSection("battery") }
+            StatusPill { pillWidth:86; iconSource:"qrc:/qml/NavoSmart/icons/battery.svg"; title: "BATERIE"; value: root.batteryVoltageValid ? root.batteryVoltage.toFixed(2) + " V" : "--"; good: root.batteryVoltageValid; interactive:true; onClicked:dashboardDetails.showSection("battery") }
             TemperaturePill {
                 pillWidth: 96
                 batteryValid: root.linkAlive && h743Telemetry.connected && h743Telemetry.temperatureValid && isFinite(h743Telemetry.batteryTempC)
