@@ -430,7 +430,7 @@ test('Route energy includes approach, every corridor and return HOME',()=>{
 test('GPS anchor refuses unsupported commands and never overrides pilot mode changes',()=>{
  const commands=[];const vehicle={coordinate:coord(52,0),vehicleLinkManager:{communicationLost:false},gps:{lock:{rawValue:3}},flightMode:'Guided',
    guidedModeGotoLocation(c){commands.push(c)},pauseVehicle(){throw Error('Anchor should retain GUIDED rather than switch to HOLD')}};
- const c=context('NavoDigitalAnchor.qml',{vehicle,QtPositioning:{coordinate:coord},active:false,correctionActive:false,driftRadiusM:1.5,status:noop});
+ const c=context('NavoDigitalAnchor.qml',{vehicle,QtPositioning:{coordinate:coord},active:false,correctionActive:false,driftRadiusM:1.5,maxAutoCorrectionDriftM:15,resetRadiusRatio:0.6,minCorrectionIntervalMs:5000,lastCorrectionAtMs:0,status:noop});
  assert(c.engage());assert.equal(commands.length,1);c.maintain();assert(c.guidedConfirmed);
  vehicle.coordinate=coord(52,.0001);c.maintain();assert.equal(commands.length,2);c.maintain();assert.equal(commands.length,2);
  vehicle.coordinate=coord(52,0);c.maintain();assert.equal(c.correctionActive,false);
@@ -439,7 +439,7 @@ test('GPS anchor refuses unsupported commands and never overrides pilot mode cha
 });
 test('GPS anchor cancels on invalid coordinates and link loss',()=>{
  const vehicle={coordinate:coord(52,0),vehicleLinkManager:{communicationLost:false},gps:{lock:{rawValue:3}},flightMode:'Guided',guidedModeGotoLocation:noop,pauseVehicle:noop};
- const c=context('NavoDigitalAnchor.qml',{vehicle,QtPositioning:{coordinate:coord},active:false,correctionActive:false,driftRadiusM:1.5,status:noop});
+ const c=context('NavoDigitalAnchor.qml',{vehicle,QtPositioning:{coordinate:coord},active:false,correctionActive:false,driftRadiusM:1.5,maxAutoCorrectionDriftM:15,resetRadiusRatio:0.6,minCorrectionIntervalMs:5000,lastCorrectionAtMs:0,status:noop});
  assert(c.engage());vehicle.coordinate={isValid:false};c.maintain();assert.equal(c.active,false);
  vehicle.coordinate=coord(52,0);assert(c.engage());vehicle.vehicleLinkManager.communicationLost=true;c.maintain();assert.equal(c.active,false);
  vehicle.vehicleLinkManager.communicationLost=false;
