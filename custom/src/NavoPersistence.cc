@@ -149,7 +149,27 @@ bool NavoPersistence::deleteBathymetrySession(const QString& id) {
 }
 void NavoPersistence::setWaypointName(int seq,const QString& name){auto n=name.trimmed();_waypointNames[QString::number(seq)]=n.isEmpty()?QString("WP%1").arg(seq):n;saveWaypoints();emit waypointNamesChanged();}
 void NavoPersistence::replaceWaypointNames(const QVariantMap& names){if(_waypointNames==names)return;_waypointNames=names;saveWaypoints();emit waypointNamesChanged();}
-void NavoPersistence::addSonarSample(const QVariantMap& sample){if(!sample.contains("lat")||!sample.contains("lon")||!sample.contains("depth"))return;_sonarSamples.append(sample);while(_sonarSamples.size()>_maxSamples)_sonarSamples.removeFirst();scheduleSonarSave();emit sonarSamplesChanged();}
+void NavoPersistence::addSonarSample(const QVariantMap& sample) {
+ // Reject malformed coordinates at the persistence boundary too. A QVariant
+ // null/string/bool must never become a fabricated (0,0) sonar sample.
+ const auto readNumber=[](const QVariant& value,double& out) {
+  if(!value.isValid()||value.isNull() ||
+     value.metaType().id()==QMetaType::Bool ||
+     value.metaType().id()==QMetaType::QString ||
+     value.metaType().id()==QMetaType::QByteArray) return false;
+  bool ok=false;const double n=value.toDouble(&ok);
+  if(!ok||!std::isfinite(n))return false;
+  out=n;return true;
+ };
+ double latitude=0,longitude=0,depth=0;
+ if(!readNumber(sample.value("lat"),latitude) ||
+    !readNumber(sample.value("lon"),longitude) ||
+    !readNumber(sample.value("depth"),depth) ||
+    std::abs(latitude)>90 || std::abs(longitude)>180 || depth<=0)return;
+ _sonarSamples.append(sample);
+ while(_sonarSamples.size()>_maxSamples)_sonarSamples.removeFirst();
+ scheduleSonarSave();emit sonarSamplesChanged();
+}
 void NavoPersistence::clearSonarSamples(){_sonarSamples.clear();_sonarSaveTimer.stop();flushSonar();emit sonarSamplesChanged();}
 
 void NavoPersistence::scheduleSonarSave(){if(!_sonarSaveTimer.isActive())_sonarSaveTimer.start();}
