@@ -1,7 +1,8 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QGroundControl.Controllers
+import QGroundControl.FactSystem
+import QGroundControl.FactControls
 
 // Read-only audit of cached onboard ArduPilot Rover failsafe parameters.
 // Never sets an ArduPilot parameter, mode, relay or actuator. An enabled
