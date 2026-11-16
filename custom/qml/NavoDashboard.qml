@@ -2920,7 +2920,7 @@ Item {
                     }
                     Label {
                         Layout.fillWidth:true; wrapMode:Text.WordWrap; color:root.muted; font.pixelSize:11
-                        text:"Link G20: HOLD după timpul configurat. GPS: așteaptă recuperarea; HOME/RTL este cerut numai după revenirea unei poziții GPS valide."
+                        text:"Pierderea legăturii: aplicația nu poate trimite HOLD/RTL fără MAVLink. Verifică separat FS_THR_ENABLE (RC/GR01), FS_GCS_ENABLE și FS_ACTION (GCS) direct în H743. GPS invalid: HOLD se cere numai cât există MAVLink; RTL poate fi cerut doar după revenirea GPS."
                     }
                     Item { Layout.fillHeight:true }
                 }
