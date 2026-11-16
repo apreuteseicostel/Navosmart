@@ -227,14 +227,35 @@ Rectangle {
     property var geoChartRecords: []
     property int maxGeoChartRecords: 3000
     property int unlocatedChartCount: 0
-    function captureGeoChart() {
+    // Associate all metadata with the same host-receive event. This is NOT
+    // GNSS/transducer clock synchronization; no GPS fix => no mapped point.
+    function columnGpsSnapshot() {
+        var v=root.vehicle, source=root.chartSource
+        if (root.replayMode || (source && source.replayMode) ||
+            !v || !v.gps || !v.gps.lock || !v.vehicleLinkManager ||
+            v.vehicleLinkManager.communicationLost) return null
+        // Prefer the sonar transport's shared live-GPS gate when available.
+        if (source && typeof source.liveGpsReady==="function" && !source.liveGpsReady()) return null
+        var fix=Number(v.gps.lock.rawValue), c=v.coordinate
+        if (!isFinite(fix) || fix<3 || !c || !c.isValid ||
+            typeof c.latitude!=="number" || !isFinite(c.latitude) || Math.abs(c.latitude)>90 ||
+            typeof c.longitude!=="number" || !isFinite(c.longitude) || Math.abs(c.longitude)>180)
+            return null
+        return {latitude:c.latitude, longitude:c.longitude}
+    }
+    function onChartColumnReceived() {
+        // Always share one snapshot/time for the corresponding CHART column.
+        var receivedAt=Date.now(), gps=root.columnGpsSnapshot()
+        root.captureGeoChart(gps,receivedAt)
+        root.pushHistory(gps,receivedAt)
+    }
+    function captureGeoChart(columnGps, receivedAtMs) {
         if (!chartSource || chartSource.replayMode || !chartSource.chartRawBytes || !chartSource.chartRawByteCount) return
-        var coordinate = vehicle && vehicle.coordinate ? vehicle.coordinate : null
-        var fixValid = vehicle && vehicle.gps && vehicle.gps.lock.rawValue >= 3 &&
-                       vehicle.vehicleLinkManager && !vehicle.vehicleLinkManager.communicationLost
-        if (!fixValid || !coordinate || !coordinate.isValid) { unlocatedChartCount++; return }
-        var record = { latitude: coordinate.latitude, longitude: coordinate.longitude,
-                       timestampMs: Date.now(), sequence:chartSource.chartSequence,
+        var gps=arguments.length ? columnGps : columnGpsSnapshot()
+        if (!gps) { unlocatedChartCount++; return }
+        var timestamp=arguments.length>1 ? receivedAtMs : Date.now()
+        var record = { latitude:gps.latitude, longitude:gps.longitude,
+                       timestampMs:timestamp, sequence:chartSource.chartSequence,
                        depthM: chartSource.nativeChannelReady ? NaN : depthM,
                        resolution: chartSource.chartResolution,
                        absoluteOffset: chartSource.chartAbsoluteOffset,
@@ -278,7 +299,7 @@ Rectangle {
     readonly property int echoWidth: width < 640 ? 44 : 58
     color: "#03101a"
     clip: true
-    function pushHistory() {
+    function pushHistory(columnGps, receivedAtMs) {
         var column = chartSource ? (koggerCompensation ? chartSource.compensatedSamples : chartSource.echoSamples) : samples
         var offset = chartSource ? chartSource.chartOffsetMeters : chartOffsetMeters
         var range = chartSource ? chartSource.chartRangeMeters : chartRangeMeters
@@ -287,12 +308,10 @@ Rectangle {
                 !isFinite(offset) || !isFinite(range) || range <= 0) return
         var raw=chartSource ? chartSource.echoSamples.slice(0) : column.slice(0)
         var h = history.slice(0)
-        var v=root.vehicle
-        var fix=!root.replayMode && v && v.gps && v.gps.lock.rawValue>=3 &&
-            v.vehicleLinkManager && !v.vehicleLinkManager.communicationLost
-        var c=fix && v.coordinate && v.coordinate.isValid ? v.coordinate : null
+        var gps=arguments.length ? columnGps : columnGpsSnapshot()
+        var timestamp=arguments.length>1 ? receivedAtMs : Date.now()
         h.push({rawSamples:raw,samples:chartSource && koggerCompensation ? column.slice(0) : raw, offset: offset, range: range, sequence: chartSource ? chartSource.chartSequence : 0,
-                latitude:c ? c.latitude : NaN,longitude:c ? c.longitude : NaN,time:Date.now(),
+                latitude:gps ? gps.latitude : NaN,longitude:gps ? gps.longitude : NaN,time:timestamp,
                 temp:root.waterTempC,lakeId:root.activeLakeId,replay:root.replayMode,
                 replayAnchor:root.replayMode && chartSource && chartSource.replayAnnotationAnchor ? Object.assign({},chartSource.replayAnnotationAnchor,{columnSequence:chartSource.chartSequence}) : null,
                 bottom: chartSource && chartSource.nativeChannelReady ? NaN : (isFinite(root.depthM) && root.depthM >= 0 ? root.depthM : NaN)})
@@ -340,20 +359,23 @@ Rectangle {
     // this signal. Capture every column even when one TCP chunk holds several.
     Connections {
         target: root.chartSource || null
-        function onEchoSamplesChanged() { root.captureGeoChart(); root.pushHistory() }
+        function onEchoSamplesChanged() { root.onChartColumnReceived() }
         function onBottomColumnReady(sequence,depth) { root.updateHistoryBottom(sequence,depth) }
     }
     onSamplesChanged: if (!chartSource) Qt.callLater(pushHistory)
     Component.onCompleted: Qt.callLater(pushHistory)
     onHistoryChanged: { if (!history.length) rasterCache = []; repaint() }
-    onActiveLakeIdChanged: { endPointPick();sonarPointDialog.close();history=[] }
-    onReplayModeChanged: { endPointPick();sonarPointDialog.close();history=[] }
+    onActiveLakeIdChanged: { endPointPick();sonarPointDialog.close();history=[];geoChartRecords=[];unlocatedChartCount=0 }
+    onReplayModeChanged: { endPointPick();sonarPointDialog.close();history=[];geoChartRecords=[];unlocatedChartCount=0 }
+    onChartSourceChanged: { history=[];geoChartRecords=[];unlocatedChartCount=0 }
     onGainChanged: repaint()
     onNoiseFloorChanged: repaint()
     onNoiseFilterEnabledChanged: repaint()
     onDayPaletteChanged: repaint()
     onReplayActiveChanged: { if(replayActive)history=[]; root.menuOpen=false }
-    onKoggerCompensationChanged: { history = []; pushHistory(); repaint() }
+    // Reprocessing appearance is not a new sonar ping: never re-stamp old
+    // CHART bytes with the boat's *current* position after a UI-only toggle.
+    onKoggerCompensationChanged: { history = []; repaint() }
     onShowBottomTrackChanged: repaint()
     // Freeze scale together with the displayed history while paused.
     readonly property real scaleStart: displayedColumn ? displayedColumn.offset : (isFinite(chartOffsetMeters) ? chartOffsetMeters : 0)
