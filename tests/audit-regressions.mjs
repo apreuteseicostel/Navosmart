@@ -168,6 +168,43 @@ test('Malformed sonar samples cannot enter the active lake',()=>{
   for(const s of [{lat:52,lon:0,depth:null},{lat:52,lon:0,depth:-1},{lat:Infinity,lon:0,depth:2},{lat:52,lon:181,depth:2}])c.ingestSample(s);
   assert.equal(c.rawSamples.length,0);c.ingestSample({lat:52,lon:0,depth:2});assert.equal(c.rawSamples.length,1);
 });
+test('Sonar rejects missing/null/coerced coordinates and depth before batimetry',()=>{
+ const c=context('NavoSonarMapping.qml',{bottomHardness:NaN,bottomEchoStrength:NaN,
+   scanning:true,paused:false,sonarConnected:true,rawSamples:[],trackCoordinates:[],
+   QtPositioning:{coordinate:coord}});
+ const malformed=[
+   {lat:null,lon:0,depth:2},{lat:52,lon:null,depth:2},
+   {lat:undefined,lon:0,depth:2},{lat:52,lon:undefined,depth:2},
+   {lat:'52',lon:0,depth:2},{lat:52,lon:'0',depth:2},
+   {lat:false,lon:0,depth:2},{lat:52,lon:true,depth:2},
+   {lat:52,lon:0,depth:'2'},{lat:52,lon:0,depth:true},
+   {lat:52,lon:0,depth:undefined},{lat:52,lon:0,depth:Infinity},
+   {lat:52,lon:0,depth:0},{lat:91,lon:0,depth:2},
+ ];
+ for(const sample of malformed)c.ingestSample(sample);
+ assert.equal(c.rawSamples.length,0);
+ assert.equal(c.trackCoordinates.length,0);
+ c.ingestSample({lat:0,lon:0,depth:2,time:1000});
+ assert.equal(c.rawSamples.length,1);
+ assert.equal(c.rawSamples[0].lat,0);assert.equal(c.rawSamples[0].lon,0);
+ assert.equal(c.rawSamples[0].time,1000);
+});
+test('Live sonar GPS gate prevents mapping from stale/lost H743 position',()=>{
+ const vehicle={coordinate:coord(52,-1),gps:{lock:{rawValue:3}},
+   vehicleLinkManager:{communicationLost:false}};
+ const c=context('NavoSonarEthernet.qml',{vehicle,replayMode:false});
+ assert.equal(c.liveGpsReady(),true);
+ vehicle.gps.lock.rawValue=2;assert.equal(c.liveGpsReady(),false);
+ vehicle.gps.lock.rawValue=NaN;assert.equal(c.liveGpsReady(),false);
+ vehicle.gps.lock.rawValue=3;vehicle.vehicleLinkManager.communicationLost=true;
+ assert.equal(c.liveGpsReady(),false);
+ vehicle.vehicleLinkManager.communicationLost=false;vehicle.coordinate={isValid:true,latitude:null,longitude:0};
+ assert.equal(c.liveGpsReady(),false);
+ vehicle.coordinate=coord(52,-1);c.replayMode=true;assert.equal(c.liveGpsReady(),false);
+ const source=fs.readFileSync(path.join(dir,'NavoSonarEthernet.qml'),'utf8');
+ assert(source.includes('root.lastEchoMs-root.lastDepthMs>1500 || !root.liveGpsReady()'));
+ assert(source.includes('var valid=root.liveGpsReady()'));
+});
 test('Recovered NAVO mobile UI remains reachable from the dashboard',()=>{
   const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
   const area=fs.readFileSync(path.join(dir,'NavoAreaScanOverlay.qml'),'utf8');
