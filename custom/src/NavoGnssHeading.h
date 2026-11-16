@@ -89,6 +89,7 @@ private:
     static constexpr qint64 kInertialHoldoverMs = 12000;
     void _reset();
     void _syncCompassParameters();
+    void _updateCompassSelection();
     void _requestCompassParameters(bool manual);
     void _observe(Receiver&, uint8_t fix, uint8_t satellites, uint16_t rawYaw);
     bool _available(const Receiver&) const;
@@ -105,9 +106,14 @@ private:
     bool _magHealthy = false;
     bool _ekfCompassFallback = false;
     int _ekfYawMode = -1;
-    int _compassUse = -1;
-    int _compassDevIdPresent = -1; // -1 unread, 0 ID=0, 1 nonzero ID
-    int _compassDeviceId = -1; // Raw device ID (not proof of calibration/usage)
+    int _compassUse = -1;      // first discovered slot
+    int _compassUse2 = -1;     // second discovered slot (actual boat IST8310)
+    int _compassDevId1 = -1;
+    int _compassDevId2 = -1;
+    int _compassPrio1Id = -1;  // ordering is independent of discovered slot
+    int _activeCompassUse = -1;
+    int _compassDevIdPresent = -1; // -1 unread, 0 no recognized ID, 1 selected ID
+    int _compassDeviceId = -1; // selected nonzero ID, not proof of calibrated yaw
     qint64 _lastParamRequestMs = -1;
     int _paramReadAttempts = 0;
 };
