@@ -25,7 +25,8 @@ Rectangle {
         ? (plot.fileReady ? "KLF • " + plot.indexedColumns + " Epoch"
            : (chartSource.replayError && chartSource.replayError.length
               ? chartSource.replayError : "Indexare KLF…"))
-        : (chartSource && chartSource.dataAlive ? "LIVE • Kogger CHART"
+        : (chartSource && chartSource.dataAlive
+           ? "LIVE • Kogger CHART • " + (chartSource.liveGpsUsable ? "GPS FIX" : "GPS —")
            : (chartSource && chartSource.connected ? "CONECTAT • aștept CHART"
              : "Sonar neconectat"))
     signal closed()
