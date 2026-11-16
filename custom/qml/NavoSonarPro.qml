@@ -363,7 +363,8 @@ Rectangle {
         function onBottomColumnReady(sequence,depth) { root.updateHistoryBottom(sequence,depth) }
     }
     onSamplesChanged: if (!chartSource) Qt.callLater(pushHistory)
-    Component.onCompleted: Qt.callLater(pushHistory)
+    // Opening a live screen is not a new ping; wait for an actual CHART event.
+    Component.onCompleted: if (!chartSource) Qt.callLater(pushHistory)
     onHistoryChanged: { if (!history.length) rasterCache = []; repaint() }
     onActiveLakeIdChanged: { endPointPick();sonarPointDialog.close();history=[];geoChartRecords=[];unlocatedChartCount=0 }
     onReplayModeChanged: { endPointPick();sonarPointDialog.close();history=[];geoChartRecords=[];unlocatedChartCount=0 }
