@@ -47,6 +47,11 @@ void NavoGnssHeading::_reset() {
     _ekfCompassFallback = false;
     _ekfYawMode = -1;
     _compassUse = -1;
+    _compassUse2 = -1;
+    _compassDevId1 = -1;
+    _compassDevId2 = -1;
+    _compassPrio1Id = -1;
+    _activeCompassUse = -1;
     _compassDevIdPresent = -1;
     _compassDeviceId = -1;
     _lastParamRequestMs = -1;
@@ -131,27 +136,19 @@ void NavoGnssHeading::_mavlink(const mavlink_message_t& message) {
     case MAVLINK_MSG_ID_PARAM_VALUE: {
         mavlink_param_value_t paramValue{};
         mavlink_msg_param_value_decode(&message, &paramValue);
-        // Fixed 16-byte MAVLink name can lack NUL terminator.
         const QByteArray key = QByteArray(paramValue.param_id, sizeof(paramValue.param_id))
                                    .split('\0').first();
-        if (key == "EK3_SRC1_YAW") _ekfYawMode = std::isfinite(paramValue.param_value)
-            ? int(paramValue.param_value) : -1;
-        else if (key == "COMPASS_USE") _compassUse = std::isfinite(paramValue.param_value)
-            ? int(paramValue.param_value) : -1;
-        else if (key == "COMPASS_DEV_ID") {
-            // PARAM_VALUE can arrive after an explicit read from QGC; preserve
-            // unknown rather than report a missing compass on invalid packets.
-            const double id = paramValue.param_value;
-            if (std::isfinite(id) && id >= 0 && id <= 16777215
-                && std::floor(id) == id) {
-                _compassDeviceId = int(id);
-                _compassDevIdPresent = id > 0 ? 1 : 0;
-            } else {
-                _compassDevIdPresent = -1;
-                _compassDeviceId = -1;
-            }
-        }
+        const double raw = paramValue.param_value;
+        const int value = std::isfinite(raw) && raw >= 0 && raw <= 16777215
+                       && std::floor(raw) == raw ? int(raw) : -1;
+        if (key == "EK3_SRC1_YAW") _ekfYawMode = value;
+        else if (key == "COMPASS_USE") _compassUse = value;
+        else if (key == "COMPASS_USE2") _compassUse2 = value;
+        else if (key == "COMPASS_DEV_ID") _compassDevId1 = value;
+        else if (key == "COMPASS_DEV_ID2") _compassDevId2 = value;
+        else if (key == "COMPASS_PRIO1_ID") _compassPrio1Id = value;
         else break;
+        _updateCompassSelection();
         emit headingChanged();
         break;
     }
@@ -215,7 +212,7 @@ bool NavoGnssHeading::compassFallbackActive() const {
     // with compass fallback, fresh magnetometer health, and an explicit EKF3
     // "yaw fallback active" event. This does not prove the sensor model.
     return _linkAlive && _vehicle && !_activeGps() && _ekfCompassFallback
-        && _ekfYawMode == 3 && _compassUse == 1
+        && _ekfYawMode == 3 && _activeCompassUse == 1
         && _compassDevIdPresent == 1 && compassHealthy()
         && std::isfinite(_autopilotHeadingDeg);
 }
@@ -255,9 +252,9 @@ QString NavoGnssHeading::compassStatus() const {
     if (_compassDevIdPresent < 0)
         return QStringLiteral("ID busolă încă necitit de NAVO; verifică răspunsul H743");
     if (_compassDevIdPresent == 0)
-        return QStringLiteral("COMPASS_DEV_ID=0; busola nu este configurată în acest slot");
-    if (_compassUse != 1)
-        return QStringLiteral("COMPASS_USE trebuie verificat (1 = activ)");
+        return QStringLiteral("Nu există un COMPASS_DEV_ID/DEV_ID2 valid");
+    if (_activeCompassUse != 1)
+        return QStringLiteral("COMPASS_USE(2) pentru busola detectată nu este activ sau încă necitit");
     if (_ekfYawMode != 3)
         return QStringLiteral("EK3_SRC1_YAW nu confirmă GPS cu rezervă busolă (3)");
     if (!compassHealthy())
@@ -296,6 +293,30 @@ int NavoGnssHeading::gpsYawAgeMs() const {
     return r ? int(_clock.elapsed() - r->lastYawMs) : -1;
 }
 
+void NavoGnssHeading::_updateCompassSelection() {
+    // ArduPilot discovery slots (COMPASS_DEV_IDx) are NOT the same as
+    // magnetometer priority. Real 16-Nov H743 export: DEV_ID=0, DEV_ID2=658953,
+    // PRIO1_ID=658953, USE2=1. Do not reject this healthy compass.
+    const bool first = _compassDevId1 > 0;
+    const bool second = _compassDevId2 > 0;
+    int slot = 0;
+    if (_compassPrio1Id > 0 && first && _compassDevId1 == _compassPrio1Id)
+        slot = 1;
+    else if (_compassPrio1Id > 0 && second && _compassDevId2 == _compassPrio1Id)
+        slot = 2;
+    else if (first) slot = 1;
+    else if (second) slot = 2;
+    if (slot != 0) {
+        _compassDeviceId = slot == 1 ? _compassDevId1 : _compassDevId2;
+        _activeCompassUse = slot == 1 ? _compassUse : _compassUse2;
+        _compassDevIdPresent = 1;
+    } else {
+        _compassDeviceId = _compassDevId1 >= 0 && _compassDevId2 >= 0 ? 0 : -1;
+        _activeCompassUse = -1;
+        _compassDevIdPresent = _compassDeviceId >= 0 ? 0 : -1;
+    }
+}
+
 void NavoGnssHeading::_syncCompassParameters() {
     // QGroundControl may have cached these facts before NavoGnssHeading
     // attached to the Vehicle. PARAM_VALUE is not broadcast continuously.
@@ -314,8 +335,11 @@ void NavoGnssHeading::_syncCompassParameters() {
     };
     readInt(QStringLiteral("EK3_SRC1_YAW"), _ekfYawMode);
     readInt(QStringLiteral("COMPASS_USE"), _compassUse);
-    readInt(QStringLiteral("COMPASS_DEV_ID"), _compassDeviceId);
-    if (_compassDeviceId >= 0) _compassDevIdPresent = _compassDeviceId > 0 ? 1 : 0;
+    readInt(QStringLiteral("COMPASS_USE2"), _compassUse2);
+    readInt(QStringLiteral("COMPASS_DEV_ID"), _compassDevId1);
+    readInt(QStringLiteral("COMPASS_DEV_ID2"), _compassDevId2);
+    readInt(QStringLiteral("COMPASS_PRIO1_ID"), _compassPrio1Id);
+    _updateCompassSelection();
 }
 
 void NavoGnssHeading::_requestCompassParameters(bool manual) {
@@ -330,7 +354,9 @@ void NavoGnssHeading::_requestCompassParameters(bool manual) {
     } else {
         if (_paramReadAttempts >= 3 ||
             (_lastParamRequestMs >= 0 && now - _lastParamRequestMs < 5000)) return;
-        if (_ekfYawMode >= 0 && _compassUse >= 0 && _compassDevIdPresent >= 0) return;
+        if (_ekfYawMode >= 0 && _compassUse >= 0 && _compassUse2 >= 0
+            && _compassDevId1 >= 0 && _compassDevId2 >= 0
+            && _compassPrio1Id >= 0) return;
         ++_paramReadAttempts;
     }
     _lastParamRequestMs = now;
@@ -339,8 +365,14 @@ void NavoGnssHeading::_requestCompassParameters(bool manual) {
         manager->refreshParameter(comp, QStringLiteral("EK3_SRC1_YAW"));
     if (manual || _compassUse < 0)
         manager->refreshParameter(comp, QStringLiteral("COMPASS_USE"));
-    if (manual || _compassDevIdPresent < 0)
+    if (manual || _compassUse2 < 0)
+        manager->refreshParameter(comp, QStringLiteral("COMPASS_USE2"));
+    if (manual || _compassDevId1 < 0)
         manager->refreshParameter(comp, QStringLiteral("COMPASS_DEV_ID"));
+    if (manual || _compassDevId2 < 0)
+        manager->refreshParameter(comp, QStringLiteral("COMPASS_DEV_ID2"));
+    if (manual || _compassPrio1Id < 0)
+        manager->refreshParameter(comp, QStringLiteral("COMPASS_PRIO1_ID"));
 }
 
 void NavoGnssHeading::requestCompassParameters() {
