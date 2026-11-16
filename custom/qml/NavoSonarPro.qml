@@ -247,7 +247,7 @@ Rectangle {
         // Always share one snapshot/time for the corresponding CHART column.
         var receivedAt=Date.now(), gps=root.columnGpsSnapshot()
         root.captureGeoChart(gps,receivedAt)
-        root.pushHistory(gps,receivedAt)
+        root.pushHistoryWithSnapshot(gps,receivedAt)
     }
     function captureGeoChart(columnGps, receivedAtMs) {
         if (!chartSource || chartSource.replayMode || !chartSource.chartRawBytes || !chartSource.chartRawByteCount) return
@@ -299,7 +299,13 @@ Rectangle {
     readonly property int echoWidth: width < 640 ? 44 : 58
     color: "#03101a"
     clip: true
-    function pushHistory(columnGps, receivedAtMs) {
+    // Keep the original zero-argument QML method signature for Qt/metaobject
+    // callers (including the replay UI); the synchronized CHART path uses
+    // the internal two-argument function below.
+    function pushHistory() {
+        pushHistoryWithSnapshot(columnGpsSnapshot(),Date.now())
+    }
+    function pushHistoryWithSnapshot(columnGps, receivedAtMs) {
         var column = chartSource ? (koggerCompensation ? chartSource.compensatedSamples : chartSource.echoSamples) : samples
         var offset = chartSource ? chartSource.chartOffsetMeters : chartOffsetMeters
         var range = chartSource ? chartSource.chartRangeMeters : chartRangeMeters
@@ -308,8 +314,8 @@ Rectangle {
                 !isFinite(offset) || !isFinite(range) || range <= 0) return
         var raw=chartSource ? chartSource.echoSamples.slice(0) : column.slice(0)
         var h = history.slice(0)
-        var gps=arguments.length ? columnGps : columnGpsSnapshot()
-        var timestamp=arguments.length>1 ? receivedAtMs : Date.now()
+        var gps=columnGps
+        var timestamp=receivedAtMs
         h.push({rawSamples:raw,samples:chartSource && koggerCompensation ? column.slice(0) : raw, offset: offset, range: range, sequence: chartSource ? chartSource.chartSequence : 0,
                 latitude:gps ? gps.latitude : NaN,longitude:gps ? gps.longitude : NaN,time:timestamp,
                 temp:root.waterTempC,lakeId:root.activeLakeId,replay:root.replayMode,
