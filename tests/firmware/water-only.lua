@@ -59,13 +59,20 @@ gcs={
  end
 }
 local servo_function,second_battery=-1,0
+local battery_mode,battery_pin=4,11
+local battery2_pin,airspeed_type=7,0
 param={get=function(_,name)
  if name=="SERVO8_FUNCTION" then return servo_function end
+ if name=="BATT_MONITOR" then return battery_mode end
+ if name=="BATT_CURR_PIN" then return battery_pin end
  if name=="BATT2_MONITOR" then return second_battery end
+ if name=="BATT2_CURR_PIN" then return battery2_pin end
+ if name=="ARSPD_TYPE" then return airspeed_type end
 end}
 local adcV=1.5
+local selected_adc=-1
 analog={channel=function()
- return {set_pin=function(_,pin)assert(pin==7);return true end,
+ return {set_pin=function(_,pin)assert(pin==7 or pin==4);selected_adc=pin;return true end,
          voltage_latest=function()return adcV end}
 end}
 local gpio_writes={}
@@ -117,4 +124,46 @@ raw=7840;update();assert(outputs.NV3WSTAT==3)
 -- Clock rollover must not hold excitation forever.
 raw=4294967290;update();raw=10;update();raw=130;update()
 assert(gpio_state==0 or gpio_state==1)
-print("PASS water service: config conflicts, read-only raw ADC, 3x confirmation, dry/wet/fault, excitation shutdown")
+-- A primary total-pack current sensor on CU2 (pin 7) MUST exclude water.
+cfg.calibrated=false
+cfg.adc_pin=7
+battery_pin=7
+raw=0
+local conflict=dofile("ardupilot/scripts/navo_water_service.lua")
+assert(type(conflict)=="function" and outputs.NV3WSTAT==4)
+battery_pin=11
+
+-- New AirS ADC4 requires verified physical migration and unused airspeed.
+cfg.adc_pin=4
+cfg.airs_wiring_verified=false
+raw=0
+conflict=dofile("ardupilot/scripts/navo_water_service.lua")
+assert(type(conflict)=="function" and outputs.NV3WSTAT==4)
+cfg.airs_wiring_verified=true
+airspeed_type=1
+conflict=dofile("ardupilot/scripts/navo_water_service.lua")
+assert(type(conflict)=="function" and outputs.NV3WSTAT==4)
+airspeed_type=0
+
+-- BATT current monitor must never reserve the same AirS pin.
+battery_pin=4
+conflict=dofile("ardupilot/scripts/navo_water_service.lua")
+assert(type(conflict)=="function" and outputs.NV3WSTAT==4)
+battery_pin=11
+second_battery=4
+battery2_pin=4
+conflict=dofile("ardupilot/scripts/navo_water_service.lua")
+assert(type(conflict)=="function" and outputs.NV3WSTAT==4)
+second_battery=0
+battery2_pin=7
+
+raw=0
+local air_update=dofile("ardupilot/scripts/navo_water_service.lua")
+assert(type(air_update)=="function" and outputs.NV3WSTAT==1 and selected_adc==4)
+raw=120;air_update()
+assert(outputs.NV3WADC==adcV and outputs.NV3WDET~=1 and gpio_state==0)
+-- The new pin defaults UNCALIBRATED regardless of old CU2 dry/wet examples.
+raw=1120;air_update();raw=1240;air_update()
+assert(outputs.NV3WSTAT==5)
+
+print("PASS water service: CU2 and AirS pin ownership, verified AirS, dry/wet/fault, excitation shutdown")
