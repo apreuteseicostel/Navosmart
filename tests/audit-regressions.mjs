@@ -202,7 +202,7 @@ test('Live sonar GPS gate prevents mapping from stale/lost H743 position',()=>{
  assert.equal(c.liveGpsReady(),false);
  vehicle.coordinate=coord(52,-1);c.replayMode=true;assert.equal(c.liveGpsReady(),false);
  const source=fs.readFileSync(path.join(dir,'NavoSonarEthernet.qml'),'utf8');
- assert.match(source,/root\\.lastEchoMs-root\\.lastDepthMs>1500 \\|\\| !root\\.liveGpsReady\\(\\)/);
+ assert(source.includes('root.lastEchoMs-root.lastDepthMs>1500 || !root.liveGpsReady()'));
  assert(source.includes('var valid=root.liveGpsReady()'));
 });
 test('Recovered NAVO mobile UI remains reachable from the dashboard',()=>{
