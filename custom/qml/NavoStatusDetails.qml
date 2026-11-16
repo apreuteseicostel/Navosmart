@@ -33,6 +33,34 @@ Popup {
     readonly property real voltage: batteryFact("voltage")
     readonly property real current: batteryFact("current")
     readonly property real usedMah: batteryFact("mahConsumed")
+    // Read-only, operator-triggered snapshots. This does NOT toggle the physical lamp.
+    property var lampOffSample: null
+    property var lampOnSample: null
+    readonly property real lampDeltaA: lampDeltaCurrent()
+    readonly property real lampDeltaW: lampDeltaPower()
+    readonly property bool loadSampleReady: linkAlive && isFinite(voltage) && voltage >= 8
+        && voltage <= 17 && isFinite(current) && current >= 0
+    function resetLampTest() {
+        details.lampOffSample = null
+        details.lampOnSample = null
+    }
+    function captureLampSample(isOn) {
+        if (!details.loadSampleReady) return false
+        // Capture the H743 report exactly; do not add the lamp's rated 10 W.
+        var reading = {voltage: Number(details.voltage), current: Number(details.current),
+                       watts: Number(details.voltage) * Number(details.current)}
+        if (isOn) details.lampOnSample = reading
+        else details.lampOffSample = reading
+        return true
+    }
+    function lampDeltaCurrent() {
+        return details.lampOffSample && details.lampOnSample
+            ? details.lampOnSample.current - details.lampOffSample.current : NaN
+    }
+    function lampDeltaPower() {
+        return details.lampOffSample && details.lampOnSample
+            ? details.lampOnSample.watts - details.lampOffSample.watts : NaN
+    }
     readonly property bool batteryPercentValid: isFinite(batteryPercent) && batteryPercent >= 0 && batteryPercent <= 100
 
     function batteryFact(key) {
@@ -63,7 +91,8 @@ Popup {
         open()
         return true
     }
-    onVehicleChanged: temperatureSamples = []
+    onVehicleChanged: { temperatureSamples = []; resetLampTest() }
+    onLinkAliveChanged: { if (!linkAlive) resetLampTest() }
     Timer {
         interval: 10000
         repeat: true
@@ -250,13 +279,79 @@ Popup {
                 Rectangle { Layout.fillWidth: true; height: 1; color: details.line }
                 DetailRow { caption: "Curent raportat"; amount: details.format(details.current, 2, " A") }
                 Rectangle { Layout.fillWidth: true; height: 1; color: details.line }
-                DetailRow { caption: "Putere estimată V × A"; amount: isFinite(details.voltage) && isFinite(details.current) ? details.format(details.voltage * details.current, 1, " W") : "--" }
+                DetailRow { caption: "Putere prin monitor (V × A)"; amount: isFinite(details.voltage) && isFinite(details.current) && details.current >= 0 ? details.format(details.voltage * details.current, 1, " W") : "--" }
                 Rectangle { Layout.fillWidth: true; height: 1; color: details.line }
                 DetailRow { caption: "Capacitate consumată (MAVLink)"; amount: details.format(details.usedMah, 0, " mAh") }
                 Rectangle { Layout.fillWidth: true; height: 1; color: details.line }
                 DetailRow { caption: "Stare BMS / echilibrare celule"; amount: "Neraportată" }
                 Rectangle { Layout.fillWidth: true; height: 1; color: details.line }
                 DetailRow { caption: "Autonomie calculată"; amount: "Necesită calibrare" }
+                Label {
+                    Layout.fillWidth: true
+                    text: "Curentul este raportat de monitorul H743, nu măsurat de telefon. Puterea V × A poate exclude farul și convertoarele externe dacă alimentarea lor ocolește șuntul."
+                    color: "#ffd166"; font.pixelSize: 11; wrapMode: Text.WordWrap
+                }
+                Rectangle { Layout.fillWidth: true; height: 1; color: details.line }
+                Label {
+                    Layout.fillWidth: true
+                    text: "TEST CURENT • FAR 10 W"
+                    color: details.cyan; font.bold: true; font.pixelSize: 12
+                }
+                Label {
+                    Layout.fillWidth: true
+                    text: "Cu motorul oprit: stinge farul pe G20, așteaptă 3–5 secunde și memorează OFF. Aprinde farul, așteaptă din nou 3–5 secunde și memorează ON. Butoanele doar salvează citirile primite; nu comandă relee."
+                    color: details.muted; font.pixelSize: 11; wrapMode: Text.WordWrap
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    Button {
+                        objectName: "batteryLampOffCapture"
+                        text: "Memorează OFF"
+                        enabled: details.loadSampleReady
+                        Layout.fillWidth: true
+                        onClicked: details.captureLampSample(false)
+                    }
+                    Button {
+                        objectName: "batteryLampOnCapture"
+                        text: "Memorează ON"
+                        enabled: details.loadSampleReady
+                        Layout.fillWidth: true
+                        onClicked: details.captureLampSample(true)
+                    }
+                    Button {
+                        objectName: "batteryLampReset"
+                        text: "Reset"
+                        enabled: details.lampOffSample !== null || details.lampOnSample !== null
+                        onClicked: details.resetLampTest()
+                    }
+                }
+                DetailRow {
+                    caption: "OFF • curent raportat"
+                    amount: details.lampOffSample ? details.format(details.lampOffSample.current, 2, " A") : "--"
+                }
+                DetailRow {
+                    caption: "ON • curent raportat"
+                    amount: details.lampOnSample ? details.format(details.lampOnSample.current, 2, " A") : "--"
+                }
+                DetailRow {
+                    caption: "Diferență ON − OFF"
+                    amount: details.format(details.lampDeltaA, 2, " A") + "  /  " + details.format(details.lampDeltaW, 1, " W")
+                    amountColor: isFinite(details.lampDeltaA) && details.lampDeltaA < 0.3 ? "#ffd166" : details.fg
+                }
+                Label {
+                    Layout.fillWidth: true
+                    text: !isFinite(details.lampDeltaA) ? "Aștept două citiri. La 16 V, un far nominal de 10 W ar necesita aproximativ 0,63 A (plus pierderile driverului)."
+                        : details.lampDeltaA < 0.3 ? "Creștere prea mică pentru farul nominal de 10 W. Verifică dacă ramura farului trece prin senzorul de curent și compară cu un ampermetru extern."
+                        : "Creșterea este vizibilă, dar nu confirmă încă precizia. Compară cu un ampermetru extern pe alimentarea principală."
+                    color: isFinite(details.lampDeltaA) && details.lampDeltaA < 0.3 ? "#ffd166" : details.muted
+                    font.pixelSize: 11; wrapMode: Text.WordWrap
+                }
+                Label {
+                    Layout.fillWidth: true
+                    text: "Verifică pe H743: BATT_MONITOR=4, BATT_CURR_PIN=11, BATT_AMP_PERVLT (nominal WING V3: 66.7) și BATT_AMP_OFFSET. Nu modifica automat parametrii; măsoară întâi cu instrument extern."
+                    color: details.muted; font.pixelSize: 11; wrapMode: Text.WordWrap
+                }
                 Label {
                     Layout.fillWidth: true
                     text: "Nu deducem sănătatea bateriei sau tensiunile celulelor din procent. Datele lipsă rămân --."
