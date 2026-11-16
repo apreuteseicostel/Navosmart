@@ -2911,18 +2911,14 @@ Item {
             Rectangle { anchors.fill:parent; radius:8; color:root.panel; border.color:root.line }
             RowLayout {
                 anchors.fill:parent; anchors.margins:root.responsiveMargin; spacing:root.responsiveGap
-                ColumnLayout {
+                ScrollView {
                     Layout.fillWidth:true; Layout.fillHeight:true; Layout.preferredWidth:1
+                    clip:true
+                    contentWidth:availableWidth
                     NavoFailsafePanel {
-                        Layout.fillWidth:true
-                        Layout.alignment:Qt.AlignTop
+                        width:parent.width
                         controller:failsafeController
                     }
-                    Label {
-                        Layout.fillWidth:true; wrapMode:Text.WordWrap; color:root.muted; font.pixelSize:11
-                        text:"Pierderea legăturii: aplicația nu poate trimite HOLD/RTL fără MAVLink. Verifică separat FS_THR_ENABLE (RC/GR01), FS_GCS_ENABLE și FS_ACTION (GCS) direct în H743. GPS invalid: HOLD se cere numai cât există MAVLink; RTL poate fi cerut doar după revenirea GPS."
-                    }
-                    Item { Layout.fillHeight:true }
                 }
                 Rectangle {
                     Layout.fillWidth:true; Layout.fillHeight:true; Layout.preferredWidth:1
