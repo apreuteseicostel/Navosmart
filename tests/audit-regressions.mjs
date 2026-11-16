@@ -881,5 +881,55 @@ test('Sonar freshness watchdog only runs on a live transport, not while offline 
   const sonar=fs.readFileSync(path.join(dir,'NavoSonarEthernet.qml'),'utf8');
   assert.match(sonar,/property Timer freshness:\s*Timer\s*\{[^}]*running:\s*transportObject\.connected\s*&&\s*!root\.replayMode/);
 });
+
+test('Onboard failsafe readback reports disabled 4S LOW, warn-only CRIT, separate RC/GCS',()=>{
+ const values={
+   BATT_MONITOR:4,BATT_LOW_VOLT:0,BATT_LOW_MAH:0,BATT_FS_LOW_ACT:0,
+   BATT_CRT_VOLT:12,BATT_CRT_MAH:0,BATT_FS_CRT_ACT:0,
+   FS_ACTION:1,FS_THR_ENABLE:1,FS_GCS_ENABLE:0
+ };
+ const vehicle={parameterManager:{parametersReady:true}};
+ const reader={vehicle,parameterExists(_,key){return Object.hasOwn(values,key)},
+   getParameterFact(_,key){return {rawValue:values[key]}}};
+ const c=context('NavoFailsafePanel.qml',{liveVehicle:vehicle,parameterReader:reader,linkAlive:true,
+   lowBatteryStatus:'NECITIT',criticalBatteryStatus:'NECITIT',
+   rcStatus:'NECITIT',gcsStatus:'NECITIT',onboardStatus:''});
+ c.refreshAudit();
+ assert(c.lowBatteryStatus.includes('DEZACTIVAT'));
+ assert(c.criticalBatteryStatus.includes('DOAR AVERTIZARE'));
+ assert(c.criticalBatteryStatus.includes('12.00 V'));
+ assert(c.rcStatus.includes('RTL'));
+ assert.equal(c.gcsStatus,'DEZACTIVAT');
+ assert(c.onboardStatus.includes('INCOMPLETE'));
+});
+test('Onboard failsafe guards missing/stale facts and avoids false safety confirmation',()=>{
+ const vehicle={parameterManager:{parametersReady:true}},otherVehicle={parameterManager:{parametersReady:true}};
+ const reader={vehicle,parameterExists(){return true},getParameterFact(){return {rawValue:NaN}}};
+ const c=context('NavoFailsafePanel.qml',{liveVehicle:vehicle,parameterReader:reader,linkAlive:true,
+   lowBatteryStatus:'',criticalBatteryStatus:'',rcStatus:'',gcsStatus:'',onboardStatus:''});
+ c.refreshAudit();assert.equal(c.lowBatteryStatus,'NECITIT');assert(c.onboardStatus.includes('INCOMPLEȚI'));
+ c.linkAlive=false;c.refreshAudit();assert.equal(c.onboardStatus,'H743 offline / sursă parametri neconfirmată');
+ c.linkAlive=true;c.liveVehicle=otherVehicle;c.refreshAudit();assert.equal(c.gcsStatus,'NECITIT');
+ // QGC may still expose an offline/switch-away parameter object: always fail closed.
+});
+test('Rover failsafe parameter audit distinguishes configured action from tested protection',()=>{
+ const c=context('NavoFailsafePanel.qml');
+ assert(c.batteryStage(14.0,0,1,4).includes('CONFIGURAT (netestat)'));
+ assert(c.batteryStage(0,0,1,4).startsWith('DEZACTIVAT'));
+ assert(c.batteryStage(12,0,0,4).startsWith('DOAR AVERTIZARE'));
+ assert(c.batteryStage(13.5,0,1,0).startsWith('FĂRĂ MONITOR'));
+ assert(c.batteryStage(NaN,0,1,4)==='NECITIT');
+ assert(c.batteryStage(12,0,-1,4).startsWith('PARAMETRI INVALIZI'));
+ assert(c.radioStage(2,1,'GCS').includes('AUTO exceptat'));
+ assert(c.radioStage(1,0,'RC').startsWith('FĂRĂ ACȚIUNE'));
+ assert.equal(c.radioStage(NaN,1,'GCS'),'NECITIT');
+ assert.equal(c.actionName(1),'RTL');assert.equal(c.actionName(2),'HOLD');
+ const source=fs.readFileSync(path.join(dir,'NavoFailsafePanel.qml'),'utf8');
+ assert(source.includes('FactPanelController'));
+ assert(source.includes('parameterReader.getParameterFact(-1, name, false)'));
+ assert(!/setParameter\s*\(|refreshParameter\s*\(|rawValue\s*=(?!=)|sendCommand\s*\(/.test(source));
+ const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+ assert(!dash.includes('Link G20: HOLD după timpul configurat'));
+});
 console.log(`${passed} regression scenarios passed`);
 

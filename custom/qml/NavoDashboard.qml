@@ -2911,18 +2911,14 @@ Item {
             Rectangle { anchors.fill:parent; radius:8; color:root.panel; border.color:root.line }
             RowLayout {
                 anchors.fill:parent; anchors.margins:root.responsiveMargin; spacing:root.responsiveGap
-                ColumnLayout {
+                ScrollView {
                     Layout.fillWidth:true; Layout.fillHeight:true; Layout.preferredWidth:1
+                    clip:true
+                    contentWidth:availableWidth
                     NavoFailsafePanel {
-                        Layout.fillWidth:true
-                        Layout.alignment:Qt.AlignTop
+                        width:parent.width
                         controller:failsafeController
                     }
-                    Label {
-                        Layout.fillWidth:true; wrapMode:Text.WordWrap; color:root.muted; font.pixelSize:11
-                        text:"Link G20: HOLD după timpul configurat. GPS: așteaptă recuperarea; HOME/RTL este cerut numai după revenirea unei poziții GPS valide."
-                    }
-                    Item { Layout.fillHeight:true }
                 }
                 Rectangle {
                     Layout.fillWidth:true; Layout.fillHeight:true; Layout.preferredWidth:1
