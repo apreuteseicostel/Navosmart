@@ -1,10 +1,17 @@
 -- NAVO SMART V3 RevF: standalone read-only hull-water monitor.
 -- Disabled until J12 continuity/wiring and H743 assignments are verified.
--- J12.1 GND, J12.2 S8/PD13/GPIO57, J12.3 CU2/PA7/ADC7 (PROPOSED, not proven).
+-- Original J12.3 -> CU2/ADC7. After verified rewiring, J12.3 -> AirS/ADC4.
+-- AirS uses a built-in 1:1 divider. The ArduPilot SCALE(2) compensates the
+-- voltage_latest reading, but actual water thresholds require recalibration.
 -- Never copy example thresholds: measure dry/wet/open/short voltages on the actual board.
 return {
     enabled = false,
-    adc_pin = 7,          -- J12.3 -> CU2 / PA7 (if physically wired)
+    -- Keep ADC7 for existing installed scripts UNTIL the wire is actually moved.
+    -- After removing J12.3 from CU2 and connecting it to AirS, set adc_pin=4.
+    adc_pin = 7,          -- legacy: CU2 / PA7 / ADC7; new: AirS / PC4 / ADC4
+    airs_wiring_verified = false, -- only set true after checking soldering, 0..3.3V input,
+                                  -- ARSPD_TYPE unused and bench voltage/readback;
+                                  -- NEVER means probe dry/wet is calibrated
     exc_gpio = 57,        -- J12.2 -> S8 / PD13 (if physically wired)
     settle_ms = 120,      -- pulsed excitation; not permanent supply
     interval_ms = 1000,
