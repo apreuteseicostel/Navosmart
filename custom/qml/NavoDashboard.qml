@@ -1615,6 +1615,7 @@ Item {
                     GnssLine { name: "Busolă externă / IST8310"; value: gnssHeading.compassFallbackActive ? Number(gnssHeading.selectedHeadingDeg).toFixed(2) + "° (EKF3)" : "--" }
                     GnssLine { name: "H743 / EKF (estimare)"; value: root.vehicle && root.vehicle.heading && root.linkAlive && isFinite(Number(root.vehicle.heading.rawValue)) ? Number(root.vehicle.heading.rawValue).toFixed(2) + "°" : "--" }
                     GnssLine { name: "Rezervă magnetică"; value: gnssHeading.compassHealthy ? "Magnetometru HEALTHY" : "Indisponibil / nevalidat" }
+                    GnssLine { name: "ID busolă H743"; value: gnssHeading.compassDeviceId >= 0 ? String(gnssHeading.compassDeviceId) : "Necitit încă" }
                     GnssLine { name: "EKF3 yaw source"; value: gnssHeading.ekfYawMode >= 0 ? String(gnssHeading.ekfYawMode) + (gnssHeading.ekfYawMode === 3 ? " • GPS + busolă" : "") : "Parametru necitit" }
                     Label { Layout.fillWidth: true; text: gnssHeading.compassStatus; color: gnssHeading.compassFallbackActive ? "#31d6a5" : "#ffd166"; font.pixelSize: 11; wrapMode: Text.WordWrap }
                     GnssLine { name: "Vechime orientare GNSS"; value: gnssHeading.gpsYawValid ? String(gnssHeading.gpsYawAgeMs) + " ms" : "--" }
@@ -1644,6 +1645,9 @@ Item {
                             text: "Verifică GPS"
                             implicitHeight: 34
                             onClicked: {
+                                // Request only read-only QGC parameter refresh. Values may
+                                // arrive asynchronously after the diagnostic is displayed.
+                                gnssHeading.requestCompassParameters()
                                 if (!root.vehicle) gnssDiagnostic.checkResult = "H743 nu este conectat. Verifică MAVLink."
                                 else if (!root.vehicle.gps) gnssDiagnostic.checkResult = "H743 conectat, dar nu raportează GPS. Verifică UART, alimentarea UM982 și SERIALx_PROTOCOL."
                                 else if (Number(root.vehicle.gps.lock.rawValue) < 3) gnssDiagnostic.checkResult = "GPS raportat, fără fix 3D. Verifică antenele și vizibilitatea cerului."
@@ -1662,6 +1666,7 @@ Item {
         onOpened: {
             checkResult = ""
             gnssScroll.contentY = 0
+            gnssHeading.requestCompassParameters()
         }
     }
 
