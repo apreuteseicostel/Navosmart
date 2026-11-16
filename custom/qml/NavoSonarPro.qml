@@ -57,7 +57,8 @@ Rectangle {
     function sourceStatusText() {
         if(chartSource && chartSource.replayMode)return replayActive ? "REPLAY" : "REPLAY • FINAL"
         return chartSource && chartSource.dataAlive
-            ? (chartSource.recording ? "REC ●" : (paused ? "PAUZĂ" : "LIVE CHART"))
+            ? (chartSource.recording ? "REC ●" : (paused ? "PAUZĂ" : "LIVE CHART")) +
+              " • " + (chartSource.liveGpsUsable ? "GPS FIX" : "GPS —")
             : chartSource && chartSource.connected ? "CONECTAT • aștept CHART" : "OFFLINE"
     }
     NavoSonarLiveConnection {
