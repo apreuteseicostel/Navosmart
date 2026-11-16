@@ -291,6 +291,63 @@ test('PRO captures every source column with its own metadata during a burst',()=
   assert.equal(c.history[0].samples[1],.8);assert.equal(c.history[1].offset,2);
   c.paused=true;source.chartRangeMeters=20;c.pushHistory();assert.equal(c.history.length,2);
 });
+test('PRO stores a single host-receive GPS and timestamp per actual CHART column',()=>{
+ let now=1000;
+ const vehicle={coordinate:coord(52,-1),gps:{lock:{rawValue:3}},
+   vehicleLinkManager:{communicationLost:false}};
+ const source={replayMode:false,connected:true,echoSamples:[.3,.8],
+   chartRawBytes:[1,2,3],chartRawByteCount:3,chartSequence:41,
+   chartOffsetMeters:0,chartRangeMeters:4,chartResolution:123,
+   chartAbsoluteOffset:10,chartVersion:0,nativeChannelReady:false,
+   liveGpsReady(){return true}};
+ const c=context('NavoSonarPro.qml',{vehicle,chartSource:source,Date:{now:()=>now},
+   replayMode:false,koggerCompensation:false,paused:false,
+   history:[],historyColumns:240,geoChartRecords:[],maxGeoChartRecords:3000,
+   unlocatedChartCount:0,depthM:2,waterTempC:17,activeLakeId:'lake-one'});
+ c.onChartColumnReceived();
+ assert.equal(c.history.length,1);assert.equal(c.geoChartRecords.length,1);
+ assert.equal(c.history[0].sequence,41);assert.equal(c.geoChartRecords[0].sequence,41);
+ assert.equal(c.history[0].time,1000);assert.equal(c.geoChartRecords[0].timestampMs,1000);
+ assert.equal(c.history[0].latitude,52);assert.equal(c.geoChartRecords[0].latitude,52);
+ vehicle.coordinate=coord(53,-2);source.chartSequence=42;now=1200;
+ c.onChartColumnReceived();
+ assert.equal(c.history.length,2);assert.equal(c.geoChartRecords.length,2);
+ assert.equal(c.history[0].latitude,52);assert.equal(c.history[0].time,1000);
+ assert.equal(c.history[1].latitude,53);assert.equal(c.history[1].time,1200);
+ assert.equal(c.geoChartRecords[1].longitude,-2);
+});
+test('PRO cannot assign new GPS to invalid-fix, replay or display-only frames',()=>{
+ let now=1000;
+ const vehicle={coordinate:coord(52,-1),gps:{lock:{rawValue:3}},
+   vehicleLinkManager:{communicationLost:false}};
+ const source={replayMode:false,connected:true,echoSamples:[.3,.8],
+   chartRawBytes:[1],chartRawByteCount:1,chartSequence:3,
+   chartOffsetMeters:0,chartRangeMeters:4,nativeChannelReady:false,
+   liveGpsReady(){return true}};
+ const c=context('NavoSonarPro.qml',{vehicle,chartSource:source,Date:{now:()=>now},
+   replayMode:false,koggerCompensation:false,paused:false,
+   history:[],historyColumns:240,geoChartRecords:[],maxGeoChartRecords:3000,
+   unlocatedChartCount:0,depthM:2,activeLakeId:'lake'});
+ c.onChartColumnReceived();
+ assert.equal(c.history.length,1);assert.equal(c.geoChartRecords.length,1);
+ vehicle.gps.lock.rawValue=1;source.chartSequence=4;now=2000;c.onChartColumnReceived();
+ assert.equal(c.geoChartRecords.length,1);assert.equal(c.unlocatedChartCount,1);
+ assert(Number.isNaN(c.history[1].latitude));
+ vehicle.gps.lock.rawValue=3;source.liveGpsReady=()=>false;
+ source.chartSequence=5;now=3000;c.onChartColumnReceived();
+ assert.equal(c.geoChartRecords.length,1);assert(Number.isNaN(c.history[2].longitude));
+ source.liveGpsReady=()=>true;vehicle.vehicleLinkManager.communicationLost=true;
+ source.chartSequence=6;c.onChartColumnReceived();assert.equal(c.geoChartRecords.length,1);
+ vehicle.vehicleLinkManager.communicationLost=false;
+ source.replayMode=true;c.replayMode=true;source.chartSequence=7;c.onChartColumnReceived();
+ assert.equal(c.geoChartRecords.length,1);assert(Number.isNaN(c.history[4].latitude));
+ const qml=fs.readFileSync(path.join(dir,'NavoSonarPro.qml'),'utf8');
+ assert(qml.includes('function onChartColumnReceived()'));
+ assert(qml.includes('function onEchoSamplesChanged() { root.onChartColumnReceived() }'));
+ assert(qml.includes('onKoggerCompensationChanged: { history = []; repaint() }'));
+ assert(!qml.includes('onKoggerCompensationChanged: { history = []; pushHistory(); repaint() }'));
+ assert(qml.includes('onActiveLakeIdChanged: { endPointPick();sonarPointDialog.close();history=[];geoChartRecords=[];unlocatedChartCount=0 }'));
+});
 test('PRO impulse filter removes an isolated spike and preserves sustained returns',()=>{
   const c=context('NavoSonarPro.qml',{noiseFilterEnabled:false,noiseFloor:.1,gain:1});
   assert.equal(c.sampleStrength([.1,.9,.1],1),.8);
