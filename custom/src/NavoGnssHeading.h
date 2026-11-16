@@ -32,6 +32,7 @@ class NavoGnssHeading : public QObject {
     Q_PROPERTY(bool compassHealthy READ compassHealthy NOTIFY headingChanged)
     Q_PROPERTY(QString compassStatus READ compassStatus NOTIFY headingChanged)
     Q_PROPERTY(int ekfYawMode READ ekfYawMode NOTIFY headingChanged)
+    Q_PROPERTY(int compassDeviceId READ compassDeviceId NOTIFY headingChanged)
 
     Q_PROPERTY(double positionAccuracyM READ positionAccuracyM NOTIFY headingChanged)
     Q_PROPERTY(bool positionFresh READ positionFresh NOTIFY headingChanged)
@@ -61,6 +62,9 @@ public:
     bool compassHealthy() const;
     QString compassStatus() const;
     int ekfYawMode() const { return _ekfYawMode; }
+    int compassDeviceId() const { return _compassDeviceId; }
+    // Read-only, targeted QGC ParameterManager refresh. No parameter writes.
+    Q_INVOKABLE void requestCompassParameters();
 
 signals:
     void vehicleChanged();
@@ -84,6 +88,8 @@ private:
     // Gyro/EKF is not an absolute heading source: keep tertiary bridge short.
     static constexpr qint64 kInertialHoldoverMs = 12000;
     void _reset();
+    void _syncCompassParameters();
+    void _requestCompassParameters(bool manual);
     void _observe(Receiver&, uint8_t fix, uint8_t satellites, uint16_t rawYaw);
     bool _available(const Receiver&) const;
     const Receiver* _activeGps() const;
@@ -100,6 +106,9 @@ private:
     bool _ekfCompassFallback = false;
     int _ekfYawMode = -1;
     int _compassUse = -1;
-    int _compassDevIdPresent = -1; // -1 unknown, 0 absent, 1 installed
+    int _compassDevIdPresent = -1; // -1 unread, 0 ID=0, 1 nonzero ID
+    int _compassDeviceId = -1; // Raw device ID (not proof of calibration/usage)
+    qint64 _lastParamRequestMs = -1;
+    int _paramReadAttempts = 0;
 };
 
