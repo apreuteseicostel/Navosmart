@@ -47,14 +47,22 @@ private slots:
   QVERIFY(h.compassStatus().contains(QStringLiteral("necitit")));
   QCOMPARE(h.headingSource(),QStringLiteral("HEADING --"));
   h.requestCompassParameters();
-  QCOMPARE(v.parameterManager()->requested.size(),3);
+  QCOMPARE(v.parameterManager()->requested.size(),6);
   QVERIFY(v.parameterManager()->requested.contains(QStringLiteral("COMPASS_DEV_ID")));
+  QVERIFY(v.parameterManager()->requested.contains(QStringLiteral("COMPASS_DEV_ID2")));
+  QVERIFY(v.parameterManager()->requested.contains(QStringLiteral("COMPASS_USE2")));
+  QVERIFY(v.parameterManager()->requested.contains(QStringLiteral("COMPASS_PRIO1_ID")));
   QVERIFY(v.parameterManager()->requested.contains(QStringLiteral("EK3_SRC1_YAW")));
   QVERIFY(v.parameterManager()->requested.contains(QStringLiteral("COMPASS_USE")));
   // The QGC ParameterManager may already hold those Facts, even if NAVO
   // never saw their original MAVLink PARAM_VALUE broadcasts.
-  v.parameterManager()->set(QStringLiteral("COMPASS_DEV_ID"),658953);
+  // The REAL H743 16-Nov export uses slot 2, despite the one physical
+  // external IST8310 being first priority (two separate namespaces).
+  v.parameterManager()->set(QStringLiteral("COMPASS_DEV_ID"),0);
+  v.parameterManager()->set(QStringLiteral("COMPASS_DEV_ID2"),658953);
   v.parameterManager()->set(QStringLiteral("COMPASS_USE"),1);
+  v.parameterManager()->set(QStringLiteral("COMPASS_USE2"),1);
+  v.parameterManager()->set(QStringLiteral("COMPASS_PRIO1_ID"),658953);
   v.parameterManager()->set(QStringLiteral("EK3_SRC1_YAW"),3);
   QVERIFY(QMetaObject::invokeMethod(&h,"_refresh",Qt::DirectConnection));
   QCOMPARE(h.compassDeviceId(),658953);
@@ -75,7 +83,9 @@ private slots:
   Vehicle v;NavoGnssHeading h;h.setVehicle(&v);h.setLinkAlive(true);
   p(v,"COMPASS_DEV_ID",0);
   QCOMPARE(h.compassDeviceId(),0);
-  QVERIFY(h.compassStatus().contains(QStringLiteral("COMPASS_DEV_ID=0")));
+  QVERIFY(h.compassStatus().contains(QStringLiteral("necitit")));
+  p(v,"COMPASS_DEV_ID2",0);
+  QVERIFY(h.compassStatus().contains(QStringLiteral("Nu există")));
   p(v,"COMPASS_DEV_ID",658953);
   QCOMPARE(h.compassDeviceId(),658953);
   QCOMPARE(h.headingSource(),QStringLiteral("HEADING --"));
