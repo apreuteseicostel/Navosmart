@@ -92,3 +92,7 @@ Noua logică are **histerezis**, confirmă fiecare schimbare prin 3 probe valide
 **Mai există o sursă veche activă în tlog:** `NV3VER=1`, `NV3CAP=2`, `NV3WATER=0`, `NV3WFAULT=1` în paralel cu `NV3WSTAT=5`. Pentru probă independentă folosiți noile mesaje `NV3WDET` și `NV3WFLT` și codul G20 din PR; un G20 cu APK vechi nu este o dovadă că alarmele sunt implementate corect.
 
 Până când sunt măsurate testele open/short, pragurile nu trebuie marcate `calibrated=true` și comanda automată RTL/HOLD trebuie să rămână dezactivată.
+
+## Propunere 16 nov. 2026 — eliberare CU2 pentru măsurarea curentului 4S
+
+**Nu a fost aplicată fizic.** Documentul dedicat [mutării J12.3 de pe CU2 pe AirS](WATER_AIRS_CU2_BATTERY_MIGRATION_2026-11-16.md) descrie cablajul, condițiile ADC4, testarea și calibrarea. Codul permite AirS/ADC4 numai după setarea manuală `airs_wiring_verified=true`. Configurația de siguranță păstrează `adc_pin=7`, `enabled=false` până la verificarea și mutarea firului. Valorile de calibrare uscat/ud din 13 nov. **nu sunt automat transferabile** fără măsurare pe noul pad.

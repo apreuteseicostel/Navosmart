@@ -226,3 +226,7 @@ doar pe baza acestui document.
 
 ---
 **Regulă de întreținere:** actualizează întâi acest document la fiecare schimbare de cablaj, RC, GPIO, Lua, MAVLink ori subnet; păstrează legături către commit/PR și rezultatul testului. Nu modifica simultan două surse hardware pentru aceeași ieșire.
+
+## 16 noiembrie 2026 — plan migrare ADC apă și curent total 4S (neaplicat)
+
+Pentru a elibera **CU2 / PA7 / ADC7** pentru un **senzor analog extern de curent total al bateriei**, se propune doar mutarea **J12.3 WATER_OUT -> AirS / PC4 / ADC4**; J12.2 excitație S8/GPIO57 și J12.1 GND rămân neschimbate. **RSSI/ADC8 rămâne rezervat temperaturii NTC**, iar busola I2C1, S6/S7 far/poziții, cuvele, sonar/GR01 nu se ating. AirS are divizor integrat 1:1 și cere verificare conflict `ARSPD_TYPE`, praguri de apă recalculate și probă fizică uscat/ud/open/short. Nu este încă o cablare sau configurație confirmată. Pentru o singură baterie, `BATT_CURR_PIN=7` poate înlocui citirea curentului principal din senzorul intern, păstrând `BATT_VOLT_PIN=10`, numai după instalarea și calibrarea total-pack shuntului. Vezi [ghid complet](WATER_AIRS_CU2_BATTERY_MIGRATION_2026-11-16.md). Nu importa parametrii automat.

@@ -12,14 +12,40 @@ local raw_previous,now=nil,0
 local function finite(v) return type(v)=="number" and v==v and math.abs(v)<math.huge end
 local function integer(v,lo,hi) return finite(v) and v%1==0 and v>=lo and v<=hi end
 local setup_ok=pcall(function()
-    -- RevF pin selection is a proposal; never accept an arbitrary motor/servo output.
-    assert(cfg.adc_pin==7 and cfg.exc_gpio==57,"verify J12 hardware mapping")
+    -- CU2 ADC7 is the original water connection. AirS ADC4 can replace it
+    -- only AFTER moving J12.3 physically and verifying its divided input.
+    -- Never interpret this software option as a physical wiring change.
+    assert((cfg.adc_pin==7 or cfg.adc_pin==4) and cfg.exc_gpio==57,
+           "verify J12 analog and EXC mapping")
     assert(integer(cfg.settle_ms,100,500),"invalid settle_ms")
     assert(integer(cfg.interval_ms,600,10000) and cfg.interval_ms>=cfg.settle_ms+100,"invalid interval_ms")
     assert(integer(cfg.confirm_samples,2,6),"invalid confirmation count")
     assert(type(cfg.calibrated)=="boolean" and core.valid_calibration(cfg),"invalid calibration")
     assert(param:get("SERVO8_FUNCTION")==-1,"S8 must be GPIO; do not override RC/servo")
-    assert(param:get("BATT2_MONITOR")==0,"CU2 may belong to battery monitor 2")
+    local battery_mode=param:get("BATT_MONITOR")
+    local battery_pin=param:get("BATT_CURR_PIN")
+    local battery2_mode=param:get("BATT2_MONITOR")
+    local battery2_pin=param:get("BATT2_CURR_PIN")
+    -- Deny sharing ANY active current-monitor ADC with the water service.
+    assert(battery_mode~=nil and battery_pin~=nil and battery2_mode~=nil,
+           "battery monitor parameters unavailable; refuse ADC")
+    local function battery_owns_pin(pin)
+        return (battery_mode~=0 and battery_mode~=3 and battery_pin==pin)
+            or (battery2_mode~=0 and battery2_mode~=3 and battery2_pin==pin)
+    end
+    assert(not battery_owns_pin(cfg.adc_pin),"ADC reserved for battery current")
+    if cfg.adc_pin==7 then
+        -- Original wiring may only coexist with disabled secondary monitor.
+        assert(battery2_mode==0,"CU2 may belong to battery monitor 2")
+    else
+        -- AirS/PC4 ADC4: verify actual pin/wire and no analog airspeed owner.
+        -- ARSPD_TYPE is absent on some Rover builds; nil is not proof of
+        -- availability, hence the separate mandatory wiring verification flag.
+        assert(cfg.airs_wiring_verified==true,"AirS wiring not confirmed")
+        local airspeed_type=param:get("ARSPD_TYPE")
+        assert(airspeed_type==nil or airspeed_type==0,
+               "AirS is owned by airspeed")
+    end
     channel=assert(analog:channel(),"ADC channel allocation failed")
     assert(channel:set_pin(cfg.adc_pin),"ADC pin unavailable")
     gpio:pinMode(cfg.exc_gpio,1)
@@ -28,7 +54,7 @@ local setup_ok=pcall(function()
 end)
 status=ready and 1 or 4
 if not setup_ok then
-    gcs:send_text(4,"NAVO WATER: config/pin conflict; disabled (check J12, SERVO8, BATT2)")
+    gcs:send_text(4,"NAVO WATER: ADC/GPIO conflict; disabled (verify AirS/CU2, S8, battery/airspeed)")
 end
 local function clock_ms()
     local raw=millis():tofloat()
