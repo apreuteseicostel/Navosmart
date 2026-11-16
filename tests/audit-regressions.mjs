@@ -430,7 +430,7 @@ test('Route energy includes approach, every corridor and return HOME',()=>{
 test('GPS anchor refuses unsupported commands and never overrides pilot mode changes',()=>{
  const commands=[];const vehicle={coordinate:coord(52,0),vehicleLinkManager:{communicationLost:false},gps:{lock:{rawValue:3}},flightMode:'Guided',
    guidedModeGotoLocation(c){commands.push(c)},pauseVehicle(){throw Error('Anchor should retain GUIDED rather than switch to HOLD')}};
- const c=context('NavoDigitalAnchor.qml',{vehicle,QtPositioning:{coordinate:coord},active:false,correctionActive:false,driftRadiusM:1.5,status:noop});
+ const c=context('NavoDigitalAnchor.qml',{vehicle,QtPositioning:{coordinate:coord},active:false,correctionActive:false,driftRadiusM:1.5,maxAutoCorrectionDriftM:15,resetRadiusRatio:0.6,minCorrectionIntervalMs:5000,lastCorrectionAtMs:0,status:noop});
  assert(c.engage());assert.equal(commands.length,1);c.maintain();assert(c.guidedConfirmed);
  vehicle.coordinate=coord(52,.0001);c.maintain();assert.equal(commands.length,2);c.maintain();assert.equal(commands.length,2);
  vehicle.coordinate=coord(52,0);c.maintain();assert.equal(c.correctionActive,false);
@@ -439,7 +439,7 @@ test('GPS anchor refuses unsupported commands and never overrides pilot mode cha
 });
 test('GPS anchor cancels on invalid coordinates and link loss',()=>{
  const vehicle={coordinate:coord(52,0),vehicleLinkManager:{communicationLost:false},gps:{lock:{rawValue:3}},flightMode:'Guided',guidedModeGotoLocation:noop,pauseVehicle:noop};
- const c=context('NavoDigitalAnchor.qml',{vehicle,QtPositioning:{coordinate:coord},active:false,correctionActive:false,driftRadiusM:1.5,status:noop});
+ const c=context('NavoDigitalAnchor.qml',{vehicle,QtPositioning:{coordinate:coord},active:false,correctionActive:false,driftRadiusM:1.5,maxAutoCorrectionDriftM:15,resetRadiusRatio:0.6,minCorrectionIntervalMs:5000,lastCorrectionAtMs:0,status:noop});
  assert(c.engage());vehicle.coordinate={isValid:false};c.maintain();assert.equal(c.active,false);
  vehicle.coordinate=coord(52,0);assert(c.engage());vehicle.vehicleLinkManager.communicationLost=true;c.maintain();assert.equal(c.active,false);
  vehicle.vehicleLinkManager.communicationLost=false;
@@ -880,6 +880,46 @@ test('QML-creatable backend classes permit the Qt QQmlElement wrapper to derive'
 test('Sonar freshness watchdog only runs on a live transport, not while offline or replaying',()=>{
   const sonar=fs.readFileSync(path.join(dir,'NavoSonarEthernet.qml'),'utf8');
   assert.match(sonar,/property Timer freshness:\s*Timer\s*\{[^}]*running:\s*transportObject\.connected\s*&&\s*!root\.replayMode/);
+});
+
+test('Anchor engagement never overrides MANUAL, ACRO, AUTO or RTL and does not silently move its target',()=>{
+ let sent=0;
+ const vehicle={coordinate:coord(52,0),vehicleLinkManager:{communicationLost:false},
+   gps:{lock:{rawValue:3}},flightMode:'Manual',guidedModeGotoLocation(){sent++},pauseVehicle:noop};
+ const c=context('NavoDigitalAnchor.qml',{vehicle,QtPositioning:{coordinate:coord},active:false,
+   driftRadiusM:1.5,maxAutoCorrectionDriftM:15,status:noop});
+ for(const mode of ['Manual','ACRO','Auto','RTL','unconfirmed','']){
+   vehicle.flightMode=mode;
+   assert.equal(c.engage(),false,mode);assert.equal(sent,0);
+ }
+ vehicle.flightMode='Hold';assert.equal(c.engage(),true);assert.equal(sent,1);
+ assert.equal(c.engage(),false);assert.equal(sent,1);
+ vehicle.flightMode='Manual';c.maintain();assert.equal(c.active,false);assert.equal(sent,1);
+});
+test('Anchor drift correction has hysteresis and a minimum interval',()=>{
+ let now=1000000, sent=0;
+ const vehicle={coordinate:coord(52,0),vehicleLinkManager:{communicationLost:false},
+   gps:{lock:{rawValue:3}},flightMode:'Guided',guidedModeGotoLocation(){sent++},pauseVehicle:noop};
+ const c=context('NavoDigitalAnchor.qml',{Date:{now:()=>now},vehicle,QtPositioning:{coordinate:coord},
+   active:false,correctionActive:false,driftRadiusM:1.5,resetRadiusRatio:0.6,
+   minCorrectionIntervalMs:5000,maxAutoCorrectionDriftM:15,status:noop});
+ assert(c.engage());assert.equal(sent,1);c.maintain();
+ vehicle.coordinate=coord(52,.00004);c.maintain();assert.equal(sent,2);
+ vehicle.coordinate=coord(52,.000003);c.maintain();assert.equal(c.correctionActive,false);
+ vehicle.coordinate=coord(52,.00004);c.maintain();assert.equal(sent,2);
+ now+=5000;c.maintain();assert.equal(sent,3);
+});
+test('Anchor suspends without chasing large GPS jumps or invalid computed drift',()=>{
+ let sent=0;
+ const vehicle={coordinate:coord(52,0),vehicleLinkManager:{communicationLost:false},
+   gps:{lock:{rawValue:3}},flightMode:'Guided',guidedModeGotoLocation(){sent++},pauseVehicle:noop};
+ const c=context('NavoDigitalAnchor.qml',{vehicle,QtPositioning:{coordinate:coord},active:false,
+   driftRadiusM:1.5,maxAutoCorrectionDriftM:15,status:noop});
+ assert(c.engage());c.maintain();
+ vehicle.coordinate=coord(52,.001);c.maintain();assert.equal(c.active,false);assert.equal(sent,1);
+ vehicle.coordinate=coord(52,0);assert(c.engage());c.maintain();
+ vehicle.coordinate={...coord(52,.00001),distanceTo(){return NaN}};
+ c.maintain();assert.equal(c.active,false);assert.equal(sent,2);
 });
 console.log(`${passed} regression scenarios passed`);
 
