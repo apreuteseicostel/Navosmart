@@ -346,6 +346,7 @@ test('PRO cannot assign new GPS to invalid-fix, replay or display-only frames',(
  assert(qml.includes('function onEchoSamplesChanged() { root.onChartColumnReceived() }'));
  assert(qml.includes('onKoggerCompensationChanged: { history = []; repaint() }'));
  assert(!qml.includes('onKoggerCompensationChanged: { history = []; pushHistory(); repaint() }'));
+ assert(qml.includes('Component.onCompleted: if (!chartSource) Qt.callLater(pushHistory)'));
  assert(qml.includes('onActiveLakeIdChanged: { endPointPick();sonarPointDialog.close();history=[];geoChartRecords=[];unlocatedChartCount=0 }'));
 });
 test('PRO impulse filter removes an isolated spike and preserves sustained returns',()=>{
