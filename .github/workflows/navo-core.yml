@@ -78,6 +78,7 @@ jobs:
         run: |
           node tests/connectivity-startup.mjs
           node tests/audit-regressions.mjs
+          node tests/battery-current-diagnostics.mjs
           node tests/route-plan.mjs
           node tests/installed-spots-driver.mjs
           node tests/steering-bottom.mjs
