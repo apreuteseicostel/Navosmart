@@ -18,6 +18,37 @@ static bool writeSettings(QIODevice& device,const QSettings::SettingsMap& map){i
 class PersistenceTests:public QObject {
  Q_OBJECT
 private slots:
+ void rejectsMalformedSonarSamplesBeforePersistence() {
+  QTemporaryDir directory;
+  QVERIFY(directory.isValid());
+  QSettings::setDefaultFormat(QSettings::IniFormat);
+  QSettings::setPath(QSettings::IniFormat,QSettings::UserScope,directory.path());
+  NavoPersistence store;
+  QSignalSpy changed(&store,&NavoPersistence::sonarSamplesChanged);
+  const QList<QVariantMap> malformed={
+   {{"lat",QVariant()},{"lon",0.0},{"depth",2.0}},
+   {{"lat",52.0},{"lon",QVariant()},{"depth",2.0}},
+   {{"lat",QStringLiteral("52")},{"lon",0.0},{"depth",2.0}},
+   {{"lat",false},{"lon",0.0},{"depth",2.0}},
+   {{"lat",52.0},{"lon",QStringLiteral("0")},{"depth",2.0}},
+   {{"lat",52.0},{"lon",0.0},{"depth",QStringLiteral("2")}},
+   {{"lat",52.0},{"lon",0.0},{"depth",0.0}},
+   {{"lat",52.0},{"lon",0.0},{"depth",-3.0}},
+   {{"lat",std::nan("")},{"lon",0.0},{"depth",2.0}},
+   {{"lat",52.0},{"lon",INFINITY},{"depth",2.0}},
+   {{"lat",91.0},{"lon",0.0},{"depth",2.0}},
+   {{"lat",52.0},{"lon",-181.0},{"depth",2.0}},
+   {{"lat",52.0},{"lon",0.0}},
+  };
+  for(const auto& sample:malformed)store.addSonarSample(sample);
+  QCOMPARE(store.sonarSamples().size(),0);
+  QCOMPARE(changed.count(),0);
+  // The real equator/prime meridian (0,0) remains a valid numeric coordinate.
+  store.addSonarSample({{"lat",0.0},{"lon",0.0},{"depth",1.0}});
+  store.addSonarSample({{"lat",52.0},{"lon",-1.0},{"depth",2.0}});
+  QCOMPARE(store.sonarSamples().size(),2);
+  QCOMPARE(changed.count(),2);
+ }
  void portableBackupSurvivesReinstall() {
   QTemporaryDir directory;
   QVERIFY(directory.isValid());
