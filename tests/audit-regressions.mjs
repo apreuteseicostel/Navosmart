@@ -927,7 +927,7 @@ test('Rover failsafe parameter audit distinguishes configured action from tested
  const source=fs.readFileSync(path.join(dir,'NavoFailsafePanel.qml'),'utf8');
  assert(source.includes('FactPanelController'));
  assert(source.includes('parameterReader.getParameterFact(-1, name, false)'));
- assert(!/setParameter\s*\(|refreshParameter\s*\(|rawValue\s*=|sendCommand\s*\(/.test(source));
+ assert(!/setParameter\s*\(|refreshParameter\s*\(|rawValue\s*=(?!=)|sendCommand\s*\(/.test(source));
  const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
  assert(!dash.includes('Link G20: HOLD după timpul configurat'));
 });
