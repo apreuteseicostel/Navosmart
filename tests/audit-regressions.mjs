@@ -480,7 +480,10 @@ test('Sonar PRO labels the finished recording as replay rather than live input',
  assert.equal(c.sourceStatusText(),'REPLAY • FINAL');
  c.replayActive=true;assert.equal(c.sourceStatusText(),'REPLAY');
  c.chartSource.replayMode=false;c.chartSource.dataAlive=true;
- assert.equal(c.sourceStatusText(),'LIVE CHART');
+ c.chartSource.liveGpsUsable=true;
+ assert.equal(c.sourceStatusText(),'LIVE CHART • GPS FIX');
+ c.chartSource.liveGpsUsable=false;
+ assert.equal(c.sourceStatusText(),'LIVE CHART • GPS —');
  c.chartSource.dataAlive=false;c.chartSource.connected=true;
  assert.equal(c.sourceStatusText(),'CONECTAT • aștept CHART');
  c.chartSource.connected=false;c.connected=false;
