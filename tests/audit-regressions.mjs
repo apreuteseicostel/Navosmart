@@ -254,6 +254,120 @@ test('PRO captures every source column with its own metadata during a burst',()=
   assert.equal(c.history[0].samples[1],.8);assert.equal(c.history[1].offset,2);
   c.paused=true;source.chartRangeMeters=20;c.pushHistory();assert.equal(c.history.length,2);
 });
+test('Sonar rejects missing/null/coerced coordinates and depth before batimetry',()=>{
+ const c=context('NavoSonarMapping.qml',{bottomHardness:NaN,bottomEchoStrength:NaN,
+   scanning:true,paused:false,sonarConnected:true,rawSamples:[],trackCoordinates:[],
+   QtPositioning:{coordinate:coord}});
+ const malformed=[
+   {lat:null,lon:0,depth:2},{lat:52,lon:null,depth:2},
+   {lat:undefined,lon:0,depth:2},{lat:52,lon:undefined,depth:2},
+   {lat:'52',lon:0,depth:2},{lat:52,lon:'0',depth:2},
+   {lat:false,lon:0,depth:2},{lat:52,lon:true,depth:2},
+   {lat:52,lon:0,depth:'2'},{lat:52,lon:0,depth:true},
+   {lat:52,lon:0,depth:undefined},{lat:52,lon:0,depth:Infinity},
+   {lat:52,lon:0,depth:0},{lat:91,lon:0,depth:2},
+ ];
+ for(const sample of malformed)c.ingestSample(sample);
+ assert.equal(c.rawSamples.length,0);
+ assert.equal(c.trackCoordinates.length,0);
+ c.ingestSample({lat:0,lon:0,depth:2,time:1000});
+ assert.equal(c.rawSamples.length,1);
+ assert.equal(c.rawSamples[0].lat,0);assert.equal(c.rawSamples[0].lon,0);
+ assert.equal(c.rawSamples[0].time,1000);
+});
+
+test('Live sonar GPS gate prevents mapping from stale/lost H743 position',()=>{
+ const vehicle={coordinate:coord(52,-1),gps:{lock:{rawValue:3}},
+   vehicleLinkManager:{communicationLost:false}};
+ const c=context('NavoSonarEthernet.qml',{vehicle,replayMode:false});
+ assert.equal(c.liveGpsReady(),true);
+ vehicle.gps.lock.rawValue=2;assert.equal(c.liveGpsReady(),false);
+ vehicle.gps.lock.rawValue=NaN;assert.equal(c.liveGpsReady(),false);
+ vehicle.gps.lock.rawValue=3;vehicle.vehicleLinkManager.communicationLost=true;
+ assert.equal(c.liveGpsReady(),false);
+ vehicle.vehicleLinkManager.communicationLost=false;vehicle.coordinate={isValid:true,latitude:null,longitude:0};
+ assert.equal(c.liveGpsReady(),false);
+ vehicle.coordinate=coord(52,-1);c.replayMode=true;assert.equal(c.liveGpsReady(),false);
+ const source=fs.readFileSync(path.join(dir,'NavoSonarEthernet.qml'),'utf8');
+ assert(source.includes('root.lastEchoMs-root.lastDepthMs>1500 || !root.liveGpsReady()'));
+ assert(source.includes('var valid=root.liveGpsReady()'));
+});
+
+test('PRO stores a single host-receive GPS and timestamp per actual CHART column',()=>{
+ let now=1000;
+ const vehicle={coordinate:coord(52,-1),gps:{lock:{rawValue:3}},
+   vehicleLinkManager:{communicationLost:false}};
+ const source={replayMode:false,connected:true,echoSamples:[.3,.8],
+   chartRawBytes:[1,2,3],chartRawByteCount:3,chartSequence:41,
+   chartOffsetMeters:0,chartRangeMeters:4,chartResolution:123,
+   chartAbsoluteOffset:10,chartVersion:0,nativeChannelReady:false,
+   liveGpsReady(){return true}};
+ const c=context('NavoSonarPro.qml',{vehicle,chartSource:source,Date:{now:()=>now},
+   replayMode:false,koggerCompensation:false,paused:false,
+   history:[],historyColumns:240,geoChartRecords:[],maxGeoChartRecords:3000,
+   unlocatedChartCount:0,depthM:2,waterTempC:17,activeLakeId:'lake-one'});
+ c.onChartColumnReceived();
+ assert.equal(c.history.length,1);assert.equal(c.geoChartRecords.length,1);
+ assert.equal(c.history[0].sequence,41);assert.equal(c.geoChartRecords[0].sequence,41);
+ assert.equal(c.history[0].time,1000);assert.equal(c.geoChartRecords[0].timestampMs,1000);
+ assert.equal(c.history[0].latitude,52);assert.equal(c.geoChartRecords[0].latitude,52);
+ vehicle.coordinate=coord(53,-2);source.chartSequence=42;now=1200;
+ c.onChartColumnReceived();
+ assert.equal(c.history.length,2);assert.equal(c.geoChartRecords.length,2);
+ assert.equal(c.history[0].latitude,52);assert.equal(c.history[0].time,1000);
+ assert.equal(c.history[1].latitude,53);assert.equal(c.history[1].time,1200);
+ assert.equal(c.geoChartRecords[1].longitude,-2);
+});
+
+test('PRO cannot assign new GPS to invalid-fix, replay or display-only frames',()=>{
+ let now=1000;
+ const vehicle={coordinate:coord(52,-1),gps:{lock:{rawValue:3}},
+   vehicleLinkManager:{communicationLost:false}};
+ const source={replayMode:false,connected:true,echoSamples:[.3,.8],
+   chartRawBytes:[1],chartRawByteCount:1,chartSequence:3,
+   chartOffsetMeters:0,chartRangeMeters:4,nativeChannelReady:false,
+   liveGpsReady(){return true}};
+ const c=context('NavoSonarPro.qml',{vehicle,chartSource:source,Date:{now:()=>now},
+   replayMode:false,koggerCompensation:false,paused:false,
+   history:[],historyColumns:240,geoChartRecords:[],maxGeoChartRecords:3000,
+   unlocatedChartCount:0,depthM:2,activeLakeId:'lake'});
+ c.onChartColumnReceived();
+ assert.equal(c.history.length,1);assert.equal(c.geoChartRecords.length,1);
+ vehicle.gps.lock.rawValue=1;source.chartSequence=4;now=2000;c.onChartColumnReceived();
+ assert.equal(c.geoChartRecords.length,1);assert.equal(c.unlocatedChartCount,1);
+ assert(Number.isNaN(c.history[1].latitude));
+ vehicle.gps.lock.rawValue=3;source.liveGpsReady=()=>false;
+ source.chartSequence=5;now=3000;c.onChartColumnReceived();
+ assert.equal(c.geoChartRecords.length,1);assert(Number.isNaN(c.history[2].longitude));
+ source.liveGpsReady=()=>true;vehicle.vehicleLinkManager.communicationLost=true;
+ source.chartSequence=6;c.onChartColumnReceived();assert.equal(c.geoChartRecords.length,1);
+ vehicle.vehicleLinkManager.communicationLost=false;
+ source.replayMode=true;c.replayMode=true;source.chartSequence=7;c.onChartColumnReceived();
+ assert.equal(c.geoChartRecords.length,1);assert(Number.isNaN(c.history[4].latitude));
+ const qml=fs.readFileSync(path.join(dir,'NavoSonarPro.qml'),'utf8');
+ assert(qml.includes('function onChartColumnReceived()'));
+ assert(qml.includes('function onEchoSamplesChanged() { root.onChartColumnReceived() }'));
+ assert(qml.includes('onKoggerCompensationChanged: { history = []; repaint() }'));
+ assert(!qml.includes('onKoggerCompensationChanged: { history = []; pushHistory(); repaint() }'));
+ assert(qml.includes('Component.onCompleted: if (!chartSource) Qt.callLater(pushHistory)'));
+ assert(qml.includes('onActiveLakeIdChanged: { endPointPick();sonarPointDialog.close();history=[];geoChartRecords=[];unlocatedChartCount=0 }'));
+});
+
+test('KOGGER B and NAVO PRO C show passive live GPS gate without duplicating decoder',()=>{
+  const source=fs.readFileSync(path.join(dir,'NavoSonarEthernet.qml'),'utf8');
+  const b=fs.readFileSync(path.join(dir,'NavoKoggerSonar.qml'),'utf8');
+  const c=fs.readFileSync(path.join(dir,'NavoSonarPro.qml'),'utf8');
+  assert(source.includes('readonly property bool liveGpsUsable: root.liveGpsReady()'));
+  assert(b.includes('chartSource.liveGpsUsable ? "GPS FIX" : "GPS —"'));
+  assert(c.includes('chartSource.liveGpsUsable ? "GPS FIX" : "GPS —"'));
+  assert(source.includes('decoderObject.chartVersion<=1'));
+  assert(!source.includes('if(root.nativeChannelReady && decoderObject.chartVersion===0)return'));
+  assert(c.includes('NavoKoggerEpochPlotItem'));
+  assert(b.includes('NavoKoggerEpochPlotItem'));
+  assert(!b.includes('captureGeoChart()'));
+  assert(c.includes('function onChartColumnReceived()'));
+});
+
 test('PRO impulse filter removes an isolated spike and preserves sustained returns',()=>{
   const c=context('NavoSonarPro.qml',{noiseFilterEnabled:false,noiseFloor:.1,gain:1});
   assert.equal(c.sampleStrength([.1,.9,.1],1),.8);
@@ -357,16 +471,23 @@ test('Sonar PRO preserves recorded ecogram at EOF and starts a clean new replay'
 });
 test('Sonar PRO displays the Dashboard native bottom-depth fallback',()=>{
  const dashboard=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
- const pro=dashboard.slice(dashboard.indexOf('id: sonarProPage'),dashboard.indexOf('id: sonarProPage')+1800);
- assert.match(pro,/depthM:\s*root\.depthM/);
+ const kgr=dashboard.slice(dashboard.indexOf('id: koggerSonarPage'),dashboard.indexOf('id: koggerSonarPage')+1900);
+ assert.match(kgr,/depthM:\s*root\.depthM/);
  assert.match(dashboard,/processedBottomDepthM/);
 });
 test('Sonar PRO labels the finished recording as replay rather than live input',()=>{
- const c=context('NavoSonarPro.qml',{chartSource:{replayMode:true},replayActive:false,connected:true,paused:false});
+ const c=context('NavoSonarPro.qml',{chartSource:{replayMode:true,dataAlive:false,connected:false},replayActive:false,connected:true,paused:false});
  assert.equal(c.sourceStatusText(),'REPLAY • FINAL');
  c.replayActive=true;assert.equal(c.sourceStatusText(),'REPLAY');
- c.chartSource.replayMode=false;assert.equal(c.sourceStatusText(),'LIVE');
- c.connected=false;assert.equal(c.sourceStatusText(),'OFFLINE');
+ c.chartSource.replayMode=false;c.chartSource.dataAlive=true;
+ c.chartSource.liveGpsUsable=true;
+ assert.equal(c.sourceStatusText(),'LIVE CHART • GPS FIX');
+ c.chartSource.liveGpsUsable=false;
+ assert.equal(c.sourceStatusText(),'LIVE CHART • GPS —');
+ c.chartSource.dataAlive=false;c.chartSource.connected=true;
+ assert.equal(c.sourceStatusText(),'CONECTAT • aștept CHART');
+ c.chartSource.connected=false;c.connected=false;
+ assert.equal(c.sourceStatusText(),'OFFLINE');
 });
 test('Installed acceptance compares restart with the saved snapshot including late native samples',()=>{
  const late=Array(14486).fill({depth:3}),saved={};let stopped=false;
@@ -880,6 +1001,22 @@ test('QML-creatable backend classes permit the Qt QQmlElement wrapper to derive'
 test('Sonar freshness watchdog only runs on a live transport, not while offline or replaying',()=>{
   const sonar=fs.readFileSync(path.join(dir,'NavoSonarEthernet.qml'),'utf8');
   assert.match(sonar,/property Timer freshness:\s*Timer\s*\{[^}]*running:\s*transportObject\.connected\s*&&\s*!root\.replayMode/);
+});
+test('Map side controls reveal independently from edge touch/hover and hide after one second',()=>{
+ const map=fs.readFileSync(path.join(dir,'NavoMap.qml'),'utf8');
+ for(const side of ['Left','Right']) {
+  assert(map.includes('property bool map'+side+'ControlsVisible: false'));
+  assert(map.includes('id: map'+side+'Edge'));
+  assert(map.includes('id: map'+side+'HideTimer'));
+  assert(map.includes('visible: root.map'+side+'ControlsVisible'));
+  assert(map.includes('onEntered: root.revealMap'+side+'Controls()'));
+  assert(map.includes('onPressed: root.revealMap'+side+'Controls()'));
+ }
+ assert.equal((map.match(/interval: 1000/g)||[]).length >= 2,true);
+ assert(map.includes('id: mapLeftButtonsHover'));
+ assert(map.includes('id: mapRightButtonsHover'));
+ assert(map.includes('layersPopup.visible'));
+ assert(map.includes('parent.checked ? 2 : 1'));
 });
 console.log(`${passed} regression scenarios passed`);
 

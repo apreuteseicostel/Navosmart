@@ -47,11 +47,16 @@ Rectangle {
         paused=false; saveCheckpoint("resume"); status("Mapare sonar continuată"); return true
     }
     function ingestSample(sample) {
-        if(!scanning || paused || !sonarConnected || !sample || sample.depth===null || !isFinite(Number(sample.depth)) || Number(sample.depth)<=0) return
-        var lat=Number(sample.lat), lon=Number(sample.lon)
-        if(!isFinite(lat)||!isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180) return
+        if(!scanning || paused || !sonarConnected || !sample) return
+        // Never coerce missing/null GPS into (0,0), or strings/booleans into a
+        // valid bathymetry point. 0,0 remains valid when actually numeric.
+        if(typeof sample.lat!=="number" || typeof sample.lon!=="number" ||
+           typeof sample.depth!=="number") return
+        var lat=sample.lat, lon=sample.lon, depth=sample.depth
+        if(!isFinite(lat)||!isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180 ||
+           !isFinite(depth)||depth<=0) return
         var s=rawSamples.slice(0)
-        s.push({sequence:sample.sequence,source:sample.source,lat:lat,lon:lon,depth:Number(sample.depth),temp:sample.temp,hardness:(sample.hardness===undefined||!isFinite(Number(sample.hardness)))?bottomHardness:Number(sample.hardness),bottomEcho:(sample.bottomEcho===undefined||!isFinite(Number(sample.bottomEcho)))?bottomEchoStrength:Number(sample.bottomEcho),chartResolution:sample.chartResolution,chartAbsoluteOffset:sample.chartAbsoluteOffset,chartVersion:sample.chartVersion,chartResolutionMeters:sample.chartResolutionMeters,chartOffsetMeters:sample.chartOffsetMeters,chartRangeMeters:sample.chartRangeMeters,time:sample.time||Date.now()})
+        s.push({sequence:sample.sequence,source:sample.source,lat:lat,lon:lon,depth:depth,temp:sample.temp,hardness:(sample.hardness===undefined||!isFinite(Number(sample.hardness)))?bottomHardness:Number(sample.hardness),bottomEcho:(sample.bottomEcho===undefined||!isFinite(Number(sample.bottomEcho)))?bottomEchoStrength:Number(sample.bottomEcho),chartResolution:sample.chartResolution,chartAbsoluteOffset:sample.chartAbsoluteOffset,chartVersion:sample.chartVersion,chartResolutionMeters:sample.chartResolutionMeters,chartOffsetMeters:sample.chartOffsetMeters,chartRangeMeters:sample.chartRangeMeters,time:sample.time||Date.now()})
         rawSamples=s
         var c=QtPositioning.coordinate(lat,lon),t=trackCoordinates.slice(0)
         if(t.length===0 || t[t.length-1].distanceTo(c)>=1.0){t.push(c);trackCoordinates=t}
