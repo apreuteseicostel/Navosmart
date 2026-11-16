@@ -91,8 +91,8 @@ QtObject {
             return
         }
         var drift = vehicle.coordinate.distanceTo(anchorCoordinate)
-        var maximum = isFinite(Number(maxAutoCorrectionDriftM)) && Number(maxAutoCorrectionDriftM) > driftRadiusM
-                      ? Number(maxAutoCorrectionDriftM) : 15
+        var maximum = isFinite(Number(root.maxAutoCorrectionDriftM)) && Number(root.maxAutoCorrectionDriftM) > driftRadiusM
+                      ? Number(root.maxAutoCorrectionDriftM) : 15
         if (!isFinite(drift) || drift < 0 || !isFinite(driftRadiusM) || driftRadiusM <= 0) {
             release()
             status("Ancora suspendată: derivă/rază invalidă")
@@ -104,8 +104,8 @@ QtObject {
             status("Ancora suspendată: salt GPS/derivă > " + maximum.toFixed(0) + " m; verifică manual")
             return
         }
-        var interval = isFinite(Number(minCorrectionIntervalMs)) && Number(minCorrectionIntervalMs) > 0
-                       ? Number(minCorrectionIntervalMs) : 5000
+        var interval = isFinite(Number(root.minCorrectionIntervalMs)) && Number(root.minCorrectionIntervalMs) > 0
+                       ? Number(root.minCorrectionIntervalMs) : 5000
         if (drift > driftRadiusM) {
             if (!correctionActive && (lastCorrectionAtMs === 0 || Date.now() - lastCorrectionAtMs >= interval)) {
                 if (!vehicle.guidedModeGotoLocation) {
@@ -119,8 +119,8 @@ QtObject {
                 status("Ancora GPS • comandă corecție derivă " + drift.toFixed(1) + " m (neconfirmată)")
             }
         } else {
-            var resetRatio = isFinite(Number(resetRadiusRatio)) && Number(resetRadiusRatio) > 0 &&
-                             Number(resetRadiusRatio) < 1 ? Number(resetRadiusRatio) : 0.6
+            var resetRatio = isFinite(Number(root.resetRadiusRatio)) && Number(root.resetRadiusRatio) > 0 &&
+                             Number(root.resetRadiusRatio) < 1 ? Number(root.resetRadiusRatio) : 0.6
             if (correctionActive && drift <= driftRadiusM * resetRatio) {
                 correctionActive = false
                 status("Ancora GPS • în limita de repoziționare; nu garantează staționarea")
