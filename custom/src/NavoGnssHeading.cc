@@ -270,14 +270,45 @@ QString NavoGnssHeading::compassStatus() const {
             ? QStringLiteral("Niciun ID de busolă valid în parametrii citiți; verifică dispozitivul și cablul I2C")
             : QStringLiteral("ID busolă încă necitit; apasă Reverifică busola și EKF3");
     }
-    if (_compassUse < 0)
-        return QStringLiteral("Activarea busolei este necitită, nu neapărat dezactivată");
-    if (_compassUse != 1)
-        return QStringLiteral("COMPASS_USE=0: busola principală nu este folosită pentru yaw");
+    // Evaluate EKF source first: an available IST8310 cannot provide
+    // EKF yaw fallback while source set 1 is configured as "None".
     if (_ekfYawMode < 0)
         return QStringLiteral("EK3_SRC1_YAW nu a fost citit; fallback încă neconfirmat");
+    if (_ekfYawMode == 0)
+        return QStringLiteral("EK3_SRC1_YAW=0: sursa yaw a setului EKF3 nr. 1 este None. Citește și celelalte seturi înainte de orice modificare.");
     if (_ekfYawMode != 3)
-        return QStringLiteral("EK3_SRC1_YAW nu este 3; fallback GPS+busolă neconfigurat");
+        return QStringLiteral("EK3_SRC1_YAW nu este 3; fallback GPS+busolă neconfigurat în setul 1");
+    // The IST8310 can be Compass2 even when COMPASS_USE=0 on Compass1.
+    // Diagnose its own USE2 flag; don't claim it is disabled via USE1.
+    bool installed=false,enabled=false,disabled=false,unread=false;
+    for(int i=1;i<=3;++i){
+        const QString idName=i==1?QStringLiteral("COMPASS_DEV_ID"):
+            QStringLiteral("COMPASS_DEV_ID%1").arg(i);
+        const QString useName=i==1?QStringLiteral("COMPASS_USE"):
+            QStringLiteral("COMPASS_USE%1").arg(i);
+        const auto idIt=_parameterFacts.constFind(idName);
+        quint32 id=0;int busType=0,bus=0,address=0,devType=0;
+        if(idIt==_parameterFacts.cend() ||
+           !_decodeCompassDeviceId(idIt.value(),id,busType,bus,address,devType))
+            continue;
+        installed=true;
+        const auto useIt=_parameterFacts.constFind(useName);
+        if(useIt==_parameterFacts.cend()){unread=true;continue;}
+        bool ok=false;const double use=useIt.value().toDouble(&ok);
+        if(!ok){unread=true;continue;}
+        if(use==1)enabled=true;
+        else if(use==0)disabled=true;
+    }
+    if(installed && !enabled){
+        if(unread)
+            return QStringLiteral("Busola este detectată, dar COMPASS_USE pentru instanța sa nu a fost citit.");
+        if(disabled)
+            return QStringLiteral("Busolele detectate sunt dezactivate pentru yaw (COMPASS_USE/2/3).");
+    }
+    if(!installed && _compassUse < 0)
+        return QStringLiteral("Activarea busolei este necitită, nu neapărat dezactivată");
+    if(!installed && _compassUse != 1)
+        return QStringLiteral("COMPASS_USE=0 pentru busola 1; starea busolei 2 necesită verificare");
     if (!compassHealthy())
         return QStringLiteral("Magnetometrul nu este HEALTHY sau telemetria este veche");
     if (_activeGps())
@@ -459,9 +490,44 @@ QString NavoGnssHeading::compassIdentity() const {
         : QStringLiteral("ID-urile citite nu indică o busolă instalată");
 }
 
+QString NavoGnssHeading::compassUseStatus() const {
+    if(!_linkAlive || !_vehicle)return QStringLiteral("H743 deconectat");
+    QStringList states;
+    for(int i=1;i<=3;++i) {
+        const QString useName=(i==1?QStringLiteral("COMPASS_USE"):
+                               QStringLiteral("COMPASS_USE%1").arg(i));
+        const QString idName=(i==1?QStringLiteral("COMPASS_DEV_ID"):
+                              QStringLiteral("COMPASS_DEV_ID%1").arg(i));
+        const auto use=_parameterFacts.constFind(useName);
+        const auto device=_parameterFacts.constFind(idName);
+        quint32 id=0;int busType=0,bus=0,address=0,deviceType=0;
+        const bool installed=device!=_parameterFacts.cend() &&
+            _decodeCompassDeviceId(device.value(),id,busType,bus,address,deviceType);
+        const bool ist8310=installed && busType==1 && deviceType==0x0a;
+        // Print only relevant slots; a missing COMPASS_DEV_ID can mean
+        // unpopulated compass 1 while the actual sensor is compass 2.
+        if(!installed && use==_parameterFacts.cend())continue;
+        QString state=QStringLiteral("necitit");
+        if(use!=_parameterFacts.cend()){
+            bool ok=false;const double v=use.value().toDouble(&ok);
+            if(ok && std::isfinite(v) && std::trunc(v)==v)
+                state=v==1?QStringLiteral("activ"):
+                    v==0?QStringLiteral("dezactivat"):QStringLiteral("valoare %1").arg(v);
+        }
+        QString label=QStringLiteral("Busola %1: %2").arg(i).arg(state);
+        if(ist8310)label+=QStringLiteral(" • IST8310");
+        else if(installed)label+=QStringLiteral(" • alt senzor");
+        else label+=QStringLiteral(" • fără ID confirmat");
+        states<<label;
+    }
+    return states.isEmpty() ? QStringLiteral("COMPASS_USE{,2,3} încă necitite") :
+        states.join(QStringLiteral(" | "));
+}
+
 QString NavoGnssHeading::compassPriorityStatus() const {
     if(!_linkAlive || !_vehicle)return QStringLiteral("H743 deconectat");
     QStringList priorities;
+    QHash<quint32,int> seenPriorityIds;
     for(int p=1;p<=3;++p) {
         const QString key=QStringLiteral("COMPASS_PRIO%1_ID").arg(p);
         auto it=_parameterFacts.constFind(key);
@@ -472,7 +538,10 @@ QString NavoGnssHeading::compassPriorityStatus() const {
         }
         const QString model=(busType==1 && devType==0x0a)
             ? QStringLiteral("IST8310"):QStringLiteral("alt senzor");
-        priorities<<QStringLiteral("%1: %2 / ID %3").arg(p).arg(model).arg(id);
+        const int prior=seenPriorityIds.value(id,0);
+        priorities<<(QStringLiteral("%1: %2 / ID %3").arg(p).arg(model).arg(id) +
+            (prior ? QStringLiteral(" • DUPLICAT cu prioritatea %1").arg(prior) : QString{}));
+        if(!prior)seenPriorityIds.insert(id,p);
     }
     return priorities.isEmpty()?QStringLiteral("Prioritatea busolelor necitită")
         :priorities.join(QStringLiteral(" • "));
