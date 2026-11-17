@@ -32,6 +32,8 @@ class NavoGnssHeading : public QObject {
     Q_PROPERTY(bool compassHealthy READ compassHealthy NOTIFY headingChanged)
     Q_PROPERTY(QString compassStatus READ compassStatus NOTIFY headingChanged)
     Q_PROPERTY(int ekfYawMode READ ekfYawMode NOTIFY headingChanged)
+    Q_PROPERTY(QString compassDeviceStatus READ compassDeviceStatus NOTIFY headingChanged)
+    Q_PROPERTY(QString parameterReadStatus READ parameterReadStatus NOTIFY headingChanged)
 
     Q_PROPERTY(double positionAccuracyM READ positionAccuracyM NOTIFY headingChanged)
     Q_PROPERTY(bool positionFresh READ positionFresh NOTIFY headingChanged)
@@ -61,6 +63,10 @@ public:
     bool compassHealthy() const;
     QString compassStatus() const;
     int ekfYawMode() const { return _ekfYawMode; }
+    QString compassDeviceStatus() const;
+    QString parameterReadStatus() const;
+    // Read-only requests, never parameter writes or automatic EKF changes.
+    Q_INVOKABLE bool requestDiagnosticParameters();
 
 signals:
     void vehicleChanged();
@@ -69,6 +75,7 @@ signals:
 private slots:
     void _mavlink(const mavlink_message_t&);
     void _refresh();
+    void _syncCachedParameters();
 
 private:
     struct Receiver {
@@ -100,6 +107,9 @@ private:
     bool _ekfCompassFallback = false;
     int _ekfYawMode = -1;
     int _compassUse = -1;
-    int _compassDevIdPresent = -1; // -1 unknown, 0 absent, 1 installed
+    int _compassDevIdPresent = -1; // -1 unknown, 0 zero/absent, 1 positive ID
+    qint64 _compassDeviceId = -1;
+    QString _compassDeviceKey;
+    qint64 _lastParameterRefreshMs = -1;
 };
 
