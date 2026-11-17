@@ -1617,6 +1617,7 @@ Item {
                     GnssLine { name: "Rezervă magnetică"; value: gnssHeading.compassHealthy ? "Magnetometru HEALTHY" : "Indisponibil / nevalidat" }
                     GnssLine { name: "EKF3 yaw source"; value: gnssHeading.ekfYawStatus }
                     Label { Layout.fillWidth: true; text: gnssHeading.compassIdentity; color: "#a9d9ed"; font.pixelSize: 11; wrapMode: Text.WordWrap }
+                    Label { Layout.fillWidth: true; text: gnssHeading.compassUseStatus; color: "#a9d9ed"; font.pixelSize: 11; wrapMode: Text.WordWrap }
                     Label { Layout.fillWidth: true; text: gnssHeading.compassPriorityStatus; color: "#a9d9ed"; font.pixelSize: 11; wrapMode: Text.WordWrap }
                     Label { Layout.fillWidth: true; text: gnssHeading.compassStatus; color: gnssHeading.compassFallbackActive ? "#31d6a5" : "#ffd166"; font.pixelSize: 11; wrapMode: Text.WordWrap }
                     Label { Layout.fillWidth: true; text: gnssHeading.parameterReadStatus; color: "#9cc4d7"; font.pixelSize: 10; wrapMode: Text.WordWrap }
