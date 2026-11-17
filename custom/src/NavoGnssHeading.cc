@@ -262,15 +262,26 @@ QString NavoGnssHeading::headingSource() const {
 
 QString NavoGnssHeading::compassStatus() const {
     if (!_linkAlive || !_vehicle) return QStringLiteral("H743 deconectat");
-    if (_compassDevIdPresent != 1)
-        return QStringLiteral("Busolă fără ID verificat; confirmă IST8310 pe I2C1");
+    if (_compassDevIdPresent != 1) {
+        const bool hasReadId=_parameterFacts.contains(QStringLiteral("COMPASS_DEV_ID")) ||
+            _parameterFacts.contains(QStringLiteral("COMPASS_DEV_ID2")) ||
+            _parameterFacts.contains(QStringLiteral("COMPASS_DEV_ID3"));
+        return hasReadId
+            ? QStringLiteral("Niciun ID de busolă valid în parametrii citiți; verifică dispozitivul și cablul I2C")
+            : QStringLiteral("ID busolă încă necitit; apasă Reverifică busola și EKF3");
+    }
+    if (_compassUse < 0)
+        return QStringLiteral("Activarea busolei este necitită, nu neapărat dezactivată");
     if (_compassUse != 1)
-        return QStringLiteral("COMPASS_USE trebuie verificat (1 = activ)");
+        return QStringLiteral("COMPASS_USE=0: busola principală nu este folosită pentru yaw");
+    if (_ekfYawMode < 0)
+        return QStringLiteral("EK3_SRC1_YAW nu a fost citit; fallback încă neconfirmat");
     if (_ekfYawMode != 3)
-        return QStringLiteral("EK3_SRC1_YAW nu confirmă GPS cu rezervă busolă (3)");
+        return QStringLiteral("EK3_SRC1_YAW nu este 3; fallback GPS+busolă neconfigurat");
     if (!compassHealthy())
         return QStringLiteral("Magnetometrul nu este HEALTHY sau telemetria este veche");
-    if (_activeGps()) return QStringLiteral("Busolă disponibilă; GNSS are prioritate");
+    if (_activeGps())
+        return QStringLiteral("GNSS are prioritate; modelul și sursa magnetică EKF se confirmă separat");
     if (_ekfCompassFallback)
         return QStringLiteral("EKF3 a anunțat fallback magnetic; modelul IST8310 se verifică fizic");
     return QStringLiteral("Aștept mesaj EKF3 yaw fallback active; H743 doar estimativ");
