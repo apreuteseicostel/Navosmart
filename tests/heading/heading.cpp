@@ -103,6 +103,48 @@ private slots:
   p(v,"COMPASS_DEV_ID",1234);QVERIFY(h.compassFallbackActive());
   mag(v,false,false);QVERIFY(!h.compassHealthy());QVERIFY(!h.compassFallbackActive());
  }
+ void cachedParameterReadbackFromQgcWithoutParamStream(){
+  // NAVO may be initialized after QGC's PARAM_VALUE download finished.
+  Vehicle v;
+  auto* manager=v.parameterManager();
+  manager->setReady(true);
+  manager->set("EK3_SRC1_YAW",3);
+  manager->set("COMPASS_USE",1);
+  manager->set("COMPASS_DEV_ID",0);
+  manager->set("COMPASS_DEV_ID2",136712);
+  manager->set("COMPASS_PRIO1_ID",0);
+  NavoGnssHeading h;h.setVehicle(&v);h.setLinkAlive(true);
+  QCOMPARE(h.ekfYawMode(),3);
+  QCOMPARE(h.parameterReadStatus(),QStringLiteral("3"));
+  QVERIFY(h.compassDeviceStatus().contains(QStringLiteral("COMPASS_DEV_ID2")));
+  QVERIFY(h.compassDeviceStatus().contains(QStringLiteral("136712")));
+  QVERIFY(h.compassDeviceStatus().contains(QStringLiteral("neconfirmat")));
+  QVERIFY(!h.compassStatus().contains(QStringLiteral("fără ID")));
+  QVERIFY(h.requestDiagnosticParameters());
+  QVERIFY(manager->readRequests().contains(QStringLiteral("EK3_SRC1_YAW")));
+  QVERIFY(manager->readRequests().contains(QStringLiteral("COMPASS_DEV_ID2")));
+  QVERIFY(!h.requestDiagnosticParameters()); // avoid request storms
+  manager->set("EK3_SRC1_YAW",2);
+  QTest::qWait(550); // QGC Fact cache updates without another MAVLink PARAM_VALUE
+  QCOMPARE(h.ekfYawMode(),2);
+  h.setLinkAlive(false);
+  QCOMPARE(h.ekfYawMode(),-1);
+  QCOMPARE(h.parameterReadStatus(),QStringLiteral("H743 deconectat"));
+  QVERIFY(!h.requestDiagnosticParameters());
+ }
+ void parameterDownloadNotReadyIsNotCompassFailure(){
+  Vehicle v;
+  NavoGnssHeading h;h.setVehicle(&v);h.setLinkAlive(true);
+  QCOMPARE(h.ekfYawMode(),-1);
+  QVERIFY(h.parameterReadStatus().contains(QStringLiteral("Sincronizare")));
+  QVERIFY(h.compassDeviceStatus().contains(QStringLiteral("necitit")));
+  QVERIFY(!h.requestDiagnosticParameters());
+  QVERIFY(v.parameterManager()->readRequests().isEmpty());
+  v.parameterManager()->setReady(true);
+  QCOMPARE(h.parameterReadStatus(),QStringLiteral("EK3_SRC1_YAW absent / încă necitit"));
+  QVERIFY(!h.requestDiagnosticParameters()); // no blind requests for absent names
+  QVERIFY(v.parameterManager()->readRequests().isEmpty());
+ }
  void shortGyroHoldoverExpires(){
   Vehicle v;NavoGnssHeading h;h.setVehicle(&v);h.setLinkAlive(true);
   h.setAutopilotHeadingDeg(201);gps(v,20000);gps(v,65535);
