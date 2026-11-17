@@ -4,6 +4,9 @@
 #include <QPointer>
 #include <QElapsedTimer>
 #include <QString>
+#include <QHash>
+#include <QSet>
+#include <QVariant>
 #include <QtGlobal>
 #include "QGCMAVLink.h"
 
@@ -32,6 +35,11 @@ class NavoGnssHeading : public QObject {
     Q_PROPERTY(bool compassHealthy READ compassHealthy NOTIFY headingChanged)
     Q_PROPERTY(QString compassStatus READ compassStatus NOTIFY headingChanged)
     Q_PROPERTY(int ekfYawMode READ ekfYawMode NOTIFY headingChanged)
+    Q_PROPERTY(QString ekfYawStatus READ ekfYawStatus NOTIFY headingChanged)
+    Q_PROPERTY(QString compassIdentity READ compassIdentity NOTIFY headingChanged)
+    Q_PROPERTY(QString compassPriorityStatus READ compassPriorityStatus NOTIFY headingChanged)
+    Q_PROPERTY(QString parameterReadStatus READ parameterReadStatus NOTIFY headingChanged)
+    Q_PROPERTY(bool parameterRefreshPending READ parameterRefreshPending NOTIFY headingChanged)
 
     Q_PROPERTY(double positionAccuracyM READ positionAccuracyM NOTIFY headingChanged)
     Q_PROPERTY(bool positionFresh READ positionFresh NOTIFY headingChanged)
@@ -61,6 +69,12 @@ public:
     bool compassHealthy() const;
     QString compassStatus() const;
     int ekfYawMode() const { return _ekfYawMode; }
+    QString ekfYawStatus() const;
+    QString compassIdentity() const;
+    QString compassPriorityStatus() const;
+    QString parameterReadStatus() const;
+    bool parameterRefreshPending() const { return _parameterRefreshPending; }
+    Q_INVOKABLE void requestDiagnosticParameters();
 
 signals:
     void vehicleChanged();
@@ -84,6 +98,9 @@ private:
     // Gyro/EKF is not an absolute heading source: keep tertiary bridge short.
     static constexpr qint64 kInertialHoldoverMs = 12000;
     void _reset();
+    void _readParameterFacts();
+    void _queueInitialParameterRead();
+    static bool _decodeCompassDeviceId(const QVariant& raw, quint32& id, int& busType, int& bus, int& address, int& deviceType);
     void _observe(Receiver&, uint8_t fix, uint8_t satellites, uint16_t rawYaw);
     bool _available(const Receiver&) const;
     const Receiver* _activeGps() const;
@@ -101,5 +118,10 @@ private:
     int _ekfYawMode = -1;
     int _compassUse = -1;
     int _compassDevIdPresent = -1; // -1 unknown, 0 absent, 1 installed
+    QHash<QString, QVariant> _parameterFacts;
+    QSet<QString> _parameterResponses;
+    bool _parameterRefreshPending = false;
+    bool _initialParameterReadQueued = false;
+    qint64 _lastParameterRequestMs = -1;
 };
 
