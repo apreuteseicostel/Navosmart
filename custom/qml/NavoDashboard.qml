@@ -188,6 +188,89 @@ Item {
     NavoSonarMapping { id: replayMapping; visible:false; externalSampleIngestion:true; sonarConnected:true; scanning:true }
     readonly property var displayNativeSurfaceMesh: sonar.replayMode ? sonar.nativeSurfaceMesh : scanCoordinator.nativeSurfaceMesh
     readonly property var displayBathymetryCells: sonar.replayMode ? replayBathymetryModel.cells : scanCoordinator.bathymetryCells
+    // The already-existing native Kogger surface updates independently; this
+    // bounded 2D/3D preview also works with depth soundings before tiles exist.
+    property var liveBathymetryPreviewSamples: []
+    property int liveBathymetryPreviewCount: 0
+    property string liveBathymetryPreviewLakeId: ""
+    function liveBathymetrySampleWindow(input, limit) {
+        if(!input || !input.length) return []
+        var max=Math.max(3,limit||6000)
+        if(input.length<=max) return input
+        var out=[],stride=(input.length-1)/(max-1)
+        for(var i=0;i<max;i++)out.push(input[Math.round(i*stride)])
+        return out
+    }
+    function refreshLiveBathymetry() {
+        if(sonar.replayMode || !scanCoordinator.lakeId.length ||
+           scanCoordinator.lakeId!==sonarMapping.lakeId) return false
+        var source=sonarMapping.rawSamples
+        if(!source || source.length<3 ||
+           (liveBathymetryPreviewLakeId===scanCoordinator.lakeId &&
+            liveBathymetryPreviewCount===source.length)) return false
+        var preview=liveBathymetrySampleWindow(source,6000)
+        var cells=bathymetryModel.rebuild(preview)
+        if(!cells || !cells.length) return false
+        scanCoordinator.bathymetryCells=cells
+        liveBathymetryPreviewSamples=preview
+        liveBathymetryPreviewCount=source.length
+        liveBathymetryPreviewLakeId=scanCoordinator.lakeId
+        return true
+    }
+    function startLiveBathymetry() {
+        if(sonar.replayMode || !scanCoordinator.lakeId.length) {
+            lastNavigationStatus="Alege o baltă activă; replay nu permite mapare live";return false
+        }
+        if((scanCoordinator.state!=="IDLE" && scanCoordinator.state!=="COMPLETE") ||
+           routePlan.active || baitingController.enabled || awaitingMissionStart) {
+            lastNavigationStatus="Maparea manuală necesită misiunile oprite";return false
+        }
+        if(!sonarConnected || !sonar.liveGpsUsable) {
+            lastNavigationStatus="Conectează Kogger și așteaptă GPS 3D valid de la H743";return false
+        }
+        if(!sonarMapping.startLiveMapping()) {
+            lastNavigationStatus="Maparea live nu a pornit; verifică limita de măsurători";return false
+        }
+        if(!scanCoordinator.checkpoint("live-bathymetry-start")) {
+            sonarMapping.stopLiveMapping()
+            lastNavigationStatus="Mapare oprită: nu pot salva starea bălții";return false
+        }
+        refreshLiveBathymetry()
+        lastNavigationStatus="BATIMETRIE LIVE • colectare GPS + Kogger • fără autopilot"
+        return true
+    }
+    function pauseLiveBathymetry() {
+        if(!sonarMapping.pauseLiveMapping())return false
+        refreshLiveBathymetry()
+        var saved=scanCoordinator.checkpoint("live-bathymetry-pause")
+        lastNavigationStatus=saved ? "Batimetrie live în pauză • salvată" :
+                                      "PAUZĂ • eroare la salvarea datelor"
+        return saved
+    }
+    function resumeLiveBathymetry() {
+        if(!sonarMapping.resumeLiveMapping()) {
+            lastNavigationStatus="Reluare blocată: verifică Kogger, GPS și limita de probe";return false
+        }
+        lastNavigationStatus="Batimetrie live reluată"
+        return true
+    }
+    function finishLiveBathymetry() {
+        if(sonar.replayMode || !sonarMapping.stopLiveMapping())return false
+        refreshLiveBathymetry()
+        var count=sonarMapping.rawSamples.length
+        var saved=scanCoordinator.checkpoint("live-bathymetry-stop")
+        lastNavigationStatus=saved
+            ? "Batimetrie live salvată • "+count+" probe GPS/sonar • "+scanCoordinator.bathymetryCells.length+" celule"
+            : "Maparea s-a oprit, dar salvarea a eșuat • nu dezinstala aplicația"
+        return saved
+    }
+    Timer {
+        interval:2500; repeat:true
+        running:!sonar.replayMode && scanCoordinator.lakeId.length>0 &&
+                ((sonarMapping.scanning && !sonarMapping.paused) ||
+                 (sonarMapping.liveMappingActive && !sonarMapping.liveMappingPaused))
+        onTriggered:root.refreshLiveBathymetry()
+    }
     Timer {
         interval:2000; repeat:true; running:sonar.replayMode
         onTriggered: if(replayMapping.rawSamples.length>=3)replayBathymetryModel.rebuild(replayMapping.rawSamples)
@@ -503,10 +586,13 @@ Item {
         depthM: root.depthM
         waterTempC: root.waterTempC
         sonarConnected: root.sonarConnected
+        liveGpsReady: sonar.liveGpsUsable
+        replayMode: sonar.replayMode
         externalSampleIngestion: true
         bottomHardness: root.bottomHardnessPercent
         bottomEchoStrength: root.bottomEchoStrength
         onCheckpointRequested: function(state) { scanCoordinator.checkpoint("sonar-mapping") }
+        onStatus: function(message) { root.lastNavigationStatus=message }
     }
     NavoScanCoordinator {
         id: scanCoordinator
@@ -526,7 +612,11 @@ Item {
             }
         }
         onStatus: function(message) { root.lastNavigationStatus = message }
-        onLakeActivated: function(id) { sessionSettings.activeLakeId=id; missionUploader.invalidate(); baitingController.targetWaypoint=null; if(!sonar.replayMode)sonar.nativeBridge.clear() }
+        onLakeActivated: function(id) {
+            sessionSettings.activeLakeId=id; missionUploader.invalidate(); baitingController.targetWaypoint=null
+            root.liveBathymetryPreviewSamples=[];root.liveBathymetryPreviewCount=0;root.liveBathymetryPreviewLakeId=""
+            if(!sonar.replayMode)sonar.nativeBridge.clear()
+        }
         onScanFinished: function(bathymetrySaved, sampleCount) {
             missionUploader.invalidate()
             root.awaitingMissionStart=false
