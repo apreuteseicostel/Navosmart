@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.16)
+project(navo_heading_test LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_AUTOMOC ON)
+find_package(Qt6 REQUIRED COMPONENTS Core Test)
+add_executable(navo-heading-test heading.cpp Vehicle.h QGCMAVLink.h ../../custom/src/NavoGnssHeading.cc ../../custom/src/NavoGnssHeading.h)
+target_include_directories(navo-heading-test PRIVATE . ../../custom/src)
+target_link_libraries(navo-heading-test PRIVATE Qt6::Core Qt6::Test)

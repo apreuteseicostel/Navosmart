@@ -75,3 +75,29 @@ SHT31/water telemetry scripts do not control lights.
 If native relays were ever replaced by the optional Lua lighting backend,
 that would require an explicit separate migration and bench review;
 it is **not** part of PR #73.
+
+
+## Optional passive Relay1/2 readback (NAVO boat icon)
+
+This integrated test branch also includes
+`ardupilot/scripts/navo_relay_status.lua`, a **read-only** Lua witness for
+the two existing native ArduPilot relays: Relay1/G20 L2/RC7 and
+Relay2/G20 R2/RC16. It never owns, changes or toggles a GPIO or relay.
+
+After confirming that the H743 ArduPilot build supports both
+`relay:enabled()` and `relay:get()`, you can **optionally** copy only this
+script to `APM/scripts/`. Every 500ms it reports the logical 0/1 state as
+`NV3RHEAD` and `NV3RPOS` if each relay is configured and readable;
+otherwise it publishes no value. NAVO expires values independently after
+2.5s. These are **logical relay states**, not optical light measurements.
+
+When relay readback is absent, the dashboard continues to show the
+G20 switch as an **amber unverified request** using the existing display
+logic, rather than asserting that a lamp is physically lit.
+
+The V3 Lua actuator service continues to leave `cfg.lights=nil` to avoid
+competing with native Relay1/2. When no Lua light backend is configured,
+it no longer sends fake `NV3HEAD=0/NV3POS=0` telemetry. The optional
+RGB LED is likewise **not activated**, and its physical driver, wiring,
+H743 pin, local sensors and cross-service alarm bridge remain subject to
+separate bench validation.
