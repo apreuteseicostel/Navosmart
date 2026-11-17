@@ -90,7 +90,7 @@ Rectangle {
         return true
     }
     function startScan() {
-        if (liveMappingActive) { status("Oprește maparea manuală înainte de Area Scan"); return }
+        if (typeof liveMappingActive!=="undefined" && liveMappingActive) { status("Oprește maparea manuală înainte de Area Scan"); return }
         if (!validPosition() || !sonarConnected) { status("Scanare blocată: GPS și Kogger trebuie conectate"); return }
         rawSamples=[]; trackCoordinates=[]; bathymetryComplete=false; scanning=true; paused=false
         addCurrentSample(); status("Mapare sonar pornită")
@@ -106,7 +106,7 @@ Rectangle {
         paused=false; saveCheckpoint("resume"); status("Mapare sonar continuată"); return true
     }
     function ingestSample(sample) {
-        var manual=liveMappingActive && !scanning
+        var manual=(typeof liveMappingActive!=="undefined" && liveMappingActive) && !scanning
         if((!scanning && !manual) || (scanning && paused) ||
            (manual && (liveMappingPaused || !liveGpsReady || replayMode)) ||
            !sonarConnected || !sample) return
