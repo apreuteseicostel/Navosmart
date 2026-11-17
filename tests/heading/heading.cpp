@@ -180,10 +180,19 @@ private slots:
   QVERIFY(!h.compassStatus().contains(QStringLiteral("COMPASS_USE=0:")));
   QCOMPARE(h.ekfYawMode(),3);
   QVERIFY(!h.compassFallbackActive()); // no EKF transition event
+  // Confirmed EKF3 magnetic transition may legitimately use Compass2 even
+  // when Compass1 (COMPASS_USE=0) is disabled. Still no H743 writes.
+  h.setAutopilotHeadingDeg(133);
+  gps(v,20000);gps(v,65535);
+  mag(v,true,true);
+  event(v,"EKF3 IMU0 yaw fallback active");
+  QVERIFY(h.compassFallbackActive());
+  QCOMPARE(h.selectedHeadingDeg(),133.0);
   // If IST8310's own flag is disabled, the read-only warning says so.
   pm->setFact(QStringLiteral("COMPASS_USE2"),0);
   QVERIFY(QMetaObject::invokeMethod(&h,"_refresh",Qt::DirectConnection));
   QVERIFY(h.compassStatus().contains(QStringLiteral("dezactivate pentru yaw")));
+  QVERIFY(!h.compassFallbackActive());
  }
  void shortGyroHoldoverExpires(){
   Vehicle v;NavoGnssHeading h;h.setVehicle(&v);h.setLinkAlive(true);
