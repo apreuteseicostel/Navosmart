@@ -221,30 +221,57 @@ bool NavoGnssHeading::compassHealthy() const {
 }
 
 bool NavoGnssHeading::_compassConfiguredForYaw() const {
-    bool identifiedFromFacts=false;
-    // COMPASS_USE belongs to COMPASS_DEV_ID (slot 1), while IST8310 can
-    // actually be COMPASS_DEV_ID2 with its own COMPASS_USE2 flag.
-    // Prefer typed QGC facts; don't infer Compass2 from Compass1.
-    for(int i=1;i<=3;++i){
-        const QString idName=i==1?QStringLiteral("COMPASS_DEV_ID"):
-            QStringLiteral("COMPASS_DEV_ID%1").arg(i);
-        const QString useName=i==1?QStringLiteral("COMPASS_USE"):
-            QStringLiteral("COMPASS_USE%1").arg(i);
-        const auto idIt=_parameterFacts.constFind(idName);
+    // ArduPilot's COMPASS_USE/USE2/USE3 is indexed by PRIORITY, while
+    // COMPASS_DEV_ID/DEV_ID2/... reports the independently detected state
+    // instances. DEV_ID2 does not imply it is controlled by USE2.
+    QSet<quint32> seen;
+    bool priorityIdSeen=false;
+    for(int p=1;p<=3;++p){
+        const QString priorityName=QStringLiteral("COMPASS_PRIO%1_ID").arg(p);
+        const auto it=_parameterFacts.constFind(priorityName);
+        if(it==_parameterFacts.cend())continue;
         quint32 id=0;int busType=0,bus=0,address=0,devType=0;
-        if(idIt==_parameterFacts.cend() ||
-           !_decodeCompassDeviceId(idIt.value(),id,busType,bus,address,devType))
+        if(!_decodeCompassDeviceId(it.value(),id,busType,bus,address,devType))
             continue;
-        identifiedFromFacts=true;
-        const auto useIt=_parameterFacts.constFind(useName);
-        if(useIt==_parameterFacts.cend())continue;
-        bool ok=false;const double v=useIt.value().toDouble(&ok);
-        if(ok && v==1) return true;
+        priorityIdSeen=true;
+        // Duplicate priority slots may indicate stale/corrupt settings.
+        // Fail closed rather than claiming an independent magnetic fallback.
+        if(seen.contains(id))return false;
+        seen.insert(id);
     }
-    if(identifiedFromFacts)return false;
-    // Compatibility with a live PARAM_VALUE stream before QGC Facts load.
-    // A magnetometer health flag by itself is never sufficient.
-    return _compassUse==1 && _compassDevIdPresent==1;
+    if(priorityIdSeen){
+        for(int p=1;p<=3;++p){
+            const QString priorityName=QStringLiteral("COMPASS_PRIO%1_ID").arg(p);
+            const auto it=_parameterFacts.constFind(priorityName);
+            if(it==_parameterFacts.cend())continue;
+            quint32 id=0;int busType=0,bus=0,address=0,devType=0;
+            if(!_decodeCompassDeviceId(it.value(),id,busType,bus,address,devType))
+                continue;
+            // A priority ID needs to refer to a detected compass instance.
+            bool detected=false;
+            for(int i=1;i<=3;++i){
+                const QString detectedName=i==1?QStringLiteral("COMPASS_DEV_ID"):
+                    QStringLiteral("COMPASS_DEV_ID%1").arg(i);
+                const auto dt=_parameterFacts.constFind(detectedName);
+                quint32 found=0;int bt=0,b=0,a=0,d=0;
+                if(dt!=_parameterFacts.cend() &&
+                   _decodeCompassDeviceId(dt.value(),found,bt,b,a,d) &&
+                   found==id){detected=true;break;}
+            }
+            if(!detected)continue;
+            const QString useName=p==1?QStringLiteral("COMPASS_USE"):
+                QStringLiteral("COMPASS_USE%1").arg(p);
+            const auto u=_parameterFacts.constFind(useName);
+            if(u==_parameterFacts.cend())continue;
+            bool ok=false;const double value=u.value().toDouble(&ok);
+            if(ok && value==1)return true;
+        }
+        return false;
+    }
+    // Before the QGC typed parameter snapshot arrives, existing legacy
+    // MAVLink PARAM_VALUE fallback behavior is kept for compatibility.
+    return _parameterFacts.isEmpty() &&
+        _compassUse==1 && _compassDevIdPresent==1;
 }
 
 bool NavoGnssHeading::compassFallbackActive() const {
@@ -305,37 +332,28 @@ QString NavoGnssHeading::compassStatus() const {
         return QStringLiteral("EK3_SRC1_YAW=0: sursa yaw a setului EKF3 nr. 1 este None. Citește și celelalte seturi înainte de orice modificare.");
     if (_ekfYawMode != 3)
         return QStringLiteral("EK3_SRC1_YAW nu este 3; fallback GPS+busolă neconfigurat în setul 1");
-    // The IST8310 can be Compass2 even when COMPASS_USE=0 on Compass1.
-    // Diagnose its own USE2 flag; don't claim it is disabled via USE1.
-    bool installed=false,enabled=false,disabled=false,unread=false;
-    for(int i=1;i<=3;++i){
-        const QString idName=i==1?QStringLiteral("COMPASS_DEV_ID"):
-            QStringLiteral("COMPASS_DEV_ID%1").arg(i);
-        const QString useName=i==1?QStringLiteral("COMPASS_USE"):
-            QStringLiteral("COMPASS_USE%1").arg(i);
-        const auto idIt=_parameterFacts.constFind(idName);
-        quint32 id=0;int busType=0,bus=0,address=0,devType=0;
-        if(idIt==_parameterFacts.cend() ||
-           !_decodeCompassDeviceId(idIt.value(),id,busType,bus,address,devType))
-            continue;
-        installed=true;
-        const auto useIt=_parameterFacts.constFind(useName);
-        if(useIt==_parameterFacts.cend()){unread=true;continue;}
-        bool ok=false;const double use=useIt.value().toDouble(&ok);
-        if(!ok){unread=true;continue;}
-        if(use==1)enabled=true;
-        else if(use==0)disabled=true;
+    // Priority order (COMPASS_PRIOx_ID) and discovery order
+    // (COMPASS_DEV_IDx) are distinct. Don't pair DEV_ID2 with USE2.
+    bool anyPriority=false,duplicate=false;
+    QSet<quint32> seenIds;
+    for(int p=1;p<=3;++p){
+        const QString name=QStringLiteral("COMPASS_PRIO%1_ID").arg(p);
+        auto it=_parameterFacts.constFind(name);
+        if(it==_parameterFacts.cend())continue;
+        quint32 id=0;int bt=0,b=0,a=0,d=0;
+        if(!_decodeCompassDeviceId(it.value(),id,bt,b,a,d))continue;
+        anyPriority=true;
+        if(seenIds.contains(id))duplicate=true;
+        seenIds.insert(id);
     }
-    if(installed && !enabled){
-        if(unread)
-            return QStringLiteral("Busola este detectată, dar COMPASS_USE pentru instanța sa nu a fost citit.");
-        if(disabled)
-            return QStringLiteral("Busolele detectate sunt dezactivate pentru yaw (COMPASS_USE/2/3).");
-    }
-    if(!installed && _compassUse < 0)
-        return QStringLiteral("Activarea busolei este necitită, nu neapărat dezactivată");
-    if(!installed && _compassUse != 1)
-        return QStringLiteral("COMPASS_USE=0 pentru busola 1; starea busolei 2 necesită verificare");
+    if(duplicate)
+        return QStringLiteral("Priorități magnetice cu ID DUPLICAT: verifică COMPASS_PRIO1_ID/2_ID pe H743.");
+    if(anyPriority && !_compassConfiguredForYaw())
+        return QStringLiteral("Nicio busolă detectată, activată la prioritatea ei și confirmată pentru yaw.");
+    if(!anyPriority && _compassUse < 0)
+        return QStringLiteral("Prioritățile sau activarea busolei sunt necitite.");
+    if(!anyPriority && _compassUse != 1)
+        return QStringLiteral("COMPASS_USE=0; prioritățile active trebuie verificate.");
     if (!compassHealthy())
         return QStringLiteral("Magnetometrul nu este HEALTHY sau telemetria este veche");
     if (_activeGps())
@@ -520,20 +538,17 @@ QString NavoGnssHeading::compassIdentity() const {
 QString NavoGnssHeading::compassUseStatus() const {
     if(!_linkAlive || !_vehicle)return QStringLiteral("H743 deconectat");
     QStringList states;
-    for(int i=1;i<=3;++i) {
-        const QString useName=(i==1?QStringLiteral("COMPASS_USE"):
-                               QStringLiteral("COMPASS_USE%1").arg(i));
-        const QString idName=(i==1?QStringLiteral("COMPASS_DEV_ID"):
-                              QStringLiteral("COMPASS_DEV_ID%1").arg(i));
+    QHash<quint32,int> seenIds;
+    for(int p=1;p<=3;++p){
+        const QString priorityName=QStringLiteral("COMPASS_PRIO%1_ID").arg(p);
+        const QString useName=p==1?QStringLiteral("COMPASS_USE"):
+            QStringLiteral("COMPASS_USE%1").arg(p);
+        const auto priority=_parameterFacts.constFind(priorityName);
         const auto use=_parameterFacts.constFind(useName);
-        const auto device=_parameterFacts.constFind(idName);
+        if(priority==_parameterFacts.cend() && use==_parameterFacts.cend())continue;
         quint32 id=0;int busType=0,bus=0,address=0,deviceType=0;
-        const bool installed=device!=_parameterFacts.cend() &&
-            _decodeCompassDeviceId(device.value(),id,busType,bus,address,deviceType);
-        const bool ist8310=installed && busType==1 && deviceType==0x0a;
-        // Print only relevant slots; a missing COMPASS_DEV_ID can mean
-        // unpopulated compass 1 while the actual sensor is compass 2.
-        if(!installed && use==_parameterFacts.cend())continue;
+        const bool configured=priority!=_parameterFacts.cend() &&
+            _decodeCompassDeviceId(priority.value(),id,busType,bus,address,deviceType);
         QString state=QStringLiteral("necitit");
         if(use!=_parameterFacts.cend()){
             bool ok=false;const double v=use.value().toDouble(&ok);
@@ -541,13 +556,18 @@ QString NavoGnssHeading::compassUseStatus() const {
                 state=v==1?QStringLiteral("activ"):
                     v==0?QStringLiteral("dezactivat"):QStringLiteral("valoare %1").arg(v);
         }
-        QString label=QStringLiteral("Busola %1: %2").arg(i).arg(state);
-        if(ist8310)label+=QStringLiteral(" • IST8310");
-        else if(installed)label+=QStringLiteral(" • alt senzor");
-        else label+=QStringLiteral(" • fără ID confirmat");
-        states<<label;
+        QString line=QStringLiteral("Prioritate %1: %2").arg(p).arg(state);
+        if(configured){
+            line+=(busType==1 && deviceType==0x0a)?QStringLiteral(" • IST8310"):
+                QStringLiteral(" • alt dispozitiv");
+            if(seenIds.contains(id))
+                line+=QStringLiteral(" • ID DUPLICAT cu prioritatea %1").arg(seenIds.value(id));
+            else seenIds.insert(id,p);
+        }else line+=QStringLiteral(" • fără ID de prioritate");
+        states<<line;
     }
-    return states.isEmpty() ? QStringLiteral("COMPASS_USE{,2,3} încă necitite") :
+    return states.isEmpty()?
+        QStringLiteral("COMPASS_USE{,2,3}/priorități încă necitite"):
         states.join(QStringLiteral(" | "));
 }
 
