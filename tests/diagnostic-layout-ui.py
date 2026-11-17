@@ -36,6 +36,14 @@ ApplicationWindow {
   property real gpsYawDeg: 0
   property int gpsYawAgeMs: 0
   property string headingDetail: "GPS are fix, dar orientarea GNSS duală nu este încă disponibilă."
+  property real selectedHeadingDeg: NaN
+  property bool compassFallbackActive: false
+  property bool compassHealthy: false
+  property string compassStatus: "Parametrii busolei se citesc separat"
+  property string compassDeviceStatus: "ID necitit"
+  property string parameterReadStatus: "Sincronizare parametri H743…"
+  property int ekfYawMode: -1
+  function requestDiagnosticParameters() { return true }
  }
  NavoStatusDetails { id: telemetry; objectName: "telemetry"; viewportWidth: root.width; viewportHeight: root.height; linkAlive: true; battery: ({voltage:{rawValue:16.8},current:{rawValue:4.24},mahConsumed:{rawValue:956},percentRemaining:{rawValue:80}}) }
 '''+popup+'}'

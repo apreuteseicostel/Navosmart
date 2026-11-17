@@ -11,6 +11,9 @@ Rectangle {
     property var connectivity: null
     property bool cameraLive: false
     property bool vehicleConnected: false
+    property string virtualRgbStatus: "unknown"
+    property string physicalRgbDiagnostic: "Fără confirmare hardware"
+
     property var sonar: null
     property var camera: null
     property var alerts: null
@@ -423,6 +426,27 @@ Rectangle {
                         anchors.fill: parent; anchors.margins: 10
                         text: "AVANSAT • G20 / H743. Verifică mai întâi canalele în Device Tool, apoi testează comenzile pe banc."
                         color: root.fg; font.pixelSize: 12; wrapMode: Text.WordWrap
+                    }
+                }
+                Rectangle {
+                    objectName: "settingsRgbDiagnostics"
+                    Layout.fillWidth: true
+                    implicitHeight: rgbDiagnosticsColumn.implicitHeight + 24
+                    color: root.surface
+                    border.color: root.line
+                    radius: 9
+                    ColumnLayout {
+                        id: rgbDiagnosticsColumn
+                        anchors.left: parent.left; anchors.right: parent.right
+                        anchors.top: parent.top; anchors.margins: 12
+                        spacing: 5
+                        Label { text: "LED RGB WS2811 • Diagnostic"; color: root.cyan; font.bold: true; font.pixelSize: 13 }
+                        Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; font.pixelSize: 11; color: root.fg
+                            text: "LED APP (calculat): " + root.virtualRgbStatus.toUpperCase() }
+                        Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; font.pixelSize: 11; color: root.muted
+                            text: "RGB H743: " + root.physicalRgbDiagnostic }
+                        Label { Layout.fillWidth: true; wrapMode: Text.WordWrap; font.pixelSize: 11; color: root.muted
+                            text: "Pad LED = SERVO13. Verifică SERVO13_FUNCTION=94, SCR_ENABLE=1 și Messages: NAVO RGB: ... . LED APP nu confirmă LED-ul fizic." }
                     }
                 }
                 NavoG20Settings {

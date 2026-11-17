@@ -657,6 +657,57 @@ Item {
     property bool hopperStatusExpanded: false
     property bool mapFullscreen: false
     property bool headingOverlayOpen: false
+    // First prefer measured PWM *outputs* from the H743 SERVO_OUTPUT_RAW
+    // stream: these reflect actual actuator drive, but not hatch position.
+    // The Lua hopper mask and app request are display-only fallbacks.
+    function outputIndicatesOpen(pwm, closedUs, openUs) {
+        var v=Number(pwm), closed=Number(closedUs), opened=Number(openUs)
+        if (!isFinite(v) || v<800 || v>2200 || !isFinite(closed)
+                || !isFinite(opened) || Math.abs(opened-closed)<80) return false
+        return opened>closed ? v>=(opened+closed)/2 : v<=(opened+closed)/2
+    }
+    readonly property bool visualLeftHopperOpen: root.linkAlive && !sonar.replayMode &&
+        (h743Telemetry.hopperLeftUs>0
+         ? root.outputIndicatesOpen(h743Telemetry.hopperLeftUs,hopperSettings.leftClosed,hopperSettings.leftOpen)
+         : (h743Telemetry.hopperStateValid && (h743Telemetry.capabilities & 8))
+            ? (h743Telemetry.hopperMask & 1)!==0 : hopperBridge.leftOpen)
+    readonly property bool visualRightHopperOpen: root.linkAlive && !sonar.replayMode &&
+        (h743Telemetry.hopperRightUs>0
+         ? root.outputIndicatesOpen(h743Telemetry.hopperRightUs,hopperSettings.rightClosed,hopperSettings.rightOpen)
+         : (h743Telemetry.hopperStateValid && (h743Telemetry.capabilities & 8))
+            ? (h743Telemetry.hopperMask & 2)!==0 : hopperBridge.rightOpen)
+    // On this G20 setup RC7/RC16 signal native ArduPilot relays. Their PWM
+    // reports switch intent, not Relay contact position or lamp current.
+    function lightRcDemand(channel) {
+        if (!root.linkAlive || sonar.replayMode || !g20Controller.lastFrameMs
+                || !g20Controller.channels || g20Controller.channels.length < channel)
+            return false
+        var pwm = Number(g20Controller.channels[channel - 1])
+        return isFinite(pwm) && pwm >= 1800 && pwm <= 2100
+    }
+    readonly property bool visualHeadlightRequest:
+        !h743Telemetry.lightsValid && root.lightRcDemand(7)
+    readonly property bool visualPositionLightsRequest:
+        !h743Telemetry.lightsValid && root.lightRcDemand(16)
+    readonly property bool visualHeadlightReported:
+        root.linkAlive && !sonar.replayMode && h743Telemetry.lightsValid && h743Telemetry.headlightOn
+    readonly property bool visualPositionLightsReported:
+        root.linkAlive && !sonar.replayMode && h743Telemetry.lightsValid && h743Telemetry.positionLightsOn
+    // This is a display-only warning policy, NOT the physical RGB output.
+    readonly property bool visualWaterAlarm: root.linkAlive && !sonar.replayMode
+        && h743Telemetry.waterValid && h743Telemetry.waterDetected
+    readonly property bool visualTemperatureCritical: root.linkAlive && !sonar.replayMode
+        && ((h743Telemetry.temperatureValid && h743Telemetry.batteryTempC >= safetyManager.criticalTempC)
+            || (environmentSettings.alertsEnabled && h743Telemetry.interiorValid
+                && h743Telemetry.interiorTempC >= environmentSettings.temperatureLimit))
+    readonly property bool visualTemperatureWarning: root.linkAlive && !sonar.replayMode
+        && h743Telemetry.temperatureValid && h743Telemetry.batteryTempC >= safetyManager.warningTempC
+    readonly property string boatVirtualRgbState:
+        (visualWaterAlarm || visualTemperatureCritical) ? "critical"
+        : visualTemperatureWarning ? "warning"
+        : (visualLeftHopperOpen || visualRightHopperOpen) ? "hopper"
+        : (root.linkAlive && h743Telemetry.waterValid && h743Telemetry.temperatureValid)
+            ? "normal" : "unknown"
     property var offlineRegion: ({})
     property var offlineViewRequest: null
     function openOfflineMaps(region) { offlineRegion=region;mapMaximized=false;activePage=12 }
@@ -797,10 +848,13 @@ Item {
     NavoH743Telemetry {
         id: h743Telemetry
         vehicle: root.vehicle
-        v3Profile: true // NAVO V3 receives only NV3* messages from H743
+        v3Profile: true // NAVO V3 receives NV3* sensors and passive SERVO_OUTPUT_RAW
+        leftHopperOutput: hopperSettings.leftOutput
+        rightHopperOutput: hopperSettings.rightOutput
     }
-    // Display-only priority: GPS_RAW_INT / GPS2_RAW yaw when valid and fresh;
-    // otherwise the H743's normal vehicle.heading. EKF/mode/failsafes untouched.
+    // UI priority: valid UM982 GNSS yaw -> EKF3-confirmed IST8310 compass
+    // fallback -> time-limited H743/EKF estimate (<=12s after absolute yaw).
+    // This selector does not alter EKF configuration, modes or failsafes.
     NavoGnssHeading {
         id: gnssHeading
         vehicle: root.vehicle
@@ -1440,6 +1494,13 @@ Item {
                 rollDeg: root.rollDeg
                 pitchDeg: root.pitchDeg
                 expanded: false
+                leftHopperOpen: root.visualLeftHopperOpen
+                rightHopperOpen: root.visualRightHopperOpen
+                headlightOn: root.visualHeadlightReported
+                positionLightsOn: root.visualPositionLightsReported
+                headlightRequested: root.visualHeadlightRequest
+                positionLightsRequested: root.visualPositionLightsRequest
+                virtualRgbState: root.boatVirtualRgbState
                 onToggleRequested: root.headingOverlayOpen = !root.headingOverlayOpen
             }
         }
@@ -1551,7 +1612,12 @@ Item {
                     GnssLine { name: "Sursă orientare"; value: gnssHeading.headingSource }
                     Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
                     GnssLine { name: "Heading GNSS dual-antenă"; value: gnssHeading.gpsYawValid ? Number(gnssHeading.gpsYawDeg).toFixed(2) + "°" : "--" }
-                    GnssLine { name: "Heading H743 (rezervă)"; value: root.vehicle && root.vehicle.heading && root.linkAlive && isFinite(Number(root.vehicle.heading.rawValue)) ? Number(root.vehicle.heading.rawValue).toFixed(2) + "°" : "--" }
+                    GnssLine { name: "Busolă externă / IST8310"; value: gnssHeading.compassFallbackActive ? Number(gnssHeading.selectedHeadingDeg).toFixed(2) + "° (EKF3)" : "--" }
+                    GnssLine { name: "H743 / EKF (estimare)"; value: root.vehicle && root.vehicle.heading && root.linkAlive && isFinite(Number(root.vehicle.heading.rawValue)) ? Number(root.vehicle.heading.rawValue).toFixed(2) + "°" : "--" }
+                    GnssLine { name: "Rezervă magnetică"; value: gnssHeading.compassHealthy ? "Magnetometru HEALTHY" : "Indisponibil / nevalidat" }
+                    GnssLine { name: "ID busolă (parametri H743)"; value: gnssHeading.compassDeviceStatus }
+                    GnssLine { name: "EKF3 yaw configurat (SRC1)"; value: gnssHeading.ekfYawMode >= 0 ? String(gnssHeading.ekfYawMode) + (gnssHeading.ekfYawMode === 3 ? " • GPS + rezervă busolă" : gnssHeading.ekfYawMode === 2 ? " • GPS" : "") : gnssHeading.parameterReadStatus }
+                    Label { Layout.fillWidth: true; text: gnssHeading.compassStatus; color: gnssHeading.compassFallbackActive ? "#31d6a5" : "#ffd166"; font.pixelSize: 11; wrapMode: Text.WordWrap }
                     GnssLine { name: "Vechime orientare GNSS"; value: gnssHeading.gpsYawValid ? String(gnssHeading.gpsYawAgeMs) + " ms" : "--" }
                     Label { Layout.fillWidth: true; text: gnssHeading.headingDetail; color: gnssHeading.gpsYawValid ? "#31d6a5" : "#ffd166"; wrapMode: Text.WordWrap; font.pixelSize: 11 }
                     Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
@@ -1579,10 +1645,11 @@ Item {
                             text: "Verifică GPS"
                             implicitHeight: 34
                             onClicked: {
+                                gnssHeading.requestDiagnosticParameters()
                                 if (!root.vehicle) gnssDiagnostic.checkResult = "H743 nu este conectat. Verifică MAVLink."
                                 else if (!root.vehicle.gps) gnssDiagnostic.checkResult = "H743 conectat, dar nu raportează GPS. Verifică UART, alimentarea UM982 și SERIALx_PROTOCOL."
                                 else if (Number(root.vehicle.gps.lock.rawValue) < 3) gnssDiagnostic.checkResult = "GPS raportat, fără fix 3D. Verifică antenele și vizibilitatea cerului."
-                                else if (!gnssHeading.gpsYawValid) gnssDiagnostic.checkResult = "GPS are fix, dar nu există GPS yaw valid de la antenele duale. Momentan orientarea bărcii folosește H743 ca rezervă. Verifică GPS1_TYPE=25, EK3_SRC1_YAW și antenele."
+                                else if (!gnssHeading.gpsYawValid) gnssDiagnostic.checkResult = "Yaw GNSS dual-antenă invalid. Sursă curentă: " + gnssHeading.headingSource + ". " + gnssHeading.compassStatus + ". Verifică GPS1_TYPE=25 și antenele."
                                 else gnssDiagnostic.checkResult = "Orientare GNSS validă (" + gnssHeading.headingSource + "): " + Number(gnssHeading.gpsYawDeg).toFixed(2) + "°. Identitatea fizică UM982 se validează separat."
                             }
                             background: Rectangle { radius: 9; color: "#103044"; border.color: "#20d9ed" }
@@ -1597,6 +1664,9 @@ Item {
         onOpened: {
             checkResult = ""
             gnssScroll.contentY = 0
+            // QGC may have loaded its parameter cache before NAVO connected.
+            // This requests a bounded readback, never a parameter write.
+            gnssHeading.requestDiagnosticParameters()
         }
     }
 
@@ -1625,7 +1695,7 @@ Item {
         }
     }
 
-    NavoHeadingCompass { id:headingCompassOverlay; visible:root.headingOverlayOpen && root.activePage !== 10; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; headingSource:root.headingSource; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; onToggleRequested:root.headingOverlayOpen=false }
+    NavoHeadingCompass { id:headingCompassOverlay; visible:root.headingOverlayOpen && root.activePage !== 10; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; headingSource:root.headingSource; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; leftHopperOpen:root.visualLeftHopperOpen; rightHopperOpen:root.visualRightHopperOpen; headlightOn:root.visualHeadlightReported; positionLightsOn:root.visualPositionLightsReported; headlightRequested:root.visualHeadlightRequest; positionLightsRequested:root.visualPositionLightsRequest; virtualRgbState:root.boatVirtualRgbState; onToggleRequested:root.headingOverlayOpen=false }
 
     Rectangle {
         id: sidebar
@@ -2993,6 +3063,8 @@ Item {
             backupAllowed: !root.actionActive && !(root.vehicle && root.vehicle.armed) && !sonar.recording
             backupStartupStatus: typeof navoBackupStartupStatus === "undefined" ? "" : navoBackupStartupStatus
             vehicleConnected:root.linkAlive && !!root.vehicle
+            virtualRgbStatus: root.boatVirtualRgbState
+            physicalRgbDiagnostic: "Citește NAVO RGB în MAVLink Messages; nu există feedback electric de la WS2811."
             connectivity:connectivityController
             lanDiagnostics:lanService
             selectedTab:root.settingsStartTab

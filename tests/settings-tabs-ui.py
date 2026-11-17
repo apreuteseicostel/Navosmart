@@ -59,6 +59,8 @@ ApplicationWindow {
  property bool cameraConnected:false
  QtObject {id:connectivityController;property var connections:[];property bool autoConnect:false;property bool busy:false;property string status:"Test";property int serialBaud:115200}
  property bool linkAlive:false
+ // Production dashboard provides the virtual RGB status to Settings.
+ property string boatVirtualRgbState:"unknown"
  property var vehicle:null
  property bool viewSwitchAllowed:true
  property int parameterOpens:0

@@ -1,8 +1,12 @@
 #include "NavoGnssHeading.h"
 #include "Vehicle.h"
+#include "ParameterManager.h"
+#include "Fact.h"
 
 #include <QTimer>
+#include <QByteArray>
 #include <cmath>
+#include <array>
 
 NavoGnssHeading::NavoGnssHeading(QObject* parent) : QObject(parent) {
     _clock.start();
@@ -38,6 +42,16 @@ void NavoGnssHeading::_reset() {
     _gps1 = Receiver{};
     _gps2 = Receiver{};
     _autopilotHeadingDeg = qQNaN();
+    _lastAbsoluteYawMs = -1;
+    _magStatusMs = -1;
+    _magHealthy = false;
+    _ekfCompassFallback = false;
+    _ekfYawMode = -1;
+    _compassUse = -1;
+    _compassDevIdPresent = -1;
+    _compassDeviceId = -1;
+    _compassDeviceKey.clear();
+    _lastParameterRefreshMs = -1;
 }
 
 void NavoGnssHeading::setLinkAlive(bool alive) {
@@ -45,9 +59,9 @@ void NavoGnssHeading::setLinkAlive(bool alive) {
     _linkAlive = alive;
     if (!alive) {
         // A reconnect must supply a *new* valid GPS-yaw MAVLink packet.
-        _gps1 = Receiver{};
-        _gps2 = Receiver{};
+        _reset(); // no stale magnetic fallback or gyro holdover after link loss
     }
+    if (alive) _syncCachedParameters();
     emit headingChanged();
 }
 
@@ -78,6 +92,8 @@ void NavoGnssHeading::_observe(Receiver& receiver, uint8_t fix,
     }
     receiver.yawDeg = rawYaw == 36000 ? 0.0 : double(rawYaw) / 100.0;
     receiver.lastYawMs = receiver.lastPacketMs;
+    _lastAbsoluteYawMs = receiver.lastYawMs;
+    _ekfCompassFallback = false; // fresh UM982 yaw outranks previous fallback event
 }
 
 void NavoGnssHeading::_mavlink(const mavlink_message_t& message) {
@@ -99,6 +115,58 @@ void NavoGnssHeading::_mavlink(const mavlink_message_t& message) {
         mavlink_gps2_raw_t gps{};
         mavlink_msg_gps2_raw_decode(&message, &gps);
         _observe(_gps2, gps.fix_type, gps.satellites_visible, gps.yaw);
+        emit headingChanged();
+        break;
+    }
+    case MAVLINK_MSG_ID_SYS_STATUS: {
+        mavlink_sys_status_t status{};
+        mavlink_msg_sys_status_decode(&message, &status);
+        constexpr uint32_t mag = MAV_SYS_STATUS_SENSOR_3D_MAG;
+        _magHealthy = (status.onboard_control_sensors_present & mag)
+            && (status.onboard_control_sensors_enabled & mag)
+            && (status.onboard_control_sensors_health & mag);
+        _magStatusMs = _clock.elapsed();
+        if (compassFallbackActive()) _lastAbsoluteYawMs = _magStatusMs;
+        emit headingChanged();
+        break;
+    }
+    case MAVLINK_MSG_ID_PARAM_VALUE: {
+        mavlink_param_value_t paramValue{};
+        mavlink_msg_param_value_decode(&message, &paramValue);
+        // Fixed 16-byte MAVLink name can lack NUL terminator.
+        const QByteArray key = QByteArray(paramValue.param_id, sizeof(paramValue.param_id))
+                                   .split('\0').first();
+        if (key == "EK3_SRC1_YAW") _ekfYawMode = std::isfinite(paramValue.param_value)
+            ? int(paramValue.param_value) : -1;
+        else if (key == "COMPASS_USE") _compassUse = std::isfinite(paramValue.param_value)
+            ? int(paramValue.param_value) : -1;
+        else if (key.startsWith("COMPASS_DEV_ID") ||
+                 key == "COMPASS_PRIO1_ID" || key == "COMPASS_PRIO2_ID" ||
+                 key == "COMPASS_PRIO3_ID") {
+            if (!std::isfinite(paramValue.param_value)) break;
+            const qint64 value=qint64(paramValue.param_value);
+            if (value>0 || _compassDeviceId<0 || _compassDeviceKey==QString::fromLatin1(key)) {
+                _compassDevIdPresent=value>0?1:0;
+                _compassDeviceId=value;
+                _compassDeviceKey=QString::fromLatin1(key);
+            }
+        } else break;
+        emit headingChanged();
+        break;
+    }
+    case MAVLINK_MSG_ID_STATUSTEXT: {
+        mavlink_statustext_t status{};
+        mavlink_msg_statustext_decode(&message, &status);
+        const QString line = QString::fromLatin1(status.text, sizeof(status.text));
+        // EKF3 reports an actual GPS->magnetic transition; merely receiving
+        // vehicle.heading or a magnetometer health flag cannot prove its source.
+        if (!line.startsWith(QStringLiteral("EKF3 IMU"))) break;
+        if (line.contains(QStringLiteral("yaw fallback active"))) {
+            _ekfCompassFallback = true;
+            if (compassHealthy()) _lastAbsoluteYawMs = _clock.elapsed();
+        } else if (line.contains(QStringLiteral("yaw external"))) {
+            _ekfCompassFallback = false;
+        } else break;
         emit headingChanged();
         break;
     }
@@ -135,28 +203,82 @@ double NavoGnssHeading::gpsYawDeg() const {
     return r ? r->yawDeg : qQNaN();
 }
 
+bool NavoGnssHeading::compassHealthy() const {
+    return _linkAlive && _vehicle && _magHealthy && _magStatusMs >= 0
+        && _clock.elapsed()-_magStatusMs >= 0
+        && _clock.elapsed()-_magStatusMs < kMagTimeoutMs;
+}
+
+bool NavoGnssHeading::compassFallbackActive() const {
+    // All four gates are necessary: a configured external compass, EKF3 GPS
+    // with compass fallback, fresh magnetometer health, and an explicit EKF3
+    // "yaw fallback active" event. This does not prove the sensor model.
+    return _linkAlive && _vehicle && !_activeGps() && _ekfCompassFallback
+        && _ekfYawMode == 3 && _compassUse == 1
+        && _compassDevIdPresent == 1 && compassHealthy()
+        && std::isfinite(_autopilotHeadingDeg);
+}
+
+bool NavoGnssHeading::h743FallbackActive() const {
+    // Tertiary: only short H743/EKF holdover after a known absolute yaw.
+    // An unaided gyro integrates drift; never start an unanchored heading.
+    return _linkAlive && _vehicle && !_activeGps() && !compassFallbackActive()
+        && std::isfinite(_autopilotHeadingDeg)
+        && _lastAbsoluteYawMs >= 0
+        && _clock.elapsed()-_lastAbsoluteYawMs >= 0
+        && _clock.elapsed()-_lastAbsoluteYawMs < kInertialHoldoverMs;
+}
+
 double NavoGnssHeading::selectedHeadingDeg() const {
     if (!_linkAlive || !_vehicle) return qQNaN();
     if (const auto* r = _activeGps()) return r->yawDeg;
-    return _autopilotHeadingDeg;    // Only display fallback; EKF is untouched.
+    if (compassFallbackActive()) return _autopilotHeadingDeg;
+    if (h743FallbackActive()) return _autopilotHeadingDeg;
+    return qQNaN();
 }
 
 bool NavoGnssHeading::fallbackActive() const {
-    return _linkAlive && _vehicle && !_activeGps() && std::isfinite(_autopilotHeadingDeg);
+    return compassFallbackActive() || h743FallbackActive();
 }
 
 QString NavoGnssHeading::headingSource() const {
-    if (_activeGps() == &_gps1) return QStringLiteral("GNSS GPS1");
+    if (_activeGps() == &_gps1) return QStringLiteral("GNSS GPS1 / UM982");
     if (_activeGps() == &_gps2) return QStringLiteral("GNSS GPS2");
-    if (fallbackActive()) return QStringLiteral("H743 (rezervă)");
-    return QStringLiteral("Indisponibil");
+    if (compassFallbackActive()) return QStringLiteral("Busolă externă / EKF3");
+    if (h743FallbackActive()) return QStringLiteral("H743 / EKF (temporar)");
+    return QStringLiteral("HEADING --");
+}
+
+QString NavoGnssHeading::compassStatus() const {
+    if (!_linkAlive || !_vehicle) return QStringLiteral("H743 deconectat");
+    if (_compassDevIdPresent != 1)
+        return QStringLiteral("ID-ul busolei nu este confirmat din parametrii H743. "
+                              "HEALTHY nu identifică modelul IST8310.");
+    if (_compassUse != 1)
+        return QStringLiteral("COMPASS_USE trebuie verificat (1 = activ)");
+    if (_ekfYawMode != 3)
+        return QStringLiteral("EK3_SRC1_YAW nu confirmă GPS cu rezervă busolă (3)");
+    if (!compassHealthy())
+        return QStringLiteral("Magnetometrul nu este HEALTHY sau telemetria este veche");
+    if (_activeGps()) return QStringLiteral("Busolă disponibilă; GNSS are prioritate");
+    if (_ekfCompassFallback)
+        return QStringLiteral("EKF3 a anunțat fallback magnetic; modelul IST8310 se verifică fizic");
+    return QStringLiteral("Aștept mesaj EKF3 yaw fallback active; H743 doar estimativ");
 }
 
 QString NavoGnssHeading::headingDetail() const {
-    if (_activeGps()) return QStringLiteral("GPS yaw dual-antenă din MAVLink, nu COG");
+    if (_activeGps()) return QStringLiteral(
+        "1/3 UM982: yaw GNSS dual-antenă valid; nu este COG.");
+    if (compassFallbackActive()) return QStringLiteral(
+        "2/3 Busolă: EKF3 confirmă fallback magnetic și magnetometru sănătos. "
+        "Sursa fizică IST8310 necesită verificare I2C1 și calibrare.");
+    if (h743FallbackActive()) return QStringLiteral(
+        "3/3 H743/EKF: estimare temporară până la 12s după ultimul yaw "
+        "absolut. Poate deriva; nu este busolă și nu confirmă navigație sigură.");
     if (!_linkAlive || !_vehicle) return QStringLiteral("Legătura cu H743 este indisponibilă");
-    if (_diagnosticGps()) return QStringLiteral("Poziția GPS poate fi validă, dar yaw GNSS lipsește sau este invalid");
-    return QStringLiteral("H743 furnizează heading; GPS yaw neconfirmat sau expirat");
+    return QStringLiteral(
+        "HEADING indisponibil: fără yaw GNSS, fallback magnetic confirmat "
+        "sau estimare H743 suficient de recentă. Nu confunda GPS fix cu GPS yaw.");
 }
 
 int NavoGnssHeading::gpsFixType() const {
@@ -172,8 +294,111 @@ int NavoGnssHeading::gpsYawAgeMs() const {
     return r ? int(_clock.elapsed() - r->lastYawMs) : -1;
 }
 
+void NavoGnssHeading::_syncCachedParameters() {
+    if (!_linkAlive || !_vehicle) return;
+    // QGC 5.0.7 downloads (or restores) vehicle params into Fact objects.
+    // Reading them is essential because NAVO can be created *after* the
+    // PARAM_VALUE stream was already consumed by QGroundControl.
+    auto* manager=_vehicle->parameterManager();
+    if (!manager) return;
+    const auto readNumber=[manager](const char* key,double& out)->bool {
+        const QString name=QString::fromLatin1(key);
+        if (!manager->parameterExists(ParameterManager::defaultComponentId,name))
+            return false;
+        const auto* fact=manager->getParameter(ParameterManager::defaultComponentId,name);
+        if (!fact) return false;
+        bool ok=false;
+        const double value=fact->rawValue().toDouble(&ok);
+        if (!ok || !std::isfinite(value)) return false;
+        out=value;return true;
+    };
+    bool changed=false;double value=0;
+    if (readNumber("EK3_SRC1_YAW",value) && value>=0 && value<=255) {
+        const int mode=int(value);
+        if (_ekfYawMode!=mode) {_ekfYawMode=mode;changed=true;}
+    }
+    if (readNumber("COMPASS_USE",value) && (value==0 || value==1)) {
+        const int use=int(value);
+        if (_compassUse!=use) {_compassUse=use;changed=true;}
+    }
+
+    // The active external compass may be #2/#3, or be prioritized using
+    // COMPASS_PRIO1_ID rather than COMPASS_DEV_ID. A positive *device ID*
+    // confirms some detected compass, never its physical IST8310 model.
+    constexpr std::array<const char*,6> ids={
+        "COMPASS_PRIO1_ID","COMPASS_PRIO2_ID","COMPASS_PRIO3_ID",
+        "COMPASS_DEV_ID","COMPASS_DEV_ID2","COMPASS_DEV_ID3"};
+    bool seen=false;bool found=false;qint64 deviceId=0;QString deviceKey;
+    for (const char* key:ids) {
+        if (!readNumber(key,value) || value<0 || value>4294967295.0) continue;
+        seen=true;
+        if (!found && value>0) {
+            found=true;deviceId=qint64(value);deviceKey=QString::fromLatin1(key);
+        }
+    }
+    if (seen) {
+        const int state=found?1:0;
+        if (_compassDevIdPresent!=state || _compassDeviceId!=deviceId ||
+            _compassDeviceKey!=deviceKey) {
+            _compassDevIdPresent=state;
+            _compassDeviceId=deviceId;
+            _compassDeviceKey=deviceKey;
+            changed=true;
+        }
+    }
+    if (changed) emit headingChanged();
+}
+
+bool NavoGnssHeading::requestDiagnosticParameters() {
+    if (!_linkAlive || !_vehicle) return false;
+    auto* manager=_vehicle->parameterManager();
+    if (!manager) return false;
+    _syncCachedParameters();
+    // A full QGC download may be running. Never compete with it.
+    if (!manager->parametersReady()) return false;
+    const qint64 now=_clock.elapsed();
+    if (_lastParameterRefreshMs>=0 &&
+        now-_lastParameterRefreshMs<15000) return false;
+    _lastParameterRefreshMs=now;
+    constexpr std::array<const char*,8> keys={
+        "EK3_SRC1_YAW","COMPASS_USE","COMPASS_DEV_ID","COMPASS_DEV_ID2",
+        "COMPASS_DEV_ID3","COMPASS_PRIO1_ID","COMPASS_PRIO2_ID",
+        "COMPASS_PRIO3_ID"};
+    int requested=0;
+    for (const char* key:keys) {
+        const QString name=QString::fromLatin1(key);
+        if (!manager->parameterExists(ParameterManager::defaultComponentId,name))
+            continue;
+        manager->refreshParameter(ParameterManager::defaultComponentId,name);
+        ++requested;
+    }
+    return requested>0;
+}
+
+QString NavoGnssHeading::compassDeviceStatus() const {
+    if (!_linkAlive || !_vehicle)
+        return QStringLiteral("H743 deconectat");
+    if (_compassDevIdPresent==1)
+        return _compassDeviceKey+QStringLiteral(": ")+QString::number(_compassDeviceId)+
+            QStringLiteral(" • modelul IST8310/I2C1 neconfirmat");
+    if (_compassDevIdPresent==0)
+        return QStringLiteral("ID=0 în parametrii citiți • busola externă neconfirmată");
+    return QStringLiteral("ID necitit din COMPASS_DEV_ID / COMPASS_PRIOx_ID");
+}
+
+QString NavoGnssHeading::parameterReadStatus() const {
+    if (!_linkAlive || !_vehicle) return QStringLiteral("H743 deconectat");
+    if (_ekfYawMode>=0) return QString::number(_ekfYawMode);
+    const auto* manager=_vehicle->parameterManager();
+    if (manager && !manager->parametersReady())
+        return QStringLiteral("Sincronizare parametri H743…");
+    return QStringLiteral("EK3_SRC1_YAW absent / încă necitit");
+}
+
 void NavoGnssHeading::_refresh() {
-    // Periodically notify QML when yaw freshness expires (even without packets).
+    // Poll QGC's already downloaded Fact cache, not the MAVLink link.
+    // No parameter writes, and no repeated network requests.
+    _syncCachedParameters();
     emit headingChanged();
 }
 
