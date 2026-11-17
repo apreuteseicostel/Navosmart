@@ -1,8 +1,11 @@
 #include "NavoGnssHeading.h"
 #include "Vehicle.h"
+#include "ParameterManager.h"
+#include "Fact.h"
 
 #include <QTimer>
 #include <QByteArray>
+#include <QStringList>
 #include <cmath>
 
 NavoGnssHeading::NavoGnssHeading(QObject* parent) : QObject(parent) {
@@ -33,6 +36,7 @@ void NavoGnssHeading::setVehicle(QObject* value) {
     }
     emit vehicleChanged();
     emit headingChanged();
+    _queueInitialParameterRead();
 }
 
 void NavoGnssHeading::_reset() {
@@ -46,6 +50,11 @@ void NavoGnssHeading::_reset() {
     _ekfYawMode = -1;
     _compassUse = -1;
     _compassDevIdPresent = -1;
+    _parameterFacts.clear();
+    _parameterResponses.clear();
+    _parameterRefreshPending = false;
+    _initialParameterReadQueued = false;
+    _lastParameterRequestMs = -1;
 }
 
 void NavoGnssHeading::setLinkAlive(bool alive) {
@@ -56,6 +65,7 @@ void NavoGnssHeading::setLinkAlive(bool alive) {
         _reset(); // no stale magnetic fallback or gyro holdover after link loss
     }
     emit headingChanged();
+    if (alive) _queueInitialParameterRead();
 }
 
 void NavoGnssHeading::setAutopilotHeadingDeg(double degrees) {
@@ -129,13 +139,29 @@ void NavoGnssHeading::_mavlink(const mavlink_message_t& message) {
         // Fixed 16-byte MAVLink name can lack NUL terminator.
         const QByteArray key = QByteArray(paramValue.param_id, sizeof(paramValue.param_id))
                                    .split('\0').first();
-        if (key == "EK3_SRC1_YAW") _ekfYawMode = std::isfinite(paramValue.param_value)
-            ? int(paramValue.param_value) : -1;
-        else if (key == "COMPASS_USE") _compassUse = std::isfinite(paramValue.param_value)
-            ? int(paramValue.param_value) : -1;
-        else if (key == "COMPASS_DEV_ID") _compassDevIdPresent =
-            std::isfinite(paramValue.param_value) && paramValue.param_value > 0 ? 1 : 0;
-        else break;
+        const QString name=QString::fromLatin1(key);
+        // The autopilot can answer a targeted PARAM_REQUEST_READ even if
+        // other parameters were absent from the initial QGC download.
+        static const QStringList requested={
+            QStringLiteral("EK3_SRC1_YAW"),QStringLiteral("EK3_SRC2_YAW"),
+            QStringLiteral("EK3_SRC3_YAW"),QStringLiteral("COMPASS_USE"),
+            QStringLiteral("COMPASS_USE2"),QStringLiteral("COMPASS_USE3"),
+            QStringLiteral("COMPASS_DEV_ID"),QStringLiteral("COMPASS_DEV_ID2"),
+            QStringLiteral("COMPASS_DEV_ID3"),QStringLiteral("COMPASS_PRIO1_ID"),
+            QStringLiteral("COMPASS_PRIO2_ID"),QStringLiteral("COMPASS_PRIO3_ID")};
+        if(!requested.contains(name))break;
+        _parameterResponses.insert(name);
+        if(key=="EK3_SRC1_YAW")_ekfYawMode=std::isfinite(paramValue.param_value)
+            ? int(paramValue.param_value):-1;
+        else if(key=="COMPASS_USE")_compassUse=std::isfinite(paramValue.param_value)
+            ? int(paramValue.param_value):-1;
+        else if(key=="COMPASS_DEV_ID") {
+            // Raw PARAM_VALUE float cannot reliably encode all 32 bits of
+            // ArduPilot device IDs; identity is decoded only from QGC Fact.
+            _compassDevIdPresent=std::isfinite(paramValue.param_value) &&
+                paramValue.param_value>0 ? 1:0;
+        }
+        _readParameterFacts();
         emit headingChanged();
         break;
     }
@@ -278,8 +304,181 @@ int NavoGnssHeading::gpsYawAgeMs() const {
     return r ? int(_clock.elapsed() - r->lastYawMs) : -1;
 }
 
+
+void NavoGnssHeading::_queueInitialParameterRead() {
+    if (_initialParameterReadQueued || !_linkAlive || !_vehicle) return;
+    _initialParameterReadQueued = true;
+    // Wait for the initial QGC parameter negotiation, then refresh just the
+    // diagnostic set. The lambda rechecks the actual bound vehicle.
+    const QPointer<Vehicle> expected=_vehicle;
+    QTimer::singleShot(1500,this,[this,expected]() {
+        if (_linkAlive && _vehicle && _vehicle==expected)
+            requestDiagnosticParameters();
+    });
+}
+
+void NavoGnssHeading::requestDiagnosticParameters() {
+    if (!_linkAlive || !_vehicle || !_vehicle->parameterManager()) return;
+    if (_lastParameterRequestMs >= 0 &&
+        _clock.elapsed()-_lastParameterRequestMs < 1500) return;
+    const qint64 stamp=_clock.elapsed();
+    _lastParameterRequestMs=stamp;
+    _parameterRefreshPending=true;
+    _parameterResponses.clear();
+    static const QStringList names={
+        QStringLiteral("EK3_SRC1_YAW"), QStringLiteral("EK3_SRC2_YAW"),
+        QStringLiteral("EK3_SRC3_YAW"), QStringLiteral("COMPASS_USE"),
+        QStringLiteral("COMPASS_USE2"), QStringLiteral("COMPASS_USE3"),
+        QStringLiteral("COMPASS_DEV_ID"), QStringLiteral("COMPASS_DEV_ID2"),
+        QStringLiteral("COMPASS_DEV_ID3"), QStringLiteral("COMPASS_PRIO1_ID"),
+        QStringLiteral("COMPASS_PRIO2_ID"), QStringLiteral("COMPASS_PRIO3_ID")};
+    auto* manager=_vehicle->parameterManager();
+    for(const QString& name:names)
+        manager->refreshParameter(MAV_COMP_ID_AUTOPILOT1,name);
+    _readParameterFacts();
+    emit headingChanged();
+    QTimer::singleShot(6500,this,[this,stamp]() {
+        if (_lastParameterRequestMs!=stamp || !_linkAlive || !_vehicle) return;
+        _parameterRefreshPending=false;
+        _readParameterFacts();
+        emit headingChanged();
+    });
+}
+
+void NavoGnssHeading::_readParameterFacts() {
+    if (!_linkAlive || !_vehicle || !_vehicle->parameterManager()) return;
+    auto* manager=_vehicle->parameterManager();
+    static const QStringList names={
+        QStringLiteral("EK3_SRC1_YAW"), QStringLiteral("EK3_SRC2_YAW"),
+        QStringLiteral("EK3_SRC3_YAW"), QStringLiteral("COMPASS_USE"),
+        QStringLiteral("COMPASS_USE2"), QStringLiteral("COMPASS_USE3"),
+        QStringLiteral("COMPASS_DEV_ID"), QStringLiteral("COMPASS_DEV_ID2"),
+        QStringLiteral("COMPASS_DEV_ID3"), QStringLiteral("COMPASS_PRIO1_ID"),
+        QStringLiteral("COMPASS_PRIO2_ID"), QStringLiteral("COMPASS_PRIO3_ID")};
+    for(const QString& name:names) {
+        if(!manager->parameterExists(MAV_COMP_ID_AUTOPILOT1,name))continue;
+        Fact* fact=manager->getParameter(MAV_COMP_ID_AUTOPILOT1,name);
+        if(!fact)continue;
+        const QVariant value=fact->rawValue();
+        if(value.isValid() && !value.isNull())_parameterFacts.insert(name,value);
+    }
+    const auto yaw=_parameterFacts.constFind(QStringLiteral("EK3_SRC1_YAW"));
+    if(yaw!=_parameterFacts.cend()){
+        bool ok=false;const double value=yaw.value().toDouble(&ok);
+        if(ok && std::isfinite(value) && std::trunc(value)==value)
+            _ekfYawMode=int(value);
+    }
+    const auto use=_parameterFacts.constFind(QStringLiteral("COMPASS_USE"));
+    if(use!=_parameterFacts.cend()){
+        bool ok=false;const double value=use.value().toDouble(&ok);
+        if(ok && std::isfinite(value) && std::trunc(value)==value)
+            _compassUse=int(value);
+    }
+    bool hasDeviceIdParameter=false,hasDevice=false;
+    for(const QString& name:{QStringLiteral("COMPASS_DEV_ID"),
+                             QStringLiteral("COMPASS_DEV_ID2"),
+                             QStringLiteral("COMPASS_DEV_ID3")}) {
+        const auto it=_parameterFacts.constFind(name);
+        if(it==_parameterFacts.cend())continue;
+        hasDeviceIdParameter=true;
+        quint32 id=0;int busType=0,bus=0,address=0,devType=0;
+        if(_decodeCompassDeviceId(it.value(),id,busType,bus,address,devType))
+            hasDevice=true;
+    }
+    if(hasDeviceIdParameter)_compassDevIdPresent=hasDevice?1:0;
+}
+
+bool NavoGnssHeading::_decodeCompassDeviceId(
+    const QVariant& raw,quint32& id,int& busType,int& bus,
+    int& address,int& deviceType) {
+    bool ok=false;const double value=raw.toDouble(&ok);
+    // Device ID is a packed 32-bit INTEGER. Never decode the IEEE-754
+    // float transmitted by PARAM_VALUE as a decimal hardware ID.
+    if(!ok || !std::isfinite(value) || value<=0 ||
+       value>4294967295.0 || std::trunc(value)!=value)return false;
+    id=quint32(quint64(value));
+    busType=int(id&0x07u);bus=int((id>>3)&0x1fu);
+    address=int((id>>8)&0xffu);deviceType=int((id>>16)&0xffffu);
+    return true;
+}
+
+QString NavoGnssHeading::ekfYawStatus() const {
+    if(!_linkAlive || !_vehicle)return QStringLiteral("H743 deconectat");
+    if(_ekfYawMode<0)
+        return _parameterRefreshPending
+            ? QStringLiteral("Se citește EK3_SRC1_YAW…")
+            : QStringLiteral("EK3_SRC1_YAW necitit • verifică telemetria și parametrii");
+    QString detail;
+    switch(_ekfYawMode) {
+    case 0:detail=QStringLiteral("Niciun senzor yaw");break;
+    case 1:detail=QStringLiteral("Busolă");break;
+    case 2:detail=QStringLiteral("GPS yaw");break;
+    case 3:detail=QStringLiteral("GPS yaw + rezervă busolă (configurat)");break;
+    default:detail=QStringLiteral("Cod yaw neinterpretat");break;
+    }
+    return QString::number(_ekfYawMode)+QStringLiteral(" • ")+detail+
+        (_parameterResponses.contains(QStringLiteral("EK3_SRC1_YAW"))
+        ? QStringLiteral(" • răspuns MAVLink")
+        : QStringLiteral(" • valoare QGC/cache; verifică refresh"));
+}
+
+QString NavoGnssHeading::compassIdentity() const {
+    if(!_linkAlive || !_vehicle)return QStringLiteral("H743 deconectat");
+    bool readAny=false,foundOther=false;
+    for(const QString& key:{QStringLiteral("COMPASS_DEV_ID"),
+                            QStringLiteral("COMPASS_DEV_ID2"),
+                            QStringLiteral("COMPASS_DEV_ID3")}) {
+        auto it=_parameterFacts.constFind(key);
+        if(it==_parameterFacts.cend())continue;
+        readAny=true;
+        quint32 id=0;int busType=0,bus=0,address=0,deviceType=0;
+        if(!_decodeCompassDeviceId(it.value(),id,busType,bus,address,deviceType))continue;
+        foundOther=true;
+        if(busType==1 && deviceType==0x0a)
+            return QStringLiteral("IST8310 identificat în %1 • I2C bus %2 • adresă 0x%3 • ID %4. Conectorul fizic necesită verificare.")
+                .arg(key).arg(bus).arg(address,2,16,QChar('0')).arg(id);
+    }
+    if(!readAny)
+        return _parameterRefreshPending ? QStringLiteral("Se citesc ID-urile busolelor…")
+               : QStringLiteral("ID-uri busolă necitite; verifică managerul de parametri");
+    return foundOther
+        ? QStringLiteral("Există busolă, dar niciun ID nu confirmă IST8310 pe I2C")
+        : QStringLiteral("ID-urile citite nu indică o busolă instalată");
+}
+
+QString NavoGnssHeading::compassPriorityStatus() const {
+    if(!_linkAlive || !_vehicle)return QStringLiteral("H743 deconectat");
+    QStringList priorities;
+    for(int p=1;p<=3;++p) {
+        const QString key=QStringLiteral("COMPASS_PRIO%1_ID").arg(p);
+        auto it=_parameterFacts.constFind(key);
+        if(it==_parameterFacts.cend())continue;
+        quint32 id=0;int busType=0,bus=0,address=0,devType=0;
+        if(!_decodeCompassDeviceId(it.value(),id,busType,bus,address,devType)) {
+            priorities<<QStringLiteral("%1: fără ID").arg(p);continue;
+        }
+        const QString model=(busType==1 && devType==0x0a)
+            ? QStringLiteral("IST8310"):QStringLiteral("alt senzor");
+        priorities<<QStringLiteral("%1: %2 / ID %3").arg(p).arg(model).arg(id);
+    }
+    return priorities.isEmpty()?QStringLiteral("Prioritatea busolelor necitită")
+        :priorities.join(QStringLiteral(" • "));
+}
+
+QString NavoGnssHeading::parameterReadStatus() const {
+    if(!_linkAlive || !_vehicle)return QStringLiteral("H743 deconectat");
+    if(_parameterRefreshPending)
+        return QStringLiteral("Citire diagnostică în curs • %1 răspunsuri MAVLink, %2 valori QGC")
+            .arg(_parameterResponses.size()).arg(_parameterFacts.size());
+    if(_lastParameterRequestMs<0)return QStringLiteral("Citire neinițiată");
+    return QStringLiteral("Citire încheiată • %1 răspunsuri, %2 valori disponibile în QGC; restul neconfirmate")
+        .arg(_parameterResponses.size()).arg(_parameterFacts.size());
+}
+
 void NavoGnssHeading::_refresh() {
-    // Periodically notify QML when yaw freshness expires (even without packets).
+    // QGC's parameter download/cache may finish after the first GNSS packets.
+    // Refresh our read-only Fact snapshot without sending repeated MAVLink requests.
+    _readParameterFacts();
     emit headingChanged();
 }
 
