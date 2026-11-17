@@ -220,13 +220,40 @@ bool NavoGnssHeading::compassHealthy() const {
         && _clock.elapsed()-_magStatusMs < kMagTimeoutMs;
 }
 
+bool NavoGnssHeading::_compassConfiguredForYaw() const {
+    bool identifiedFromFacts=false;
+    // COMPASS_USE belongs to COMPASS_DEV_ID (slot 1), while IST8310 can
+    // actually be COMPASS_DEV_ID2 with its own COMPASS_USE2 flag.
+    // Prefer typed QGC facts; don't infer Compass2 from Compass1.
+    for(int i=1;i<=3;++i){
+        const QString idName=i==1?QStringLiteral("COMPASS_DEV_ID"):
+            QStringLiteral("COMPASS_DEV_ID%1").arg(i);
+        const QString useName=i==1?QStringLiteral("COMPASS_USE"):
+            QStringLiteral("COMPASS_USE%1").arg(i);
+        const auto idIt=_parameterFacts.constFind(idName);
+        quint32 id=0;int busType=0,bus=0,address=0,devType=0;
+        if(idIt==_parameterFacts.cend() ||
+           !_decodeCompassDeviceId(idIt.value(),id,busType,bus,address,devType))
+            continue;
+        identifiedFromFacts=true;
+        const auto useIt=_parameterFacts.constFind(useName);
+        if(useIt==_parameterFacts.cend())continue;
+        bool ok=false;const double v=useIt.value().toDouble(&ok);
+        if(ok && v==1) return true;
+    }
+    if(identifiedFromFacts)return false;
+    // Compatibility with a live PARAM_VALUE stream before QGC Facts load.
+    // A magnetometer health flag by itself is never sufficient.
+    return _compassUse==1 && _compassDevIdPresent==1;
+}
+
 bool NavoGnssHeading::compassFallbackActive() const {
     // All four gates are necessary: a configured external compass, EKF3 GPS
     // with compass fallback, fresh magnetometer health, and an explicit EKF3
     // "yaw fallback active" event. This does not prove the sensor model.
     return _linkAlive && _vehicle && !_activeGps() && _ekfCompassFallback
-        && _ekfYawMode == 3 && _compassUse == 1
-        && _compassDevIdPresent == 1 && compassHealthy()
+        && _ekfYawMode == 3 && _compassConfiguredForYaw()
+        && compassHealthy()
         && std::isfinite(_autopilotHeadingDeg);
 }
 
