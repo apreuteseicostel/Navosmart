@@ -14,6 +14,14 @@ Rectangle {
     property real bottomEchoStrength: NaN
     property bool scanning: false
     property bool paused: false
+    // Passive Kogger mapping works in MANUAL/GUIDED, independently of Area Scan.
+    // Never uses route, autopilot or hopper commands.
+    property bool liveMappingActive: false
+    property bool liveMappingPaused: false
+    property bool liveMappingCapacityReached: false
+    property bool liveGpsReady: false
+    property bool replayMode: false
+    property int maxLiveSamples: 25000
     property bool bathymetryComplete: false
     property var rawSamples: []
     property var trackCoordinates: []
@@ -31,6 +39,56 @@ Rectangle {
     radius: 10
 
     function validPosition() { return vehicle && vehicle.coordinate && vehicle.coordinate.isValid }
+    onLakeIdChanged: { liveMappingActive=false;liveMappingPaused=false;liveMappingCapacityReached=false }
+    onReplayModeChanged: {
+        if(replayMode && liveMappingActive) {
+            liveMappingActive=false;liveMappingPaused=false
+            status("Replay activ: maparea live a fost oprită")
+        }
+    }
+    onLiveGpsReadyChanged: {
+        if(liveMappingActive && !liveMappingPaused && !liveGpsReady) {
+            liveMappingPaused=true
+            status("Mapare live în pauză: GPS H743 invalid sau MAVLink pierdut")
+        }
+    }
+    onSonarConnectedChanged: {
+        if(liveMappingActive && !liveMappingPaused && !sonarConnected) {
+            liveMappingPaused=true
+            status("Mapare live în pauză: Kogger nu mai transmite")
+        }
+    }
+    function startLiveMapping() {
+        if(replayMode || scanning || liveMappingActive || !lakeId.length ||
+           !sonarConnected || !liveGpsReady || !validPosition()) return false
+        if(rawSamples.length>=maxLiveSamples) {
+            liveMappingCapacityReached=true
+            status("Limită de măsurători atinsă: salvează harta înainte de altă scanare")
+            return false
+        }
+        liveMappingCapacityReached=false
+        liveMappingActive=true;liveMappingPaused=false;bathymetryComplete=false
+        status("BATIMETRIE LIVE: înregistrare GPS + Kogger pornită • fără autopilot")
+        return true
+    }
+    function pauseLiveMapping() {
+        if(!liveMappingActive || liveMappingPaused) return false
+        liveMappingPaused=true;status("Batimetrie live în pauză • datele sunt păstrate")
+        return true
+    }
+    function resumeLiveMapping() {
+        if(!liveMappingActive || !liveMappingPaused || replayMode ||
+           !sonarConnected || !liveGpsReady || !validPosition() ||
+           rawSamples.length>=maxLiveSamples) return false
+        liveMappingPaused=false;status("Batimetrie live reluată")
+        return true
+    }
+    function stopLiveMapping() {
+        if(!liveMappingActive) return false
+        liveMappingActive=false;liveMappingPaused=false
+        status("Batimetrie live oprită • măsurătorile se păstrează pentru salvare")
+        return true
+    }
     function startScan() {
         if (!validPosition() || !sonarConnected) { status("Scanare blocată: GPS și Kogger trebuie conectate"); return }
         rawSamples=[]; trackCoordinates=[]; bathymetryComplete=false; scanning=true; paused=false
@@ -47,7 +105,16 @@ Rectangle {
         paused=false; saveCheckpoint("resume"); status("Mapare sonar continuată"); return true
     }
     function ingestSample(sample) {
-        if(!scanning || paused || !sonarConnected || !sample) return
+        var manual=liveMappingActive && !scanning
+        if((!scanning && !manual) || (scanning && paused) ||
+           (manual && (liveMappingPaused || !liveGpsReady || replayMode)) ||
+           !sonarConnected || !sample) return
+        // Do not discard old data when the manual recording reaches capacity.
+        if(manual && rawSamples.length>=maxLiveSamples) {
+            if(!liveMappingCapacityReached) status("Limită 25.000 măsurători • salvează harta")
+            liveMappingCapacityReached=true;liveMappingPaused=true
+            return
+        }
         // Never coerce missing/null GPS into (0,0), or strings/booleans into a
         // valid bathymetry point. 0,0 remains valid when actually numeric.
         if(typeof sample.lat!=="number" || typeof sample.lon!=="number" ||
