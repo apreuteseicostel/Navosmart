@@ -374,13 +374,15 @@ void NavoGnssHeading::_readParameterFacts() {
         if(value.isValid() && !value.isNull())_parameterFacts.insert(name,value);
     }
     const auto yaw=_parameterFacts.constFind(QStringLiteral("EK3_SRC1_YAW"));
-    if(yaw!=_parameterFacts.cend()){
+    if(yaw!=_parameterFacts.cend() &&
+       !_parameterResponses.contains(QStringLiteral("EK3_SRC1_YAW"))){
         bool ok=false;const double value=yaw.value().toDouble(&ok);
         if(ok && std::isfinite(value) && std::trunc(value)==value)
             _ekfYawMode=int(value);
     }
     const auto use=_parameterFacts.constFind(QStringLiteral("COMPASS_USE"));
-    if(use!=_parameterFacts.cend()){
+    if(use!=_parameterFacts.cend() &&
+       !_parameterResponses.contains(QStringLiteral("COMPASS_USE"))){
         bool ok=false;const double value=use.value().toDouble(&ok);
         if(ok && std::isfinite(value) && std::trunc(value)==value)
             _compassUse=int(value);
