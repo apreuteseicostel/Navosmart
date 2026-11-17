@@ -59,16 +59,21 @@ and **the same ID 658953 reported in both `COMPASS_PRIO1_ID` and
 `COMPASS_PRIO2_ID`**. Valid GPS 3D fix does not imply GNSS yaw;
 the displayed GNSS heading is unavailable in these photos.
 
-This is not evidence that IST8310 itself is broken:
-`COMPASS_USE=0` controls Compass1 but the detected IST8310 is
-Compass2. `COMPASS_USE2` must be inspected independently before saying
-it is available/disabled for yaw. The readback UI now shows flags for
-each detected compass slot, warns about duplicate priority device IDs,
-and gives `EK3_SRC1_YAW=0` precedence as the primary EKF source
-configuration concern. The app's conservative EKF magnetic fallback
-display is now permitted from a **configured Compass2** only when an
-actual EKF3 fallback transition event, healthy magnetometer and valid
-H743 yaw are also present; this makes no autopilot parameter change.
+This is not evidence that IST8310 itself is broken. The detected
+`COMPASS_DEV_ID2` is a **discovery/state slot**, while ArduPilot stores
+`COMPASS_USE`, `COMPASS_USE2`, and `COMPASS_USE3` by **priority**.
+The app now matches priority IDs to detected IDs before interpreting
+the corresponding USE flag. In particular, `COMPASS_DEV_ID2` does NOT
+prove that `COMPASS_USE2` controls that physical sensor.
+
+The readback UI shows the priority-indexed USE flags, warns about
+duplicate priority device IDs, and gives `EK3_SRC1_YAW=0` precedence
+as the primary yaw-source configuration concern. The app's conservative
+EKF magnetic-fallback display requires unique priority IDs referencing
+detected sensors, a corresponding USE flag enabled, an actual EKF3
+fallback transition event, healthy magnetometer and valid H743 yaw.
+A duplicated priority ID **fails closed**, because it cannot identify
+two independent backup compasses. No autopilot parameter is changed.
 
 Before making any hardware setting adjustments, separately read
 `COMPASS_USE2`, `EK3_SRC2_YAW`, `EK3_SRC3_YAW`, and
