@@ -221,13 +221,21 @@ Item {
         if(sonar.replayMode || !scanCoordinator.lakeId.length) {
             lastNavigationStatus="Alege o baltă activă; replay nu permite mapare live";return false
         }
-        if((scanCoordinator.state!=="IDLE" && scanCoordinator.state!=="COMPLETE") ||
-           routePlan.active || baitingController.enabled || awaitingMissionStart) {
+        var recoveredManual=scanCoordinator.state==="PAUSED" &&
+            areaScanController.generatedPoints.length===0 &&
+            sonarMapping.scanning && sonarMapping.paused
+        if((scanCoordinator.state!=="IDLE" && scanCoordinator.state!=="COMPLETE" &&
+            !recoveredManual) || routePlan.active || baitingController.enabled ||
+            awaitingMissionStart) {
             lastNavigationStatus="Maparea manuală necesită misiunile oprite";return false
         }
         if(!sonarConnected || !sonar.liveGpsUsable) {
             lastNavigationStatus="Conectează Kogger și așteaptă GPS 3D valid de la H743";return false
         }
+        // A restarted GPS-only session is conservatively restored as PAUSED.
+        // With no Area Scan geometry there is no mission to resume; release
+        // only that local stopped scanner, never an H743 flight mode.
+        if(recoveredManual){sonarMapping.scanning=false;sonarMapping.paused=false}
         if(!sonarMapping.startLiveMapping()) {
             lastNavigationStatus="Maparea live nu a pornit; verifică limita de măsurători";return false
         }
@@ -3044,7 +3052,10 @@ Item {
                             (sonarMapping.liveMappingActive ?
                              (sonarMapping.liveMappingPaused ? sonar.liveGpsUsable && root.sonarConnected : true) :
                              sonar.liveGpsUsable && root.sonarConnected &&
-                             (scanCoordinator.state==="IDLE" || scanCoordinator.state==="COMPLETE"))
+                             (scanCoordinator.state==="IDLE" || scanCoordinator.state==="COMPLETE" ||
+                              (scanCoordinator.state==="PAUSED" &&
+                               areaScanController.generatedPoints.length===0 &&
+                               sonarMapping.scanning && sonarMapping.paused)))
                         onClicked: {
                             if(!sonarMapping.liveMappingActive)root.startLiveBathymetry()
                             else if(sonarMapping.liveMappingPaused)root.resumeLiveBathymetry()
