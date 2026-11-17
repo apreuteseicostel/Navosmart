@@ -14,6 +14,14 @@ Rectangle {
     property real bottomEchoStrength: NaN
     property bool scanning: false
     property bool paused: false
+    // Passive Kogger mapping works in MANUAL/GUIDED, independently of Area Scan.
+    // Never uses route, autopilot or hopper commands.
+    property bool liveMappingActive: false
+    property bool liveMappingPaused: false
+    property bool liveMappingCapacityReached: false
+    property bool liveGpsReady: false
+    property bool replayMode: false
+    property int maxLiveSamples: 25000
     property bool bathymetryComplete: false
     property var rawSamples: []
     property var trackCoordinates: []
@@ -31,7 +39,58 @@ Rectangle {
     radius: 10
 
     function validPosition() { return vehicle && vehicle.coordinate && vehicle.coordinate.isValid }
+    onLakeIdChanged: { liveMappingActive=false;liveMappingPaused=false;liveMappingCapacityReached=false }
+    onReplayModeChanged: {
+        if(replayMode && liveMappingActive) {
+            liveMappingActive=false;liveMappingPaused=false
+            status("Replay activ: maparea live a fost oprită")
+        }
+    }
+    onLiveGpsReadyChanged: {
+        if(liveMappingActive && !liveMappingPaused && !liveGpsReady) {
+            liveMappingPaused=true
+            status("Mapare live în pauză: GPS H743 invalid sau MAVLink pierdut")
+        }
+    }
+    onSonarConnectedChanged: {
+        if(liveMappingActive && !liveMappingPaused && !sonarConnected) {
+            liveMappingPaused=true
+            status("Mapare live în pauză: Kogger nu mai transmite")
+        }
+    }
+    function startLiveMapping() {
+        if(replayMode || scanning || liveMappingActive || !lakeId.length ||
+           !sonarConnected || !liveGpsReady || !validPosition()) return false
+        if(rawSamples.length>=maxLiveSamples) {
+            liveMappingCapacityReached=true
+            status("Limită de măsurători atinsă: salvează harta înainte de altă scanare")
+            return false
+        }
+        liveMappingCapacityReached=false
+        liveMappingActive=true;liveMappingPaused=false;bathymetryComplete=false
+        status("BATIMETRIE LIVE: înregistrare GPS + Kogger pornită • fără autopilot")
+        return true
+    }
+    function pauseLiveMapping() {
+        if(!liveMappingActive || liveMappingPaused) return false
+        liveMappingPaused=true;status("Batimetrie live în pauză • datele sunt păstrate")
+        return true
+    }
+    function resumeLiveMapping() {
+        if(!liveMappingActive || !liveMappingPaused || replayMode ||
+           !sonarConnected || !liveGpsReady || !validPosition() ||
+           rawSamples.length>=maxLiveSamples) return false
+        liveMappingPaused=false;status("Batimetrie live reluată")
+        return true
+    }
+    function stopLiveMapping() {
+        if(!liveMappingActive) return false
+        liveMappingActive=false;liveMappingPaused=false
+        status("Batimetrie live oprită • măsurătorile se păstrează pentru salvare")
+        return true
+    }
     function startScan() {
+        if (typeof liveMappingActive!=="undefined" && liveMappingActive) { status("Oprește maparea manuală înainte de Area Scan"); return }
         if (!validPosition() || !sonarConnected) { status("Scanare blocată: GPS și Kogger trebuie conectate"); return }
         rawSamples=[]; trackCoordinates=[]; bathymetryComplete=false; scanning=true; paused=false
         addCurrentSample(); status("Mapare sonar pornită")
@@ -47,11 +106,25 @@ Rectangle {
         paused=false; saveCheckpoint("resume"); status("Mapare sonar continuată"); return true
     }
     function ingestSample(sample) {
-        if(!scanning || paused || !sonarConnected || !sample || sample.depth===null || !isFinite(Number(sample.depth)) || Number(sample.depth)<=0) return
-        var lat=Number(sample.lat), lon=Number(sample.lon)
-        if(!isFinite(lat)||!isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180) return
+        var manual=(typeof liveMappingActive!=="undefined" && liveMappingActive) && !scanning
+        if((!scanning && !manual) || (scanning && paused) ||
+           (manual && (liveMappingPaused || !liveGpsReady || replayMode)) ||
+           !sonarConnected || !sample) return
+        // Do not discard old data when the manual recording reaches capacity.
+        if(manual && rawSamples.length>=maxLiveSamples) {
+            if(!liveMappingCapacityReached) status("Limită 25.000 măsurători • salvează harta")
+            liveMappingCapacityReached=true;liveMappingPaused=true
+            return
+        }
+        // Never coerce missing/null GPS into (0,0), or strings/booleans into a
+        // valid bathymetry point. 0,0 remains valid when actually numeric.
+        if(typeof sample.lat!=="number" || typeof sample.lon!=="number" ||
+           typeof sample.depth!=="number") return
+        var lat=sample.lat, lon=sample.lon, depth=sample.depth
+        if(!isFinite(lat)||!isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180 ||
+           !isFinite(depth)||depth<=0) return
         var s=rawSamples.slice(0)
-        s.push({sequence:sample.sequence,source:sample.source,lat:lat,lon:lon,depth:Number(sample.depth),temp:sample.temp,hardness:(sample.hardness===undefined||!isFinite(Number(sample.hardness)))?bottomHardness:Number(sample.hardness),bottomEcho:(sample.bottomEcho===undefined||!isFinite(Number(sample.bottomEcho)))?bottomEchoStrength:Number(sample.bottomEcho),chartResolution:sample.chartResolution,chartAbsoluteOffset:sample.chartAbsoluteOffset,chartVersion:sample.chartVersion,chartResolutionMeters:sample.chartResolutionMeters,chartOffsetMeters:sample.chartOffsetMeters,chartRangeMeters:sample.chartRangeMeters,time:sample.time||Date.now()})
+        s.push({sequence:sample.sequence,source:sample.source,lat:lat,lon:lon,depth:depth,temp:sample.temp,hardness:(sample.hardness===undefined||!isFinite(Number(sample.hardness)))?bottomHardness:Number(sample.hardness),bottomEcho:(sample.bottomEcho===undefined||!isFinite(Number(sample.bottomEcho)))?bottomEchoStrength:Number(sample.bottomEcho),chartResolution:sample.chartResolution,chartAbsoluteOffset:sample.chartAbsoluteOffset,chartVersion:sample.chartVersion,chartResolutionMeters:sample.chartResolutionMeters,chartOffsetMeters:sample.chartOffsetMeters,chartRangeMeters:sample.chartRangeMeters,time:sample.time||Date.now()})
         rawSamples=s
         var c=QtPositioning.coordinate(lat,lon),t=trackCoordinates.slice(0)
         if(t.length===0 || t[t.length-1].distanceTo(c)>=1.0){t.push(c);trackCoordinates=t}

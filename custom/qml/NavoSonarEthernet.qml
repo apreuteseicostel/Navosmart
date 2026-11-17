@@ -12,6 +12,9 @@ QtObject {
  readonly property double replaySpeed: replayObject.speed
  readonly property double replayPosition: replayObject.position
  readonly property double replaySize: replayObject.size
+ readonly property bool replayIndexReady: replayObject.indexReady
+ readonly property double replayIndexProgress: replayObject.indexProgress
+ readonly property int replayColumnCount: replayObject.indexedColumns
  readonly property string replayError: replayObject.error
  readonly property var replayAnnotationAnchor: replayObject.annotationAnchor
  readonly property var replayAnnotations: replayObject.annotations
@@ -44,6 +47,7 @@ QtObject {
   id: replayObject
   onPositionReady: function(lat,lon,heading,pitch,roll) { chartBridge.setPosition(lat,lon,heading,pitch,roll) }
   onBytesReady: function(data) { decoderObject.feedBytes(data) }
+  onPreviewLastColumnReady: decoderObject.flushPendingChart()
  }
  onNativeCapacityFullChanged: replayObject.setBlocked(nativeCapacityFull)
  readonly property string status: transportObject.status
@@ -82,12 +86,25 @@ QtObject {
  readonly property int nativeChartRejected: chartBridge.rejectedColumns
  readonly property double nativeChartRawBytes: chartBridge.retainedRawBytes
  onVehicleChanged: updateNativePosition()
+ // No chart/map point may inherit a stale QGC coordinate without a valid
+ // live GPS fix and MAVLink link. This tests validity, not GNSS timestamp age.
+ // Read-only UI indicator; re-evaluates when QGC fix, coordinate or link changes.
+ // A valid fix is not proof of transducer-time synchronization or HD accuracy.
+ readonly property bool liveGpsUsable: root.liveGpsReady()
+ function liveGpsReady() {
+  var v=root.vehicle
+  var fix=v && v.gps && v.gps.lock ? Number(v.gps.lock.rawValue) : NaN
+  var c=v && v.coordinate ? v.coordinate : null
+  return !root.replayMode && !!v && !!v.vehicleLinkManager &&
+         !v.vehicleLinkManager.communicationLost && isFinite(fix) && fix>=3 &&
+         !!c && c.isValid && typeof c.latitude==="number" && isFinite(c.latitude) &&
+         typeof c.longitude==="number" && isFinite(c.longitude) &&
+         Math.abs(c.latitude)<=90 && Math.abs(c.longitude)<=180
+ }
  function updateNativePosition(){
   if(replayMode)return
-  var fixValid=!replayMode && vehicle && vehicle.gps && vehicle.gps.lock.rawValue>=3 &&
-               vehicle.vehicleLinkManager && !vehicle.vehicleLinkManager.communicationLost
-  var c=fixValid && vehicle.coordinate ? vehicle.coordinate : null
-  var lat=c && c.isValid ? c.latitude : NaN, lon=c && c.isValid ? c.longitude : NaN
+  var c=root.liveGpsReady() ? vehicle.coordinate : null
+  var lat=c ? c.latitude : NaN, lon=c ? c.longitude : NaN
   chartBridge.setPosition(lat,
                           lon,
                           vehicle && vehicle.heading ? vehicle.heading.rawValue : NaN,
@@ -131,7 +148,7 @@ QtObject {
   onEndpointChanged: { recorderObject.stop(); decoderObject.reset(); chartBridge.setConnectionEndpoint(host,port,udp) }
   onBytesReceived: function(data){ if(root.replayMode)return; root.rxBytes += data.length; root.rxChunks += 1;
    var v=root.vehicle
-   var valid=v && v.gps && v.gps.lock.rawValue>=3 && v.vehicleLinkManager && !v.vehicleLinkManager.communicationLost && v.coordinate && v.coordinate.isValid
+   var valid=root.liveGpsReady()
    recorderObject.append(data,valid?v.coordinate.latitude:NaN,valid?v.coordinate.longitude:NaN,
                          v && v.heading?v.heading.rawValue:NaN,v && v.pitch?v.pitch.rawValue:NaN,v && v.roll?v.roll.rawValue:NaN)
    decoderObject.feedBytes(data) }
@@ -141,11 +158,12 @@ QtObject {
   onEchoSamplesChanged: {
    if(!chartRawByteCount){root.lastEchoMs=0;return}
    root.lastEchoMs=Date.now(); root.clockMs=root.lastEchoMs
-   if(root.nativeChannelReady && decoderObject.chartVersion===0)return
+   // The native bridge accepts CHART v0 and v1; don't double-save v1
+   // data through the parallel legacy geoSample path.
+   if(root.nativeChannelReady && decoderObject.chartVersion<=1)return
    // Publish only completed CHART columns paired with recent depth and valid GPS.
    if(root.replayMode || !isFinite(depthM) || depthM<=0 || root.lastDepthMs<=0 ||
-      root.lastEchoMs-root.lastDepthMs>1500 || !root.vehicle ||
-      !root.vehicle.coordinate || !root.vehicle.coordinate.isValid) return
+      root.lastEchoMs-root.lastDepthMs>1500 || !root.liveGpsReady()) return
    root.geoSample({time:root.lastEchoMs,lat:root.vehicle.coordinate.latitude,
                    lon:root.vehicle.coordinate.longitude,
                    heading:root.vehicle.heading ? root.vehicle.heading.rawValue : NaN,

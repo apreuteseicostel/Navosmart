@@ -96,6 +96,40 @@ Item {
     property bool headingUp: false
     property bool rulerMode: false
     property bool mapLayerMenuOpen: false
+    // Controls stay out of the satellite image until the finger touches the
+    // 28px edge strip or a pointer hovers there. Each side hides independently.
+    property bool mapLeftControlsVisible: false
+    property bool mapRightControlsVisible: false
+    function revealMapLeftControls() {
+        mapLeftControlsVisible = true
+        mapLeftHideTimer.restart()
+    }
+    function revealMapRightControls() {
+        mapRightControlsVisible = true
+        mapRightHideTimer.restart()
+    }
+    Timer {
+        id: mapLeftHideTimer
+        interval: 1000
+        repeat: false
+        onTriggered: {
+            if (mapLeftEdge.containsMouse || mapLeftButtonsHover.hovered || layersPopup.visible
+                    || (root.activeHelpButton && root.activeHelpButton.down
+                        && root.activeHelpButton.parent === mapControls)) restart()
+            else root.mapLeftControlsVisible = false
+        }
+    }
+    Timer {
+        id: mapRightHideTimer
+        interval: 1000
+        repeat: false
+        onTriggered: {
+            if (mapRightEdge.containsMouse || mapRightButtonsHover.hovered
+                    || (root.activeHelpButton && root.activeHelpButton.down
+                        && root.activeHelpButton.parent === rightMapControls)) restart()
+            else root.mapRightControlsVisible = false
+        }
+    }
     property bool showStatusHint: true
     property var rulerPoints: []
     // Inject the same GNSS-first visual heading used by Dashboard, including
@@ -684,7 +718,12 @@ Item {
     component HelpTool: Button {
         id: helpButton
         hoverEnabled:true
-        onPressed: { root.activeHelpButton=helpButton;toolHelpTimer.restart() }
+        onPressed: {
+            root.activeHelpButton=helpButton
+            toolHelpTimer.restart()
+            if (helpButton.parent === mapControls) root.revealMapLeftControls()
+            else if (helpButton.parent === rightMapControls) root.revealMapRightControls()
+        }
         ToolTip {
             id: localHelp
             parent: helpButton
@@ -725,10 +764,44 @@ Item {
             Label { anchors.centerIn:parent;text:root.rectangleDimensionsText();color:"white";font.bold:true;font.pixelSize:12 }
         }
     }
+    // The narrow edge strips accept touch and hover; the central map remains
+    // untouched and can still pan/zoom normally.
+    MouseArea {
+        id: mapLeftEdge
+        objectName: "mapLeftEdgeReveal"
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        width: 28
+        z: 199
+        hoverEnabled: true
+        onEntered: root.revealMapLeftControls()
+        onPressed: root.revealMapLeftControls()
+        onPositionChanged: root.revealMapLeftControls()
+    }
+    MouseArea {
+        id: mapRightEdge
+        objectName: "mapRightEdgeReveal"
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        width: 28
+        z: 199
+        hoverEnabled: true
+        onEntered: root.revealMapRightControls()
+        onPressed: root.revealMapRightControls()
+        onPositionChanged: root.revealMapRightControls()
+    }
     Column {
         id: mapControls
+        objectName: "mapLeftFloatingTools"
+        visible: root.mapLeftControlsVisible
         anchors.left:parent.left; anchors.top:parent.top; anchors.margins:10
         spacing:5; z:200
+        HoverHandler {
+            id: mapLeftButtonsHover
+            onHoveredChanged: if (hovered) root.revealMapLeftControls()
+        }
         property int controlSize:44
         component MapTool: HelpTool {
             Accessible.name: ToolTip.text
@@ -745,13 +818,25 @@ Item {
         MapTool { objectName:"mapFitMission";text:"CTR"; iconSource:root.canFitMission ? "qrc:/qml/NavoSmart/icons/route.svg" : "qrc:/qml/NavoSmart/icons/center.svg";font.pixelSize:10;Accessible.name:root.canFitMission ? "Încadrează întregul traseu" : "Resetează vederea hărții";ToolTip.text:Accessible.name;onClicked:root.canFitMission ? root.fitMission() : root.resetView() }
     }
     Column {
+        id: rightMapControls
+        objectName: "mapRightFloatingTools"
+        visible: root.mapRightControlsVisible
         anchors.right:parent.right; anchors.top:parent.top; anchors.rightMargin:10; anchors.topMargin:10; spacing:5; z:200
+        HoverHandler {
+            id: mapRightButtonsHover
+            onHoveredChanged: if (hovered) root.revealMapRightControls()
+        }
         property int controlSize:44
         component RightTool: HelpTool {
             Accessible.name: ToolTip.text
             property url iconSource: ""
             width:44;height:44;padding:0;font.pixelSize:18;font.bold:true
-            background:Rectangle { radius:8;color:"#800d1722";border.color:"#8027394b" }
+            background: Rectangle {
+                radius: 8
+                color: parent.checked ? "#c0185366" : parent.down ? "#ac164963" : "#800d1722"
+                border.color: parent.checked ? "#35def2" : "#8027394b"
+                border.width: parent.checked ? 2 : 1
+            }
             contentItem:Image { anchors.centerIn:parent;width:23;height:23;source:parent.iconSource;fillMode:Image.PreserveAspectFit }
         }
         RightTool { text:"MAP"; iconSource:"qrc:/qml/NavoSmart/icons/map.svg";font.pixelSize:11;checkable:true;checked:root.bathymetryHDEnabled;ToolTip.text:root.bathymetryHDEnabled?"Ascunde batimetria HD":"Afișează batimetria HD";onClicked:root.toggleMapLayer() }

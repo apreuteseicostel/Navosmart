@@ -51,3 +51,9 @@ target_link_libraries(navo-replay-pacing PRIVATE Qt6::Core)
 
 add_executable(navo-sonar-recording recording.cpp ../../custom/src/NavoKoggerRecorder.cc ../../custom/src/NavoKoggerRecorder.h ../../custom/src/NavoKoggerReplay.cc ../../custom/src/NavoKoggerReplay.h)
 target_link_libraries(navo-sonar-recording PRIVATE Qt6::Core)
+
+# Indexed full-file KLF test, including random column access without replay seek.
+add_executable(navo-kogger-index-view replay-seek.cpp
+    ../../custom/src/NavoKoggerReplay.cc ../../custom/src/NavoKoggerReplay.h
+    ../../custom/src/NavoKoggerDecoder.cc ../../custom/src/NavoKoggerDecoder.h)
+target_link_libraries(navo-kogger-index-view PRIVATE Qt6::Core)

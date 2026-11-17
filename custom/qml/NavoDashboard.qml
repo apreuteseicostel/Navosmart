@@ -53,7 +53,7 @@ Item {
         if((!automatic || root.sonarStartupEnabled) && !sonar.replayMode && !sonar.connected && sonar.port>0 && sonar.port<=65535 && (sonar.udp || sonar.host.length))sonar.connectSonar()
         if(!cameraEthernet.connected && cameraEthernet.port>0 && cameraEthernet.port<=65535 && (cameraEthernet.udp || cameraEthernet.host.length))cameraEthernet.connectCamera()
     }
-    readonly property string activePageName: ["HARTA","SONAR","MISIUNI","PUNCTE PESCUIT","BALȚILE MELE","CAMERA","SETARI","3D","NĂDIRE","SIGURANȚĂ","SONAR PRO","JURNAL","HĂRȚI OFFLINE"][activePage] || "HARTA"
+    readonly property string activePageName: ["HARTA","SONAR PiP","MISIUNI","PUNCTE PESCUIT","BALȚILE MELE","CAMERA","SETARI","3D","NĂDIRE","SIGURANȚĂ","SONAR PRO B V2","JURNAL","HĂRȚI OFFLINE","SONAR PRO KGR"][activePage] || "HARTA"
     implicitWidth: 1280
     implicitHeight: 720
 
@@ -188,6 +188,97 @@ Item {
     NavoSonarMapping { id: replayMapping; visible:false; externalSampleIngestion:true; sonarConnected:true; scanning:true }
     readonly property var displayNativeSurfaceMesh: sonar.replayMode ? sonar.nativeSurfaceMesh : scanCoordinator.nativeSurfaceMesh
     readonly property var displayBathymetryCells: sonar.replayMode ? replayBathymetryModel.cells : scanCoordinator.bathymetryCells
+    // The already-existing native Kogger surface updates independently; this
+    // bounded 2D/3D preview also works with depth soundings before tiles exist.
+    property var liveBathymetryPreviewSamples: []
+    property int liveBathymetryPreviewCount: 0
+    property string liveBathymetryPreviewLakeId: ""
+    function liveBathymetrySampleWindow(input, limit) {
+        if(!input || !input.length) return []
+        var max=Math.max(3,limit||6000)
+        if(input.length<=max) return input
+        var out=[],stride=(input.length-1)/(max-1)
+        for(var i=0;i<max;i++)out.push(input[Math.round(i*stride)])
+        return out
+    }
+    function refreshLiveBathymetry() {
+        if(sonar.replayMode || !scanCoordinator.lakeId.length ||
+           scanCoordinator.lakeId!==sonarMapping.lakeId) return false
+        var source=sonarMapping.rawSamples
+        if(!source || source.length<3 ||
+           (liveBathymetryPreviewLakeId===scanCoordinator.lakeId &&
+            liveBathymetryPreviewCount===source.length)) return false
+        var preview=liveBathymetrySampleWindow(source,6000)
+        var cells=bathymetryModel.rebuild(preview)
+        if(!cells || !cells.length) return false
+        scanCoordinator.bathymetryCells=cells
+        liveBathymetryPreviewSamples=preview
+        liveBathymetryPreviewCount=source.length
+        liveBathymetryPreviewLakeId=scanCoordinator.lakeId
+        return true
+    }
+    function startLiveBathymetry() {
+        if(sonar.replayMode || !scanCoordinator.lakeId.length) {
+            lastNavigationStatus="Alege o baltă activă; replay nu permite mapare live";return false
+        }
+        var recoveredManual=scanCoordinator.state==="PAUSED" &&
+            areaScanController.generatedPoints.length===0 &&
+            sonarMapping.scanning && sonarMapping.paused
+        if((scanCoordinator.state!=="IDLE" && scanCoordinator.state!=="COMPLETE" &&
+            !recoveredManual) || routePlan.active || baitingController.enabled ||
+            awaitingMissionStart) {
+            lastNavigationStatus="Maparea manuală necesită misiunile oprite";return false
+        }
+        if(!sonarConnected || !sonar.liveGpsUsable) {
+            lastNavigationStatus="Conectează Kogger și așteaptă GPS 3D valid de la H743";return false
+        }
+        // A restarted GPS-only session is conservatively restored as PAUSED.
+        // With no Area Scan geometry there is no mission to resume; release
+        // only that local stopped scanner, never an H743 flight mode.
+        if(recoveredManual){sonarMapping.scanning=false;sonarMapping.paused=false}
+        if(!sonarMapping.startLiveMapping()) {
+            lastNavigationStatus="Maparea live nu a pornit; verifică limita de măsurători";return false
+        }
+        if(!scanCoordinator.checkpoint("live-bathymetry-start")) {
+            sonarMapping.stopLiveMapping()
+            lastNavigationStatus="Mapare oprită: nu pot salva starea bălții";return false
+        }
+        refreshLiveBathymetry()
+        lastNavigationStatus="BATIMETRIE LIVE • colectare GPS + Kogger • fără autopilot"
+        return true
+    }
+    function pauseLiveBathymetry() {
+        if(!sonarMapping.pauseLiveMapping())return false
+        refreshLiveBathymetry()
+        var saved=scanCoordinator.checkpoint("live-bathymetry-pause")
+        lastNavigationStatus=saved ? "Batimetrie live în pauză • salvată" :
+                                      "PAUZĂ • eroare la salvarea datelor"
+        return saved
+    }
+    function resumeLiveBathymetry() {
+        if(!sonarMapping.resumeLiveMapping()) {
+            lastNavigationStatus="Reluare blocată: verifică Kogger, GPS și limita de probe";return false
+        }
+        lastNavigationStatus="Batimetrie live reluată"
+        return true
+    }
+    function finishLiveBathymetry() {
+        if(sonar.replayMode || !sonarMapping.stopLiveMapping())return false
+        refreshLiveBathymetry()
+        var count=sonarMapping.rawSamples.length
+        var saved=scanCoordinator.checkpoint("live-bathymetry-stop")
+        lastNavigationStatus=saved
+            ? "Batimetrie live salvată • "+count+" probe GPS/sonar • "+scanCoordinator.bathymetryCells.length+" celule"
+            : "Maparea s-a oprit, dar salvarea a eșuat • nu dezinstala aplicația"
+        return saved
+    }
+    Timer {
+        interval:2500; repeat:true
+        running:!sonar.replayMode && scanCoordinator.lakeId.length>0 &&
+                ((sonarMapping.scanning && !sonarMapping.paused) ||
+                 (sonarMapping.liveMappingActive && !sonarMapping.liveMappingPaused))
+        onTriggered:root.refreshLiveBathymetry()
+    }
     Timer {
         interval:2000; repeat:true; running:sonar.replayMode
         onTriggered: if(replayMapping.rawSamples.length>=3)replayBathymetryModel.rebuild(replayMapping.rawSamples)
@@ -503,10 +594,13 @@ Item {
         depthM: root.depthM
         waterTempC: root.waterTempC
         sonarConnected: root.sonarConnected
+        liveGpsReady: sonar.liveGpsUsable
+        replayMode: sonar.replayMode
         externalSampleIngestion: true
         bottomHardness: root.bottomHardnessPercent
         bottomEchoStrength: root.bottomEchoStrength
         onCheckpointRequested: function(state) { scanCoordinator.checkpoint("sonar-mapping") }
+        onStatus: function(message) { root.lastNavigationStatus=message }
     }
     NavoScanCoordinator {
         id: scanCoordinator
@@ -526,7 +620,11 @@ Item {
             }
         }
         onStatus: function(message) { root.lastNavigationStatus = message }
-        onLakeActivated: function(id) { sessionSettings.activeLakeId=id; missionUploader.invalidate(); baitingController.targetWaypoint=null; if(!sonar.replayMode)sonar.nativeBridge.clear() }
+        onLakeActivated: function(id) {
+            sessionSettings.activeLakeId=id; missionUploader.invalidate(); baitingController.targetWaypoint=null
+            root.liveBathymetryPreviewSamples=[];root.liveBathymetryPreviewCount=0;root.liveBathymetryPreviewLakeId=""
+            if(!sonar.replayMode)sonar.nativeBridge.clear()
+        }
         onScanFinished: function(bathymetrySaved, sampleCount) {
             missionUploader.invalidate()
             root.awaitingMissionStart=false
@@ -594,6 +692,15 @@ Item {
     property bool cameraConnected: false
     property bool cameraFullscreen: false
     property bool cameraPipEnabled: true
+    property bool sonarPipEnabled: false
+    function toggleSonarPip() {
+        // SONAR is now a lightweight dashboard preview, not the legacy basic page.
+        if (root.activePage !== 0) root.activePage = 0
+        root.sonarPipEnabled = !root.sonarPipEnabled
+        root.lastNavigationStatus = root.sonarPipEnabled
+            ? "Sonar PiP afișat • aceeași conexiune LIVE ca PRO și KGR"
+            : "Sonar PiP ascuns"
+    }
     function closeFullscreenCamera() {
         cameraPipEnabled = false
         cameraFullscreen = false
@@ -875,7 +982,7 @@ Item {
         if(action==="CUVA_STANGA") { openHopper("stanga"); return }
         if(action==="CUVA_DREAPTA") { openHopper("dreapta"); return }
         if(action==="CUVE_AMBELE") { openHopper("ambele"); return }
-        if(action==="SONAR") { activePage=1; lastNavigationStatus="G20 "+control+" • SONAR"; return }
+        if(action==="SONAR") { root.toggleSonarPip(); lastNavigationStatus="G20 "+control+" • SONAR PiP"; return }
         if(action==="CAMERA") { activePage=5; cameraFullscreen=!cameraFullscreen; lastNavigationStatus="G20 "+control+" • CAMERA FAȚĂ"; return }
         if(action==="HOLD") { holdMission(); lastNavigationStatus="G20 "+control+" • HOLD"; return }
         if(action==="RTL") { homeRtlConfirm.open(); lastNavigationStatus="G20 "+control+" • confirmă RTL / ACASĂ"; return }
@@ -1366,7 +1473,7 @@ Item {
         readonly property real compassWidth: root.activePage===2 ? 40 : 46
         readonly property real telemetryScale: Math.max(0.76, Math.min(1,
             (width - 2*sideMargin - brandWidth - compassWidth - 8*itemGap - 8) / 570))
-        visible: root.activePage !== 10 && !(root.activePage===2 && root.mapMaximized)
+        visible: root.activePage !== 10 && root.activePage !== 13 && !(root.activePage===2 && root.mapMaximized)
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
         height: root.activePage===2 ? (root.mapMaximized ? 0 : 48) : 64
         color: "#071926"; border.color: "#13617a"; z: 2000
@@ -1625,12 +1732,12 @@ Item {
         }
     }
 
-    NavoHeadingCompass { id:headingCompassOverlay; visible:root.headingOverlayOpen && root.activePage !== 10; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; headingSource:root.headingSource; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; onToggleRequested:root.headingOverlayOpen=false }
+    NavoHeadingCompass { id:headingCompassOverlay; visible:root.headingOverlayOpen && root.activePage !== 10 && root.activePage !== 13; expanded:true; width:260; height:260; anchors.top:header.bottom; anchors.right:parent.right; anchors.topMargin:12; anchors.rightMargin:88; z:6000; headingDeg:root.headingDeg; headingSource:root.headingSource; waypointBearingDeg:root.waypointBearingDeg; rollDeg:root.rollDeg; pitchDeg:root.pitchDeg; onToggleRequested:root.headingOverlayOpen=false }
 
     Rectangle {
         id: sidebar
         anchors.left: parent.left; anchors.top: header.bottom; anchors.bottom: parent.bottom
-        visible: !root.mapMaximized && root.activePage !== 10
+        visible: !root.mapMaximized && root.activePage !== 10 && root.activePage !== 13
         width: root.width < 1100 ? 64 : 72; color: "#071926"; border.color: "#174e68"
         Flickable {
             anchors.fill: parent
@@ -1645,8 +1752,13 @@ Item {
                 width: parent.width
                 spacing: Math.max(3, Math.min(8, (sidebar.height - 44 - 10 * 36) / 11))
                 NavButton { text: "HARTA"; iconSource: "qrc:/qml/NavoSmart/icons/map.svg"; active: root.activePage === 0; onClicked: root.activePage = 0 }
-                NavButton { text: "SONAR"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 1; onClicked: root.activePage = 1 }
-                NavButton { text: "SONAR PRO"; proBadge: true; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 10; onClicked: root.activePage = 10 }
+                NavButton {
+                    text: "SONAR"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"
+                    active: root.activePage === 0 && root.sonarPipEnabled
+                    onClicked: root.toggleSonarPip()
+                }
+                NavButton { text: "PRO"; proBadge: true; badgeLabel: "KGR"; iconSource: "qrc:/qml/NavoSmart/icons/sonar.svg"; active: root.activePage === 10; onClicked: root.activePage = 10 }
+                NavButton { text:"PRO KGR";proBadge:true;badgeLabel:"PRO";iconSource:"qrc:/qml/NavoSmart/icons/sonar.svg";active:root.activePage===13;onClicked:root.activePage=13 }
                 NavButton { text: "MISIUNI"; iconSource: "qrc:/qml/NavoSmart/icons/scan.svg"; active: root.activePage === 2; onClicked: root.activePage = 2 }
                 NavButton { text: "PUNCTE PESCUIT"; iconSource: "qrc:/qml/NavoSmart/icons/fish.svg"; active: root.activePage === 3; onClicked: root.activePage = 3 }
                 NavButton { text:"HĂRȚI OFFLINE";iconSource:"qrc:/qml/NavoSmart/icons/save.svg";active:root.activePage===12;onClicked:{if(root.mapController)root.offlineRegion=root.mapController.offlineRegion();root.activePage=12} }
@@ -1665,9 +1777,9 @@ Item {
     NavoMissionStatus {
         id:missionStrip
         visible:root.actionActive || root.activePage===2
-        anchors.left:root.mapMaximized || root.activePage===10 ? parent.left : sidebar.right
+        anchors.left:root.mapMaximized || root.activePage===10 || root.activePage===13 ? parent.left : sidebar.right
         anchors.right:parent.right
-        anchors.top:root.activePage===10 ? parent.top : header.bottom
+        anchors.top:root.activePage===10 || root.activePage===13 ? parent.top : header.bottom
         height:visible ? implicitHeight : 0
         z:6001
         active:root.actionActive
@@ -1687,19 +1799,19 @@ Item {
     }
     Rectangle {
         id: content
-        anchors.left: root.mapMaximized || root.activePage === 10 ? parent.left : sidebar.right; anchors.right: parent.right; anchors.top: missionStrip.bottom; anchors.bottom: parent.bottom
+        anchors.left: root.mapMaximized || (root.activePage === 10 || root.activePage === 13) ? parent.left : sidebar.right; anchors.right: parent.right; anchors.top: missionStrip.bottom; anchors.bottom: parent.bottom
         // Fullscreen sonar controls must render above the Dashboard header (z: 2000).
-        z: root.activePage === 10 ? 3000 : 0
+        z: (root.activePage === 10 || root.activePage === 13) ? 3000 : 0
         color: root.bg
         Loader {
             Accessible.role: Accessible.Pane
             Accessible.name: status === Loader.Ready ? "Pagina " + root.activePageName : "Se încarcă pagina"
-            anchors.fill: parent; anchors.margins: root.activePage === 10 ? 0 : 10
+            anchors.fill: parent; anchors.margins: (root.activePage === 10 || root.activePage === 13) ? 0 : 10
             sourceComponent: root.activePage === 12 ? offlineMapsPage :
                              root.activePage === 11 ? journalPage :
                              root.activePage === 0 ? mapPage :
-                             root.activePage === 1 ? sonarPage :
                              root.activePage === 10 ? sonarProPage :
+                             root.activePage === 13 ? koggerSonarPage :
                              root.activePage === 2 ? areaPage :
                              root.activePage === 3 ? fishingPage :
                              root.activePage === 4 ? lakesPage :
@@ -1731,6 +1843,35 @@ Item {
         onCloseRequested: root.cameraPipEnabled=false
     }
 
+
+    // SONAR PiP stays on the map, below the camera PiP on the right.
+    // Loader.active=false destroys the native plot when closed: zero hidden
+    // timers/raster work and no duplicate TCP/UDP connection or decoder.
+    Loader {
+        id: persistentSonarPip
+        objectName: "dashboardSonarPipLoader"
+        parent: root
+        z: 901
+        active: root.activePage === 0 && root.sonarPipEnabled
+        visible: active
+        anchors.right: parent.right
+        anchors.rightMargin: root.activePage === 0 ? 88 : 16
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 13
+        width: persistentCameraPip.visible ? persistentCameraPip.width
+            : Math.max(168, Math.min(215, root.width * 0.16))
+        height: Math.min(135, Math.max(100, root.height * 0.18))
+        sourceComponent: Component {
+            NavoSonarPip {
+                anchors.fill: parent
+                sonar: sonar
+                onCloseRequested: {
+                    root.sonarPipEnabled = false
+                    root.lastNavigationStatus = "Sonar PiP ascuns"
+                }
+            }
+        }
+    }
 
     Component {
         id: mapPage
@@ -1837,7 +1978,15 @@ Item {
                 }
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/autopilot.svg"; title:"AP"; value:vehicle?"ON":"OFF"; good:!!vehicle }
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/lan.svg"; title:"LAN"; value:root.verifiedLanOnline?"ON":"?"; good:root.verifiedLanOnline;clickable:true;toolTipText:lanService.status;onClicked:{root.settingsStartTab=2;root.activePage=6;root.lastNavigationStatus=lanService.status} }
-                MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/sonar.svg"; title:"SONAR"; value:root.sonarConnected?"ON":"OFF"; good:root.sonarConnected }
+                MiniStatus {
+                    iconSource:"qrc:/qml/NavoSmart/icons/sonar.svg"
+                    title:"SONAR"
+                    value:root.sonarConnected?"ON":"OFF"
+                    good:root.sonarConnected
+                    clickable:true
+                    toolTipText:root.sonarPipEnabled ? "Ascunde Sonar PiP" : "Afișează Sonar PiP"
+                    onClicked:root.toggleSonarPip()
+                }
                 MiniStatus { iconSource:"qrc:/qml/NavoSmart/icons/navigate.svg";title:"ANCORĂ";value:digitalAnchor.active?"CERUTĂ":"OFF";good:digitalAnchor.guidedConfirmed;clickable:true;toolTipText:digitalAnchor.active?"Dezactivează ancora GPS și solicită HOLD":"Menține poziția GPS curentă";onClicked:root.toggleDigitalAnchor() }
                 MiniStatus {
                     iconSource:"qrc:/qml/NavoSmart/icons/camera.svg"; title:"CAM"; value:root.cameraConnected?"ON":"OFF"; good:root.cameraConnected
@@ -1858,12 +2007,22 @@ Item {
         }
     }
 
+    // B V2: clean full-screen Epoch view and independent Kogger-style rails.
     Component {
         id: sonarProPage
+        NavoKoggerSonar {
+            chartSource: sonar
+            onClosed: root.activePage = 0
+        }
+    }
+
+    // KGR: advanced Sonar PRO functions on the exact same shared live controller.
+    Component {
+        id: koggerSonarPage
         NavoSonarPro {
-            id:sonarProView
+            id:sonarKgrView
             activeLakeId:scanCoordinator.lakeId
-            onSonarPointRequested:function(entry,name,note,prepareMission){root.saveSonarPoint(sonarProView,entry,name,note,prepareMission)}
+            onSonarPointRequested:function(entry,name,note,prepareMission){root.saveSonarPoint(sonarKgrView,entry,name,note,prepareMission)}
             chartSource: sonar
             vehicle: root.vehicle
             planController: root.planController
@@ -1886,85 +2045,6 @@ Item {
             chartOffsetMeters: sonar.chartOffsetMeters
             chartRangeMeters: sonar.chartRangeMeters
             chartRawByteCount: sonar.chartRawByteCount
-        }
-    }
-
-    Component {
-        id: sonarPage
-        Item {
-            Rectangle { anchors.fill: parent; radius: 8; color: root.panel; border.color: root.line }
-            ColumnLayout {
-                anchors.fill: parent; anchors.margins: 12; spacing: 8
-                Label { text: "KOGGER SONAR"; color: root.text; font.pixelSize: 18; font.bold: true }
-                NavoSonarCard {
-                    Layout.fillWidth: true; Layout.preferredHeight: 150
-                    connected: root.sonarConnected; depthM: root.depthM; waterTempC: root.waterTempC
-                    echoSamples: sonar.echoSamples
-                    onOpenFullSonar: fullSonar.open()
-                }
-                Label {
-                    Layout.fillWidth: true
-                    text: root.sonarConnected ? "Sonar conectat • apasă MĂREȘTE pentru ecogramă" : "Kogger offline • apasă MĂREȘTE pentru ecogramă și conexiune"
-                    color: root.muted
-                    wrapMode: Text.WordWrap
-                }
-                Item { Layout.fillHeight: true }
-            }
-            NavoSonarFullScreen {
-                    id: fullSonar
-                    parent: Overlay.overlay
-                    connected: root.sonarConnected; depthM: root.depthM; waterTempC: root.waterTempC
-                    echoSamples: sonar.echoSamples
-                    transport: sonar
-                    fishHotspots: fishStore.hotspots
-                    speedMps: root.vehicle && root.vehicle.groundSpeed ? root.vehicle.groundSpeed.rawValue : NaN
-                    latitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.latitude : NaN
-                    longitude: root.vehicle && root.vehicle.coordinate && root.vehicle.coordinate.isValid ? root.vehicle.coordinate.longitude : NaN
-                    onSaveWaypointRequested: function(latitude, longitude, depth, temp) {
-                        if(!root.requireActiveLakeForPointSave()) return
-                        var spot=fishingSpots.saveSpot(QtPositioning.coordinate(latitude,longitude),depth,temp,"","",null)
-                        if(spot){scanCoordinator.checkpoint("sonar-fishing-spot");root.lastNavigationStatus="Punct sonar salvat: "+spot.name}
-                    }
-                    onRecordingRequested: function(start) {
-                        if(start) {
-                            if(!scanCoordinator.lakeId.length) {
-                                fullSonar.recording=false
-                                root.lastNavigationStatus="Înregistrare sonar blocată: selectează o baltă"
-                                return
-                            }
-                            if(scanCoordinator.state==="SCANNING") {
-                                fullSonar.recording=false
-                                root.lastNavigationStatus="Area Scan înregistrează deja datele sonar"
-                                return
-                            }
-                            sonarMapping.startScan()
-                            if(!sonarMapping.scanning) fullSonar.recording=false
-                            else {
-                                scanCoordinator.state="MANUAL_SONAR"
-                                scanCoordinator.checkpoint("manual-sonar-start")
-                                root.lastNavigationStatus="Înregistrare sonar pornită • GPS + adâncime + temperatură"
-                            }
-                        } else {
-                            if(scanCoordinator.state==="MANUAL_SONAR" && sonarMapping.scanning) {
-                                sonarMapping.finishAndBuild()
-                                var manualBathyOk=false
-                                if(sonarMapping.rawSamples.length>=3 && bathymetryModel && bathymetryModel.rebuild) {
-                                    var manualCells=bathymetryModel.rebuild(sonarMapping.rawSamples)
-                                    if(manualCells!==undefined && manualCells!==null) {
-                                        scanCoordinator.bathymetryCells=manualCells
-                                        manualBathyOk=true
-                                    }
-                                }
-                                sonarMapping.markBathymetrySaved(manualBathyOk)
-                                scanCoordinator.state="IDLE"
-                                var manualSaved=scanCoordinator.checkpoint("manual-sonar-stop")
-                                root.lastNavigationStatus=manualSaved
-                                        ? ("Înregistrare sonar oprită • "+sonarMapping.rawSamples.length+" măsurători salvate"+(manualBathyOk?" • batimetrie generată":" • batimetrie indisponibilă"))
-                                        : "Înregistrare sonar oprită • EROARE la salvarea sesiunii"
-                            }
-                        }
-                    }
-                }
         }
     }
 
@@ -2944,15 +3024,68 @@ Item {
     Component {
         id: bathymetryPage
         Item {
+            Rectangle {
+                id: liveBathyBar
+                objectName: "navoLiveBathymetryControls"
+                z: 2
+                anchors.left:parent.left;anchors.right:parent.right;anchors.top:parent.top
+                height:50;radius:7;color:"#101f2d";border.color:"#2c5971"
+                RowLayout {
+                    anchors.fill:parent;anchors.leftMargin:8;anchors.rightMargin:8;spacing:6
+                    Label {
+                        Layout.fillWidth:true;elide:Text.ElideRight
+                        color:root.sonarController.liveGpsUsable ? "#7adca8" : "#a9bed0"
+                        font.pixelSize:11
+                        text:sonar.replayMode ? "REPLAY • numai citire" :
+                            !scanCoordinator.lakeId.length ? "Selectează o baltă" :
+                            "BATIMETRIE " + (sonarMapping.liveMappingActive ?
+                            (sonarMapping.liveMappingPaused ? "PAUZĂ" : "LIVE") : "GPS + SONAR") +
+                            " • " + sonarMapping.rawSamples.length + " probe / " +
+                            scanCoordinator.bathymetryCells.length + " celule"
+                    }
+                    Button {
+                        objectName:"liveBathymetryToggle"
+                        implicitHeight:34;implicitWidth:root.compactUi?65:90
+                        text:sonarMapping.liveMappingActive ?
+                            (sonarMapping.liveMappingPaused ? "REIA" : "PAUZĂ") : "PORNEȘTE"
+                        enabled:!sonar.replayMode && scanCoordinator.lakeId.length>0 &&
+                            (sonarMapping.liveMappingActive ?
+                             (sonarMapping.liveMappingPaused ? sonar.liveGpsUsable && root.sonarConnected : true) :
+                             sonar.liveGpsUsable && root.sonarConnected &&
+                             (scanCoordinator.state==="IDLE" || scanCoordinator.state==="COMPLETE" ||
+                              (scanCoordinator.state==="PAUSED" &&
+                               areaScanController.generatedPoints.length===0 &&
+                               sonarMapping.scanning && sonarMapping.paused)))
+                        onClicked: {
+                            if(!sonarMapping.liveMappingActive)root.startLiveBathymetry()
+                            else if(sonarMapping.liveMappingPaused)root.resumeLiveBathymetry()
+                            else root.pauseLiveBathymetry()
+                        }
+                    }
+                    Button {
+                        objectName:"liveBathymetrySave"
+                        implicitHeight:34;implicitWidth:root.compactUi?80:125
+                        text:root.compactUi?"SALVEAZĂ":"OPREȘTE + SALVEAZĂ"
+                        enabled:!sonar.replayMode && sonarMapping.liveMappingActive
+                        onClicked:root.finishLiveBathymetry()
+                    }
+                }
+            }
             NavoBathymetry3D {
-                anchors.fill: parent
-                // Use the active/restored lake session, not the global sonar history.
-                // restoreLake() repopulates rawSamples from the selected lake checkpoint.
-                samples: sonar.replayMode ? replayMapping.rawSamples : sonarMapping.rawSamples
-                boatTrack: sonar.replayMode ? replayMapping.trackCoordinates : (sonarMapping.trackCoordinates.length ? sonarMapping.trackCoordinates : root.coordinatesFromSonarSamples(sonarMapping.rawSamples))
+                anchors.fill:parent
+                anchors.topMargin:liveBathyBar.height+2
+                // A bounded snapshot updates every 2.5s while mapping, not
+                // one expensive 3D mesh rebuild on every individual ping.
+                samples: sonar.replayMode ? replayMapping.rawSamples :
+                    ((sonarMapping.scanning || sonarMapping.liveMappingActive) &&
+                     root.liveBathymetryPreviewSamples.length ?
+                     root.liveBathymetryPreviewSamples : sonarMapping.rawSamples)
+                boatTrack: sonar.replayMode ? replayMapping.trackCoordinates :
+                    (sonarMapping.trackCoordinates.length ? sonarMapping.trackCoordinates :
+                     root.coordinatesFromSonarSamples(sonarMapping.rawSamples))
                 fishingSpots: sonar.replayMode ? [] : root.fishingSpotsController.fishingSpots
                 fishDetections: sonar.replayMode ? [] : root.fishDetections
-                onOpenSonarRequested: root.activePage = 1
+                onOpenSonarRequested: root.activePage = 10
             }
         }
     }
@@ -3161,6 +3294,7 @@ Item {
         Accessible.name: text
         property bool active: false
         property bool proBadge: false
+        property string badgeLabel: "PRO"
         property url iconSource: ""
         // Mouse hover on desktop, sustained touch on Android/G20.
         property bool longPressHint: false
@@ -3198,7 +3332,7 @@ Item {
                 border.color: "#21b7ff"
                 Label {
                     anchors.centerIn: parent
-                    text: "PRO"; font.pixelSize: 9; font.bold: true
+                    text: parent.parent.parent.badgeLabel; font.pixelSize: 9; font.bold: true
                     color: parent.parent.active ? "#061824" : "#e1faff"
                 }
             }
