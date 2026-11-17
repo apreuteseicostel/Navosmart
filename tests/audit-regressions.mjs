@@ -683,7 +683,12 @@ test('GNSS EKF/IST8310 diagnostics explicitly read QGC parameters without writes
  assert(dash.includes('objectName: "gnssCompassEkfRefresh"'));
  assert(dash.includes('gnssHeading.ekfYawStatus'));
  assert(dash.includes('gnssHeading.compassIdentity'));
+ assert(dash.includes('gnssHeading.compassUseStatus'));
  assert(dash.includes('gnssHeading.compassPriorityStatus'));
+ assert(src.includes('EK3_SRC1_YAW=0: sursa yaw'));
+ assert(src.includes('DUPLICAT cu prioritatea'));
+ assert(src.includes('COMPASS_USE%1'));
+ assert(header.includes('Q_PROPERTY(QString compassUseStatus'));
  assert(dash.includes('gnssHeading.parameterReadStatus'));
  assert(!src.includes('mavlink_msg_param_set_'));
  assert(!src.includes('sendMavCommand('));
