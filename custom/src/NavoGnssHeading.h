@@ -38,6 +38,7 @@ class NavoGnssHeading : public QObject {
     Q_PROPERTY(QString ekfYawStatus READ ekfYawStatus NOTIFY headingChanged)
     Q_PROPERTY(QString compassIdentity READ compassIdentity NOTIFY headingChanged)
     Q_PROPERTY(QString compassPriorityStatus READ compassPriorityStatus NOTIFY headingChanged)
+    Q_PROPERTY(QString compassUseStatus READ compassUseStatus NOTIFY headingChanged)
     Q_PROPERTY(QString parameterReadStatus READ parameterReadStatus NOTIFY headingChanged)
     Q_PROPERTY(bool parameterRefreshPending READ parameterRefreshPending NOTIFY headingChanged)
 
@@ -72,6 +73,7 @@ public:
     QString ekfYawStatus() const;
     QString compassIdentity() const;
     QString compassPriorityStatus() const;
+    QString compassUseStatus() const;
     QString parameterReadStatus() const;
     bool parameterRefreshPending() const { return _parameterRefreshPending; }
     Q_INVOKABLE void requestDiagnosticParameters();
