@@ -665,6 +665,30 @@ test('NAVO compact journal and offline layouts wrap narrow-screen actions',()=>{
   assert.match(dashboard,/myLakesPopup\.beginDelete\(modelData\)/);
 });
 
+test('GNSS EKF/IST8310 diagnostics explicitly read QGC parameters without writes',()=>{
+ const src=fs.readFileSync(path.resolve(dir,'../src/NavoGnssHeading.cc'),'utf8');
+ const header=fs.readFileSync(path.resolve(dir,'../src/NavoGnssHeading.h'),'utf8');
+ const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
+ for(const name of ['EK3_SRC1_YAW','EK3_SRC2_YAW','COMPASS_DEV_ID',
+   'COMPASS_DEV_ID2','COMPASS_DEV_ID3','COMPASS_USE',
+   'COMPASS_PRIO1_ID','COMPASS_PRIO2_ID','COMPASS_PRIO3_ID'])
+   assert(src.includes('QStringLiteral("'+name+'")'),name);
+ assert(src.includes('manager->refreshParameter(MAV_COMP_ID_AUTOPILOT1,name)'));
+ assert(src.includes('manager->parameterExists(MAV_COMP_ID_AUTOPILOT1,name)'));
+ assert(src.includes('fact->rawValue()'));
+ assert(src.includes('deviceType==0x0a'));
+ assert(src.includes('busType==1'));
+ assert(src.includes('_parameterResponses.insert(name)'));
+ assert(header.includes('Q_INVOKABLE void requestDiagnosticParameters()'));
+ assert(dash.includes('objectName: "gnssCompassEkfRefresh"'));
+ assert(dash.includes('gnssHeading.ekfYawStatus'));
+ assert(dash.includes('gnssHeading.compassIdentity'));
+ assert(dash.includes('gnssHeading.compassPriorityStatus'));
+ assert(dash.includes('gnssHeading.parameterReadStatus'));
+ assert(!src.includes('mavlink_msg_param_set_'));
+ assert(!src.includes('sendMavCommand('));
+ assert(!src.includes('setRawValue('));
+});
 test('NAVO 3-tier heading: GNSS primary, verified EKF3 compass secondary, bounded H743 tertiary',()=>{
   const dirSrc=path.resolve(dir,'../src');
   const header=fs.readFileSync(path.join(dirSrc,'NavoGnssHeading.h'),'utf8');
