@@ -103,6 +103,57 @@ private slots:
   p(v,"COMPASS_DEV_ID",1234);QVERIFY(h.compassFallbackActive());
   mag(v,false,false);QVERIFY(!h.compassHealthy());QVERIFY(!h.compassFallbackActive());
  }
+ void explicitParameterReadIdentifiesIST8310AndKeepsQGCCacheSeparate(){
+  Vehicle v;NavoGnssHeading h;h.setVehicle(&v);h.setLinkAlive(true);
+  QCOMPARE(h.ekfYawMode(),-1);
+  QVERIFY(!h.compassIdentity().contains(QStringLiteral("identificat")));
+  h.requestDiagnosticParameters();
+  auto* pm=v.parameterManager();
+  QVERIFY(h.parameterRefreshPending());
+  QVERIFY(pm->requested.contains(QStringLiteral("EK3_SRC1_YAW")));
+  QVERIFY(pm->requested.contains(QStringLiteral("EK3_SRC2_YAW")));
+  QVERIFY(pm->requested.contains(QStringLiteral("COMPASS_DEV_ID")));
+  QVERIFY(pm->requested.contains(QStringLiteral("COMPASS_DEV_ID2")));
+  QVERIFY(pm->requested.contains(QStringLiteral("COMPASS_PRIO1_ID")));
+  QVERIFY(!pm->requested.contains(QStringLiteral("PARAM_SET")));
+  // ArduPilot device ID: DEVTYPE_IST8310=0x0A, I2C type=1, bus=1,
+  // address=0x0E. A non-zero ID alone is not proof of IST8310.
+  const quint32 ist=(0x0Au<<16)|(0x0Eu<<8)|(1u<<3)|1u;
+  pm->setFact(QStringLiteral("EK3_SRC1_YAW"),3);
+  pm->setFact(QStringLiteral("COMPASS_USE"),1);
+  pm->setFact(QStringLiteral("COMPASS_DEV_ID"),ist);
+  pm->setFact(QStringLiteral("COMPASS_PRIO1_ID"),ist);
+  QVERIFY(QMetaObject::invokeMethod(&h,"_refresh",Qt::DirectConnection));
+  QCOMPARE(h.ekfYawMode(),3);
+  QVERIFY(h.ekfYawStatus().contains(QStringLiteral("valoare QGC/cache")));
+  QVERIFY(h.compassIdentity().contains(QStringLiteral("IST8310")));
+  QVERIFY(h.compassIdentity().contains(QStringLiteral("I2C bus 1")));
+  QVERIFY(h.compassIdentity().contains(QStringLiteral("COMPASS_DEV_ID")));
+  QVERIFY(h.compassPriorityStatus().contains(QStringLiteral("IST8310")));
+  QVERIFY(h.parameterReadStatus().contains(QStringLiteral("valori QGC")));
+  p(v,"EK3_SRC1_YAW",3);
+  QVERIFY(h.ekfYawStatus().contains(QStringLiteral("răspuns MAVLink")));
+  h.setLinkAlive(false);
+  QCOMPARE(h.ekfYawMode(),-1);
+  QVERIFY(!h.compassIdentity().contains(QStringLiteral("IST8310")));
+ }
+ void compassIdIsNotModelProofAndMissingValuesRemainUnknown(){
+  Vehicle v;NavoGnssHeading h;h.setVehicle(&v);h.setLinkAlive(true);
+  auto* pm=v.parameterManager();
+  h.requestDiagnosticParameters();
+  pm->setFact(QStringLiteral("COMPASS_DEV_ID"),1234);
+  pm->setFact(QStringLiteral("EK3_SRC1_YAW"),2);
+  QVERIFY(QMetaObject::invokeMethod(&h,"_refresh",Qt::DirectConnection));
+  QVERIFY(h.compassIdentity().contains(QStringLiteral("niciun ID nu confirmă IST8310")));
+  QVERIFY(h.ekfYawStatus().contains(QStringLiteral("GPS yaw")));
+  QVERIFY(!h.ekfYawStatus().contains(QStringLiteral("rezervă busolă")));
+  // A different device may be healthy but must never be labelled IST8310.
+  mag(v,true,true);
+  QVERIFY(h.compassHealthy());
+  QVERIFY(!h.compassIdentity().contains(QStringLiteral("IST8310 identificat")));
+  h.setVehicle(nullptr);
+  QVERIFY(!h.parameterRefreshPending());
+ }
  void shortGyroHoldoverExpires(){
   Vehicle v;NavoGnssHeading h;h.setVehicle(&v);h.setLinkAlive(true);
   h.setAutopilotHeadingDeg(201);gps(v,20000);gps(v,65535);
