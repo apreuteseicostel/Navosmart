@@ -90,6 +90,7 @@ Rectangle {
         return true
     }
     function startScan() {
+        if (liveMappingActive) { status("Oprește maparea manuală înainte de Area Scan"); return }
         if (!validPosition() || !sonarConnected) { status("Scanare blocată: GPS și Kogger trebuie conectate"); return }
         rawSamples=[]; trackCoordinates=[]; bathymetryComplete=false; scanning=true; paused=false
         addCurrentSample(); status("Mapare sonar pornită")
