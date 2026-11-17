@@ -154,6 +154,37 @@ private slots:
   h.setVehicle(nullptr);
   QVERIFY(!h.parameterRefreshPending());
  }
+ void ist8310AsCompass2DoesNotInheritDisabledCompass1AndDuplicatePriorityIsFlagged(){
+  Vehicle v;NavoGnssHeading h;h.setVehicle(&v);h.setLinkAlive(true);
+  auto* pm=v.parameterManager();h.requestDiagnosticParameters();
+  const quint32 ist=(0x0Au<<16)|(0x0Eu<<8)|(1u<<3)|1u;
+  pm->setFact(QStringLiteral("COMPASS_DEV_ID"),0);
+  pm->setFact(QStringLiteral("COMPASS_USE"),0);
+  pm->setFact(QStringLiteral("COMPASS_DEV_ID2"),ist);
+  pm->setFact(QStringLiteral("COMPASS_USE2"),1);
+  pm->setFact(QStringLiteral("COMPASS_PRIO1_ID"),ist);
+  pm->setFact(QStringLiteral("COMPASS_PRIO2_ID"),ist);
+  pm->setFact(QStringLiteral("EK3_SRC1_YAW"),0);
+  QVERIFY(QMetaObject::invokeMethod(&h,"_refresh",Qt::DirectConnection));
+  QVERIFY(h.compassIdentity().contains(QStringLiteral("COMPASS_DEV_ID2")));
+  QVERIFY(h.compassUseStatus().contains(QStringLiteral("Busola 1: dezactivat")));
+  QVERIFY(h.compassUseStatus().contains(QStringLiteral("Busola 2: activ")));
+  QVERIFY(h.compassUseStatus().contains(QStringLiteral("IST8310")));
+  QVERIFY(h.compassPriorityStatus().contains(QStringLiteral("DUPLICAT cu prioritatea 1")));
+  QVERIFY(h.compassStatus().contains(QStringLiteral("EK3_SRC1_YAW=0")));
+  QVERIFY(!h.compassFallbackActive());
+  // Correcting only the EKF source-set configuration in a simulated
+  // readback does not issue any command to the real H743.
+  pm->setFact(QStringLiteral("EK3_SRC1_YAW"),3);
+  QVERIFY(QMetaObject::invokeMethod(&h,"_refresh",Qt::DirectConnection));
+  QVERIFY(!h.compassStatus().contains(QStringLiteral("COMPASS_USE=0:")));
+  QCOMPARE(h.ekfYawMode(),3);
+  QVERIFY(!h.compassFallbackActive()); // no EKF transition event
+  // If IST8310's own flag is disabled, the read-only warning says so.
+  pm->setFact(QStringLiteral("COMPASS_USE2"),0);
+  QVERIFY(QMetaObject::invokeMethod(&h,"_refresh",Qt::DirectConnection));
+  QVERIFY(h.compassStatus().contains(QStringLiteral("dezactivate pentru yaw")));
+ }
  void shortGyroHoldoverExpires(){
   Vehicle v;NavoGnssHeading h;h.setVehicle(&v);h.setLinkAlive(true);
   h.setAutopilotHeadingDeg(201);gps(v,20000);gps(v,65535);
