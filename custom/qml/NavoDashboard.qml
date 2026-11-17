@@ -1615,7 +1615,8 @@ Item {
                     GnssLine { name: "Busolă externă / IST8310"; value: gnssHeading.compassFallbackActive ? Number(gnssHeading.selectedHeadingDeg).toFixed(2) + "° (EKF3)" : "--" }
                     GnssLine { name: "H743 / EKF (estimare)"; value: root.vehicle && root.vehicle.heading && root.linkAlive && isFinite(Number(root.vehicle.heading.rawValue)) ? Number(root.vehicle.heading.rawValue).toFixed(2) + "°" : "--" }
                     GnssLine { name: "Rezervă magnetică"; value: gnssHeading.compassHealthy ? "Magnetometru HEALTHY" : "Indisponibil / nevalidat" }
-                    GnssLine { name: "EKF3 yaw source"; value: gnssHeading.ekfYawMode >= 0 ? String(gnssHeading.ekfYawMode) + (gnssHeading.ekfYawMode === 3 ? " • GPS + busolă" : "") : "Parametru necitit" }
+                    GnssLine { name: "ID busolă (parametri H743)"; value: gnssHeading.compassDeviceStatus }
+                    GnssLine { name: "EKF3 yaw configurat (SRC1)"; value: gnssHeading.ekfYawMode >= 0 ? String(gnssHeading.ekfYawMode) + (gnssHeading.ekfYawMode === 3 ? " • GPS + rezervă busolă" : gnssHeading.ekfYawMode === 2 ? " • GPS" : "") : gnssHeading.parameterReadStatus }
                     Label { Layout.fillWidth: true; text: gnssHeading.compassStatus; color: gnssHeading.compassFallbackActive ? "#31d6a5" : "#ffd166"; font.pixelSize: 11; wrapMode: Text.WordWrap }
                     GnssLine { name: "Vechime orientare GNSS"; value: gnssHeading.gpsYawValid ? String(gnssHeading.gpsYawAgeMs) + " ms" : "--" }
                     Label { Layout.fillWidth: true; text: gnssHeading.headingDetail; color: gnssHeading.gpsYawValid ? "#31d6a5" : "#ffd166"; wrapMode: Text.WordWrap; font.pixelSize: 11 }
@@ -1644,6 +1645,7 @@ Item {
                             text: "Verifică GPS"
                             implicitHeight: 34
                             onClicked: {
+                                gnssHeading.requestDiagnosticParameters()
                                 if (!root.vehicle) gnssDiagnostic.checkResult = "H743 nu este conectat. Verifică MAVLink."
                                 else if (!root.vehicle.gps) gnssDiagnostic.checkResult = "H743 conectat, dar nu raportează GPS. Verifică UART, alimentarea UM982 și SERIALx_PROTOCOL."
                                 else if (Number(root.vehicle.gps.lock.rawValue) < 3) gnssDiagnostic.checkResult = "GPS raportat, fără fix 3D. Verifică antenele și vizibilitatea cerului."
@@ -1662,6 +1664,9 @@ Item {
         onOpened: {
             checkResult = ""
             gnssScroll.contentY = 0
+            // QGC may have loaded its parameter cache before NAVO connected.
+            // This requests a bounded readback, never a parameter write.
+            gnssHeading.requestDiagnosticParameters()
         }
     }
 
