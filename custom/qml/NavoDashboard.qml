@@ -1615,8 +1615,11 @@ Item {
                     GnssLine { name: "Busolă externă / IST8310"; value: gnssHeading.compassFallbackActive ? Number(gnssHeading.selectedHeadingDeg).toFixed(2) + "° (EKF3)" : "--" }
                     GnssLine { name: "H743 / EKF (estimare)"; value: root.vehicle && root.vehicle.heading && root.linkAlive && isFinite(Number(root.vehicle.heading.rawValue)) ? Number(root.vehicle.heading.rawValue).toFixed(2) + "°" : "--" }
                     GnssLine { name: "Rezervă magnetică"; value: gnssHeading.compassHealthy ? "Magnetometru HEALTHY" : "Indisponibil / nevalidat" }
-                    GnssLine { name: "EKF3 yaw source"; value: gnssHeading.ekfYawMode >= 0 ? String(gnssHeading.ekfYawMode) + (gnssHeading.ekfYawMode === 3 ? " • GPS + busolă" : "") : "Parametru necitit" }
+                    GnssLine { name: "EKF3 yaw source"; value: gnssHeading.ekfYawStatus }
+                    Label { Layout.fillWidth: true; text: gnssHeading.compassIdentity; color: "#a9d9ed"; font.pixelSize: 11; wrapMode: Text.WordWrap }
+                    Label { Layout.fillWidth: true; text: gnssHeading.compassPriorityStatus; color: "#a9d9ed"; font.pixelSize: 11; wrapMode: Text.WordWrap }
                     Label { Layout.fillWidth: true; text: gnssHeading.compassStatus; color: gnssHeading.compassFallbackActive ? "#31d6a5" : "#ffd166"; font.pixelSize: 11; wrapMode: Text.WordWrap }
+                    Label { Layout.fillWidth: true; text: gnssHeading.parameterReadStatus; color: "#9cc4d7"; font.pixelSize: 10; wrapMode: Text.WordWrap }
                     GnssLine { name: "Vechime orientare GNSS"; value: gnssHeading.gpsYawValid ? String(gnssHeading.gpsYawAgeMs) + " ms" : "--" }
                     Label { Layout.fillWidth: true; text: gnssHeading.headingDetail; color: gnssHeading.gpsYawValid ? "#31d6a5" : "#ffd166"; wrapMode: Text.WordWrap; font.pixelSize: 11 }
                     Rectangle { Layout.fillWidth: true; height: 1; color: "#174e68" }
@@ -1639,6 +1642,19 @@ Item {
                     }
                     RowLayout {
                         Layout.fillWidth: true
+                        Button {
+                            objectName: "gnssCompassEkfRefresh"
+                            text: gnssHeading.parameterRefreshPending ? "Se citește…" : "Reverifică busola și EKF3"
+                            enabled: root.linkAlive && !!root.vehicle && !gnssHeading.parameterRefreshPending
+                            implicitHeight: 34
+                            onClicked: gnssHeading.requestDiagnosticParameters()
+                            background: Rectangle { radius: 9; color: "#103044"; border.color: "#20d9ed" }
+                            contentItem: Label {
+                                text: parent.text; color: parent.enabled ? "#20d9ed" : "#7598a8"
+                                font.pixelSize: 11; horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
+                            }
+                        }
                         Item { Layout.fillWidth: true }
                         Button {
                             text: "Verifică GPS"
