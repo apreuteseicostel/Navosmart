@@ -49,6 +49,35 @@ Requested names are `EK3_SRC1_YAW`, `EK3_SRC2_YAW`, `EK3_SRC3_YAW`,
   from the QGC manager; the refresh status times out after 6.5 seconds.
 - Link loss, source vehicle switch and reconnect reset displayed state.
 
+
+## Observed physical diagnostics (evening, 17 November 2026)
+
+The latest NAVO readback on the real Matek H743 shows **12 MAVLink
+parameter responses**, `COMPASS_DEV_ID2=658953` (IST8310, I2C bus 1,
+address 0x0e), `EK3_SRC1_YAW=0` (None), `COMPASS_USE=0`,
+and **the same ID 658953 reported in both `COMPASS_PRIO1_ID` and
+`COMPASS_PRIO2_ID`**. Valid GPS 3D fix does not imply GNSS yaw;
+the displayed GNSS heading is unavailable in these photos.
+
+This is not evidence that IST8310 itself is broken:
+`COMPASS_USE=0` controls Compass1 but the detected IST8310 is
+Compass2. `COMPASS_USE2` must be inspected independently before saying
+it is available/disabled for yaw. The readback UI now shows flags for
+each detected compass slot, warns about duplicate priority device IDs,
+and gives `EK3_SRC1_YAW=0` precedence as the primary EKF source
+configuration concern. The app's conservative EKF magnetic fallback
+display is now permitted from a **configured Compass2** only when an
+actual EKF3 fallback transition event, healthy magnetometer and valid
+H743 yaw are also present; this makes no autopilot parameter change.
+
+Before making any hardware setting adjustments, separately read
+`COMPASS_USE2`, `EK3_SRC2_YAW`, `EK3_SRC3_YAW`, and
+`EK3_SRC_OPTIONS`, verify compass calibration/orientation, and confirm
+the dual-antenna GNSS yaw outdoors. Duplicate priority IDs need an
+ArduPilot-side review; never count them as two independent compasses.
+Do not set `EK3_SRC1_YAW=3` blindly or enable AUTO based on this
+diagnostic alone.
+
 ## Safety
 
 No `PARAM_SET`, no ArduPilot writes, no reboot, compass calibration,
