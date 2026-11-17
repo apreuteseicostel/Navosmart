@@ -154,44 +154,52 @@ private slots:
   h.setVehicle(nullptr);
   QVERIFY(!h.parameterRefreshPending());
  }
- void ist8310AsCompass2DoesNotInheritDisabledCompass1AndDuplicatePriorityIsFlagged(){
+ void priorityIndexedYawUseDoesNotFollowDiscoveryIndexAndRejectsDuplicateIds(){
   Vehicle v;NavoGnssHeading h;h.setVehicle(&v);h.setLinkAlive(true);
   auto* pm=v.parameterManager();h.requestDiagnosticParameters();
   const quint32 ist=(0x0Au<<16)|(0x0Eu<<8)|(1u<<3)|1u;
+  // Detection slot 2 is independent of compass *priority* order.
   pm->setFact(QStringLiteral("COMPASS_DEV_ID"),0);
-  pm->setFact(QStringLiteral("COMPASS_USE"),0);
   pm->setFact(QStringLiteral("COMPASS_DEV_ID2"),ist);
+  pm->setFact(QStringLiteral("COMPASS_USE"),0);
   pm->setFact(QStringLiteral("COMPASS_USE2"),1);
   pm->setFact(QStringLiteral("COMPASS_PRIO1_ID"),ist);
   pm->setFact(QStringLiteral("COMPASS_PRIO2_ID"),ist);
   pm->setFact(QStringLiteral("EK3_SRC1_YAW"),0);
   QVERIFY(QMetaObject::invokeMethod(&h,"_refresh",Qt::DirectConnection));
   QVERIFY(h.compassIdentity().contains(QStringLiteral("COMPASS_DEV_ID2")));
-  QVERIFY(h.compassUseStatus().contains(QStringLiteral("Busola 1: dezactivat")));
-  QVERIFY(h.compassUseStatus().contains(QStringLiteral("Busola 2: activ")));
-  QVERIFY(h.compassUseStatus().contains(QStringLiteral("IST8310")));
+  QVERIFY(h.compassUseStatus().contains(QStringLiteral("Prioritate 1: dezactivat")));
+  QVERIFY(h.compassUseStatus().contains(QStringLiteral("Prioritate 2: activ")));
   QVERIFY(h.compassPriorityStatus().contains(QStringLiteral("DUPLICAT cu prioritatea 1")));
   QVERIFY(h.compassStatus().contains(QStringLiteral("EK3_SRC1_YAW=0")));
   QVERIFY(!h.compassFallbackActive());
-  // Correcting only the EKF source-set configuration in a simulated
-  // readback does not issue any command to the real H743.
   pm->setFact(QStringLiteral("EK3_SRC1_YAW"),3);
   QVERIFY(QMetaObject::invokeMethod(&h,"_refresh",Qt::DirectConnection));
-  QVERIFY(!h.compassStatus().contains(QStringLiteral("COMPASS_USE=0:")));
-  QCOMPARE(h.ekfYawMode(),3);
-  QVERIFY(!h.compassFallbackActive()); // no EKF transition event
-  // Confirmed EKF3 magnetic transition may legitimately use Compass2 even
-  // when Compass1 (COMPASS_USE=0) is disabled. Still no H743 writes.
+  QVERIFY(h.compassStatus().contains(QStringLiteral("ID DUPLICAT")));
   h.setAutopilotHeadingDeg(133);
-  gps(v,20000);gps(v,65535);
-  mag(v,true,true);
+  gps(v,20000);gps(v,65535);mag(v,true,true);
   event(v,"EKF3 IMU0 yaw fallback active");
+  QVERIFY(!h.compassFallbackActive()); // duplicate priorities fail closed
+  // Remove duplicate priority. Priority 1 points to detected slot 2,
+  // but USE (priority 1) remains 0 -> no magnetic fallback.
+  pm->setFact(QStringLiteral("COMPASS_PRIO2_ID"),0);
+  QVERIFY(QMetaObject::invokeMethod(&h,"_refresh",Qt::DirectConnection));
+  QVERIFY(!h.compassFallbackActive());
+  pm->setFact(QStringLiteral("COMPASS_USE"),1);
+  QVERIFY(QMetaObject::invokeMethod(&h,"_refresh",Qt::DirectConnection));
   QVERIFY(h.compassFallbackActive());
   QCOMPARE(h.selectedHeadingDeg(),133.0);
-  // If IST8310's own flag is disabled, the read-only warning says so.
+  pm->setFact(QStringLiteral("COMPASS_USE"),0);
+  QVERIFY(QMetaObject::invokeMethod(&h,"_refresh",Qt::DirectConnection));
+  QVERIFY(!h.compassFallbackActive());
+  // Alternative valid second priority, even though DEV_ID2 matched
+  // both cases. USE2 applies to priority 2, not discovery slot 2.
+  pm->setFact(QStringLiteral("COMPASS_PRIO1_ID"),0);
+  pm->setFact(QStringLiteral("COMPASS_PRIO2_ID"),ist);
+  QVERIFY(QMetaObject::invokeMethod(&h,"_refresh",Qt::DirectConnection));
+  QVERIFY(h.compassFallbackActive());
   pm->setFact(QStringLiteral("COMPASS_USE2"),0);
   QVERIFY(QMetaObject::invokeMethod(&h,"_refresh",Qt::DirectConnection));
-  QVERIFY(h.compassStatus().contains(QStringLiteral("dezactivate pentru yaw")));
   QVERIFY(!h.compassFallbackActive());
  }
  void shortGyroHoldoverExpires(){
