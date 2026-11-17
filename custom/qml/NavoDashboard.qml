@@ -3016,12 +3016,62 @@ Item {
     Component {
         id: bathymetryPage
         Item {
+            Rectangle {
+                id: liveBathyBar
+                objectName: "navoLiveBathymetryControls"
+                z: 2
+                anchors.left:parent.left;anchors.right:parent.right;anchors.top:parent.top
+                height:50;radius:7;color:"#101f2d";border.color:"#2c5971"
+                RowLayout {
+                    anchors.fill:parent;anchors.leftMargin:8;anchors.rightMargin:8;spacing:6
+                    Label {
+                        Layout.fillWidth:true;elide:Text.ElideRight
+                        color:root.sonarController.liveGpsUsable ? "#7adca8" : "#a9bed0"
+                        font.pixelSize:11
+                        text:sonar.replayMode ? "REPLAY • numai citire" :
+                            !scanCoordinator.lakeId.length ? "Selectează o baltă" :
+                            "BATIMETRIE " + (sonarMapping.liveMappingActive ?
+                            (sonarMapping.liveMappingPaused ? "PAUZĂ" : "LIVE") : "GPS + SONAR") +
+                            " • " + sonarMapping.rawSamples.length + " probe / " +
+                            scanCoordinator.bathymetryCells.length + " celule"
+                    }
+                    Button {
+                        objectName:"liveBathymetryToggle"
+                        implicitHeight:34;implicitWidth:root.compactUi?65:90
+                        text:sonarMapping.liveMappingActive ?
+                            (sonarMapping.liveMappingPaused ? "REIA" : "PAUZĂ") : "PORNEȘTE"
+                        enabled:!sonar.replayMode && scanCoordinator.lakeId.length>0 &&
+                            (sonarMapping.liveMappingActive ?
+                             (sonarMapping.liveMappingPaused ? sonar.liveGpsUsable && root.sonarConnected : true) :
+                             sonar.liveGpsUsable && root.sonarConnected &&
+                             (scanCoordinator.state==="IDLE" || scanCoordinator.state==="COMPLETE"))
+                        onClicked: {
+                            if(!sonarMapping.liveMappingActive)root.startLiveBathymetry()
+                            else if(sonarMapping.liveMappingPaused)root.resumeLiveBathymetry()
+                            else root.pauseLiveBathymetry()
+                        }
+                    }
+                    Button {
+                        objectName:"liveBathymetrySave"
+                        implicitHeight:34;implicitWidth:root.compactUi?80:125
+                        text:root.compactUi?"SALVEAZĂ":"OPREȘTE + SALVEAZĂ"
+                        enabled:!sonar.replayMode && sonarMapping.liveMappingActive
+                        onClicked:root.finishLiveBathymetry()
+                    }
+                }
+            }
             NavoBathymetry3D {
-                anchors.fill: parent
-                // Use the active/restored lake session, not the global sonar history.
-                // restoreLake() repopulates rawSamples from the selected lake checkpoint.
-                samples: sonar.replayMode ? replayMapping.rawSamples : sonarMapping.rawSamples
-                boatTrack: sonar.replayMode ? replayMapping.trackCoordinates : (sonarMapping.trackCoordinates.length ? sonarMapping.trackCoordinates : root.coordinatesFromSonarSamples(sonarMapping.rawSamples))
+                anchors.fill:parent
+                anchors.topMargin:liveBathyBar.height+2
+                // A bounded snapshot updates every 2.5s while mapping, not
+                // one expensive 3D mesh rebuild on every individual ping.
+                samples: sonar.replayMode ? replayMapping.rawSamples :
+                    ((sonarMapping.scanning || sonarMapping.liveMappingActive) &&
+                     root.liveBathymetryPreviewSamples.length ?
+                     root.liveBathymetryPreviewSamples : sonarMapping.rawSamples)
+                boatTrack: sonar.replayMode ? replayMapping.trackCoordinates :
+                    (sonarMapping.trackCoordinates.length ? sonarMapping.trackCoordinates :
+                     root.coordinatesFromSonarSamples(sonarMapping.rawSamples))
                 fishingSpots: sonar.replayMode ? [] : root.fishingSpotsController.fishingSpots
                 fishDetections: sonar.replayMode ? [] : root.fishDetections
                 onOpenSonarRequested: root.activePage = 10
