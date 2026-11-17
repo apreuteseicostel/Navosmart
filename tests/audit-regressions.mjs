@@ -449,6 +449,31 @@ test('Live bathymetry preview is bounded, updates the selected lake and checkpoi
  c.sonar.replayMode=true;scan.lakeId='lake1';
  assert.equal(c.startLiveBathymetry(),false);
 });
+test('Restored GPS-only bathymetry can resume manually without reviving Area Scan',()=>{
+ const saved=[];
+ const mapping={scanning:true,paused:true,liveMappingActive:false,lakeId:'lake1',
+   rawSamples:[{lat:52,lon:-1,depth:3},{lat:52.00001,lon:-1,depth:4},{lat:52.00002,lon:-1,depth:5}],
+   startLiveMapping(){if(this.scanning)return false;this.liveMappingActive=true;return true},
+   stopLiveMapping(){this.liveMappingActive=false;return true}};
+ const coordinator={state:'PAUSED',lakeId:'lake1',bathymetryCells:[],
+   checkpoint(reason){saved.push(reason);return true}};
+ const c=context('NavoDashboard.qml',{sonar:{replayMode:false,liveGpsUsable:true},
+   scanCoordinator:coordinator,sonarMapping:mapping,
+   areaScanController:{generatedPoints:[]},sonarConnected:true,
+   routePlan:{active:false},baitingController:{enabled:false},awaitingMissionStart:false,
+   bathymetryModel:{rebuild(arr){return arr.map(x=>({depth:x.depth}))}},
+   liveBathymetryPreviewLakeId:'',liveBathymetryPreviewCount:0,
+   liveBathymetryPreviewSamples:[],lastNavigationStatus:''});
+ assert.equal(c.startLiveBathymetry(),true);
+ assert.equal(mapping.scanning,false);assert.equal(mapping.paused,false);
+ assert.equal(mapping.liveMappingActive,true);
+ assert.equal(coordinator.state,'PAUSED');
+ assert.deepEqual(saved,['live-bathymetry-start']);
+ mapping.liveMappingActive=false;mapping.scanning=true;mapping.paused=true;
+ c.areaScanController.generatedPoints=[{lat:52,lon:-1}];
+ assert.equal(c.startLiveBathymetry(),false);
+ assert.equal(mapping.scanning,true);
+});
 test('Live bathymetry UI displays GPS-gated controls and never sends RC/mission commands',()=>{
  const dash=fs.readFileSync(path.join(dir,'NavoDashboard.qml'),'utf8');
  const sonar=fs.readFileSync(path.join(dir,'NavoSonarMapping.qml'),'utf8');
