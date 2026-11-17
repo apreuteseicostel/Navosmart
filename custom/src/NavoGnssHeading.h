@@ -101,6 +101,7 @@ private:
     static constexpr qint64 kInertialHoldoverMs = 12000;
     void _reset();
     void _readParameterFacts();
+    bool _compassConfiguredForYaw() const;
     void _queueInitialParameterRead();
     static bool _decodeCompassDeviceId(const QVariant& raw, quint32& id, int& busType, int& bus, int& address, int& deviceType);
     void _observe(Receiver&, uint8_t fix, uint8_t satellites, uint16_t rawYaw);
